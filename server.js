@@ -108,3 +108,16 @@ app.listen(PORT, '0.0.0.0', () => {
   console.log(`✅ Beds24 Token: ${BEDS24_TOKEN ? 'Configured' : 'Missing'}`);
   console.log(`🏨 Property ID: ${PROPERTY_ID}`);
 });
+
+// Special endpoint to exchange invite code for refresh token
+app.post('/api/setup-auth', async (req, res) => {
+  const { inviteCode } = req.body;
+  try {
+    const response = await axios.get(
+      `https://beds24.com/api/v2/authentication/setup?code=${encodeURIComponent(inviteCode)}`
+    );
+    res.json({ success: true, refreshToken: response.data.refreshToken });
+  } catch (error) {
+    res.json({ success: false, error: error.response?.data || error.message });
+  }
+});
