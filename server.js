@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 3000;
 // Database connection
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: { rejectUnauthorized: false }
 });
 
 // Test database connection
@@ -50,42 +50,82 @@ async function beds24Request(endpoint, method = 'GET', data = null) {
   }
 }
 
-// ==================== DATABASE API ROUTES ====================
+// Health check
+app.get('/api/health', (req, res) => {
+  res.json({
+    status: 'ok',
+    database: !!process.env.DATABASE_URL,
+    beds24: !!BEDS24_TOKEN,
+    timestamp: new Date().toISOString()
+  });
+});
 
-// Get all properties from database
-app.get('/api/db/properties', async (req, res) => {
+// Database setup endpoint
+app.get('/api/setup-database', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT p.*, 
-        (SELECT COUNT(*) FROM rooms WHERE property_id = p.id AND active = true) as room_count,
-        (SELECT AVG(rating) FROM reviews WHERE property_id = p.id) as avg_rating
-      FROM properties p
-      WHERE active = true
-      ORDER BY created_at DESC
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS properties (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        address TEXT,
+        city VARCHAR(100),
+        country VARCHAR(100),
+        property_type VARCHAR(50),
+        star_rating INTEGER,
+        hero_image_url TEXT,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    res.json({ success: true, data: result.rows });
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS rooms (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        max_occupancy INTEGER,
+        max_adults INTEGER,
+        max_children INTEGER,
+        base_price DECIMAL(10, 2),
+        currency VARCHAR(3) DEFAULT 'USD',
+        quantity INTEGER DEFAULT 1,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bookings (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES properties(id),
+        room_id INTEGER REFERENCES rooms(id),
+        check_in DATE NOT NULL,
+        check_out DATE NOT NULL,
+        num_adults INTEGER NOT NULL,
+        num_children INTEGER DEFAULT 0,
+        guest_first_name VARCHAR(100) NOT NULL,
+        guest_last_name VARCHAR(100) NOT NULL,
+        guest_email VARCHAR(255) NOT NULL,
+        guest_phone VARCHAR(50),
+        total_price DECIMAL(10, 2) NOT NULL,
+        status VARCHAR(50) DEFAULT 'confirmed',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    res.json({ success: true, message: 'Database tables created!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
 
-// Get single property
-app.get('/api/db/properties/:id', async (req, res) => {
+// Get all properties
+app.get('/api/db/properties', async (req, res) => {
   try {
-    const property = await pool.query('SELECT * FROM properties WHERE id = $1', [req.params.id]);
-    const rooms = await pool.query('SELECT * FROM rooms WHERE property_id = $1 AND active = true', [req.params.id]);
-    const images = await pool.query('SELECT * FROM property_images WHERE property_id = $1 ORDER BY sort_order', [req.params.id]);
-    const reviews = await pool.query('SELECT * FROM reviews WHERE property_id = $1 ORDER BY created_at DESC LIMIT 10', [req.params.id]);
-    
-    res.json({
-      success: true,
-      data: {
-        property: property.rows[0],
-        rooms: rooms.rows,
-        images: images.rows,
-        reviews: reviews.rows
-      }
-    });
+    const result = await pool.query('SELECT * FROM properties WHERE active = true');
+    res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -111,7 +151,7 @@ app.get('/api/db/rooms', async (req, res) => {
   const { propertyId } = req.query;
   try {
     const result = await pool.query(
-      'SELECT * FROM rooms WHERE property_id = $1 AND active = true ORDER BY base_price',
+      'SELECT * FROM rooms WHERE property_id = $1 AND active = true',
       [propertyId]
     );
     res.json({ success: true, data: result.rows });
@@ -122,40 +162,14 @@ app.get('/api/db/rooms', async (req, res) => {
 
 // Create room
 app.post('/api/db/rooms', async (req, res) => {
-  const { property_id, name, description, room_type, max_occupancy, max_adults, max_children, base_price, quantity } = req.body;
+  const { property_id, name, description, max_occupancy, max_adults, max_children, base_price, quantity } = req.body;
   try {
     const result = await pool.query(
-      `INSERT INTO rooms (property_id, name, description, room_type, max_occupancy, max_adults, max_children, base_price, quantity)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *`,
-      [property_id, name, description, room_type, max_occupancy, max_adults, max_children, base_price, quantity]
+      `INSERT INTO rooms (property_id, name, description, max_occupancy, max_adults, max_children, base_price, quantity)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [property_id, name, description, max_occupancy, max_adults, max_children, base_price, quantity]
     );
     res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Check availability
-app.post('/api/db/availability', async (req, res) => {
-  const { roomId, checkIn, checkOut } = req.body;
-  try {
-    // Check if room has availability records
-    const result = await pool.query(
-      `SELECT date, available_quantity, price, closed 
-       FROM availability 
-       WHERE room_id = $1 AND date >= $2 AND date < $3
-       ORDER BY date`,
-      [roomId, checkIn, checkOut]
-    );
-    
-    const isAvailable = result.rows.length > 0 && 
-                        result.rows.every(day => !day.closed && day.available_quantity > 0);
-    
-    res.json({ 
-      success: true, 
-      available: isAvailable,
-      calendar: result.rows
-    });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -166,28 +180,17 @@ app.post('/api/db/book', async (req, res) => {
   const {
     property_id, room_id, check_in, check_out,
     num_adults, num_children, guest_first_name, guest_last_name,
-    guest_email, guest_phone, total_price, special_requests
+    guest_email, guest_phone, total_price
   } = req.body;
   
   try {
     const result = await pool.query(
       `INSERT INTO bookings 
        (property_id, room_id, check_in, check_out, num_adults, num_children,
-        guest_first_name, guest_last_name, guest_email, guest_phone,
-        total_price, special_requests, status)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'confirmed')
-       RETURNING *`,
+        guest_first_name, guest_last_name, guest_email, guest_phone, total_price, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'confirmed') RETURNING *`,
       [property_id, room_id, check_in, check_out, num_adults, num_children,
-       guest_first_name, guest_last_name, guest_email, guest_phone,
-       total_price, special_requests]
-    );
-    
-    // Reduce availability
-    await pool.query(
-      `UPDATE availability 
-       SET available_quantity = available_quantity - 1
-       WHERE room_id = $1 AND date >= $2 AND date < $3`,
-      [room_id, check_in, check_out]
+       guest_first_name, guest_last_name, guest_email, guest_phone, total_price]
     );
     
     res.json({ success: true, data: result.rows[0] });
@@ -199,42 +202,38 @@ app.post('/api/db/book', async (req, res) => {
 // Get all bookings
 app.get('/api/db/bookings', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT b.*, p.name as property_name, r.name as room_name
-      FROM bookings b
-      JOIN properties p ON b.property_id = p.id
-      JOIN rooms r ON b.room_id = r.id
-      ORDER BY b.created_at DESC
-      LIMIT 100
-    `);
+    const result = await pool.query('SELECT * FROM bookings ORDER BY created_at DESC LIMIT 100');
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
 
-// ==================== BEDS24 SYNC ROUTES ====================
+// Legacy Beds24 routes
+app.get('/api/properties', async (req, res) => {
+  const result = await beds24Request('/properties');
+  res.json(result);
+});
 
-// Sync property from Beds24 to database
-app.post('/api/sync/property-from-beds24', async (req, res) => {
-  const { beds24PropertyId } = req.body;
-  
+app.post('/api/setup-auth', async (req, res) => {
+  const { inviteCode } = req.body;
   try {
-    // Get property from Beds24
-    const beds24Property = await beds24Request(`/properties/${beds24PropertyId}`);
-    
-    if (!beds24Property.success) {
-      return res.json({ success: false, error: 'Failed to fetch from Beds24' });
-    }
-    
-    // Insert into our database
-    const prop = beds24Property.data;
-    const result = await pool.query(
-      `INSERT INTO properties (name, description, address, city, country)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *`,
-      [prop.name, prop.description, prop.address, prop.city, prop.country]
+    const response = await axios.get(
+      `https://beds24.com/api/v2/authentication/setup?code=${encodeURIComponent(inviteCode)}`
     );
-    
-    // Save sync mapping
-    await pool.query(
-      `INSER
+    res.json({ success: true, refreshToken: response.data.refreshToken });
+  } catch (error) {
+    res.json({ success: false, error: error.response?.data || error.message });
+  }
+});
+
+// Serve frontend
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(`🗄️ Database: ${process.env.DATABASE_URL ? 'Connected' : 'Not configured'}`);
+  console.log(`🔗 Beds24: ${BEDS24_TOKEN ? 'Configured' : 'Not configured'}`);
+});
