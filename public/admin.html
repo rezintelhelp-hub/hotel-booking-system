@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Panel - Hotel Booking</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #333; margin-bottom: 30px; }
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #ddd;
+        }
+        .tab {
+            padding: 15px 30px;
+            background: white;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 8px 8px 0 0;
+        }
+        .tab.active {
+            background: #667eea;
+            color: white;
+        }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .form-box {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 30px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #333;
+        }
+        input, textarea, select {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        textarea { min-height: 100px; }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button:hover { background: #5568d3; }
+        .success { 
+            background: #d4edda; 
+            color: #155724; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+        }
+        .error { 
+            background: #f8d7da; 
+            color: #721c24; 
+            padding: 15px; 
+            border-radius: 8px; 
+            margin: 20px 0;
+        }
+        .list-item {
+            background: white;
+            padding: 20px;
+            margin-bottom: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        .list-item h3 { margin-bottom: 10px; color: #667eea; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏨 Admin Panel</h1>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('properties')">Properties</button>
+            <button class="tab" onclick="showTab('rooms')">Rooms</button>
+            <button class="tab" onclick="showTab('bookings')">Bookings</button>
+        </div>
+
+        <!-- PROPERTIES TAB -->
+        <div id="properties-tab" class="tab-content active">
+            <div class="form-box">
+                <h2>Add New Property</h2>
+                <div id="property-message"></div>
+                <form onsubmit="addProperty(event)">
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Property Name *</label>
+                            <input type="text" id="prop-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label>Property Type</label>
+                            <select id="prop-type">
+                                <option>Hotel</option>
+                                <option>Apartment</option>
+                                <option>Villa</option>
+                                <option>Resort</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="prop-description"></textarea>
+                    </div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Address</label>
+                            <input type="text" id="prop-address">
+                        </div>
+                        <div class="form-group">
+                            <label>City</label>
+                            <input type="text" id="prop-city">
+                        </div>
+                    </div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Country</label>
+                            <input type="text" id="prop-country">
+                        </div>
+                        <div class="form-group">
+                            <label>Star Rating</label>
+                            <select id="prop-rating">
+                                <option>1</option>
+                                <option>2</option>
+                                <option>3</option>
+                                <option selected>4</option>
+                                <option>5</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit">Add Property</button>
+                </form>
+            </div>
+
+            <h2>Your Properties</h2>
+            <div id="properties-list"></div>
+        </div>
+
+        <!-- ROOMS TAB -->
+        <div id="rooms-tab" class="tab-content">
+            <div class="form-box">
+                <h2>Add New Room</h2>
+                <div id="room-message"></div>
+                <form onsubmit="addRoom(event)">
+                    <div class="form-group">
+                        <label>Select Property *</label>
+                        <select id="room-property" required></select>
+                    </div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Room Name *</label>
+                            <input type="text" id="room-name" required placeholder="e.g. Deluxe Suite">
+                        </div>
+                        <div class="form-group">
+                            <label>Base Price (USD) *</label>
+                            <input type="number" id="room-price" required step="0.01">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="room-description"></textarea>
+                    </div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Max Adults</label>
+                            <input type="number" id="room-adults" value="2">
+                        </div>
+                        <div class="form-group">
+                            <label>Max Children</label>
+                            <input type="number" id="room-children" value="1">
+                        </div>
+                    </div>
+                    <div class="grid">
+                        <div class="form-group">
+                            <label>Max Occupancy</label>
+                            <input type="number" id="room-occupancy" value="3">
+                        </div>
+                        <div class="form-group">
+                            <label>Quantity</label>
+                            <input type="number" id="room-quantity" value="1">
+                        </div>
+                    </div>
+                    <button type="submit">Add Room</button>
+                </form>
+            </div>
+
+            <h2>All Rooms</h2>
+            <div id="rooms-list"></div>
+        </div>
+
+        <!-- BOOKINGS TAB -->
+        <div id="bookings-tab" class="tab-content">
+            <h2>Recent Bookings</h2>
+            <div id="bookings-list"></div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+            event.target.classList.add('active');
+            document.getElementById(tab + '-tab').classList.add('active');
+            
+            if (tab === 'properties') loadProperties();
+            if (tab === 'rooms') { loadProperties(); loadRooms(); }
+            if (tab === 'bookings') loadBookings();
+        }
+
+        async function addProperty(e) {
+            e.preventDefault();
+            const data = {
+                name: document.getElementById('prop-name').value,
+                description: document.getElementById('prop-description').value,
+                address: document.getElementById('prop-address').value,
+                city: document.getElementById('prop-city').value,
+                country: document.getElementById('prop-country').value,
+                property_type: document.getElementById('prop-type').value,
+                star_rating: parseInt(document.getElementById('prop-rating').value)
+            };
+
+            const res = await fetch('/api/db/properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+                document.getElementById('property-message').innerHTML = '<div class="success">✅ Property added!</div>';
+                e.target.reset();
+                loadProperties();
+            } else {
+                document.getElementById('property-message').innerHTML = '<div class="error">❌ Error: ' + result.error + '</div>';
+            }
+        }
+
+        async function loadProperties() {
+            const res = await fetch('/api/db/properties');
+            const result = await res.json();
+            
+            if (result.success) {
+                const list = document.getElementById('properties-list');
+                const select = document.getElementById('room-property');
+                
+                list.innerHTML = result.data.map(p => `
+                    <div class="list-item">
+                        <h3>${p.name}</h3>
+                        <p>${p.description || ''}</p>
+                        <p><strong>Location:</strong> ${p.city || ''}, ${p.country || ''}</p>
+                        <p><strong>Type:</strong> ${p.property_type || 'N/A'} | <strong>Rating:</strong> ${p.star_rating || 'N/A'} ⭐</p>
+                    </div>
+                `).join('');
+                
+                select.innerHTML = '<option value="">Select property...</option>' + 
+                    result.data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+            }
+        }
+
+        async function addRoom(e) {
+            e.preventDefault();
+            const data = {
+                property_id: parseInt(document.getElementById('room-property').value),
+                name: document.getElementById('room-name').value,
+                description: document.getElementById('room-description').value,
+                max_adults: parseInt(document.getElementById('room-adults').value),
+                max_children: parseInt(document.getElementById('room-children').value),
+                max_occupancy: parseInt(document.getElementById('room-occupancy').value),
+                base_price: parseFloat(document.getElementById('room-price').value),
+                quantity: parseInt(document.getElementById('room-quantity').value)
+            };
+
+            const res = await fetch('/api/db/rooms', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+            const result = await res.json();
+            
+            if (result.success) {
+                document.getElementById('room-message').innerHTML = '<div class="success">✅ Room added!</div>';
+                e.target.reset();
+                loadRooms();
+            } else {
+                document.getElementById('room-message').innerHTML = '<div class="error">❌ Error: ' + result.error + '</div>';
+            }
+        }
+
+        async function loadRooms() {
+            const propertyId = document.getElementById('room-property').value;
+            if (!propertyId) return;
+            
+            const res = await fetch('/api/db/rooms?propertyId=' + propertyId);
+            const result = await res.json();
+            
+            if (result.success) {
+                document.getElementById('rooms-list').innerHTML = result.data.map(r => `
+                    <div class="list-item">
+                        <h3>${r.name}</h3>
+                        <p>${r.description || ''}</p>
+                        <p><strong>Price:</strong> $${r.base_price} per night</p>
+                        <p><strong>Capacity:</strong> ${r.max_adults} adults, ${r.max_children} children</p>
+                        <p><strong>Available:</strong> ${r.quantity} rooms</p>
+                    </div>
+                `).join('');
+            }
+        }
+
+        async function loadBookings() {
+            const res = await fetch('/api/db/bookings');
+            const result = await res.json();
+            
+            if (result.success) {
+                document.getElementById('bookings-list').innerHTML = result.data.map(b => `
+                    <div class="list-item">
+                        <h3>Booking #${b.id} - ${b.status}</h3>
+                        <p><strong>Guest:</strong> ${b.guest_first_name} ${b.guest_last_name}</p>
+                        <p><strong>Email:</strong> ${b.guest_email}</p>
+                        <p><strong>Dates:</strong> ${b.check_in} to ${b.check_out}</p>
+                        <p><strong>Guests:</strong> ${b.num_adults} adults, ${b.num_children} children</p>
+                        <p><strong>Total:</strong> $${b.total_price}</p>
+                        <p><strong>Booked:</strong> ${new Date(b.created_at).toLocaleString()}</p>
+                    </div>
+                `).join('');
+            }
+        }
+
+        // Load properties on page load
+        loadProperties();
+    </script>
+</body>
+</html>
