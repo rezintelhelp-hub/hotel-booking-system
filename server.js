@@ -21,7 +21,7 @@ async function beds24Request(endpoint, method = 'GET', data = null) {
       method,
       url: `${BEDS24_API}${endpoint}`,
       headers: {
-        'token': BEDS24_TOKEN,
+        'token': BEDS24_TOKEN.trim(),
         'Content-Type': 'application/json'
       }
     };
