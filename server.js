@@ -98,7 +98,89 @@ app.get('/api/setup-users', async (req, res) => {
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+
+// Add after the /api/setup-database endpoint
+
+// Create users table
+app.get('/api/setup-users', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        company VARCHAR(255),
+        account_type VARCHAR(50) DEFAULT 'owner',
+        api_key VARCHAR(255) UNIQUE,
+        subscription_status VARCHAR(50) DEFAULT 'free',
+        subscription_plan VARCHAR(50),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     
+    res.json({ success: true, message: 'Users table created!' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Signup endpoint
+app.post('/api/auth/signup', async (req, res) => {
+  const { name, email, password, company, account_type } = req.body;
+  
+  try {
+    // Simple password hash (in production use bcrypt)
+    const passwordHash = Buffer.from(password).toString('base64');
+    
+    // Generate API key
+    const apiKey = 'gas_' + Math.random().toString(36).substring(2, 15) + Math.random().toString(36).substring(2, 15);
+    
+    const result = await pool.query(
+      `INSERT INTO users (name, email, password_hash, company, account_type, api_key)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, name, email, account_type, api_key`,
+      [name, email, passwordHash, company, account_type, apiKey]
+    );
+    
+    res.json({
+      success: true,
+      user: result.rows[0],
+      token: apiKey
+    });
+  } catch (error) {
+    if (error.code === '23505') { // Duplicate email
+      res.json({ success: false, error: 'Email already registered' });
+    } else {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Login endpoint
+app.post('/api/auth/login', async (req, res) => {
+  const { email, password } = req.body;
+  
+  try {
+    const passwordHash = Buffer.from(password).toString('base64');
+    
+    const result = await pool.query(
+      'SELECT id, name, email, account_type, api_key FROM users WHERE email = $1 AND password_hash = $2',
+      [email, passwordHash]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid email or password' });
+    }
+    
+    res.json({
+      success: true,
+      user: result.rows[0],
+      token: result.rows[0].api_key
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});    
     res.json({ success: true, message: 'Users table created!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
