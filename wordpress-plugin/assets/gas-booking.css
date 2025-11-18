@@ -1,0 +1,106 @@
+/* GAS Booking Plugin Styles */
+.gas-booking-search {
+    max-width: 1200px;
+    margin: 40px auto;
+}
+
+.gas-search-form {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    padding: 40px;
+    border-radius: 15px;
+    color: white;
+}
+
+.gas-search-form h2 {
+    margin-bottom: 30px;
+    color: white;
+}
+
+.gas-form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 20px;
+}
+
+.gas-form-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.gas-form-group input,
+.gas-form-group select {
+    width: 100%;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+}
+
+.gas-btn-primary {
+    background: white;
+    color: #667eea;
+    border: none;
+    padding: 15px 40px;
+    border-radius: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    display: inline-block;
+}
+
+.gas-btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.gas-properties-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 30px;
+    margin-top: 40px;
+}
+
+.gas-property-card {
+    background: white;
+    border-radius: 15px;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    transition: transform 0.3s;
+}
+
+.gas-property-card:hover {
+    transform: translateY(-5px);
+}
+
+.gas-property-image {
+    width: 100%;
+    height: 200px;
+    overflow: hidden;
+}
+
+.gas-property-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gas-property-content {
+    padding: 20px;
+}
+
+.gas-property-content h3 {
+    margin-bottom: 10px;
+    color: #333;
+}
+
+.gas-property-content p {
+    color: #666;
+    margin-bottom: 15px;
+}
+
+#gas-search-results {
+    margin-top: 40px;
+}
