@@ -262,7 +262,7 @@
                 if (result.success) {
                     messageEl.innerHTML = '<div class="message success">✅ Account created successfully!</div>';
                     setTimeout(() => {
-                        alert('Account created! Your API key: ' + result.token);
+                        window.location.href = '/dashboard.html?token=' + result.token;
                         closeModal('signupModal');
                     }, 1500);
                 } else {
