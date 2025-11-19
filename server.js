@@ -172,7 +172,7 @@ app.post('/api/setup-auth', async (req, res) => {
 
 // Import property from Airbnb/Booking.com URL
 app.post('/api/import-property', async (req, res) => {
-    });
+    }
     
     const htmlContent = pageResponse.data;
     
