@@ -256,6 +256,129 @@ Return this exact JSON structure:
   }
 });
 
+// Setup Beds24-compatible database schema
+app.get('/api/setup-beds24-schema', async (req, res) => {
+  try {
+    // Update Properties table
+    await pool.query(`
+      ALTER TABLE properties
+      ADD COLUMN IF NOT EXISTS phone VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS fax VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS website VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS contact_first_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS contact_last_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS postcode VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS state VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS latitude DECIMAL(10, 8),
+      ADD COLUMN IF NOT EXISTS longitude DECIMAL(11, 8),
+      ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'USD',
+      ADD COLUMN IF NOT EXISTS vat_rate DECIMAL(5, 2),
+      ADD COLUMN IF NOT EXISTS check_in_time TIME,
+      ADD COLUMN IF NOT EXISTS check_out_time TIME,
+      ADD COLUMN IF NOT EXISTS cancellation_policy TEXT,
+      ADD COLUMN IF NOT EXISTS house_rules TEXT,
+      ADD COLUMN IF NOT EXISTS beds24_property_id VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS beds24_last_sync TIMESTAMP
+    `);
+
+    // Property Images table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_images (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        image_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        caption TEXT,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Property Amenities table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_amenities (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        category VARCHAR(50),
+        amenity VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(property_id, amenity)
+      )
+    `);
+
+    // Update Rooms table
+    await pool.query(`
+      ALTER TABLE rooms
+      ADD COLUMN IF NOT EXISTS room_type VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS size_sqm DECIMAL(10, 2),
+      ADD COLUMN IF NOT EXISTS bed_configuration TEXT,
+      ADD COLUMN IF NOT EXISTS min_stay INTEGER DEFAULT 1,
+      ADD COLUMN IF NOT EXISTS max_stay INTEGER,
+      ADD COLUMN IF NOT EXISTS beds24_room_id VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS beds24_last_sync TIMESTAMP
+    `);
+
+    // Room Images table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_images (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
+        image_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        caption TEXT,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Room Amenities table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_amenities (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
+        category VARCHAR(50),
+        amenity VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(room_id, amenity)
+      )
+    `);
+
+    // Sync Log table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sync_log (
+        id SERIAL PRIMARY KEY,
+        channel_name VARCHAR(50) NOT NULL,
+        sync_type VARCHAR(50) NOT NULL,
+        entity_type VARCHAR(50),
+        entity_id INTEGER,
+        status VARCHAR(20) NOT NULL,
+        error_message TEXT,
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Create indexes
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_properties_beds24_id ON properties(beds24_property_id);
+      CREATE INDEX IF NOT EXISTS idx_rooms_beds24_id ON rooms(beds24_room_id);
+      CREATE INDEX IF NOT EXISTS idx_bookings_beds24_id ON bookings(beds24_booking_id)
+    `);
+
+    res.json({ 
+      success: true, 
+      message: 'Beds24 schema created successfully! Database is ready for sync.' 
+    });
+
+  } catch (error) {
+    console.error('Schema setup error:', error);
+    res.json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
