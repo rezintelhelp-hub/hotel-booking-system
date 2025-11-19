@@ -170,6 +170,57 @@ app.post('/api/setup-auth', async (req, res) => {
   }
 });
 
+async function importProperty() {
+    const url = document.getElementById('importUrl').value;
+    const statusEl = document.getElementById('import-status');
+    
+    if (!url) {
+        statusEl.innerHTML = '<p style="color: red;">Please enter a URL</p>';
+        return;
+    }
+    
+    statusEl.innerHTML = '<p style="color: blue;">⏳ Importing property data...</p>';
+    
+    try {
+        const res = await fetch('/api/import-property', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        
+        const result = await res.json();
+        
+        if (result.success) {
+            statusEl.innerHTML = '<p style="color: green;">✅ Property imported! Review and save below.</p>';
+            
+            // Auto-fill the form
+            const data = result.data;
+            document.getElementById('prop-name').value = data.property_name || '';
+            document.getElementById('prop-description').value = data.description || '';
+            document.getElementById('prop-address').value = data.address || '';
+            document.getElementById('prop-city').value = data.city || '';
+            document.getElementById('prop-country').value = data.country || '';
+            document.getElementById('prop-type').value = data.property_type || 'Hotel';
+            document.getElementById('prop-rating').value = data.star_rating || 4;
+            
+            // Show amenities
+            if (data.amenities && data.amenities.length > 0) {
+                statusEl.innerHTML += '<p><strong>Amenities found:</strong> ' + data.amenities.join(', ') + '</p>';
+            }
+            
+            // Show rooms
+            if (data.rooms && data.rooms.length > 0) {
+                statusEl.innerHTML += '<p><strong>Rooms found:</strong> ' + data.rooms.length + ' (you can add these after saving the property)</p>';
+                console.log('Room data:', data.rooms);
+            }
+        } else {
+            statusEl.innerHTML = '<p style="color: red;">❌ Import failed: ' + result.error + '</p>';
+        }
+    } catch (error) {
+        statusEl.innerHTML = '<p style="color: red;">❌ Error: ' + error.message + '</p>';
+    }
+}
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
