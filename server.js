@@ -230,9 +230,10 @@ Return this exact JSON structure:
       temperature: 0.7
     }, {
       headers: {
-        'Content-Type': 'application/json',
-        'anthropic-version': '2023-06-01'
-      }
+  'Content-Type': 'application/json',
+  'x-api-key': process.env.ANTHROPIC_API_KEY,
+  'anthropic-version': '2023-06-01'
+}
     });
     
     // Parse Claude's response
