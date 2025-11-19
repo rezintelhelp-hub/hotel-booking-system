@@ -172,18 +172,6 @@ app.post('/api/setup-auth', async (req, res) => {
 
 // Import property from Airbnb/Booking.com URL
 app.post('/api/import-property', async (req, res) => {
-  const { url } = req.body;
-  
-  if (!url) {
-    return res.json({ success: false, error: 'URL required' });
-  }
-  
-  try {
-    // Fetch the page content
-    const pageResponse = await axios.get(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
-      }
     });
     
     const htmlContent = pageResponse.data;
