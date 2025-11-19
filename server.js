@@ -379,6 +379,222 @@ app.get('/api/setup-beds24-schema', async (req, res) => {
   }
 });
 
+// Setup complete schema with all fields
+app.get('/api/setup-complete-schema', async (req, res) => {
+  try {
+    // Properties table - add all fields
+    await pool.query(`
+      ALTER TABLE properties
+      ADD COLUMN IF NOT EXISTS property_type VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS booking_type VARCHAR(50) DEFAULT 'Lodging',
+      ADD COLUMN IF NOT EXISTS permit_id VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS phone VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS email VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS fax VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS website VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS contact_first_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS contact_last_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS postcode VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS state VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT 'USD',
+      ADD COLUMN IF NOT EXISTS currency_symbol_before VARCHAR(10),
+      ADD COLUMN IF NOT EXISTS currency_symbol_after VARCHAR(10),
+      ADD COLUMN IF NOT EXISTS price_rounding VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS vat_rate DECIMAL(5, 2),
+      ADD COLUMN IF NOT EXISTS control_panel_priority INTEGER DEFAULT 50,
+      ADD COLUMN IF NOT EXISTS group_keywords TEXT,
+      ADD COLUMN IF NOT EXISTS cancellation_policy TEXT,
+      ADD COLUMN IF NOT EXISTS house_rules TEXT,
+      ADD COLUMN IF NOT EXISTS external_property_id VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS channel_manager VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS last_sync TIMESTAMP
+    `);
+
+    // Rooms table - add all fields
+    await pool.query(`
+      ALTER TABLE rooms
+      ADD COLUMN IF NOT EXISTS room_type VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS display_name VARCHAR(255),
+      ADD COLUMN IF NOT EXISTS size_sqm DECIMAL(10, 2),
+      ADD COLUMN IF NOT EXISTS unit_names TEXT,
+      ADD COLUMN IF NOT EXISTS unit_allocation VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS auto_allocate VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS unallocated_unit_name VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS min_price DECIMAL(10, 2),
+      ADD COLUMN IF NOT EXISTS min_stay INTEGER DEFAULT 1,
+      ADD COLUMN IF NOT EXISTS max_stay INTEGER,
+      ADD COLUMN IF NOT EXISTS restriction_strategy VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS block_dates_after_checkout INTEGER DEFAULT 0,
+      ADD COLUMN IF NOT EXISTS overbooking_protection VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS highlight_colour VARCHAR(20),
+      ADD COLUMN IF NOT EXISTS control_panel_priority INTEGER DEFAULT 50,
+      ADD COLUMN IF NOT EXISTS include_in_reporting BOOLEAN DEFAULT true,
+      ADD COLUMN IF NOT EXISTS auxiliary_text TEXT,
+      ADD COLUMN IF NOT EXISTS room_template_1 VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS room_template_2 VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS room_template_3 VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS room_template_4 VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS room_template_5 VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS room_template_6 VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS room_template_7 VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS room_template_8 VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS sell_priority INTEGER DEFAULT 50,
+      ADD COLUMN IF NOT EXISTS collect_guest_count BOOLEAN DEFAULT true,
+      ADD COLUMN IF NOT EXISTS room_description TEXT,
+      ADD COLUMN IF NOT EXISTS accommodation_type VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS bed_configuration TEXT,
+      ADD COLUMN IF NOT EXISTS external_room_id VARCHAR(100),
+      ADD COLUMN IF NOT EXISTS channel_manager VARCHAR(50),
+      ADD COLUMN IF NOT EXISTS last_sync TIMESTAMP
+    `);
+
+    // Property amenities table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_amenities (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        category VARCHAR(50) NOT NULL,
+        amenity VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(property_id, category, amenity)
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_property_amenities_lookup 
+      ON property_amenities(property_id, category)
+    `);
+
+    // Room amenities table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_amenities (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
+        category VARCHAR(50) NOT NULL,
+        amenity VARCHAR(100) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(room_id, category, amenity)
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_room_amenities_lookup 
+      ON room_amenities(room_id, category)
+    `);
+
+    // Property images table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_images (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        image_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        caption TEXT,
+        sort_order INTEGER DEFAULT 0,
+        is_hero BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Room images table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_images (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
+        image_url TEXT NOT NULL,
+        thumbnail_url TEXT,
+        caption TEXT,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Availability calendar
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS availability (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        available_quantity INTEGER NOT NULL DEFAULT 0,
+        price DECIMAL(10, 2),
+        min_stay INTEGER,
+        closed BOOLEAN DEFAULT false,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(room_id, date)
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_availability_date 
+      ON availability(room_id, date)
+    `);
+
+    // Pricing rules
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS pricing_rules (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER REFERENCES rooms(id) ON DELETE CASCADE,
+        rule_name VARCHAR(100),
+        start_date DATE,
+        end_date DATE,
+        price DECIMAL(10, 2),
+        min_stay INTEGER,
+        priority INTEGER DEFAULT 0,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Channel sync tracking
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS channel_sync (
+        id SERIAL PRIMARY KEY,
+        channel_name VARCHAR(50) NOT NULL,
+        entity_type VARCHAR(50) NOT NULL,
+        internal_id INTEGER NOT NULL,
+        external_id VARCHAR(100) NOT NULL,
+        sync_status VARCHAR(50) DEFAULT 'active',
+        last_sync TIMESTAMP,
+        sync_errors TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(channel_name, entity_type, internal_id)
+      )
+    `);
+
+    // Sync log
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS sync_log (
+        id SERIAL PRIMARY KEY,
+        channel_name VARCHAR(50) NOT NULL,
+        sync_type VARCHAR(50) NOT NULL,
+        entity_type VARCHAR(50),
+        entity_id INTEGER,
+        status VARCHAR(20) NOT NULL,
+        error_message TEXT,
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_sync_log_lookup 
+      ON sync_log(channel_name, entity_type, synced_at DESC)
+    `);
+
+    res.json({ 
+      success: true, 
+      message: 'Complete schema created! All fields added.' 
+    });
+
+  } catch (error) {
+    console.error('Schema setup error:', error);
+    res.json({ 
+      success: false, 
+      error: error.message 
+    });
+  }
+});
+
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
