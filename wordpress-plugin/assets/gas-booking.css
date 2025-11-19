@@ -1,106 +1,269 @@
-/* GAS Booking Plugin Styles */
-.gas-booking-search {
-    max-width: 1200px;
-    margin: 40px auto;
+/* GAS Booking Plugin - Modern Clean Design */
+
+/* Reset and Base */
+.gas-booking-search,
+.gas-properties-grid,
+.gas-single-property {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Helvetica Neue', Arial, sans-serif;
+    color: #333;
+    line-height: 1.6;
 }
 
+/* Search Form - Clean Minimal Style */
 .gas-search-form {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    padding: 40px;
-    border-radius: 15px;
-    color: white;
+    background: #ffffff;
+    padding: 60px 40px;
+    border-radius: 0;
+    border: 1px solid #e0e0e0;
+    margin-bottom: 60px;
 }
 
 .gas-search-form h2 {
-    margin-bottom: 30px;
-    color: white;
+    font-size: 32px;
+    font-weight: 300;
+    margin-bottom: 40px;
+    color: #1a1a1a;
+    text-align: center;
+    letter-spacing: -0.5px;
 }
 
 .gas-form-row {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-    gap: 20px;
-    margin-bottom: 20px;
+    grid-template-columns: 1fr 1fr 1fr auto;
+    gap: 0;
+    max-width: 900px;
+    margin: 0 auto;
+    border: 1px solid #d0d0d0;
+    border-radius: 4px;
+    overflow: hidden;
+}
+
+.gas-form-group {
+    padding: 0;
+    border-right: 1px solid #d0d0d0;
+}
+
+.gas-form-group:last-of-type {
+    border-right: none;
 }
 
 .gas-form-group label {
     display: block;
-    margin-bottom: 8px;
+    font-size: 11px;
     font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    margin-bottom: 5px;
+    padding: 15px 20px 0;
 }
 
 .gas-form-group input,
 .gas-form-group select {
     width: 100%;
-    padding: 12px;
+    padding: 0 20px 15px;
     border: none;
-    border-radius: 8px;
+    background: transparent;
     font-size: 16px;
+    color: #1a1a1a;
+    font-weight: 400;
 }
 
+.gas-form-group input:focus,
+.gas-form-group select:focus {
+    outline: none;
+}
+
+/* Button - Minimal Modern */
 .gas-btn-primary {
-    background: white;
-    color: #667eea;
+    background: #1a1a1a;
+    color: white;
     border: none;
-    padding: 15px 40px;
-    border-radius: 8px;
-    font-size: 18px;
-    font-weight: 600;
+    padding: 24px 40px;
+    font-size: 14px;
+    font-weight: 500;
     cursor: pointer;
     text-decoration: none;
     display: inline-block;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+    border-radius: 0;
 }
 
 .gas-btn-primary:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    background: #333;
+    transform: none;
+    box-shadow: none;
 }
 
+/* Properties Grid - Card Layout */
 .gas-properties-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 30px;
-    margin-top: 40px;
+    grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+    gap: 40px;
+    margin: 60px 0;
+    padding: 0;
 }
 
+/* Property Card - Clean Minimal */
 .gas-property-card {
     background: white;
-    border-radius: 15px;
+    border: 1px solid #e8e8e8;
+    border-radius: 0;
     overflow: hidden;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
-    transition: transform 0.3s;
+    transition: all 0.3s ease;
+    box-shadow: none;
 }
 
 .gas-property-card:hover {
-    transform: translateY(-5px);
+    transform: translateY(-4px);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.08);
+    border-color: #d0d0d0;
 }
 
+/* Property Image - Aspect Ratio */
 .gas-property-image {
     width: 100%;
-    height: 200px;
+    height: 280px;
     overflow: hidden;
+    position: relative;
+    background: #f5f5f5;
 }
 
 .gas-property-image img {
     width: 100%;
     height: 100%;
     object-fit: cover;
+    transition: transform 0.6s ease;
 }
 
+.gas-property-card:hover .gas-property-image img {
+    transform: scale(1.05);
+}
+
+/* Property Content */
 .gas-property-content {
-    padding: 20px;
+    padding: 30px;
 }
 
 .gas-property-content h3 {
-    margin-bottom: 10px;
-    color: #333;
+    font-size: 22px;
+    font-weight: 400;
+    margin-bottom: 8px;
+    color: #1a1a1a;
+    letter-spacing: -0.3px;
 }
 
 .gas-property-content p {
     color: #666;
+    margin-bottom: 10px;
+    font-size: 14px;
+    line-height: 1.6;
+}
+
+.gas-property-content .gas-property-location {
+    font-size: 13px;
+    color: #999;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
     margin-bottom: 15px;
 }
 
+.gas-property-content .gas-btn-primary {
+    margin-top: 20px;
+    padding: 12px 24px;
+    font-size: 12px;
+    width: 100%;
+    text-align: center;
+}
+
+/* Search Results */
 #gas-search-results {
-    margin-top: 40px;
+    margin-top: 60px;
+}
+
+#gas-search-results .gas-properties-grid {
+    margin-top: 0;
+}
+
+/* Loading State */
+.gas-loading {
+    text-align: center;
+    padding: 60px 20px;
+    color: #999;
+    font-size: 14px;
+}
+
+/* Empty State */
+.gas-empty-state {
+    text-align: center;
+    padding: 80px 20px;
+    color: #999;
+}
+
+.gas-empty-state h3 {
+    font-size: 24px;
+    font-weight: 300;
+    margin-bottom: 10px;
+    color: #666;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+    .gas-form-row {
+        grid-template-columns: 1fr;
+    }
+    
+    .gas-form-group {
+        border-right: none;
+        border-bottom: 1px solid #d0d0d0;
+    }
+    
+    .gas-form-group:last-child {
+        border-bottom: none;
+    }
+    
+    .gas-btn-primary {
+        border-radius: 0;
+    }
+    
+    .gas-properties-grid {
+        grid-template-columns: 1fr;
+        gap: 30px;
+    }
+    
+    .gas-search-form {
+        padding: 40px 20px;
+    }
+}
+
+/* Price Display (for future use) */
+.gas-property-price {
+    font-size: 24px;
+    font-weight: 300;
+    color: #1a1a1a;
+    margin: 15px 0;
+}
+
+.gas-property-price span {
+    font-size: 14px;
+    color: #999;
+    font-weight: 400;
+}
+
+/* Amenities (for future use) */
+.gas-amenities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 20px 0;
+}
+
+.gas-amenity {
+    font-size: 12px;
+    padding: 6px 12px;
+    background: #f5f5f5;
+    border-radius: 20px;
+    color: #666;
 }
