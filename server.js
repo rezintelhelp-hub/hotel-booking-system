@@ -170,56 +170,90 @@ app.post('/api/setup-auth', async (req, res) => {
   }
 });
 
-async function importProperty() {
-    const url = document.getElementById('importUrl').value;
-    const statusEl = document.getElementById('import-status');
+// Import property from Airbnb/Booking.com URL
+app.post('/api/import-property', async (req, res) => {
+  const { url } = req.body;
+  
+  if (!url) {
+    return res.json({ success: false, error: 'URL required' });
+  }
+  
+  try {
+    // Fetch the page content
+    const pageResponse = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
     
-    if (!url) {
-        statusEl.innerHTML = '<p style="color: red;">Please enter a URL</p>';
-        return;
+    const htmlContent = pageResponse.data;
+    
+    // Extract text content (remove HTML tags)
+    const textContent = htmlContent
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .substring(0, 15000); // Limit to 15k chars
+    
+    // Use Claude API to extract and structure the data
+    const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{
+        role: 'user',
+        content: `Extract property information from this webpage content and return ONLY a JSON object (no markdown, no explanation):
+
+${textContent}
+
+Return this exact JSON structure:
+{
+  "property_name": "extracted name",
+  "description": "rewritten unique description (2-3 paragraphs, avoid copying exactly)",
+  "property_type": "Hotel/Apartment/Villa/etc",
+  "address": "full address",
+  "city": "city name",
+  "country": "country name",
+  "star_rating": 4,
+  "amenities": ["WiFi", "Pool", "Parking", etc],
+  "rooms": [
+    {
+      "name": "room type name",
+      "description": "room description",
+      "max_adults": 2,
+      "max_children": 1,
+      "base_price": 100
     }
+  ]
+}`
+      }],
+      temperature: 0.7
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-version': '2023-06-01'
+      }
+    });
     
-    statusEl.innerHTML = '<p style="color: blue;">⏳ Importing property data...</p>';
+    // Parse Claude's response
+    const claudeText = claudeResponse.data.content[0].text;
+    const cleanJson = claudeText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const propertyData = JSON.parse(cleanJson);
     
-    try {
-        const res = await fetch('/api/import-property', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
-        });
-        
-        const result = await res.json();
-        
-        if (result.success) {
-            statusEl.innerHTML = '<p style="color: green;">✅ Property imported! Review and save below.</p>';
-            
-            // Auto-fill the form
-            const data = result.data;
-            document.getElementById('prop-name').value = data.property_name || '';
-            document.getElementById('prop-description').value = data.description || '';
-            document.getElementById('prop-address').value = data.address || '';
-            document.getElementById('prop-city').value = data.city || '';
-            document.getElementById('prop-country').value = data.country || '';
-            document.getElementById('prop-type').value = data.property_type || 'Hotel';
-            document.getElementById('prop-rating').value = data.star_rating || 4;
-            
-            // Show amenities
-            if (data.amenities && data.amenities.length > 0) {
-                statusEl.innerHTML += '<p><strong>Amenities found:</strong> ' + data.amenities.join(', ') + '</p>';
-            }
-            
-            // Show rooms
-            if (data.rooms && data.rooms.length > 0) {
-                statusEl.innerHTML += '<p><strong>Rooms found:</strong> ' + data.rooms.length + ' (you can add these after saving the property)</p>';
-                console.log('Room data:', data.rooms);
-            }
-        } else {
-            statusEl.innerHTML = '<p style="color: red;">❌ Import failed: ' + result.error + '</p>';
-        }
-    } catch (error) {
-        statusEl.innerHTML = '<p style="color: red;">❌ Error: ' + error.message + '</p>';
-    }
-}
+    res.json({
+      success: true,
+      data: propertyData,
+      message: 'Property data extracted successfully'
+    });
+    
+  } catch (error) {
+    console.error('Import error:', error.message);
+    res.json({
+      success: false,
+      error: 'Failed to import property: ' + error.message
+    });
+  }
+});
 
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
