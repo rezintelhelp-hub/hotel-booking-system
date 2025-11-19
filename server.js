@@ -170,3 +170,116 @@ app.post('/api/setup-auth', async (req, res) => {
   }
 });
 
+// Import property from Airbnb/Booking.com URL
+app.post('/api/import-property', async (req, res) => {
+  const { url } = req.body;
+  
+  if (!url) {
+    return res.json({ success: false, error: 'URL required' });
+  }
+  
+  try {
+    // Fetch the page content
+    const pageResponse = await axios.get(url, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+      }
+    });
+    
+    const htmlContent = pageResponse.data;
+    
+    // Extract text content (remove HTML tags)
+    const textContent = htmlContent
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
+      .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
+      .replace(/<[^>]+>/g, ' ')
+      .replace(/\s+/g, ' ')
+      .substring(0, 20000);
+    
+    // Use Claude API to extract structured data
+    const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 4000,
+      messages: [{
+        role: 'user',
+        content: `Extract ALL property information from this webpage and return ONLY valid JSON.
+
+Categorize amenities into these exact categories:
+- Amenities, Business, Entertainment, Food and Drink, Internet, Kitchen, Location, Pets, Pool and Wellness, Services, Sports, Suitability
+
+${textContent}
+
+Return this JSON structure:
+{
+  "property": {
+    "name": "name",
+    "property_type": "Hotel/Apartment/Villa/House",
+    "description": "rewritten description 2-3 paragraphs",
+    "address": "street address",
+    "city": "city",
+    "state": "state", 
+    "country": "country",
+    "postcode": "postal code",
+    "phone": "phone",
+    "email": "email",
+    "website": "website",
+    "check_in_time": "15:00",
+    "check_out_time": "11:00",
+    "cancellation_policy": "policy",
+    "house_rules": "rules",
+    "currency": "USD",
+    "star_rating": 4
+  },
+  "amenities": {
+    "Amenities": ["Heating", "AC"],
+    "Kitchen": ["Kitchen", "Refrigerator"],
+    "Internet": ["Wifi"]
+  },
+  "images": [
+    {"url": "image url", "caption": "description"}
+  ],
+  "rooms": [
+    {
+      "name": "room name",
+      "room_type": "Double/Suite/etc",
+      "description": "description",
+      "quantity": 1,
+      "max_adults": 2,
+      "max_children": 1,
+      "max_guests": 3,
+      "size_sqm": 25,
+      "bed_configuration": "1 King Bed",
+      "base_price": 100,
+      "min_stay": 1,
+      "accommodation_type": "Entire place/Private room"
+    }
+  ]
+}`
+      }],
+      temperature: 0.7
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      }
+    });
+    
+    const claudeText = claudeResponse.data.content[0].text;
+    const cleanJson = claudeText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const extractedData = JSON.parse(cleanJson);
+    
+    res.json({
+      success: true,
+      data: extractedData,
+      message: 'Property data extracted! Review and save.'
+    });
+    
+  } catch (error) {
+    console.error('Import error:', error.message);
+    res.json({
+      success: false,
+      error: 'Failed to import: ' + error.message
+    });
+  }
+});
