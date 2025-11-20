@@ -346,7 +346,16 @@ Return this EXACT JSON structure:
     });
     
     const claudeText = claudeResponse.data.content[0].text;
-    const cleanJson = claudeText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    // Clean the response more aggressively
+        let cleanJson = claudeText.trim();
+        // Remove markdown code blocks
+        cleanJson = cleanJson.replace(/```json\n?/g, '').replace(/```\n?/g, '');
+        // Remove any leading/trailing text before/after JSON
+        const jsonStart = cleanJson.indexOf('{');
+        const jsonEnd = cleanJson.lastIndexOf('}');
+        if (jsonStart !== -1 && jsonEnd !== -1) {
+            cleanJson = cleanJson.substring(jsonStart, jsonEnd + 1);
+        }
     const extractedData = JSON.parse(cleanJson);
     
     res.json({
