@@ -534,8 +534,6 @@ async function importProperty() {
         cancellation_policy: document.getElementById('prop-cancellation').value
     };
 
-   let editingPropertyId = null;
-
 async function editProperty(id) {
     // Fetch the property details
     const res = await fetch('/api/db/properties');
@@ -629,6 +627,8 @@ function cancelEdit() {
     }
 }
 
+    let editingPropertyId = null;
+        
         async function loadProperties() {
     const res = await fetch('/api/db/properties');
     const result = await res.json();
