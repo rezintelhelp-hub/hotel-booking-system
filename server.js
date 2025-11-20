@@ -151,6 +151,18 @@ app.put('/api/db/properties/:id', async (req, res) => {
   }
 });
 
+// DELETE property
+app.delete('/api/db/properties/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('UPDATE properties SET active = false WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Property deleted' });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/db/rooms', async (req, res) => {
   const { propertyId } = req.query;
   try {
