@@ -506,34 +506,57 @@ async function importProperty() {
     }
 }
 
-        async function addProperty(e) {
-            e.preventDefault();
-            const data = {
-                name: document.getElementById('prop-name').value,
-                description: document.getElementById('prop-description').value,
-                address: document.getElementById('prop-address').value,
-                city: document.getElementById('prop-city').value,
-                country: document.getElementById('prop-country').value,
-                property_type: document.getElementById('prop-type').value,
-                star_rating: parseInt(document.getElementById('prop-rating').value)
-            };
+       async function addProperty(e) {
+    e.preventDefault();
+    
+    const data = {
+        name: document.getElementById('prop-name').value,
+        description: document.getElementById('prop-description').value,
+        address: document.getElementById('prop-address').value,
+        city: document.getElementById('prop-city').value,
+        state: document.getElementById('prop-state').value,
+        country: document.getElementById('prop-country').value,
+        postcode: document.getElementById('prop-postcode').value,
+        property_type: document.getElementById('prop-type').value,
+        star_rating: parseInt(document.getElementById('prop-rating').value),
+        latitude: parseFloat(document.getElementById('prop-latitude').value) || null,
+        longitude: parseFloat(document.getElementById('prop-longitude').value) || null,
+        bedrooms: parseInt(document.getElementById('prop-bedrooms').value) || null,
+        beds: parseInt(document.getElementById('prop-beds').value) || null,
+        bathrooms: parseFloat(document.getElementById('prop-bathrooms').value) || null,
+        max_guests: parseInt(document.getElementById('prop-max-guests').value) || null,
+        phone: document.getElementById('prop-phone').value,
+        email: document.getElementById('prop-email').value,
+        website: document.getElementById('prop-website').value,
+        check_in_time: document.getElementById('prop-checkin').value,
+        check_out_time: document.getElementById('prop-checkout').value,
+        house_rules: document.getElementById('prop-house-rules').value,
+        cancellation_policy: document.getElementById('prop-cancellation').value
+    };
 
-            const res = await fetch('/api/db/properties', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await res.json();
+    // UPDATE or ADD
+    const isUpdate = editingPropertyId !== null;
+    const url = isUpdate ? `/api/db/properties/${editingPropertyId}` : '/api/db/properties';
+    const method = isUpdate ? 'PUT' : 'POST';
 
-            if (result.success) {
-                document.getElementById('property-message').innerHTML = '<div class="success">✅ Property added!</div>';
-                e.target.reset();
-                document.getElementById('import-status').innerHTML = '';
-                loadProperties();
-            } else {
-                document.getElementById('property-message').innerHTML = '<div class="error">❌ Error: ' + result.error + '</div>';
-            }
-        }
+    const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    const result = await res.json();
+
+    if (result.success) {
+        document.getElementById('property-message').innerHTML = `<div class="success">✅ Property ${isUpdate ? 'updated' : 'added'}!</div>`;
+        e.target.reset();
+        document.getElementById('import-status').innerHTML = '';
+        loadProperties();
+        
+        if (isUpdate) cancelEdit();
+    } else {
+        document.getElementById('property-message').innerHTML = '<div class="error">❌ Error: ' + result.error + '</div>';
+    }
+}
 
         async function loadProperties() {
     const res = await fetch('/api/db/properties');
