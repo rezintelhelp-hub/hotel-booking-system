@@ -383,7 +383,7 @@ async function importProperty() {
         return;
     }
     
-    statusEl.innerHTML = '<p style="color: #0066cc;">⏳ Importing property data... This may take 10-15 seconds...</p>';
+    statusEl.innerHTML = '<p style="color: #0066cc;">⏳ Importing property data... This may take 15-20 seconds...</p>';
     
     try {
         const res = await fetch('/api/import-property', {
@@ -397,38 +397,104 @@ async function importProperty() {
         if (result.success) {
             const data = result.data;
             
-            // NEW DATA STRUCTURE - data.property contains the property info
+            // Auto-fill ALL property fields
             if (data.property) {
-                document.getElementById('prop-name').value = data.property.name || '';
-                document.getElementById('prop-description').value = data.property.description || '';
-                document.getElementById('prop-address').value = data.property.address || '';
-                document.getElementById('prop-city').value = data.property.city || '';
-                document.getElementById('prop-country').value = data.property.country || '';
-                document.getElementById('prop-type').value = data.property.property_type || 'Hotel';
-                document.getElementById('prop-rating').value = data.property.star_rating || 4;
+                const p = data.property;
+                document.getElementById('prop-name').value = p.name || '';
+                document.getElementById('prop-description').value = p.description || '';
+                document.getElementById('prop-address').value = p.address || '';
+                document.getElementById('prop-city').value = p.city || '';
+                document.getElementById('prop-state').value = p.state || '';
+                document.getElementById('prop-country').value = p.country || '';
+                document.getElementById('prop-postcode').value = p.postcode || '';
+                document.getElementById('prop-type').value = p.property_type || 'Hotel';
+                document.getElementById('prop-rating').value = p.star_rating || 4;
+                document.getElementById('prop-latitude').value = p.latitude || '';
+                document.getElementById('prop-longitude').value = p.longitude || '';
+                document.getElementById('prop-bedrooms').value = p.bedrooms || 1;
+                document.getElementById('prop-beds').value = p.beds || 1;
+                document.getElementById('prop-bathrooms').value = p.bathrooms || 1;
+                document.getElementById('prop-max-guests').value = p.max_guests || 2;
+                document.getElementById('prop-phone').value = p.phone || '';
+                document.getElementById('prop-email').value = p.email || '';
+                document.getElementById('prop-website').value = p.website || url;
+                document.getElementById('prop-checkin').value = p.check_in_time || '15:00';
+                document.getElementById('prop-checkout').value = p.check_out_time || '11:00';
+                document.getElementById('prop-house-rules').value = p.house_rules || '';
+                document.getElementById('prop-cancellation').value = p.cancellation_policy || '';
             }
             
-            statusEl.innerHTML = '<p style="color: green; font-weight: bold;">✅ Property imported successfully! Review and save below.</p>';
+            let successHtml = '<div style="background: #d4edda; padding: 20px; border-radius: 8px; margin-top: 15px;">';
+            successHtml += '<h3 style="color: #155724; margin-bottom: 15px;">✅ Property Data Imported!</h3>';
             
-            // Display amenities by category
+            // Show coordinates
+            if (data.property && (data.property.latitude || data.property.longitude)) {
+                successHtml += `<p><strong>📍 Location:</strong> ${data.property.latitude}, ${data.property.longitude}</p>`;
+            }
+            
+            // Show property size
+            if (data.property) {
+                successHtml += `<p><strong>🏠 Size:</strong> ${data.property.bedrooms} bedrooms, ${data.property.beds} beds, ${data.property.bathrooms} bathrooms, max ${data.property.max_guests} guests</p>`;
+            }
+            
+            // Show review ratings
+            if (data.property && data.property.review_rating) {
+                successHtml += `<p><strong>⭐ Rating:</strong> ${data.property.review_rating}/5 (${data.property.review_count} reviews)</p>`;
+                if (data.property.rating_breakdown) {
+                    const rb = data.property.rating_breakdown;
+                    successHtml += `<p style="font-size: 0.9em; color: #666;">Cleanliness: ${rb.cleanliness} | Accuracy: ${rb.accuracy} | Communication: ${rb.communication} | Location: ${rb.location} | Check-in: ${rb.checkin} | Value: ${rb.value}</p>`;
+                }
+            }
+            
+            // Show amenities
             if (data.amenities) {
-                let amenitiesHtml = '<div style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 5px;"><strong>Amenities Found:</strong><br>';
+                successHtml += '<div style="margin-top: 15px;"><strong>✨ Amenities:</strong><br>';
                 for (const [category, items] of Object.entries(data.amenities)) {
                     if (items && items.length > 0) {
-                        amenitiesHtml += `<span style="color: #666;">${category}:</span> ${items.join(', ')}<br>`;
+                        successHtml += `<span style="color: #666; font-size: 0.9em;">${category}:</span> ${items.join(', ')}<br>`;
                     }
                 }
-                amenitiesHtml += '</div>';
-                statusEl.innerHTML += amenitiesHtml;
+                successHtml += '</div>';
             }
             
-            // Display rooms
-            if (data.rooms && data.rooms.length > 0) {
-                statusEl.innerHTML += '<p style="margin-top: 10px;"><strong>Rooms found:</strong> ' + data.rooms.length + ' room types (add these after saving the property)</p>';
-                window.importedRooms = data.rooms;
+            // Show sleeping arrangements
+            if (data.sleeping_arrangements && data.sleeping_arrangements.length > 0) {
+                successHtml += '<div style="margin-top: 15px;"><strong>🛏️ Sleeping Arrangements:</strong><br>';
+                data.sleeping_arrangements.forEach(sa => {
+                    successHtml += `<span style="color: #666;">${sa.room}:</span> ${sa.beds}<br>`;
+                });
+                successHtml += '</div>';
             }
             
-            // Store all extracted data
+            // Show pricing
+            if (data.pricing) {
+                successHtml += `<div style="margin-top: 15px;"><strong>💰 Pricing:</strong> ${data.pricing.currency} ${data.pricing.nightly_rate}/night`;
+                if (data.pricing.cleaning_fee) successHtml += ` (+ ${data.pricing.cleaning_fee} cleaning fee)`;
+                successHtml += '</div>';
+            }
+            
+            // Show images with copyright confirmation
+            if (data.images && data.images.length > 0) {
+                successHtml += `<div style="margin-top: 15px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">`;
+                successHtml += `<strong>📸 Images Found:</strong> ${data.images.length} images<br>`;
+                successHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin: 10px 0;">`;
+                data.images.slice(0, 6).forEach(img => {
+                    successHtml += `<img src="${img.url}" alt="${img.caption || ''}" style="width: 100%; height: 80px; object-fit: cover; border-radius: 5px;">`;
+                });
+                successHtml += '</div>';
+                successHtml += `<label style="display: flex; align-items: center; margin-top: 10px; cursor: pointer;">`;
+                successHtml += `<input type="checkbox" id="confirm-image-rights" style="margin-right: 10px;">`;
+                successHtml += `<span style="color: #856404;">I confirm I own/manage this property and have rights to use these images</span>`;
+                successHtml += `</label>`;
+                successHtml += '</div>';
+            }
+            
+            successHtml += '<p style="margin-top: 15px; font-weight: bold; color: #155724;">Review the data above and click "Add Property" to save.</p>';
+            successHtml += '</div>';
+            
+            statusEl.innerHTML = successHtml;
+            
+            // Store extracted data
             window.extractedPropertyData = data;
             
             document.getElementById('importUrl').value = '';
