@@ -217,7 +217,13 @@ app.post('/api/setup-auth', async (req, res) => {
   
   try {
     console.log('Attempting to connect to Beds24 with invite code...');
-    const response = await axios.get(`https://beds24.com/api/v2/authentication/setup?code=${encodeURIComponent(inviteCode)}`);
+    // Beds24 expects the code as a HEADER, not a URL parameter
+    const response = await axios.get('https://beds24.com/api/v2/authentication/setup', {
+      headers: {
+        'accept': 'application/json',
+        'code': inviteCode
+      }
+    });
     console.log('Beds24 response:', response.data);
     
     res.json({ 
