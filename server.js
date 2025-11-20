@@ -210,11 +210,27 @@ app.get('/api/properties', async (req, res) => {
 
 app.post('/api/setup-auth', async (req, res) => {
   const { inviteCode } = req.body;
+  
+  if (!inviteCode) {
+    return res.json({ success: false, error: 'Invite code is required' });
+  }
+  
   try {
+    console.log('Attempting to connect to Beds24 with invite code...');
     const response = await axios.get(`https://beds24.com/api/v2/authentication/setup?code=${encodeURIComponent(inviteCode)}`);
-    res.json({ success: true, refreshToken: response.data.refreshToken });
+    console.log('Beds24 response:', response.data);
+    
+    res.json({ 
+      success: true, 
+      refreshToken: response.data.refreshToken,
+      token: response.data.token 
+    });
   } catch (error) {
-    res.json({ success: false, error: error.response?.data || error.message });
+    console.error('Beds24 connection error:', error.response?.data || error.message);
+    res.json({ 
+      success: false, 
+      error: error.response?.data?.error || error.message 
+    });
   }
 });
 
