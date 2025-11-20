@@ -170,7 +170,7 @@ app.post('/api/setup-auth', async (req, res) => {
   }
 });
 
-// Import property from Airbnb/Booking.com URL
+// Import property from URL with COMPLETE data extraction
 app.post('/api/import-property', async (req, res) => {
   const { url } = req.body;
   
@@ -188,72 +188,117 @@ app.post('/api/import-property', async (req, res) => {
     
     const htmlContent = pageResponse.data;
     
-    // Extract text content (remove HTML tags)
+    // Extract text content (remove HTML tags but keep structure)
     const textContent = htmlContent
       .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
       .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
       .replace(/<[^>]+>/g, ' ')
       .replace(/\s+/g, ' ')
-      .substring(0, 20000);
+      .substring(0, 25000); // Increased to 25k for more data
     
-    // Use Claude API to extract structured data
+    // Use Claude API to extract COMPLETE structured data
     const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 4000,
+      max_tokens: 4096,
       messages: [{
         role: 'user',
-        content: `Extract ALL property information from this webpage and return ONLY valid JSON.
+        content: `Extract ALL property information from this Airbnb/Booking.com page and return ONLY valid JSON.
 
-Categorize amenities into these exact categories:
-- Amenities, Business, Entertainment, Food and Drink, Internet, Kitchen, Location, Pets, Pool and Wellness, Services, Sports, Suitability
+CRITICAL: Extract EVERYTHING including:
+- Exact latitude and longitude coordinates
+- ALL image URLs from the photo gallery
+- Detailed sleeping arrangements (which beds in which rooms)
+- Complete amenities categorized properly
+- Exact property size (number of bedrooms, beds, bathrooms)
+- House rules with check-in/out times
+- Review ratings breakdown
+- Host information
+- Pricing details
+
+Categorize amenities into these EXACT categories:
+Amenities, Business, Entertainment, Food and Drink, Internet, Kitchen, Location, Pets, Pool and Wellness, Services, Sports, Suitability
 
 ${textContent}
 
-Return this JSON structure:
+Return this EXACT JSON structure:
 {
   "property": {
-    "name": "name",
-    "property_type": "Hotel/Apartment/Villa/House",
-    "description": "rewritten description 2-3 paragraphs",
-    "address": "street address",
-    "city": "city",
-    "state": "state", 
-    "country": "country",
-    "postcode": "postal code",
-    "phone": "phone",
-    "email": "email",
-    "website": "website",
+    "name": "property name",
+    "property_type": "Entire home/Private room/Hotel room/etc",
+    "description": "rewritten unique description 2-3 paragraphs avoiding exact copying",
+    "address": "full street address if available",
+    "city": "city name",
+    "state": "state/region", 
+    "country": "country name",
+    "postcode": "postal code if available",
+    "latitude": 51.5074,
+    "longitude": -0.1278,
+    "bedrooms": 2,
+    "beds": 3,
+    "bathrooms": 1.5,
+    "max_guests": 4,
+    "phone": "phone if available",
+    "email": "email if available",
+    "website": "listing url",
     "check_in_time": "15:00",
     "check_out_time": "11:00",
-    "cancellation_policy": "policy",
-    "house_rules": "rules",
-    "currency": "USD",
-    "star_rating": 4
+    "cancellation_policy": "policy text",
+    "house_rules": "all rules text",
+    "currency": "GBP",
+    "star_rating": 5,
+    "review_rating": 4.8,
+    "review_count": 127,
+    "rating_breakdown": {
+      "cleanliness": 4.9,
+      "accuracy": 4.8,
+      "communication": 5.0,
+      "location": 4.7,
+      "checkin": 4.9,
+      "value": 4.6
+    }
   },
   "amenities": {
-    "Amenities": ["Heating", "AC"],
-    "Kitchen": ["Kitchen", "Refrigerator"],
-    "Internet": ["Wifi"]
+    "Amenities": ["Heating", "Air Conditioning", "Towels"],
+    "Kitchen": ["Kitchen", "Refrigerator", "Microwave"],
+    "Internet": ["Wifi"],
+    "Bathroom": ["Hair dryer", "Shampoo"],
+    "Entertainment": ["TV", "Books"],
+    "Pool and Wellness": ["Hot tub", "Pool"],
+    "Services": ["Self check-in", "Keypad"],
+    "Suitability": ["Family friendly", "Pets allowed"]
   },
   "images": [
-    {"url": "image url", "caption": "description"}
+    {"url": "https://image-url-1.jpg", "caption": "Living room"},
+    {"url": "https://image-url-2.jpg", "caption": "Bedroom"},
+    {"url": "https://image-url-3.jpg", "caption": "Kitchen"}
+  ],
+  "sleeping_arrangements": [
+    {"room": "Bedroom 1", "beds": "1 king bed"},
+    {"room": "Bedroom 2", "beds": "2 single beds"},
+    {"room": "Living room", "beds": "1 sofa bed"}
   ],
   "rooms": [
     {
-      "name": "room name",
-      "room_type": "Double/Suite/etc",
-      "description": "description",
+      "name": "Entire property",
+      "room_type": "Entire place",
+      "description": "Full property description",
       "quantity": 1,
-      "max_adults": 2,
-      "max_children": 1,
-      "max_guests": 3,
-      "size_sqm": 25,
-      "bed_configuration": "1 King Bed",
-      "base_price": 100,
-      "min_stay": 1,
-      "accommodation_type": "Entire place/Private room"
+      "max_adults": 4,
+      "max_children": 2,
+      "max_guests": 6,
+      "size_sqm": 85,
+      "bed_configuration": "1 king, 2 singles, 1 sofa bed",
+      "base_price": 150,
+      "min_stay": 2,
+      "accommodation_type": "Entire home"
     }
-  ]
+  ],
+  "pricing": {
+    "nightly_rate": 150,
+    "cleaning_fee": 25,
+    "service_fee": 20,
+    "currency": "GBP"
+  }
 }`
       }],
       temperature: 0.7
@@ -272,7 +317,7 @@ Return this JSON structure:
     res.json({
       success: true,
       data: extractedData,
-      message: 'Property data extracted! Review and save.'
+      message: 'Property data extracted successfully!'
     });
     
   } catch (error) {
