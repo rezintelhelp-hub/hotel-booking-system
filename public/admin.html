@@ -3,757 +3,1139 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Panel - Hotel Booking</title>
+    <title>GAS Admin Panel</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
             background: #f5f5f5;
-            padding: 20px;
+            color: #333;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        h1 { color: #333; margin-bottom: 30px; }
-        .tabs {
+
+        /* Header */
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 1rem 2rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             display: flex;
-            gap: 10px;
-            margin-bottom: 30px;
-            border-bottom: 2px solid #ddd;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
         }
-        .tab {
-            padding: 15px 30px;
+
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        /* Main Layout */
+        .main-container {
+            display: flex;
+            height: calc(100vh - 60px);
+            overflow: hidden;
+        }
+
+        /* Left Sidebar - Property List */
+        .sidebar {
+            width: 350px;
             background: white;
-            background: none;
-            border: none;
-            cursor: pointer;
-            font-size: 16px;
-            border-radius: 8px 8px 0 0;
-            color: #666;
+            border-right: 1px solid #e0e0e0;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .sidebar-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .sidebar-header h2 {
+            font-size: 1.1rem;
+            margin-bottom: 1rem;
+            color: #667eea;
+        }
+
+        .search-box {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            outline: none;
             transition: all 0.3s;
         }
-        .tab.active {
-            background: #667eea;
-            color: white;
-            color: #667eea;
-            border-bottom: 3px solid #667eea;
-            margin-bottom: -2px;
-            font-weight: 600;
+
+        .search-box:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
         }
-        .tab-content { display: none; }
-        .tab-content.active { display: block; }
-        .form-box {
-            background: white;
-            padding: 30px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-            margin-bottom: 30px;
-        }
-        .import-box {
-            background: #e7f3ff;
-            border: 2px solid #667eea;
-            border-radius: 8px;
-            padding: 20px;
-            margin-bottom: 30px;
-        }
-        .import-box h3 {
-            margin-bottom: 10px;
-            color: #333;
-        }
-        .import-row {
-            display: flex;
-            gap: 10px;
-            margin-top: 15px;
-        }
-        .import-row input {
+
+        .property-list {
             flex: 1;
+            overflow-y: auto;
+            padding: 0.5rem;
         }
-        #import-status {
-            margin-top: 15px;
-            padding: 10px;
-            border-radius: 6px;
+
+        .property-item {
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            background: #f9f9f9;
+            border: 2px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
         }
-        .form-group {
-            margin-bottom: 20px;
+
+        .property-item:hover {
+            background: #f0f0f0;
+            transform: translateX(4px);
         }
-        label {
-            display: block;
+
+        .property-item.active {
+            background: #e8ecff;
+            border-color: #667eea;
+        }
+
+        .property-item-name {
             font-weight: 600;
-            margin-bottom: 8px;
+            color: #333;
+            margin-bottom: 0.25rem;
+        }
+
+        .property-item-location {
+            font-size: 0.85rem;
+            color: #666;
+            display: flex;
+            align-items: center;
+            gap: 0.25rem;
+        }
+
+        .property-item-meta {
+            font-size: 0.8rem;
+            color: #999;
+            margin-top: 0.5rem;
+            display: flex;
+            gap: 1rem;
+        }
+
+        /* Right Panel - Details/Form */
+        .content-panel {
+            flex: 1;
+            overflow-y: auto;
+            padding: 2rem;
+            background: #fafafa;
+        }
+
+        .panel-empty {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100%;
+            color: #999;
+        }
+
+        .panel-empty-icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            opacity: 0.3;
+        }
+
+        .form-container {
+            max-width: 900px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            padding: 2rem;
+        }
+
+        .form-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #f0f0f0;
+        }
+
+        .form-title {
+            font-size: 1.5rem;
+            font-weight: 600;
             color: #333;
         }
-        input, textarea, select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 14px;
+
+        .form-section {
+            margin-bottom: 2rem;
         }
-        textarea { min-height: 100px; }
-        button {
-            background: #667eea;
+
+        .form-section-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: #667eea;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        .form-grid-full {
+            grid-column: 1 / -1;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-label {
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            color: #555;
+            font-size: 0.9rem;
+        }
+
+        .form-input,
+        .form-textarea,
+        .form-select {
+            padding: 0.75rem;
+            border: 1px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            outline: none;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+
+        .form-input:focus,
+        .form-textarea:focus,
+        .form-select:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .form-textarea {
+            resize: vertical;
+            min-height: 100px;
+        }
+
+        /* Images Section */
+        .images-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .image-item {
+            position: relative;
+            aspect-ratio: 4/3;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #f0f0f0;
+            border: 2px solid #e0e0e0;
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .image-item-remove {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: rgba(255,0,0,0.8);
             color: white;
             border: none;
-            padding: 12px 30px;
+            border-radius: 50%;
+            width: 28px;
+            height: 28px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+
+        .image-item:hover .image-item-remove {
+            opacity: 1;
+        }
+
+        .image-upload-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            aspect-ratio: 4/3;
+            border: 2px dashed #ccc;
             border-radius: 8px;
-            font-size: 16px;
-            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #999;
+            font-size: 2rem;
+        }
+
+        .image-upload-btn:hover {
+            border-color: #667eea;
+            color: #667eea;
+            background: #f9f9ff;
+        }
+
+        /* Amenities Section */
+        .amenities-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.75rem;
+            margin-top: 1rem;
+        }
+
+        .amenity-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem;
+            background: #f9f9f9;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 2px solid transparent;
+        }
+
+        .amenity-item:hover {
+            background: #f0f0f0;
+        }
+
+        .amenity-item.selected {
+            background: #e8ecff;
+            border-color: #667eea;
+        }
+
+        .amenity-checkbox {
+            width: 18px;
+            height: 18px;
             cursor: pointer;
         }
-        button:hover { background: #5568d3; }
-        .success { 
-            background: #d4edda; 
-            color: #155724; 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin: 20px 0;
+
+        .amenity-label {
+            font-size: 0.9rem;
+            cursor: pointer;
+            flex: 1;
         }
-        .error { 
-            background: #f8d7da; 
-            color: #721c24; 
-            padding: 15px; 
-            border-radius: 8px; 
-            margin: 20px 0;
-        }
-        .list-item {
-            background: white;
-            padding: 20px;
-            margin-bottom: 15px;
+
+        /* Buttons */
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
             border-radius: 8px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-size: 0.95rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
         }
-        .list-item h3 { margin-bottom: 10px; color: #667eea; }
-        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn-danger {
+            background: #ff4444;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #cc0000;
+        }
+
+        .btn-success {
+            background: #00C851;
+            color: white;
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 2px solid #f0f0f0;
+        }
+
+        /* AI Import Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            max-width: 500px;
+            width: 90%;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+
+        .modal-header {
+            font-size: 1.3rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: #333;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 1.5rem;
+        }
+
+        /* Loading Spinner */
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Status Messages */
+        .status-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-message.active {
+            display: block;
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #ccc;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #999;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                max-width: 300px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .amenities-grid {
+                grid-template-columns: 1fr;
+            }
+        }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>🏨 Admin Panel</h1>
+    <!-- Header -->
+    <div class="header">
+        <h1>🏨 Global Accommodation System</h1>
+        <div class="header-actions">
+            <button class="btn btn-success" onclick="openImportModal()">
+                ✨ AI Import
+            </button>
+            <button class="btn btn-primary" onclick="createNewProperty()">
+                ➕ New Property
+            </button>
+        </div>
+    </div>
 
-        <div class="tabs">
-            <button class="tab active" onclick="showTab('properties')">Properties</button>
-            <button class="tab" onclick="showTab('rooms')">Rooms</button>
-            <button class="tab" onclick="showTab('bookings')">Bookings</button>
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Left Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <h2>Properties</h2>
+                <input 
+                    type="text" 
+                    class="search-box" 
+                    id="searchBox"
+                    placeholder="🔍 Search properties..."
+                    oninput="filterProperties()"
+                >
+            </div>
+            <div class="property-list" id="propertyList">
+                <!-- Properties will be loaded here -->
+            </div>
         </div>
 
-        <!-- PROPERTIES TAB -->
-        <div id="properties-tab" class="tab-content active">
-            <!-- IMPORT BOX -->
-            <div class="import-box">
-                <h3>🚀 Quick Import from URL</h3>
-                <p>Import property data from Airbnb or Booking.com</p>
-                <div class="import-row">
-                    <input type="url" id="importUrl" placeholder="Paste Airbnb or Booking.com URL here">
-                    <button onclick="importProperty()">Import</button>
+        <!-- Right Content Panel -->
+        <div class="content-panel">
+            <div class="panel-empty" id="emptyState">
+                <div class="panel-empty-icon">🏨</div>
+                <h3>Select a property to view details</h3>
+                <p style="margin-top: 0.5rem; color: #999;">or create a new one to get started</p>
+            </div>
+
+            <div id="propertyForm" style="display: none;">
+                <div class="status-message" id="statusMessage"></div>
+
+                <div class="form-container">
+                    <div class="form-header">
+                        <h2 class="form-title" id="formTitle">Property Details</h2>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="cancelEdit()">Cancel</button>
+                            <button class="btn btn-danger" onclick="deleteProperty()" id="deleteBtn" style="display: none;">Delete</button>
+                        </div>
+                    </div>
+
+                    <form id="mainForm" onsubmit="saveProperty(event)">
+                        <!-- Basic Information -->
+                        <div class="form-section">
+                            <div class="form-section-title">📋 Basic Information</div>
+                            <div class="form-grid">
+                                <div class="form-group form-grid-full">
+                                    <label class="form-label">Property Name *</label>
+                                    <input type="text" class="form-input" id="name" required>
+                                </div>
+                                <div class="form-group form-grid-full">
+                                    <label class="form-label">Description</label>
+                                    <textarea class="form-textarea" id="description" rows="4"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Location -->
+                        <div class="form-section">
+                            <div class="form-section-title">📍 Location</div>
+                            <div class="form-grid">
+                                <div class="form-group form-grid-full">
+                                    <label class="form-label">Address</label>
+                                    <input type="text" class="form-input" id="address">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">City</label>
+                                    <input type="text" class="form-input" id="city">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">State/Province</label>
+                                    <input type="text" class="form-input" id="state">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Country</label>
+                                    <input type="text" class="form-input" id="country">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Postal Code</label>
+                                    <input type="text" class="form-input" id="postcode">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Latitude</label>
+                                    <input type="number" step="any" class="form-input" id="latitude">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Longitude</label>
+                                    <input type="number" step="any" class="form-input" id="longitude">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Property Details -->
+                        <div class="form-section">
+                            <div class="form-section-title">🛏️ Property Details</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Bedrooms</label>
+                                    <input type="number" class="form-input" id="bedrooms" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Beds</label>
+                                    <input type="number" class="form-input" id="beds" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Bathrooms</label>
+                                    <input type="number" step="0.5" class="form-input" id="bathrooms" min="0">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Max Guests</label>
+                                    <input type="number" class="form-input" id="max_guests" min="1">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Contact Information -->
+                        <div class="form-section">
+                            <div class="form-section-title">📞 Contact Information</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Phone</label>
+                                    <input type="tel" class="form-input" id="phone">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Email</label>
+                                    <input type="email" class="form-input" id="email">
+                                </div>
+                                <div class="form-group form-grid-full">
+                                    <label class="form-label">Website</label>
+                                    <input type="url" class="form-input" id="website">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Check-in/out Times -->
+                        <div class="form-section">
+                            <div class="form-section-title">⏰ Check-in/out Times</div>
+                            <div class="form-grid">
+                                <div class="form-group">
+                                    <label class="form-label">Check-in Time</label>
+                                    <input type="time" class="form-input" id="checkin_time">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Check-out Time</label>
+                                    <input type="time" class="form-input" id="checkout_time">
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Policies -->
+                        <div class="form-section">
+                            <div class="form-section-title">📜 Policies</div>
+                            <div class="form-grid">
+                                <div class="form-group form-grid-full">
+                                    <label class="form-label">House Rules</label>
+                                    <textarea class="form-textarea" id="house_rules" rows="3"></textarea>
+                                </div>
+                                <div class="form-group form-grid-full">
+                                    <label class="form-label">Cancellation Policy</label>
+                                    <textarea class="form-textarea" id="cancellation_policy" rows="3"></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Images -->
+                        <div class="form-section">
+                            <div class="form-section-title">📷 Images</div>
+                            <div class="images-grid" id="imagesGrid">
+                                <!-- Images will be displayed here -->
+                                <div class="image-upload-btn" onclick="document.getElementById('imageUpload').click()">
+                                    +
+                                </div>
+                            </div>
+                            <input type="file" id="imageUpload" accept="image/*" multiple style="display: none;" onchange="handleImageUpload(event)">
+                        </div>
+
+                        <!-- Amenities -->
+                        <div class="form-section">
+                            <div class="form-section-title">✨ Amenities</div>
+                            <div class="amenities-grid" id="amenitiesGrid">
+                                <!-- Common amenities will be loaded here -->
+                            </div>
+                        </div>
+
+                        <!-- Form Actions -->
+                        <div class="form-actions">
+                            <button type="submit" class="btn btn-primary" id="saveBtn">
+                                💾 Save Property
+                            </button>
+                        </div>
+                    </form>
                 </div>
-                <div id="import-status"></div>
             </div>
+        </div>
+    </div>
 
-          <div class="form-box">
-    <h2>Add New Property</h2>
-    <div id="property-message"></div>
-    <form onsubmit="addProperty(event)">
-        <!-- Basic Info -->
-        <div class="grid">
+    <!-- AI Import Modal -->
+    <div class="modal" id="importModal">
+        <div class="modal-content">
+            <h3 class="modal-header">✨ AI Import from URL</h3>
             <div class="form-group">
-                <label>Property Name *</label>
-                <input type="text" id="prop-name" required>
+                <label class="form-label">Property URL (Airbnb or Booking.com)</label>
+                <input type="url" class="form-input" id="importUrl" placeholder="https://www.airbnb.com/rooms/...">
             </div>
-            <div class="form-group">
-                <label>Property Type</label>
-                <select id="prop-type">
-                    <option>Hotel</option>
-                    <option>Apartment</option>
-                    <option>Villa</option>
-                    <option>Resort</option>
-                    <option>Entire home</option>
-                    <option>Private room</option>
-                    <option>Shared room</option>
-                </select>
+            <div class="modal-actions">
+                <button class="btn btn-secondary" onclick="closeImportModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="importFromUrl()" id="importBtn">
+                    Import Property
+                </button>
             </div>
-        </div>
-        
-        <div class="form-group">
-            <label>Description</label>
-            <textarea id="prop-description" rows="4"></textarea>
-        </div>
-        
-        <!-- Location -->
-        <h3 style="margin-top: 20px; margin-bottom: 15px;">Location</h3>
-        <div class="grid">
-            <div class="form-group">
-                <label>Address</label>
-                <input type="text" id="prop-address">
-            </div>
-            <div class="form-group">
-                <label>City *</label>
-                <input type="text" id="prop-city" required>
-            </div>
-        </div>
-        
-        <div class="grid">
-            <div class="form-group">
-                <label>State/Region</label>
-                <input type="text" id="prop-state">
-            </div>
-            <div class="form-group">
-                <label>Country *</label>
-                <input type="text" id="prop-country" required>
-            </div>
-        </div>
-        
-        <div class="grid">
-            <div class="form-group">
-                <label>Postcode</label>
-                <input type="text" id="prop-postcode">
-            </div>
-            <div class="form-group">
-                <label>Star Rating</label>
-                <select id="prop-rating">
-                    <option>1</option>
-                    <option>2</option>
-                    <option>3</option>
-                    <option selected>4</option>
-                    <option>5</option>
-                </select>
-            </div>
-        </div>
-        
-        <div class="grid">
-            <div class="form-group">
-                <label>Latitude</label>
-                <input type="number" id="prop-latitude" step="0.000001" placeholder="51.5074">
-            </div>
-            <div class="form-group">
-                <label>Longitude</label>
-                <input type="number" id="prop-longitude" step="0.000001" placeholder="-0.1278">
-            </div>
-        </div>
-        
-        <!-- Property Size -->
-        <h3 style="margin-top: 20px; margin-bottom: 15px;">Property Size</h3>
-        <div class="grid">
-            <div class="form-group">
-                <label>Bedrooms</label>
-                <input type="number" id="prop-bedrooms" min="0" value="1">
-            </div>
-            <div class="form-group">
-                <label>Beds</label>
-                <input type="number" id="prop-beds" min="0" value="1">
-            </div>
-        </div>
-        
-        <div class="grid">
-            <div class="form-group">
-                <label>Bathrooms</label>
-                <input type="number" id="prop-bathrooms" min="0" step="0.5" value="1">
-            </div>
-            <div class="form-group">
-                <label>Max Guests</label>
-                <input type="number" id="prop-max-guests" min="1" value="2">
-            </div>
-        </div>
-        
-        <!-- Contact Info -->
-        <h3 style="margin-top: 20px; margin-bottom: 15px;">Contact Information</h3>
-        <div class="grid">
-            <div class="form-group">
-                <label>Phone</label>
-                <input type="tel" id="prop-phone">
-            </div>
-            <div class="form-group">
-                <label>Email</label>
-                <input type="email" id="prop-email">
-            </div>
-        </div>
-        
-        <div class="form-group">
-            <label>Website</label>
-            <input type="url" id="prop-website">
-        </div>
-        
-        <!-- Policies -->
-        <h3 style="margin-top: 20px; margin-bottom: 15px;">Policies & Rules</h3>
-        <div class="grid">
-            <div class="form-group">
-                <label>Check-in Time</label>
-                <input type="time" id="prop-checkin" value="15:00">
-            </div>
-            <div class="form-group">
-                <label>Check-out Time</label>
-                <input type="time" id="prop-checkout" value="11:00">
-            </div>
-        </div>
-        
-        <div class="form-group">
-            <label>House Rules</label>
-            <textarea id="prop-house-rules" rows="3" placeholder="No smoking, No pets, No parties..."></textarea>
-        </div>
-        
-        <div class="form-group">
-            <label>Cancellation Policy</label>
-            <textarea id="prop-cancellation" rows="3"></textarea>
-        </div>
-        
-        <button type="submit" class="btn">Add Property</button>
-    </form>
-</div>
-
-            <h2>Your Properties</h2>
-            <div id="properties-list"></div>
-        </div>
-
-        <!-- ROOMS TAB -->
-        <div id="rooms-tab" class="tab-content">
-            <div class="form-box">
-                <h2>Add New Room</h2>
-                <div id="room-message"></div>
-                <form onsubmit="addRoom(event)">
-                    <div class="form-group">
-                        <label>Select Property *</label>
-                        <select id="room-property" required onchange="loadRooms()"></select>
-                    </div>
-                    <div class="grid">
-                        <div class="form-group">
-                            <label>Room Name *</label>
-                            <input type="text" id="room-name" required placeholder="e.g. Deluxe Suite">
-                        </div>
-                        <div class="form-group">
-                            <label>Base Price (USD) *</label>
-                            <input type="number" id="room-price" required step="0.01">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea id="room-description"></textarea>
-                    </div>
-                    <div class="grid">
-                        <div class="form-group">
-                            <label>Max Adults</label>
-                            <input type="number" id="room-adults" value="2">
-                        </div>
-                        <div class="form-group">
-                            <label>Max Children</label>
-                            <input type="number" id="room-children" value="1">
-                        </div>
-                    </div>
-                    <div class="grid">
-                        <div class="form-group">
-                            <label>Max Occupancy</label>
-                            <input type="number" id="room-occupancy" value="3">
-                        </div>
-                        <div class="form-group">
-                            <label>Quantity</label>
-                            <input type="number" id="room-quantity" value="1">
-                        </div>
-                    </div>
-                    <button type="submit">Add Room</button>
-                </form>
-            </div>
-
-            <h2>All Rooms</h2>
-            <div id="rooms-list"></div>
-        </div>
-
-        <!-- BOOKINGS TAB -->
-        <div id="bookings-tab" class="tab-content">
-            <h2>Recent Bookings</h2>
-            <div id="bookings-list"></div>
         </div>
     </div>
 
     <script>
-        function showTab(tab) {
-            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-            
-            event.target.classList.add('active');
-            document.getElementById(tab + '-tab').classList.add('active');
+        let currentPropertyId = null;
+        let properties = [];
+        let selectedAmenities = new Set();
+        let propertyImages = [];
 
-            if (tab === 'properties') loadProperties();
-            if (tab === 'rooms') { loadProperties(); loadRooms(); }
-            if (tab === 'bookings') loadBookings();
-        }
+        // Common amenities list
+        const commonAmenities = [
+            'WiFi', 'Air Conditioning', 'Heating', 'TV', 'Kitchen', 'Washing Machine',
+            'Dryer', 'Parking', 'Pool', 'Hot Tub', 'Gym', 'Elevator', 'Balcony',
+            'Garden', 'BBQ', 'Fireplace', 'Workspace', 'Pets Allowed', 'Smoking Allowed',
+            'Wheelchair Accessible', 'Beach Access', 'Lake Access', 'Ski-in/Ski-out',
+            'Iron', 'Hair Dryer', 'Essentials', 'Hangers', 'Bed Linens', 'Extra Pillows'
+        ];
 
-        // IMPORT PROPERTY FUNCTION
-async function importProperty() {
-    const url = document.getElementById('importUrl').value;
-    const statusEl = document.getElementById('import-status');
-    
-    if (!url) {
-        statusEl.innerHTML = '<p style="color: red;">Please enter a URL</p>';
-        return;
-    }
-    
-    statusEl.innerHTML = '<p style="color: #0066cc;">⏳ Importing property data... This may take 15-20 seconds...</p>';
-    
-    try {
-        const res = await fetch('/api/import-property', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ url })
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => {
+            loadProperties();
+            loadAmenities();
         });
-        
-        const result = await res.json();
-        
-        if (result.success) {
-            const data = result.data;
-            
-            // Auto-fill ALL property fields
-            if (data.property) {
-                const p = data.property;
-                document.getElementById('prop-name').value = p.name || '';
-                document.getElementById('prop-description').value = p.description || '';
-                document.getElementById('prop-address').value = p.address || '';
-                document.getElementById('prop-city').value = p.city || '';
-                document.getElementById('prop-state').value = p.state || '';
-                document.getElementById('prop-country').value = p.country || '';
-                document.getElementById('prop-postcode').value = p.postcode || '';
-                document.getElementById('prop-type').value = p.property_type || 'Hotel';
-                document.getElementById('prop-rating').value = p.star_rating || 4;
-                document.getElementById('prop-latitude').value = p.latitude || '';
-                document.getElementById('prop-longitude').value = p.longitude || '';
-                document.getElementById('prop-bedrooms').value = p.bedrooms || 1;
-                document.getElementById('prop-beds').value = p.beds || 1;
-                document.getElementById('prop-bathrooms').value = p.bathrooms || 1;
-                document.getElementById('prop-max-guests').value = p.max_guests || 2;
-                document.getElementById('prop-phone').value = p.phone || '';
-                document.getElementById('prop-email').value = p.email || '';
-                document.getElementById('prop-website').value = p.website || url;
-                document.getElementById('prop-checkin').value = p.check_in_time || '15:00';
-                document.getElementById('prop-checkout').value = p.check_out_time || '11:00';
-                document.getElementById('prop-house-rules').value = p.house_rules || '';
-                document.getElementById('prop-cancellation').value = p.cancellation_policy || '';
-            }
-            
-            let successHtml = '<div style="background: #d4edda; padding: 20px; border-radius: 8px; margin-top: 15px;">';
-            successHtml += '<h3 style="color: #155724; margin-bottom: 15px;">✅ Property Data Imported!</h3>';
-            
-            // Show coordinates
-            if (data.property && (data.property.latitude || data.property.longitude)) {
-                successHtml += `<p><strong>📍 Location:</strong> ${data.property.latitude}, ${data.property.longitude}</p>`;
-            }
-            
-            // Show property size
-            if (data.property) {
-                successHtml += `<p><strong>🏠 Size:</strong> ${data.property.bedrooms} bedrooms, ${data.property.beds} beds, ${data.property.bathrooms} bathrooms, max ${data.property.max_guests} guests</p>`;
-            }
-            
-            // Show review ratings
-            if (data.property && data.property.review_rating) {
-                successHtml += `<p><strong>⭐ Rating:</strong> ${data.property.review_rating}/5 (${data.property.review_count} reviews)</p>`;
-                if (data.property.rating_breakdown) {
-                    const rb = data.property.rating_breakdown;
-                    successHtml += `<p style="font-size: 0.9em; color: #666;">Cleanliness: ${rb.cleanliness} | Accuracy: ${rb.accuracy} | Communication: ${rb.communication} | Location: ${rb.location} | Check-in: ${rb.checkin} | Value: ${rb.value}</p>`;
-                }
-            }
-            
-            // Show amenities
-            if (data.amenities) {
-                successHtml += '<div style="margin-top: 15px;"><strong>✨ Amenities:</strong><br>';
-                for (const [category, items] of Object.entries(data.amenities)) {
-                    if (items && items.length > 0) {
-                        successHtml += `<span style="color: #666; font-size: 0.9em;">${category}:</span> ${items.join(', ')}<br>`;
-                    }
-                }
-                successHtml += '</div>';
-            }
-            
-            // Show sleeping arrangements
-            if (data.sleeping_arrangements && data.sleeping_arrangements.length > 0) {
-                successHtml += '<div style="margin-top: 15px;"><strong>🛏️ Sleeping Arrangements:</strong><br>';
-                data.sleeping_arrangements.forEach(sa => {
-                    successHtml += `<span style="color: #666;">${sa.room}:</span> ${sa.beds}<br>`;
-                });
-                successHtml += '</div>';
-            }
-            
-            // Show pricing
-            if (data.pricing) {
-                successHtml += `<div style="margin-top: 15px;"><strong>💰 Pricing:</strong> ${data.pricing.currency} ${data.pricing.nightly_rate}/night`;
-                if (data.pricing.cleaning_fee) successHtml += ` (+ ${data.pricing.cleaning_fee} cleaning fee)`;
-                successHtml += '</div>';
-            }
-            
-            // Show images with copyright confirmation
-            if (data.images && data.images.length > 0) {
-                successHtml += `<div style="margin-top: 15px; padding: 15px; background: #fff3cd; border: 2px solid #ffc107; border-radius: 5px;">`;
-                successHtml += `<strong>📸 Images Found:</strong> ${data.images.length} images<br>`;
-                successHtml += `<div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 10px; margin: 10px 0;">`;
-                data.images.slice(0, 6).forEach(img => {
-                    successHtml += `<img src="${img.url}" alt="${img.caption || ''}" style="width: 100%; height: 80px; object-fit: cover; border-radius: 5px;">`;
-                });
-                successHtml += '</div>';
-                successHtml += `<label style="display: flex; align-items: center; margin-top: 10px; cursor: pointer;">`;
-                successHtml += `<input type="checkbox" id="confirm-image-rights" style="margin-right: 10px;">`;
-                successHtml += `<span style="color: #856404;">I confirm I own/manage this property and have rights to use these images</span>`;
-                successHtml += `</label>`;
-                successHtml += '</div>';
-            }
-            
-            successHtml += '<p style="margin-top: 15px; font-weight: bold; color: #155724;">Review the data above and click "Add Property" to save.</p>';
-            successHtml += '</div>';
-            
-            statusEl.innerHTML = successHtml;
-            
-            // Store extracted data
-            window.extractedPropertyData = data;
-            
-            document.getElementById('importUrl').value = '';
-        } else {
-            statusEl.innerHTML = '<p style="color: red;">❌ Import failed: ' + result.error + '</p>';
-        }
-    } catch (error) {
-        statusEl.innerHTML = '<p style="color: red;">❌ Error: ' + error.message + '</p>';
-    }
-}
 
-     async function addProperty(e) {
-    e.preventDefault();
-    
-    const data = {
-        name: document.getElementById('prop-name').value,
-        description: document.getElementById('prop-description').value,
-        address: document.getElementById('prop-address').value,
-        city: document.getElementById('prop-city').value,
-        state: document.getElementById('prop-state').value,
-        country: document.getElementById('prop-country').value,
-        postcode: document.getElementById('prop-postcode').value,
-        property_type: document.getElementById('prop-type').value,
-        star_rating: parseInt(document.getElementById('prop-rating').value),
-        latitude: parseFloat(document.getElementById('prop-latitude').value) || null,
-        longitude: parseFloat(document.getElementById('prop-longitude').value) || null,
-        bedrooms: parseInt(document.getElementById('prop-bedrooms').value) || null,
-        beds: parseInt(document.getElementById('prop-beds').value) || null,
-        bathrooms: parseFloat(document.getElementById('prop-bathrooms').value) || null,
-        max_guests: parseInt(document.getElementById('prop-max-guests').value) || null,
-        phone: document.getElementById('prop-phone').value,
-        email: document.getElementById('prop-email').value,
-        website: document.getElementById('prop-website').value,
-        check_in_time: document.getElementById('prop-checkin').value,
-        check_out_time: document.getElementById('prop-checkout').value,
-        house_rules: document.getElementById('prop-house-rules').value,
-        cancellation_policy: document.getElementById('prop-cancellation').value
-    };
-
-    const isUpdate = editingPropertyId !== null;
-    const url = isUpdate ? `/api/db/properties/${editingPropertyId}` : '/api/db/properties';
-    const method = isUpdate ? 'PUT' : 'POST';
-
-    const res = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-    const result = await res.json();
-
-    if (result.success) {
-        document.getElementById('property-message').innerHTML = `<div class="success">✅ Property ${isUpdate ? 'updated' : 'added'}!</div>`;
-        e.target.reset();
-        document.getElementById('import-status').innerHTML = '';
-        loadProperties();
-        if (isUpdate) cancelEdit();
-    } else {
-        document.getElementById('property-message').innerHTML = '<div class="error">❌ Error: ' + result.error + '</div>';
-    }
-}
-
-async function editProperty(id) {
-    const res = await fetch('/api/db/properties');
-    const result = await res.json();
-    
-    if (result.success) {
-        const property = result.data.find(p => p.id === id);
-        if (!property) return;
-        
-        document.getElementById('prop-name').value = property.name || '';
-        document.getElementById('prop-description').value = property.description || '';
-        document.getElementById('prop-address').value = property.address || '';
-        document.getElementById('prop-city').value = property.city || '';
-        document.getElementById('prop-state').value = property.state || '';
-        document.getElementById('prop-country').value = property.country || '';
-        document.getElementById('prop-postcode').value = property.postcode || '';
-        document.getElementById('prop-type').value = property.property_type || 'Hotel';
-        document.getElementById('prop-rating').value = property.star_rating || 4;
-        document.getElementById('prop-latitude').value = property.latitude || '';
-        document.getElementById('prop-longitude').value = property.longitude || '';
-        document.getElementById('prop-bedrooms').value = property.bedrooms || 1;
-        document.getElementById('prop-beds').value = property.beds || 1;
-        document.getElementById('prop-bathrooms').value = property.bathrooms || 1;
-        document.getElementById('prop-max-guests').value = property.max_guests || 2;
-        document.getElementById('prop-phone').value = property.phone || '';
-        document.getElementById('prop-email').value = property.email || '';
-        document.getElementById('prop-website').value = property.website || '';
-        document.getElementById('prop-checkin').value = property.check_in_time || '15:00';
-        document.getElementById('prop-checkout').value = property.check_out_time || '11:00';
-        document.getElementById('prop-house-rules').value = property.house_rules || '';
-        document.getElementById('prop-cancellation').value = property.cancellation_policy || '';
-        
-        editingPropertyId = id;
-        
-        const submitBtn = document.querySelector('form button[type="submit"]');
-        submitBtn.textContent = 'Update Property';
-        submitBtn.style.background = '#ff9800';
-        
-        document.querySelector('.form-box').scrollIntoView({ behavior: 'smooth' });
-        
-        if (!document.getElementById('cancel-edit-btn')) {
-            const cancelBtn = document.createElement('button');
-            cancelBtn.id = 'cancel-edit-btn';
-            cancelBtn.type = 'button';
-            cancelBtn.textContent = 'Cancel Edit';
-            cancelBtn.className = 'btn';
-            cancelBtn.style.background = '#666';
-            cancelBtn.style.marginLeft = '10px';
-            cancelBtn.onclick = cancelEdit;
-            submitBtn.parentNode.appendChild(cancelBtn);
-        }
-    }
-}
-
-function cancelEdit() {
-    editingPropertyId = null;
-    document.querySelector('form').reset();
-    const submitBtn = document.querySelector('form button[type="submit"]');
-    submitBtn.textContent = 'Add Property';
-    submitBtn.style.background = '';
-    const cancelBtn = document.getElementById('cancel-edit-btn');
-    if (cancelBtn) cancelBtn.remove();
-}
-
-
-
-function cancelEdit() {
-    editingPropertyId = null;
-    document.querySelector('form').reset();
-    const submitBtn = document.querySelector('form button[type="submit"]');
-    submitBtn.textContent = 'Add Property';
-    submitBtn.style.background = '';
-    const cancelBtn = document.getElementById('cancel-edit-btn');
-    if (cancelBtn) cancelBtn.remove();
-}        
-           
-    // UPDATE or ADD
-    const isUpdate = editingPropertyId !== null;
-    const url = isUpdate ? `/api/db/properties/${editingPropertyId}` : '/api/db/properties';
-    const method = isUpdate ? 'PUT' : 'POST';
-
-    const res = await fetch(url, {
-        method: method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
-    });
-    const result = await res.json();
-
-    if (result.success) {
-        document.getElementById('property-message').innerHTML = `<div class="success">✅ Property ${isUpdate ? 'updated' : 'added'}!</div>`;
-        e.target.reset();
-        document.getElementById('import-status').innerHTML = '';
-        loadProperties();
-        
-        if (isUpdate) cancelEdit();
-    } else {
-        document.getElementById('property-message').innerHTML = '<div class="error">❌ Error: ' + result.error + '</div>';
-    }
-}
-
-    let editingPropertyId = null;
-        
+        // Load all properties
         async function loadProperties() {
-    const res = await fetch('/api/db/properties');
-    const result = await res.json();
+            try {
+                const response = await fetch('/api/db/properties');
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error);
+                }
+                
+                properties = result.data;
+                renderPropertyList();
+            } catch (error) {
+                console.error('Error loading properties:', error);
+                showStatus('Error loading properties', 'error');
+            }
+        }
 
-    if (result.success) {
-        const list = document.getElementById('properties-list');
-        const select = document.getElementById('room-property');
+        // Render property list in sidebar
+        function renderPropertyList() {
+            const listContainer = document.getElementById('propertyList');
+            
+            if (properties.length === 0) {
+                listContainer.innerHTML = '<div style="padding: 2rem; text-align: center; color: #999;">No properties yet</div>';
+                return;
+            }
 
-        list.innerHTML = result.data.map(p => `
-            <div class="list-item" onclick="editProperty(${p.id})" style="cursor: pointer; transition: background 0.2s;" 
-                 onmouseover="this.style.background='#f0f0f0'" 
-                 onmouseout="this.style.background='white'">
-                <h3>${p.name} ✏️</h3>
-                <p>${p.description || ''}</p>
-                <p><strong>Location:</strong> ${p.city || ''}, ${p.country || ''}</p>
-                <p><strong>Type:</strong> ${p.property_type || 'N/A'} | <strong>Rating:</strong> ${p.star_rating || 'N/A'} ⭐</p>
-                <p><strong>Size:</strong> ${p.bedrooms || 0} bed, ${p.beds || 0} beds, ${p.bathrooms || 0} bath | Max ${p.max_guests || 0} guests</p>
-                ${p.latitude ? `<p><strong>📍</strong> ${p.latitude}, ${p.longitude}</p>` : ''}
-                <p style="color: #666; font-size: 0.9em;">Click to edit</p>
-            </div>
-        `).join('');
+            listContainer.innerHTML = properties.map(property => `
+                <div class="property-item ${property.id === currentPropertyId ? 'active' : ''}" 
+                     onclick="selectProperty(${property.id})">
+                    <div class="property-item-name">${property.name || 'Unnamed Property'}</div>
+                    <div class="property-item-location">
+                        📍 ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
+                    </div>
+                    <div class="property-item-meta">
+                        <span>🛏️ ${property.bedrooms || 0} bed</span>
+                        <span>👥 ${property.max_guests || 0} guests</span>
+                    </div>
+                </div>
+            `).join('');
+        }
 
-        select.innerHTML = '<option value="">Select property...</option>' + 
-            result.data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-    }
-}
+        // Filter properties by search
+        function filterProperties() {
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            const filtered = properties.filter(p => 
+                (p.name || '').toLowerCase().includes(searchTerm) ||
+                (p.city || '').toLowerCase().includes(searchTerm) ||
+                (p.country || '').toLowerCase().includes(searchTerm)
+            );
+            
+            const listContainer = document.getElementById('propertyList');
+            listContainer.innerHTML = filtered.map(property => `
+                <div class="property-item ${property.id === currentPropertyId ? 'active' : ''}" 
+                     onclick="selectProperty(${property.id})">
+                    <div class="property-item-name">${property.name || 'Unnamed Property'}</div>
+                    <div class="property-item-location">
+                        📍 ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
+                    </div>
+                    <div class="property-item-meta">
+                        <span>🛏️ ${property.bedrooms || 0} bed</span>
+                        <span>👥 ${property.max_guests || 0} guests</span>
+                    </div>
+                </div>
+            `).join('');
+        }
 
-        async function addRoom(e) {
-            e.preventDefault();
-            const data = {
-                property_id: parseInt(document.getElementById('room-property').value),
-                name: document.getElementById('room-name').value,
-                description: document.getElementById('room-description').value,
-                max_adults: parseInt(document.getElementById('room-adults').value),
-                max_children: parseInt(document.getElementById('room-children').value),
-                max_occupancy: parseInt(document.getElementById('room-occupancy').value),
-                base_price: parseFloat(document.getElementById('room-price').value),
-                quantity: parseInt(document.getElementById('room-quantity').value)
+        // Select and load property
+        async function selectProperty(id) {
+            try {
+                // Get the property from our loaded array instead of fetching individually
+                const property = properties.find(p => p.id === id);
+                if (!property) {
+                    throw new Error('Property not found');
+                }
+                
+                currentPropertyId = id;
+                populateForm(property);
+                
+                // For now, no images or amenities in API - we'll add these later
+                propertyImages = [];
+                selectedAmenities = new Set();
+                
+                renderImages();
+                renderAmenities();
+                
+                // Update UI
+                document.getElementById('emptyState').style.display = 'none';
+                document.getElementById('propertyForm').style.display = 'block';
+                document.getElementById('formTitle').textContent = property.name || 'Property Details';
+                document.getElementById('deleteBtn').style.display = 'inline-flex';
+                
+                renderPropertyList();
+            } catch (error) {
+                console.error('Error loading property:', error);
+                showStatus('Error loading property', 'error');
+            }
+        }
+
+        // Populate form with property data
+        function populateForm(property) {
+            const fieldMap = {
+                'name': 'name',
+                'description': 'description',
+                'address': 'address',
+                'city': 'city',
+                'state': 'state',
+                'country': 'country',
+                'postcode': 'postcode',
+                'latitude': 'latitude',
+                'longitude': 'longitude',
+                'bedrooms': 'bedrooms',
+                'beds': 'beds',
+                'bathrooms': 'bathrooms',
+                'max_guests': 'max_guests',
+                'phone': 'phone',
+                'email': 'email',
+                'website': 'website',
+                'checkin_time': 'check_in_time',
+                'checkout_time': 'check_out_time',
+                'house_rules': 'house_rules',
+                'cancellation_policy': 'cancellation_policy'
+            };
+            
+            Object.entries(fieldMap).forEach(([formField, dataField]) => {
+                const element = document.getElementById(formField);
+                if (element && property[dataField] !== null && property[dataField] !== undefined) {
+                    element.value = property[dataField];
+                }
+            });
+        }
+
+        // Create new property
+        function createNewProperty() {
+            currentPropertyId = null;
+            document.getElementById('mainForm').reset();
+            selectedAmenities.clear();
+            propertyImages = [];
+            
+            renderAmenities();
+            renderImages();
+            
+            document.getElementById('emptyState').style.display = 'none';
+            document.getElementById('propertyForm').style.display = 'block';
+            document.getElementById('formTitle').textContent = 'New Property';
+            document.getElementById('deleteBtn').style.display = 'none';
+            
+            renderPropertyList();
+        }
+
+        // Save property
+        async function saveProperty(event) {
+            event.preventDefault();
+            
+            const formData = {
+                name: document.getElementById('name').value,
+                description: document.getElementById('description').value,
+                address: document.getElementById('address').value,
+                city: document.getElementById('city').value,
+                state: document.getElementById('state').value,
+                country: document.getElementById('country').value,
+                postcode: document.getElementById('postcode').value,
+                latitude: parseFloat(document.getElementById('latitude').value) || null,
+                longitude: parseFloat(document.getElementById('longitude').value) || null,
+                bedrooms: parseInt(document.getElementById('bedrooms').value) || null,
+                beds: parseInt(document.getElementById('beds').value) || null,
+                bathrooms: parseFloat(document.getElementById('bathrooms').value) || null,
+                max_guests: parseInt(document.getElementById('max_guests').value) || null,
+                phone: document.getElementById('phone').value,
+                email: document.getElementById('email').value,
+                website: document.getElementById('website').value,
+                check_in_time: document.getElementById('checkin_time').value,
+                check_out_time: document.getElementById('checkout_time').value,
+                house_rules: document.getElementById('house_rules').value,
+                cancellation_policy: document.getElementById('cancellation_policy').value
             };
 
-            const res = await fetch('/api/db/rooms', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(data)
-            });
-            const result = await res.json();
+            try {
+                const url = currentPropertyId 
+                    ? `/api/db/properties/${currentPropertyId}`
+                    : '/api/db/properties';
+                
+                const method = currentPropertyId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(formData)
+                });
 
-            if (result.success) {
-                document.getElementById('room-message').innerHTML = '<div class="success">✅ Room added!</div>';
-                e.target.reset();
-                loadRooms();
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to save property');
+                }
+                
+                if (!currentPropertyId && result.data && result.data.id) {
+                    currentPropertyId = result.data.id;
+                }
+
+                // Note: Amenities saving will be implemented when backend supports it
+
+                showStatus('Property saved successfully!', 'success');
+                await loadProperties();
+                
+                // Keep form open with saved data
+                if (currentPropertyId) {
+                    await selectProperty(currentPropertyId);
+                }
+                
+            } catch (error) {
+                console.error('Error saving property:', error);
+                showStatus('Error saving property', 'error');
+            }
+        }
+
+        // Delete property
+        async function deleteProperty() {
+            if (!currentPropertyId) return;
+            
+            if (!confirm('Are you sure you want to delete this property?')) return;
+
+            try {
+                const response = await fetch(`/api/db/properties/${currentPropertyId}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    throw new Error(result.error || 'Failed to delete property');
+                }
+
+                showStatus('Property deleted successfully!', 'success');
+                await loadProperties();
+                cancelEdit();
+            } catch (error) {
+                console.error('Error deleting property:', error);
+                showStatus('Error deleting property', 'error');
+            }
+        }
+
+        // Cancel edit
+        function cancelEdit() {
+            currentPropertyId = null;
+            document.getElementById('propertyForm').style.display = 'none';
+            document.getElementById('emptyState').style.display = 'flex';
+            renderPropertyList();
+        }
+
+        // Load and render amenities
+        function loadAmenities() {
+            renderAmenities();
+        }
+
+        function renderAmenities() {
+            const grid = document.getElementById('amenitiesGrid');
+            grid.innerHTML = commonAmenities.map(amenity => `
+                <div class="amenity-item ${selectedAmenities.has(amenity) ? 'selected' : ''}" 
+                     onclick="toggleAmenity('${amenity}')">
+                    <input type="checkbox" 
+                           class="amenity-checkbox" 
+                           ${selectedAmenities.has(amenity) ? 'checked' : ''}
+                           onchange="toggleAmenity('${amenity}')">
+                    <span class="amenity-label">${amenity}</span>
+                </div>
+            `).join('');
+        }
+
+        function toggleAmenity(amenity) {
+            if (selectedAmenities.has(amenity)) {
+                selectedAmenities.delete(amenity);
             } else {
-                document.getElementById('room-message').innerHTML = '<div class="error">❌ Error: ' + result.error + '</div>';
+                selectedAmenities.add(amenity);
+            }
+            renderAmenities();
+        }
+
+        // Note: Amenities will be saved when backend API is ready
+
+        // Image handling
+        function renderImages() {
+            const grid = document.getElementById('imagesGrid');
+            const imagesHtml = propertyImages.map((img, index) => `
+                <div class="image-item">
+                    <img src="${img.url}" alt="Property image">
+                    <button class="image-item-remove" onclick="removeImage(${index})">×</button>
+                </div>
+            `).join('');
+            
+            grid.innerHTML = imagesHtml + `
+                <div class="image-upload-btn" onclick="document.getElementById('imageUpload').click()">
+                    +
+                </div>
+            `;
+        }
+
+        function handleImageUpload(event) {
+            // This would handle actual image uploads
+            // For now, just show the UI
+            alert('Image upload functionality will be implemented');
+        }
+
+        function removeImage(index) {
+            propertyImages.splice(index, 1);
+            renderImages();
+        }
+
+        // AI Import Modal
+        function openImportModal() {
+            document.getElementById('importModal').classList.add('active');
+        }
+
+        function closeImportModal() {
+            document.getElementById('importModal').classList.remove('active');
+            document.getElementById('importUrl').value = '';
+        }
+
+        async function importFromUrl() {
+            const url = document.getElementById('importUrl').value;
+            if (!url) {
+                alert('Please enter a URL');
+                return;
+            }
+
+            const btn = document.getElementById('importBtn');
+            btn.innerHTML = '<span class="spinner"></span> Importing...';
+            btn.disabled = true;
+
+            try {
+                const response = await fetch('/api/import/airbnb', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+
+                const result = await response.json();
+                
+                closeImportModal();
+                showStatus('Property imported successfully!', 'success');
+                
+                await loadProperties();
+                
+                if (result.property && result.property.id) {
+                    await selectProperty(result.property.id);
+                }
+                
+            } catch (error) {
+                console.error('Error importing:', error);
+                showStatus('Error importing property', 'error');
+            } finally {
+                btn.innerHTML = 'Import Property';
+                btn.disabled = false;
             }
         }
 
-        async function loadRooms() {
-            const propertyId = document.getElementById('room-property').value;
-            if (!propertyId) return;
-
-            const res = await fetch('/api/db/rooms?propertyId=' + propertyId);
-            const result = await res.json();
-
-            if (result.success) {
-                document.getElementById('rooms-list').innerHTML = result.data.map(r => `
-                    <div class="list-item">
-                        <h3>${r.name}</h3>
-                        <p>${r.description || ''}</p>
-                        <p><strong>Price:</strong> $${r.base_price} per night</p>
-                        <p><strong>Capacity:</strong> ${r.max_adults} adults, ${r.max_children} children</p>
-                        <p><strong>Available:</strong> ${r.quantity} rooms</p>
-                    </div>
-                `).join('');
-            }
+        // Status messages
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${type} active`;
+            
+            setTimeout(() => {
+                statusEl.classList.remove('active');
+            }, 5000);
         }
 
-        async function loadBookings() {
-            const res = await fetch('/api/db/bookings');
-            const result = await res.json();
-
-            if (result.success) {
-                document.getElementById('bookings-list').innerHTML = result.data.map(b => `
-                    <div class="list-item">
-                        <h3>Booking #${b.id} - ${b.status}</h3>
-                        <p><strong>Guest:</strong> ${b.guest_first_name} ${b.guest_last_name}</p>
-                        <p><strong>Email:</strong> ${b.guest_email}</p>
-                        <p><strong>Dates:</strong> ${b.check_in} to ${b.check_out}</p>
-                        <p><strong>Guests:</strong> ${b.num_adults} adults, ${b.num_children} children</p>
-                        <p><strong>Total:</strong> $${b.total_price}</p>
-                        <p><strong>Booked:</strong> ${new Date(b.created_at).toLocaleString()}</p>
-                    </div>
-                `).join('');
+        // Close modal on outside click
+        document.getElementById('importModal').addEventListener('click', (e) => {
+            if (e.target.id === 'importModal') {
+                closeImportModal();
             }
-        }
-
-        // Load properties on page load
-        loadProperties();
+        });
     </script>
 </body>
 </html>
