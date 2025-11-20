@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beds24 Integration Setup</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            color: white;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 2rem;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            margin-bottom: 1.5rem;
+        }
+
+        .step-indicator {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 2rem;
+            padding: 0 1rem;
+        }
+
+        .step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            flex: 1;
+            position: relative;
+        }
+
+        .step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            width: 100%;
+            height: 2px;
+            background: #e0e0e0;
+            z-index: 0;
+        }
+
+        .step.active:not(:last-child)::after {
+            background: #667eea;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #e0e0e0;
+            color: #999;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step.active .step-number {
+            background: #667eea;
+            color: white;
+        }
+
+        .step.completed .step-number {
+            background: #00C851;
+            color: white;
+        }
+
+        .step-label {
+            font-size: 0.85rem;
+            color: #666;
+            text-align: center;
+        }
+
+        .step.active .step-label {
+            color: #667eea;
+            font-weight: 600;
+        }
+
+        .form-section {
+            display: none;
+        }
+
+        .form-section.active {
+            display: block;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            color: #333;
+            margin-bottom: 1rem;
+        }
+
+        .section-description {
+            color: #666;
+            margin-bottom: 2rem;
+            line-height: 1.6;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #333;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: all 0.3s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f0f0f0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .button-group {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .status-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            display: none;
+        }
+
+        .status-message.active {
+            display: block;
+        }
+
+        .status-message.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+
+        .status-message.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+
+        .status-message.info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+
+        .info-box {
+            background: #f8f9ff;
+            border-left: 4px solid #667eea;
+            padding: 1rem;
+            border-radius: 4px;
+            margin: 1rem 0;
+        }
+
+        .info-box strong {
+            color: #667eea;
+        }
+
+        .token-display {
+            background: #f4f4f4;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            word-break: break-all;
+            font-size: 0.9rem;
+            margin: 1rem 0;
+        }
+
+        .properties-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .property-card {
+            background: #f9f9f9;
+            padding: 1.5rem;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            transition: all 0.2s;
+        }
+
+        .property-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+        }
+
+        .property-card h3 {
+            color: #333;
+            margin-bottom: 0.5rem;
+        }
+
+        .property-card p {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .code-block {
+            background: #2d2d2d;
+            color: #f8f8f2;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            margin: 1rem 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏨 Beds24 Integration</h1>
+            <p>Connect your Beds24 account to sync properties and bookings</p>
+        </div>
+
+        <div class="card">
+            <div class="step-indicator">
+                <div class="step active" data-step="1">
+                    <div class="step-number">1</div>
+                    <div class="step-label">Get Invite Code</div>
+                </div>
+                <div class="step" data-step="2">
+                    <div class="step-number">2</div>
+                    <div class="step-label">Connect Account</div>
+                </div>
+                <div class="step" data-step="3">
+                    <div class="step-number">3</div>
+                    <div class="step-label">Import Properties</div>
+                </div>
+                <div class="step" data-step="4">
+                    <div class="step-number">4</div>
+                    <div class="step-label">Complete</div>
+                </div>
+            </div>
+
+            <div id="statusMessage" class="status-message"></div>
+
+            <!-- STEP 1: Get Invite Code -->
+            <div id="step1" class="form-section active">
+                <h2 class="section-title">Step 1: Generate Beds24 Invite Code</h2>
+                <p class="section-description">
+                    You need to generate an invite code from your Beds24 account with the correct permissions (scopes).
+                </p>
+
+                <div class="info-box">
+                    <strong>📋 Instructions:</strong><br><br>
+                    1. Log in to your Beds24 account<br>
+                    2. Go to <strong>Settings → Marketplace → API</strong><br>
+                    3. Click <strong>"Generate Invite Code"</strong><br>
+                    4. Select these scopes:
+                    <ul style="margin: 0.5rem 0 0.5rem 2rem;">
+                        <li><code>all:properties</code> - Read & write properties</li>
+                        <li><code>all:bookings</code> - Read & write bookings</li>
+                        <li><code>all:inventory</code> - Read & write inventory/pricing</li>
+                    </ul>
+                    5. ✅ Check <strong>"Allow linked properties"</strong><br>
+                    6. Copy the generated invite code
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Paste Your Invite Code:</label>
+                    <input type="text" id="inviteCode" class="form-input" placeholder="Enter your Beds24 invite code here...">
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="connectBeds24()">
+                        Connect to Beds24 →
+                    </button>
+                </div>
+            </div>
+
+            <!-- STEP 2: Connection Successful -->
+            <div id="step2" class="form-section">
+                <h2 class="section-title">Step 2: Connected Successfully! ✅</h2>
+                <p class="section-description">
+                    Your Beds24 account is now connected. The tokens have been saved securely.
+                </p>
+
+                <div class="info-box">
+                    <strong>🔑 Refresh Token (saved):</strong>
+                    <div class="token-display" id="refreshTokenDisplay"></div>
+                    <small>This token will be used automatically to refresh your access. Keep it secure!</small>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(1)">
+                        ← Back
+                    </button>
+                    <button class="btn btn-primary" onclick="goToStep(3)">
+                        Import Properties →
+                    </button>
+                </div>
+            </div>
+
+            <!-- STEP 3: Import Properties -->
+            <div id="step3" class="form-section">
+                <h2 class="section-title">Step 3: Import Your Properties</h2>
+                <p class="section-description">
+                    Select which properties you want to import from Beds24 to your system.
+                </p>
+
+                <div id="beds24PropertiesList" class="properties-grid">
+                    <!-- Properties will be loaded here -->
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-secondary" onclick="goToStep(2)">
+                        ← Back
+                    </button>
+                    <button class="btn btn-primary" onclick="loadBeds24Properties()">
+                        🔄 Load Properties
+                    </button>
+                    <button class="btn btn-primary" onclick="importSelectedProperties()" id="importBtn" style="display: none;">
+                        Import Selected →
+                    </button>
+                </div>
+            </div>
+
+            <!-- STEP 4: Complete -->
+            <div id="step4" class="form-section">
+                <h2 class="section-title">🎉 Setup Complete!</h2>
+                <p class="section-description">
+                    Your Beds24 integration is now active. Properties and bookings will sync automatically.
+                </p>
+
+                <div class="info-box">
+                    <strong>✅ What's Next:</strong><br><br>
+                    • Your properties are now imported<br>
+                    • Bookings will sync automatically<br>
+                    • Inventory and pricing are connected<br>
+                    • You can manage everything from your admin panel
+                </div>
+
+                <div class="button-group">
+                    <button class="btn btn-primary" onclick="window.location.href='/admin.html'">
+                        Go to Admin Panel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentStep = 1;
+        let refreshToken = null;
+        let currentToken = null;
+        let beds24Properties = [];
+        let selectedProperties = new Set();
+
+        // Check if already connected
+        window.addEventListener('DOMContentLoaded', async () => {
+            const saved = localStorage.getItem('beds24_refresh_token');
+            if (saved) {
+                refreshToken = saved;
+                showStatus('You already have a saved connection. Testing...', 'info');
+                try {
+                    await refreshAccessToken();
+                    showStatus('Connection verified! ✅', 'success');
+                    goToStep(3);
+                } catch (error) {
+                    showStatus('Saved connection expired. Please reconnect.', 'error');
+                }
+            }
+        });
+
+        async function connectBeds24() {
+            const inviteCode = document.getElementById('inviteCode').value.trim();
+            
+            if (!inviteCode) {
+                showStatus('Please enter an invite code', 'error');
+                return;
+            }
+
+            showStatus('Connecting to Beds24...', 'info');
+
+            try {
+                // Exchange invite code for tokens
+                const response = await fetch(`https://beds24.com/api/v2/authentication/setup?code=${encodeURIComponent(inviteCode)}`);
+                
+                if (!response.ok) {
+                    throw new Error('Failed to connect. Check your invite code.');
+                }
+
+                const data = await response.json();
+                
+                if (!data.token || !data.refreshToken) {
+                    throw new Error('Invalid response from Beds24');
+                }
+
+                currentToken = data.token;
+                refreshToken = data.refreshToken;
+
+                // Save refresh token
+                localStorage.setItem('beds24_refresh_token', refreshToken);
+                
+                // Save to server
+                await fetch('/api/beds24/save-token', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ refreshToken, token: currentToken })
+                });
+
+                document.getElementById('refreshTokenDisplay').textContent = refreshToken;
+                
+                showStatus('Connected successfully! ✅', 'success');
+                goToStep(2);
+                
+            } catch (error) {
+                console.error('Connection error:', error);
+                showStatus('Error: ' + error.message, 'error');
+            }
+        }
+
+        async function refreshAccessToken() {
+            if (!refreshToken) {
+                throw new Error('No refresh token available');
+            }
+
+            const response = await fetch('https://beds24.com/api/v2/authentication/token', {
+                headers: {
+                    'refreshToken': refreshToken
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to refresh token');
+            }
+
+            const data = await response.json();
+            currentToken = data.token;
+            return currentToken;
+        }
+
+        async function loadBeds24Properties() {
+            showStatus('Loading properties from Beds24...', 'info');
+
+            try {
+                // Ensure we have a valid token
+                if (!currentToken) {
+                    await refreshAccessToken();
+                }
+
+                const response = await fetch('https://beds24.com/api/v2/properties', {
+                    headers: {
+                        'token': currentToken
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to load properties');
+                }
+
+                const data = await response.json();
+                beds24Properties = data.data || [];
+
+                displayBeds24Properties();
+                showStatus(`Found ${beds24Properties.length} properties! ✅`, 'success');
+                
+                document.getElementById('importBtn').style.display = 'inline-flex';
+
+            } catch (error) {
+                console.error('Load error:', error);
+                showStatus('Error loading properties: ' + error.message, 'error');
+            }
+        }
+
+        function displayBeds24Properties() {
+            const container = document.getElementById('beds24PropertiesList');
+            
+            if (beds24Properties.length === 0) {
+                container.innerHTML = '<p style="text-align: center; color: #999;">No properties found. Click "Load Properties" to fetch them.</p>';
+                return;
+            }
+
+            container.innerHTML = beds24Properties.map(prop => `
+                <div class="property-card" onclick="toggleProperty(${prop.id})">
+                    <input type="checkbox" id="prop-${prop.id}" style="margin-bottom: 0.5rem;">
+                    <h3>${prop.name || 'Unnamed Property'}</h3>
+                    <p><strong>ID:</strong> ${prop.id}</p>
+                    ${prop.address ? `<p>📍 ${prop.address}</p>` : ''}
+                    ${prop.rooms ? `<p>🛏️ ${prop.rooms} rooms</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function toggleProperty(id) {
+            const checkbox = document.getElementById(`prop-${id}`);
+            checkbox.checked = !checkbox.checked;
+            
+            if (checkbox.checked) {
+                selectedProperties.add(id);
+            } else {
+                selectedProperties.delete(id);
+            }
+        }
+
+        async function importSelectedProperties() {
+            if (selectedProperties.size === 0) {
+                showStatus('Please select at least one property', 'error');
+                return;
+            }
+
+            showStatus(`Importing ${selectedProperties.size} properties...`, 'info');
+
+            try {
+                const propertiesToImport = beds24Properties.filter(p => selectedProperties.has(p.id));
+                
+                for (const prop of propertiesToImport) {
+                    // Import to our database
+                    await fetch('/api/db/properties', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            name: prop.name,
+                            description: prop.description,
+                            address: prop.address,
+                            city: prop.city,
+                            country: prop.country,
+                            property_type: 'Hotel',
+                            star_rating: 4,
+                            beds24_property_id: prop.id
+                        })
+                    });
+                }
+
+                showStatus(`Successfully imported ${selectedProperties.size} properties! ✅`, 'success');
+                setTimeout(() => goToStep(4), 1500);
+
+            } catch (error) {
+                console.error('Import error:', error);
+                showStatus('Error importing properties: ' + error.message, 'error');
+            }
+        }
+
+        function goToStep(step) {
+            // Hide all sections
+            document.querySelectorAll('.form-section').forEach(section => {
+                section.classList.remove('active');
+            });
+
+            // Show target section
+            document.getElementById(`step${step}`).classList.add('active');
+
+            // Update step indicators
+            document.querySelectorAll('.step').forEach((stepEl, index) => {
+                stepEl.classList.remove('active', 'completed');
+                if (index + 1 < step) {
+                    stepEl.classList.add('completed');
+                } else if (index + 1 === step) {
+                    stepEl.classList.add('active');
+                }
+            });
+
+            currentStep = step;
+        }
+
+        function showStatus(message, type) {
+            const statusEl = document.getElementById('statusMessage');
+            statusEl.textContent = message;
+            statusEl.className = `status-message ${type} active`;
+            
+            if (type === 'success' || type === 'error') {
+                setTimeout(() => {
+                    statusEl.classList.remove('active');
+                }, 5000);
+            }
+        }
+    </script>
+</body>
+</html>
