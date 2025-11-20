@@ -1093,7 +1093,7 @@
             btn.disabled = true;
 
             try {
-                const response = await fetch('/api/import/airbnb', {
+                const response = await fetch('/api/import-property', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ url })
@@ -1101,18 +1101,46 @@
 
                 const result = await response.json();
                 
-                closeImportModal();
-                showStatus('Property imported successfully!', 'success');
-                
-                await loadProperties();
-                
-                if (result.property && result.property.id) {
-                    await selectProperty(result.property.id);
+                if (!result.success) {
+                    throw new Error(result.error || 'Import failed');
                 }
+                
+                // Auto-fill the form with imported data
+                if (result.data && result.data.property) {
+                    const p = result.data.property;
+                    
+                    // Create new property
+                    createNewProperty();
+                    
+                    // Fill in the form
+                    if (p.name) document.getElementById('name').value = p.name;
+                    if (p.description) document.getElementById('description').value = p.description;
+                    if (p.address) document.getElementById('address').value = p.address;
+                    if (p.city) document.getElementById('city').value = p.city;
+                    if (p.state) document.getElementById('state').value = p.state;
+                    if (p.country) document.getElementById('country').value = p.country;
+                    if (p.postcode) document.getElementById('postcode').value = p.postcode;
+                    if (p.latitude) document.getElementById('latitude').value = p.latitude;
+                    if (p.longitude) document.getElementById('longitude').value = p.longitude;
+                    if (p.bedrooms) document.getElementById('bedrooms').value = p.bedrooms;
+                    if (p.beds) document.getElementById('beds').value = p.beds;
+                    if (p.bathrooms) document.getElementById('bathrooms').value = p.bathrooms;
+                    if (p.max_guests) document.getElementById('max_guests').value = p.max_guests;
+                    if (p.phone) document.getElementById('phone').value = p.phone;
+                    if (p.email) document.getElementById('email').value = p.email;
+                    if (p.website) document.getElementById('website').value = p.website || url;
+                    if (p.check_in_time) document.getElementById('checkin_time').value = p.check_in_time;
+                    if (p.check_out_time) document.getElementById('checkout_time').value = p.check_out_time;
+                    if (p.house_rules) document.getElementById('house_rules').value = p.house_rules;
+                    if (p.cancellation_policy) document.getElementById('cancellation_policy').value = p.cancellation_policy;
+                }
+                
+                closeImportModal();
+                showStatus('Property data imported! Review and click Save to add it.', 'success');
                 
             } catch (error) {
                 console.error('Error importing:', error);
-                showStatus('Error importing property', 'error');
+                showStatus('Error importing property: ' + error.message, 'error');
             } finally {
                 btn.innerHTML = 'Import Property';
                 btn.disabled = false;
@@ -1139,3 +1167,4 @@
     </script>
 </body>
 </html>
+
