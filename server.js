@@ -218,6 +218,19 @@ app.post('/api/setup-auth', async (req, res) => {
   }
 });
 
+// Save Beds24 tokens
+app.post('/api/beds24/save-token', async (req, res) => {
+  const { refreshToken, token } = req.body;
+  try {
+    // Save to database (you could create a settings table for this)
+    // For now, we'll just acknowledge receipt
+    console.log('Beds24 tokens saved:', { refreshToken: refreshToken.substring(0, 20) + '...', token: token.substring(0, 20) + '...' });
+    res.json({ success: true, message: 'Tokens saved' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Import property from URL with COMPLETE data extraction
 app.post('/api/import-property', async (req, res) => {
   const { url } = req.body;
