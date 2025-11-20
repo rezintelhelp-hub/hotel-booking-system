@@ -506,7 +506,7 @@ async function importProperty() {
     }
 }
 
-       async function addProperty(e) {
+     async function addProperty(e) {
     e.preventDefault();
     
     const data = {
@@ -534,8 +534,29 @@ async function importProperty() {
         cancellation_policy: document.getElementById('prop-cancellation').value
     };
 
+    const isUpdate = editingPropertyId !== null;
+    const url = isUpdate ? `/api/db/properties/${editingPropertyId}` : '/api/db/properties';
+    const method = isUpdate ? 'PUT' : 'POST';
+
+    const res = await fetch(url, {
+        method: method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+    });
+    const result = await res.json();
+
+    if (result.success) {
+        document.getElementById('property-message').innerHTML = `<div class="success">✅ Property ${isUpdate ? 'updated' : 'added'}!</div>`;
+        e.target.reset();
+        document.getElementById('import-status').innerHTML = '';
+        loadProperties();
+        if (isUpdate) cancelEdit();
+    } else {
+        document.getElementById('property-message').innerHTML = '<div class="error">❌ Error: ' + result.error + '</div>';
+    }
+}
+
 async function editProperty(id) {
-    // Fetch the property details
     const res = await fetch('/api/db/properties');
     const result = await res.json();
     
@@ -543,7 +564,6 @@ async function editProperty(id) {
         const property = result.data.find(p => p.id === id);
         if (!property) return;
         
-        // Populate form with property data
         document.getElementById('prop-name').value = property.name || '';
         document.getElementById('prop-description').value = property.description || '';
         document.getElementById('prop-address').value = property.address || '';
@@ -567,18 +587,14 @@ async function editProperty(id) {
         document.getElementById('prop-house-rules').value = property.house_rules || '';
         document.getElementById('prop-cancellation').value = property.cancellation_policy || '';
         
-        // Store the ID we're editing
         editingPropertyId = id;
         
-        // Change button text
         const submitBtn = document.querySelector('form button[type="submit"]');
         submitBtn.textContent = 'Update Property';
         submitBtn.style.background = '#ff9800';
         
-        // Scroll to form
         document.querySelector('.form-box').scrollIntoView({ behavior: 'smooth' });
         
-        // Show cancel button
         if (!document.getElementById('cancel-edit-btn')) {
             const cancelBtn = document.createElement('button');
             cancelBtn.id = 'cancel-edit-btn';
@@ -592,6 +608,18 @@ async function editProperty(id) {
         }
     }
 }
+
+function cancelEdit() {
+    editingPropertyId = null;
+    document.querySelector('form').reset();
+    const submitBtn = document.querySelector('form button[type="submit"]');
+    submitBtn.textContent = 'Add Property';
+    submitBtn.style.background = '';
+    const cancelBtn = document.getElementById('cancel-edit-btn');
+    if (cancelBtn) cancelBtn.remove();
+}
+
+
 
 function cancelEdit() {
     editingPropertyId = null;
