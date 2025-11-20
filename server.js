@@ -256,22 +256,34 @@ app.post('/api/beds24/save-token', async (req, res) => {
 // Get Beds24 properties
 app.get('/api/beds24/properties', async (req, res) => {
   try {
-    // For now, use the BEDS24_TOKEN from env if available
-    // In production, you'd retrieve the saved refresh token and generate a new access token
-    const token = process.env.BEDS24_TOKEN || req.headers.token;
+    const refreshToken = process.env.BEDS24_REFRESH_TOKEN;
     
-    if (!token) {
-      return res.json({ success: false, error: 'No Beds24 token available' });
+    if (!refreshToken) {
+      return res.json({ success: false, error: 'No Beds24 refresh token configured' });
     }
     
+    // First, get a fresh access token using the refresh token
+    console.log('Getting fresh Beds24 access token...');
+    const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+      headers: {
+        'refreshToken': refreshToken
+      }
+    });
+    
+    const accessToken = tokenResponse.data.token;
+    console.log('Got access token, fetching properties...');
+    
+    // Now fetch properties with the access token
     const response = await axios.get('https://beds24.com/api/v2/properties', {
       headers: {
-        'token': token,
+        'token': accessToken,
         'accept': 'application/json'
       }
     });
     
+    console.log(`Found ${response.data.data?.length || 0} properties`);
     res.json({ success: true, data: response.data.data || [] });
+    
   } catch (error) {
     console.error('Error fetching Beds24 properties:', error.response?.data || error.message);
     res.json({ success: false, error: error.response?.data?.error || error.message });
