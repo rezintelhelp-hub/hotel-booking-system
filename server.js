@@ -116,6 +116,41 @@ app.post('/api/db/properties', async (req, res) => {
   }
 });
 
+// UPDATE property
+app.put('/api/db/properties/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name, description, address, city, state, country, postcode,
+      property_type, star_rating, latitude, longitude,
+      bedrooms, beds, bathrooms, max_guests,
+      phone, email, website,
+      check_in_time, check_out_time, house_rules, cancellation_policy
+    } = req.body;
+
+    const result = await pool.query(
+      `UPDATE properties SET 
+        name = $1, description = $2, address = $3, city = $4, state = $5, 
+        country = $6, postcode = $7, property_type = $8, star_rating = $9,
+        latitude = $10, longitude = $11, bedrooms = $12, beds = $13, 
+        bathrooms = $14, max_guests = $15, phone = $16, email = $17, 
+        website = $18, check_in_time = $19, check_out_time = $20,
+        house_rules = $21, cancellation_policy = $22
+      WHERE id = $23
+      RETURNING *`,
+      [name, description, address, city, state, country, postcode, property_type, 
+       star_rating, latitude, longitude, bedrooms, beds, bathrooms, max_guests,
+       phone, email, website, check_in_time, check_out_time, house_rules, 
+       cancellation_policy, id]
+    );
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Update error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/db/rooms', async (req, res) => {
   const { propertyId } = req.query;
   try {
