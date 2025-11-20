@@ -528,24 +528,10 @@
             }
         }
 
+        // Token refresh is now handled server-side
         async function refreshAccessToken() {
-            if (!refreshToken) {
-                throw new Error('No refresh token available');
-            }
-
-            const response = await fetch('https://beds24.com/api/v2/authentication/token', {
-                headers: {
-                    'refreshToken': refreshToken
-                }
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to refresh token');
-            }
-
-            const data = await response.json();
-            currentToken = data.token;
-            return currentToken;
+            // No longer needed - server handles this automatically
+            return null;
         }
 
         async function loadBeds24Properties() {
