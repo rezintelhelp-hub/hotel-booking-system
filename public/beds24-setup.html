@@ -523,7 +523,8 @@
                 
             } catch (error) {
                 console.error('Connection error:', error);
-                showStatus('Error: ' + error.message, 'error');
+                console.error('Full error details:', JSON.stringify(error, null, 2));
+                showStatus('Error: ' + (error.message || JSON.stringify(error)), 'error');
             }
         }
 
@@ -551,14 +552,11 @@
             showStatus('Loading properties from Beds24...', 'info');
 
             try {
-                // Ensure we have a valid token
-                if (!currentToken) {
-                    await refreshAccessToken();
-                }
-
-                const response = await fetch('https://beds24.com/api/v2/properties', {
+                // Call through our server instead of directly to Beds24
+                const response = await fetch('/api/beds24/properties', {
+                    method: 'GET',
                     headers: {
-                        'token': currentToken
+                        'Content-Type': 'application/json'
                     }
                 });
 
@@ -567,6 +565,11 @@
                 }
 
                 const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to load properties');
+                }
+                
                 beds24Properties = data.data || [];
 
                 displayBeds24Properties();
