@@ -277,56 +277,71 @@
         }
 
         // IMPORT PROPERTY FUNCTION
-        async function importProperty() {
-            const url = document.getElementById('importUrl').value;
-            const statusEl = document.getElementById('import-status');
+async function importProperty() {
+    const url = document.getElementById('importUrl').value;
+    const statusEl = document.getElementById('import-status');
+    
+    if (!url) {
+        statusEl.innerHTML = '<p style="color: red;">Please enter a URL</p>';
+        return;
+    }
+    
+    statusEl.innerHTML = '<p style="color: #0066cc;">⏳ Importing property data... This may take 10-15 seconds...</p>';
+    
+    try {
+        const res = await fetch('/api/import-property', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ url })
+        });
+        
+        const result = await res.json();
+        
+        if (result.success) {
+            const data = result.data;
             
-            if (!url) {
-                statusEl.innerHTML = '<p style="color: red;">Please enter a URL</p>';
-                return;
+            // NEW DATA STRUCTURE - data.property contains the property info
+            if (data.property) {
+                document.getElementById('prop-name').value = data.property.name || '';
+                document.getElementById('prop-description').value = data.property.description || '';
+                document.getElementById('prop-address').value = data.property.address || '';
+                document.getElementById('prop-city').value = data.property.city || '';
+                document.getElementById('prop-country').value = data.property.country || '';
+                document.getElementById('prop-type').value = data.property.property_type || 'Hotel';
+                document.getElementById('prop-rating').value = data.property.star_rating || 4;
             }
             
-            statusEl.innerHTML = '<p style="color: #0066cc;">⏳ Importing property data... This may take 10-15 seconds...</p>';
+            statusEl.innerHTML = '<p style="color: green; font-weight: bold;">✅ Property imported successfully! Review and save below.</p>';
             
-            try {
-                const res = await fetch('/api/import-property', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ url })
-                });
-                
-                const result = await res.json();
-                
-                if (result.success) {
-                    statusEl.innerHTML = '<p style="color: green; font-weight: bold;">✅ Property imported successfully! Review the data below and click "Add Property" to save.</p>';
-                    
-                    const data = result.data;
-                    document.getElementById('prop-name').value = data.property_name || '';
-                    document.getElementById('prop-description').value = data.description || '';
-                    document.getElementById('prop-address').value = data.address || '';
-                    document.getElementById('prop-city').value = data.city || '';
-                    document.getElementById('prop-country').value = data.country || '';
-                    document.getElementById('prop-type').value = data.property_type || 'Hotel';
-                    document.getElementById('prop-rating').value = data.star_rating || 4;
-                    
-                    if (data.amenities && data.amenities.length > 0) {
-                        statusEl.innerHTML += '<p style="margin-top: 10px;"><strong>Amenities:</strong> ' + data.amenities.join(', ') + '</p>';
+            // Display amenities by category
+            if (data.amenities) {
+                let amenitiesHtml = '<div style="margin-top: 15px; padding: 10px; background: #f0f0f0; border-radius: 5px;"><strong>Amenities Found:</strong><br>';
+                for (const [category, items] of Object.entries(data.amenities)) {
+                    if (items && items.length > 0) {
+                        amenitiesHtml += `<span style="color: #666;">${category}:</span> ${items.join(', ')}<br>`;
                     }
-                    
-                    if (data.rooms && data.rooms.length > 0) {
-                        statusEl.innerHTML += '<p style="margin-top: 10px;"><strong>Rooms found:</strong> ' + data.rooms.length + ' room types (add these after saving the property)</p>';
-                        console.log('Room data for later:', data.rooms);
-                        window.importedRooms = data.rooms;
-                    }
-                    
-                    document.getElementById('importUrl').value = '';
-                } else {
-                    statusEl.innerHTML = '<p style="color: red;">❌ Import failed: ' + result.error + '</p>';
                 }
-            } catch (error) {
-                statusEl.innerHTML = '<p style="color: red;">❌ Error: ' + error.message + '</p>';
+                amenitiesHtml += '</div>';
+                statusEl.innerHTML += amenitiesHtml;
             }
+            
+            // Display rooms
+            if (data.rooms && data.rooms.length > 0) {
+                statusEl.innerHTML += '<p style="margin-top: 10px;"><strong>Rooms found:</strong> ' + data.rooms.length + ' room types (add these after saving the property)</p>';
+                window.importedRooms = data.rooms;
+            }
+            
+            // Store all extracted data
+            window.extractedPropertyData = data;
+            
+            document.getElementById('importUrl').value = '';
+        } else {
+            statusEl.innerHTML = '<p style="color: red;">❌ Import failed: ' + result.error + '</p>';
         }
+    } catch (error) {
+        statusEl.innerHTML = '<p style="color: red;">❌ Error: ' + error.message + '</p>';
+    }
+}
 
         async function addProperty(e) {
             e.preventDefault();
