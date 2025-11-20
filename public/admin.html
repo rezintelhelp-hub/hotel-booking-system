@@ -536,26 +536,31 @@ async function importProperty() {
         }
 
         async function loadProperties() {
-            const res = await fetch('/api/db/properties');
-            const result = await res.json();
+    const res = await fetch('/api/db/properties');
+    const result = await res.json();
 
-            if (result.success) {
-                const list = document.getElementById('properties-list');
-                const select = document.getElementById('room-property');
+    if (result.success) {
+        const list = document.getElementById('properties-list');
+        const select = document.getElementById('room-property');
 
-                list.innerHTML = result.data.map(p => `
-                    <div class="list-item">
-                        <h3>${p.name}</h3>
-                        <p>${p.description || ''}</p>
-                        <p><strong>Location:</strong> ${p.city || ''}, ${p.country || ''}</p>
-                        <p><strong>Type:</strong> ${p.property_type || 'N/A'} | <strong>Rating:</strong> ${p.star_rating || 'N/A'} ⭐</p>
-                    </div>
-                `).join('');
+        list.innerHTML = result.data.map(p => `
+            <div class="list-item" onclick="editProperty(${p.id})" style="cursor: pointer; transition: background 0.2s;" 
+                 onmouseover="this.style.background='#f0f0f0'" 
+                 onmouseout="this.style.background='white'">
+                <h3>${p.name} ✏️</h3>
+                <p>${p.description || ''}</p>
+                <p><strong>Location:</strong> ${p.city || ''}, ${p.country || ''}</p>
+                <p><strong>Type:</strong> ${p.property_type || 'N/A'} | <strong>Rating:</strong> ${p.star_rating || 'N/A'} ⭐</p>
+                <p><strong>Size:</strong> ${p.bedrooms || 0} bed, ${p.beds || 0} beds, ${p.bathrooms || 0} bath | Max ${p.max_guests || 0} guests</p>
+                ${p.latitude ? `<p><strong>📍</strong> ${p.latitude}, ${p.longitude}</p>` : ''}
+                <p style="color: #666; font-size: 0.9em;">Click to edit</p>
+            </div>
+        `).join('');
 
-                select.innerHTML = '<option value="">Select property...</option>' + 
-                    result.data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
-            }
-        }
+        select.innerHTML = '<option value="">Select property...</option>' + 
+            result.data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+    }
+}
 
         async function addRoom(e) {
             e.preventDefault();
