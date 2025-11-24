@@ -930,19 +930,17 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
     const result = await pool.query(`
       INSERT INTO channel_connections (
         user_id,
-        channel_manager_id,
-        connection_name,
+        cm_id,
         api_key,
         refresh_token,
         access_token,
         token_expires_at,
-        connection_status,
-        auto_sync_enabled,
-        sync_frequency_minutes
+        status,
+        sync_enabled,
+        sync_interval_minutes
       ) VALUES (
         1,
         (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
-        'Beds24 Connection',
         $1,
         $2,
         $3,
@@ -1175,10 +1173,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         sync_availability,
         sync_rates,
         sync_bookings,
-        sync_content,
-        link_status
+        status
       ) VALUES (
-        $1, $2, $3, $4, true, true, true, true, true, 'active'
+        $1, $2, $3, $4, true, true, true, true, 'active'
       )
     `, [gasPropertyId, connectionId, propertyId, propData.propName]);
     
