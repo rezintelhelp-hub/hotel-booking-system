@@ -1955,36 +1955,18 @@ app.get('/api/admin/units/:id', async (req, res) => {
 app.put('/api/admin/units/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      name, unit_type, max_guests, max_adults, max_children,
-      bedroom_count, bathroom_count, size_sqm,
-      base_price, quantity, status, min_stay, max_stay
-    } = req.body;
+    const { quantity, status } = req.body;
     
+    // Only update GAS-controlled fields
     const result = await pool.query(`
       UPDATE bookable_units 
       SET 
-        name = $1,
-        unit_type = $2,
-        max_guests = $3,
-        max_adults = $4,
-        max_children = $5,
-        bedroom_count = $6,
-        bathroom_count = $7,
-        size_sqm = $8,
-        base_price = $9,
-        quantity = $10,
-        status = $11,
-        min_stay = $12,
-        max_stay = $13,
+        quantity = COALESCE($1, quantity),
+        status = COALESCE($2, status),
         updated_at = NOW()
-      WHERE id = $14
+      WHERE id = $3
       RETURNING *
-    `, [
-      name, unit_type, max_guests, max_adults, max_children,
-      bedroom_count, bathroom_count, size_sqm,
-      base_price, quantity, status, min_stay, max_stay, id
-    ]);
+    `, [quantity, status, id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
