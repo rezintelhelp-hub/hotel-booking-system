@@ -513,7 +513,7 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/db/properties', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM properties WHERE active = true');
+    const result = await pool.query('SELECT * FROM properties ORDER BY created_at DESC');
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
