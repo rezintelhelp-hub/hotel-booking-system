@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Beds24 Setup Wizard - GAS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .wizard-container {
+            max-width: 900px;
+            width: 100%;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+
+        .wizard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .wizard-header h1 {
+            font-size: 32px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
+        .wizard-header p {
+            opacity: 0.9;
+            font-size: 16px;
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: rgba(255,255,255,0.2);
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: white;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+
+        .wizard-body {
+            padding: 40px;
+        }
+
+        .step {
+            display: none;
+        }
+
+        .step.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .step-title {
+            font-size: 24px;
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .step-description {
+            color: #666;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .form-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 14px;
+        }
+
+        input[type="text"],
+        input[type="password"],
+        select {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 15px;
+            transition: border-color 0.3s;
+        }
+
+        input:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .help-text {
+            font-size: 13px;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .alert {
+            padding: 15px 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            display: none;
+        }
+
+        .alert.show {
+            display: block;
+        }
+
+        .alert-info {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            color: #0c5460;
+        }
+
+        .alert-success {
+            background: #d4edda;
+            border-left: 4px solid #28a745;
+            color: #155724;
+        }
+
+        .alert-error {
+            background: #f8d7da;
+            border-left: 4px solid #dc3545;
+            color: #721c24;
+        }
+
+        .property-card {
+            border: 2px solid #e0e0e0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .property-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .property-card.selected {
+            border-color: #667eea;
+            background: #f0f4ff;
+        }
+
+        .property-card h3 {
+            color: #333;
+            margin-bottom: 8px;
+            font-size: 18px;
+        }
+
+        .property-card p {
+            color: #666;
+            font-size: 14px;
+            margin: 5px 0;
+        }
+
+        .import-progress {
+            margin: 30px 0;
+        }
+
+        .progress-item {
+            display: flex;
+            align-items: center;
+            padding: 15px;
+            margin-bottom: 10px;
+            background: #f8f9fa;
+            border-radius: 8px;
+            border-left: 4px solid #ccc;
+        }
+
+        .progress-item.loading {
+            border-left-color: #ffc107;
+        }
+
+        .progress-item.success {
+            border-left-color: #28a745;
+        }
+
+        .progress-item.error {
+            border-left-color: #dc3545;
+        }
+
+        .progress-icon {
+            font-size: 24px;
+            margin-right: 15px;
+            width: 30px;
+            text-align: center;
+        }
+
+        .progress-text {
+            flex: 1;
+        }
+
+        .progress-text strong {
+            display: block;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .progress-text span {
+            font-size: 13px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .button-group {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 1px solid #e0e0e0;
+        }
+
+        button {
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn-primary {
+            background: #667eea;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #5568d3;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-secondary:hover:not(:disabled) {
+            background: #5a6268;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn-success:hover {
+            background: #218838;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin: 30px 0;
+        }
+
+        .stat-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading-overlay.show {
+            display: flex;
+        }
+
+        .loading-content {
+            background: white;
+            padding: 40px;
+            border-radius: 12px;
+            text-align: center;
+        }
+
+        .loading-spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <h1>
+                <span>🔗</span>
+                <span>Beds24 Setup Wizard</span>
+            </h1>
+            <p>Connect your Beds24 account and import your properties</p>
+        </div>
+
+        <div class="progress-bar">
+            <div class="progress-fill" id="progressFill"></div>
+        </div>
+
+        <div class="wizard-body">
+            <!-- Step 1: Connect to Beds24 -->
+            <div class="step active" id="step1">
+                <h2 class="step-title">Step 1: Connect to Beds24</h2>
+                <p class="step-description">
+                    Enter your Beds24 invite code to establish a secure connection. 
+                    You can find your invite code in your Beds24 account under API Settings.
+                </p>
+
+                <div class="alert alert-info show">
+                    <strong>📌 Where to find your invite code:</strong><br>
+                    1. Log in to Beds24<br>
+                    2. Go to Settings → API & Integrations<br>
+                    3. Generate a new invite code<br>
+                    4. Copy and paste it below
+                </div>
+
+                <div class="form-group">
+                    <label for="inviteCode">Beds24 Invite Code *</label>
+                    <input 
+                        type="text" 
+                        id="inviteCode" 
+                        placeholder="Enter your Beds24 invite code"
+                        required
+                    >
+                    <div class="help-text">
+                        The invite code is used to securely connect your Beds24 account
+                    </div>
+                </div>
+
+                <div class="alert" id="step1Alert"></div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="connectBeds24()" id="connectBtn">
+                        Connect to Beds24 →
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 2: Select Property -->
+            <div class="step" id="step2">
+                <h2 class="step-title">Step 2: Select Property</h2>
+                <p class="step-description">
+                    Choose which property you want to import from your Beds24 account.
+                </p>
+
+                <div class="alert" id="step2Alert"></div>
+
+                <div id="propertiesList"></div>
+
+                <div class="button-group">
+                    <button class="btn-secondary" onclick="goToStep(1)">
+                        ← Back
+                    </button>
+                    <button class="btn-primary" onclick="goToStep(3)" id="selectPropertyBtn" disabled>
+                        Continue →
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 3: Import Data -->
+            <div class="step" id="step3">
+                <h2 class="step-title">Step 3: Importing Data</h2>
+                <p class="step-description">
+                    Please wait while we import your property data into the GAS system.
+                    This may take a minute or two.
+                </p>
+
+                <div class="import-progress" id="importProgress">
+                    <!-- Progress items will be added dynamically -->
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-success" onclick="goToStep(4)" id="finishBtn" style="display:none;">
+                        Finish Setup →
+                    </button>
+                </div>
+            </div>
+
+            <!-- Step 4: Success -->
+            <div class="step" id="step4">
+                <h2 class="step-title">🎉 Setup Complete!</h2>
+                <p class="step-description">
+                    Your property has been successfully imported into the GAS system.
+                    Here's a summary of what was imported:
+                </p>
+
+                <div class="stats-grid" id="importStats">
+                    <!-- Stats will be added dynamically -->
+                </div>
+
+                <div class="alert alert-success show">
+                    <strong>✓ What's Next?</strong><br>
+                    Your property is now live in the GAS system. You can:
+                    <ul style="margin-top: 10px; margin-left: 20px;">
+                        <li>View and manage your property details</li>
+                        <li>Configure rate plans and pricing</li>
+                        <li>Add upsells and fees</li>
+                        <li>Start receiving bookings!</li>
+                    </ul>
+                </div>
+
+                <div class="button-group">
+                    <button class="btn-primary" onclick="window.location.href='/admin-improved.html'">
+                        Go to Dashboard
+                    </button>
+                    <button class="btn-secondary" onclick="location.reload()">
+                        Import Another Property
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-content">
+            <div class="loading-spinner"></div>
+            <h3>Connecting to Beds24...</h3>
+            <p>Please wait</p>
+        </div>
+    </div>
+
+    <script>
+        // State management
+        let currentStep = 1;
+        let beds24Token = null;
+        let beds24RefreshToken = null;
+        let connectionId = null;
+        let selectedProperty = null;
+        let importedData = {};
+
+        // Navigation
+        function goToStep(step) {
+            // Hide all steps
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            
+            // Show target step
+            document.getElementById('step' + step).classList.add('active');
+            
+            currentStep = step;
+            
+            // Update progress bar
+            const progress = (step / 4) * 100;
+            document.getElementById('progressFill').style.width = progress + '%';
+        }
+
+        // Step 1: Connect to Beds24
+        async function connectBeds24() {
+            const inviteCode = document.getElementById('inviteCode').value.trim();
+            const alert = document.getElementById('step1Alert');
+            const btn = document.getElementById('connectBtn');
+            
+            if (!inviteCode) {
+                showAlert('step1Alert', 'error', 'Please enter your Beds24 invite code');
+                return;
+            }
+
+            btn.disabled = true;
+            btn.textContent = 'Connecting...';
+            showLoading(true);
+
+            try {
+                // Connect to Beds24
+                const response = await fetch('/api/beds24/setup-connection', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ inviteCode })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    beds24Token = data.token;
+                    beds24RefreshToken = data.refreshToken;
+                    connectionId = data.connectionId;
+
+                    showAlert('step1Alert', 'success', '✓ Successfully connected to Beds24!');
+                    
+                    // Wait a moment then load properties
+                    setTimeout(() => {
+                        loadProperties();
+                    }, 1000);
+                } else {
+                    throw new Error(data.error || 'Failed to connect');
+                }
+            } catch (error) {
+                showAlert('step1Alert', 'error', '✗ ' + error.message);
+                btn.disabled = false;
+                btn.textContent = 'Connect to Beds24 →';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        // Step 2: Load Properties
+        async function loadProperties() {
+            showLoading(true);
+
+            try {
+                const response = await fetch('/api/beds24/list-properties', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        token: beds24Token,
+                        connectionId: connectionId 
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success && data.properties.length > 0) {
+                    displayProperties(data.properties);
+                    goToStep(2);
+                } else {
+                    showAlert('step1Alert', 'error', 'No properties found in your Beds24 account');
+                }
+            } catch (error) {
+                showAlert('step1Alert', 'error', 'Failed to load properties: ' + error.message);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function displayProperties(properties) {
+            const container = document.getElementById('propertiesList');
+            container.innerHTML = properties.map(prop => `
+                <div class="property-card" onclick="selectProperty(${prop.propId}, '${prop.propName.replace(/'/g, "\\'")}')">
+                    <h3>${prop.propName}</h3>
+                    <p><strong>Property ID:</strong> ${prop.propId}</p>
+                    <p><strong>Type:</strong> ${prop.propType || 'Not specified'}</p>
+                    ${prop.propAddress ? `<p><strong>Location:</strong> ${prop.propAddress}</p>` : ''}
+                </div>
+            `).join('');
+        }
+
+        function selectProperty(propId, propName) {
+            // Remove selected class from all cards
+            document.querySelectorAll('.property-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+
+            // Add selected class to clicked card
+            event.currentTarget.classList.add('selected');
+
+            selectedProperty = { id: propId, name: propName };
+            document.getElementById('selectPropertyBtn').disabled = false;
+        }
+
+        // Step 3: Import Property
+        async function importProperty() {
+            if (!selectedProperty) return;
+
+            const progressContainer = document.getElementById('importProgress');
+            progressContainer.innerHTML = '';
+
+            const tasks = [
+                { id: 'property', label: 'Property Details', detail: 'Importing basic information' },
+                { id: 'images', label: 'Property Images', detail: 'Downloading photo gallery' },
+                { id: 'amenities', label: 'Amenities & Features', detail: 'Importing facility information' },
+                { id: 'units', label: 'Bookable Units', detail: 'Importing rooms and units' },
+                { id: 'unitImages', label: 'Unit Images', detail: 'Downloading room photos' },
+                { id: 'bookings', label: 'Bookings', detail: 'Importing reservations' },
+                { id: 'link', label: 'Channel Manager Link', detail: 'Creating connection record' }
+            ];
+
+            // Create progress items
+            tasks.forEach(task => {
+                addProgressItem(task.id, task.label, task.detail, 'pending');
+            });
+
+            // Execute import
+            try {
+                const response = await fetch('/api/beds24/import-complete-property', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        propertyId: selectedProperty.id,
+                        connectionId: connectionId,
+                        token: beds24Token
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    importedData = data.stats;
+                    
+                    // Update all items to success
+                    tasks.forEach(task => {
+                        updateProgressItem(task.id, 'success');
+                    });
+
+                    document.getElementById('finishBtn').style.display = 'block';
+                } else {
+                    throw new Error(data.error || 'Import failed');
+                }
+            } catch (error) {
+                showAlert('step2Alert', 'error', 'Import failed: ' + error.message);
+                goToStep(2);
+            }
+        }
+
+        function addProgressItem(id, label, detail, status) {
+            const container = document.getElementById('importProgress');
+            const statusIcons = {
+                pending: '⏳',
+                loading: '🔄',
+                success: '✓',
+                error: '✗'
+            };
+
+            const item = document.createElement('div');
+            item.className = 'progress-item ' + status;
+            item.id = 'progress-' + id;
+            item.innerHTML = `
+                <div class="progress-icon">${statusIcons[status]}</div>
+                <div class="progress-text">
+                    <strong>${label}</strong>
+                    <span>${detail}</span>
+                </div>
+            `;
+            container.appendChild(item);
+        }
+
+        function updateProgressItem(id, status) {
+            const item = document.getElementById('progress-' + id);
+            const statusIcons = {
+                pending: '⏳',
+                loading: '🔄',
+                success: '✓',
+                error: '✗'
+            };
+
+            item.className = 'progress-item ' + status;
+            item.querySelector('.progress-icon').textContent = statusIcons[status];
+        }
+
+        // Step 4: Display Stats
+        function displayStats() {
+            const container = document.getElementById('importStats');
+            const stats = [
+                { number: '1', label: 'Property' },
+                { number: importedData.images || '0', label: 'Images' },
+                { number: importedData.amenities || '0', label: 'Amenities' },
+                { number: importedData.units || '0', label: 'Units' },
+                { number: importedData.bookings || '0', label: 'Bookings' }
+            ];
+
+            container.innerHTML = stats.map(stat => `
+                <div class="stat-card">
+                    <div class="stat-number">${stat.number}</div>
+                    <div class="stat-label">${stat.label}</div>
+                </div>
+            `).join('');
+        }
+
+        // Helper functions
+        function showAlert(id, type, message) {
+            const alert = document.getElementById(id);
+            alert.className = 'alert alert-' + type + ' show';
+            alert.textContent = message;
+        }
+
+        function showLoading(show) {
+            const overlay = document.getElementById('loadingOverlay');
+            overlay.classList.toggle('show', show);
+        }
+
+        // Auto-trigger import when reaching step 3
+        let step3Observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.target.id === 'step3' && mutation.target.classList.contains('active')) {
+                    importProperty();
+                }
+            });
+        });
+
+        document.querySelectorAll('.step').forEach(step => {
+            step3Observer.observe(step, { attributes: true, attributeFilter: ['class'] });
+        });
+
+        // Auto-display stats when reaching step 4
+        let step4Observer = new MutationObserver((mutations) => {
+            mutations.forEach((mutation) => {
+                if (mutation.target.id === 'step4' && mutation.target.classList.contains('active')) {
+                    displayStats();
+                }
+            });
+        });
+
+        document.querySelectorAll('.step').forEach(step => {
+            step4Observer.observe(step, { attributes: true, attributeFilter: ['class'] });
+        });
+    </script>
+</body>
+</html>
