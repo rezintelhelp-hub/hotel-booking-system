@@ -1034,11 +1034,6 @@ app.post('/api/beds24/list-properties', async (req, res) => {
     const properties = response.data.data || [];
     console.log('Found ' + properties.length + ' properties');
     
-    // Log the first property to see what fields we get
-    if (properties.length > 0) {
-      console.log('Sample property structure:', JSON.stringify(properties[0], null, 2));
-    }
-    
     res.json({
       success: true,
       properties: properties
@@ -1090,13 +1085,10 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     // 2. Insert into properties table
     console.log('2️⃣ Saving property to database...');
     
-    // Log what we received to debug
-    console.log('Property data from Beds24:', JSON.stringify(propData, null, 2));
-    
     const propertyResult = await client.query(`
       INSERT INTO properties (
         user_id,
-        property_name,
+        name,
         property_type,
         description,
         address,
@@ -1106,12 +1098,11 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         longitude,
         check_in_from,
         check_in_until,
-        check_out_until,
-        currency_code,
-        property_status
+        check_out_by,
+        currency,
+        status
       ) VALUES (
-        $1,
-        $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active'
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active'
       )
       RETURNING id
     `, [
@@ -1184,7 +1175,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       const unitResult = await client.query(`
         INSERT INTO bookable_units (
           property_id,
-          unit_name,
+          name,
           unit_type,
           description,
           max_guests,
@@ -1192,23 +1183,23 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           max_children,
           quantity,
           base_price,
-          currency_code,
-          unit_status
+          currency,
+          status
         ) VALUES (
           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'available'
         )
         RETURNING id
       `, [
         gasPropertyId,
-        room.roomName || 'Room',
-        room.roomType || 'standard',
-        room.roomDescription || '',
-        room.numAdult || 2,
-        room.numAdult || 2,
-        room.numChild || 0,
-        room.roomQty || 1,
-        room.roomPrice || 100,
-        propData.propCurrency || 'USD'
+        room.name || room.roomName || 'Room',
+        room.type || room.roomType || 'standard',
+        room.description || room.roomDescription || '',
+        room.maxGuests || room.numAdult || 2,
+        room.maxAdults || room.numAdult || 2,
+        room.maxChildren || room.numChild || 0,
+        room.quantity || room.roomQty || 1,
+        room.price || room.roomPrice || 100,
+        propData.currency || propData.propCurrency || 'USD'
       ]);
       
       const unitId = unitResult.rows[0].id;
@@ -1266,22 +1257,26 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         await client.query(`
           INSERT INTO bookings (
             property_id,
+            bookable_unit_id,
+            property_owner_id,
             guest_first_name,
             guest_last_name,
             guest_email,
-            check_in_date,
-            check_out_date,
+            arrival_date,
+            departure_date,
             num_adults,
             num_children,
-            total_price,
-            currency_code,
-            booking_status,
+            total_amount,
+            currency,
+            status,
             booking_source
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'beds24'
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'beds24'
           )
         `, [
           gasPropertyId,
+          null, // We'd need to map room to unit_id
+          userId,
           booking.guestFirstName || 'Guest',
           booking.guestLastName || '',
           booking.guestEmail || '',
@@ -1290,7 +1285,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           booking.numAdult || 1,
           booking.numChild || 0,
           booking.price || 0,
-          propData.propCurrency || 'USD',
+          propData.currency || propData.propCurrency || 'USD',
           booking.status || 'confirmed'
         ]);
         bookingsCount++;
@@ -1318,8 +1313,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Import failed:', error.message);
-    console.error('Error details:', error.response?.data || error);
-    console.error('Stack trace:', error.stack);
+    if (error.response?.status) {
+      console.error('Beds24 API error status:', error.response.status);
+    }
     res.json({
       success: false,
       error: error.message
