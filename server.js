@@ -1108,8 +1108,8 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     `, [
       userId,
       propData.name || 'Property',
-      propData.propertyType || 'apartment',
-      propData.texts && propData.texts[0] ? (propData.texts[0].propertyDescription || '') : '',
+      propData.propertyType || 'hotel',
+      JSON.stringify({ en: propData.texts && propData.texts[0] ? (propData.texts[0].propertyDescription || '') : '' }),
       propData.address || '',
       propData.city || '',
       propData.country || '',
@@ -1123,6 +1123,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     
     const gasPropertyId = propertyResult.rows[0].id;
     console.log('✓ Property created with ID: ' + gasPropertyId);
+    console.log('  Name: ' + (propData.name || 'N/A'));
+    console.log('  Type: ' + (propData.propertyType || 'N/A'));
+    console.log('  Address: ' + (propData.address || 'N/A'));
     
     // 3. Import property images
     console.log('3️⃣ Importing property images...');
