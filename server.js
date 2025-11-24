@@ -871,6 +871,392 @@ Return this EXACT JSON structure:
   }
 });
 
+// =====================================================
+// NEW BEDS24 IMPORT SYSTEM (Complete Property Import)
+// =====================================================
+
+// Step 1: Setup Beds24 Connection (Save to channel_connections table)
+app.post('/api/beds24/setup-connection', async (req, res) => {
+  const { inviteCode } = req.body;
+  
+  if (!inviteCode) {
+    return res.json({ success: false, error: 'Invite code required' });
+  }
+  
+  try {
+    console.log('🔗 Setting up Beds24 connection...');
+    
+    // Ensure Beds24 exists in channel_managers table
+    await pool.query(`
+      INSERT INTO channel_managers (
+        cm_name,
+        cm_code,
+        cm_website,
+        api_version,
+        supports_realtime_sync,
+        supports_rate_sync,
+        supports_availability_sync,
+        supports_content_sync,
+        is_active
+      ) VALUES (
+        'Beds24',
+        'beds24',
+        'https://beds24.com',
+        'v2',
+        true,
+        true,
+        true,
+        true,
+        true
+      )
+      ON CONFLICT (cm_code) DO NOTHING
+    `);
+    
+    // Get tokens from Beds24
+    const response = await axios.get('https://beds24.com/api/v2/authentication/setup', {
+      headers: {
+        'accept': 'application/json',
+        'code': inviteCode
+      }
+    });
+    
+    const { token, refreshToken } = response.data;
+    
+    // Save to channel_connections table
+    const result = await pool.query(`
+      INSERT INTO channel_connections (
+        user_id,
+        channel_manager_id,
+        connection_name,
+        api_key,
+        refresh_token,
+        access_token,
+        token_expires_at,
+        connection_status,
+        auto_sync_enabled,
+        sync_frequency_minutes
+      ) VALUES (
+        1,
+        (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
+        'Beds24 Connection',
+        $1,
+        $2,
+        $3,
+        NOW() + INTERVAL '30 days',
+        'active',
+        true,
+        60
+      )
+      RETURNING id
+    `, [inviteCode, refreshToken, token]);
+    
+    const connectionId = result.rows[0].id;
+    
+    console.log('✓ Connection saved to database');
+    
+    res.json({
+      success: true,
+      token,
+      refreshToken,
+      connectionId,
+      message: 'Connected to Beds24 successfully'
+    });
+    
+  } catch (error) {
+    console.error('Beds24 connection error:', error.response?.data || error.message);
+    res.json({
+      success: false,
+      error: error.response?.data?.error || error.message
+    });
+  }
+});
+
+// Step 2: List Properties from Beds24
+app.post('/api/beds24/list-properties', async (req, res) => {
+  const { token, connectionId } = req.body;
+  
+  try {
+    console.log('📋 Fetching properties from Beds24...');
+    
+    const response = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: {
+        'token': token,
+        'accept': 'application/json'
+      }
+    });
+    
+    const properties = response.data.data || [];
+    console.log('Found ' + properties.length + ' properties');
+    
+    res.json({
+      success: true,
+      properties: properties
+    });
+    
+  } catch (error) {
+    console.error('Error fetching properties:', error.message);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Step 3: Complete Property Import
+app.post('/api/beds24/import-complete-property', async (req, res) => {
+  const { propertyId, connectionId, token } = req.body;
+  
+  const client = await pool.connect();
+  
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🚀 Starting complete property import for Property ID: ' + propertyId);
+    
+    // 1. Fetch complete property data from Beds24
+    console.log('1️⃣ Fetching property details...');
+    const propResponse = await axios.get('https://beds24.com/api/v2/properties/' + propertyId, {
+      headers: { 'token': token, 'accept': 'application/json' }
+    });
+    
+    const propData = propResponse.data.data[0];
+    
+    // 2. Insert into properties table
+    console.log('2️⃣ Saving property to database...');
+    const propertyResult = await client.query(`
+      INSERT INTO properties (
+        user_id,
+        property_name,
+        property_type,
+        description,
+        address,
+        city,
+        country,
+        latitude,
+        longitude,
+        check_in_from,
+        check_in_until,
+        check_out_until,
+        currency_code,
+        property_status
+      ) VALUES (
+        1,
+        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'active'
+      )
+      RETURNING id
+    `, [
+      propData.propName,
+      propData.propType || 'hotel',
+      propData.propContent || '',
+      propData.propAddress || '',
+      propData.propCity || '',
+      propData.propCountry || '',
+      propData.propLatitude || null,
+      propData.propLongitude || null,
+      '15:00',
+      '22:00',
+      '11:00',
+      propData.propCurrency || 'USD'
+    ]);
+    
+    const gasPropertyId = propertyResult.rows[0].id;
+    console.log('✓ Property created with ID: ' + gasPropertyId);
+    
+    // 3. Import property images
+    console.log('3️⃣ Importing property images...');
+    let imageCount = 0;
+    if (propData.propImages && propData.propImages.length > 0) {
+      for (let i = 0; i < propData.propImages.length; i++) {
+        const img = propData.propImages[i];
+        await client.query(`
+          INSERT INTO property_images (
+            property_id,
+            image_url,
+            image_category,
+            display_order,
+            is_primary
+          ) VALUES ($1, $2, $3, $4, $5)
+        `, [gasPropertyId, img.url, 'gallery', i, i === 0]);
+        imageCount++;
+      }
+    }
+    console.log('✓ Imported ' + imageCount + ' images');
+    
+    // 4. Import amenities
+    console.log('4️⃣ Importing amenities...');
+    let amenitiesCount = 0;
+    if (propData.propAmenities && propData.propAmenities.length > 0) {
+      for (const amenity of propData.propAmenities) {
+        await client.query(`
+          INSERT INTO property_amenities (
+            property_id,
+            amenity_name,
+            amenity_category
+          ) VALUES ($1, $2, $3)
+        `, [gasPropertyId, amenity.name || amenity, 'general']);
+        amenitiesCount++;
+      }
+    }
+    console.log('✓ Imported ' + amenitiesCount + ' amenities');
+    
+    // 5. Import bookable units (rooms)
+    console.log('5️⃣ Importing bookable units...');
+    const roomsResponse = await axios.get('https://beds24.com/api/v2/rooms', {
+      headers: { 'token': token, 'accept': 'application/json' },
+      params: { propId: propertyId }
+    });
+    
+    const rooms = roomsResponse.data.data || [];
+    let unitsCount = 0;
+    
+    for (const room of rooms) {
+      const unitResult = await client.query(`
+        INSERT INTO bookable_units (
+          property_id,
+          unit_name,
+          unit_type,
+          description,
+          max_guests,
+          max_adults,
+          max_children,
+          quantity,
+          base_price,
+          currency_code,
+          unit_status
+        ) VALUES (
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'available'
+        )
+        RETURNING id
+      `, [
+        gasPropertyId,
+        room.roomName || 'Room',
+        room.roomType || 'standard',
+        room.roomDescription || '',
+        room.numAdult || 2,
+        room.numAdult || 2,
+        room.numChild || 0,
+        room.roomQty || 1,
+        room.roomPrice || 100,
+        propData.propCurrency || 'USD'
+      ]);
+      
+      const unitId = unitResult.rows[0].id;
+      
+      // Import unit images if available
+      if (room.roomImages && room.roomImages.length > 0) {
+        for (let i = 0; i < room.roomImages.length; i++) {
+          await client.query(`
+            INSERT INTO bookable_unit_images (
+              unit_id,
+              image_url,
+              display_order
+            ) VALUES ($1, $2, $3)
+          `, [unitId, room.roomImages[i].url, i]);
+        }
+      }
+      
+      unitsCount++;
+    }
+    console.log('✓ Imported ' + unitsCount + ' bookable units');
+    
+    // 6. Create property-CM link
+    console.log('6️⃣ Creating channel manager link...');
+    await client.query(`
+      INSERT INTO property_cm_links (
+        property_id,
+        connection_id,
+        cm_property_id,
+        cm_property_name,
+        sync_enabled,
+        sync_availability,
+        sync_rates,
+        sync_bookings,
+        sync_content,
+        link_status
+      ) VALUES (
+        $1, $2, $3, $4, true, true, true, true, true, 'active'
+      )
+    `, [gasPropertyId, connectionId, propertyId, propData.propName]);
+    
+    console.log('✓ Channel manager link created');
+    
+    // 7. Import bookings (if any)
+    console.log('7️⃣ Checking for bookings...');
+    let bookingsCount = 0;
+    try {
+      const bookingsResponse = await axios.get('https://beds24.com/api/v2/bookings', {
+        headers: { 'token': token, 'accept': 'application/json' },
+        params: { propId: propertyId }
+      });
+      
+      const bookings = bookingsResponse.data.data || [];
+      console.log('Found ' + bookings.length + ' bookings');
+      
+      for (const booking of bookings.slice(0, 10)) { // Import max 10 recent bookings
+        await client.query(`
+          INSERT INTO bookings (
+            property_id,
+            guest_first_name,
+            guest_last_name,
+            guest_email,
+            check_in_date,
+            check_out_date,
+            num_adults,
+            num_children,
+            total_price,
+            currency_code,
+            booking_status,
+            booking_source
+          ) VALUES (
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'beds24'
+          )
+        `, [
+          gasPropertyId,
+          booking.guestFirstName || 'Guest',
+          booking.guestLastName || '',
+          booking.guestEmail || '',
+          booking.arrival,
+          booking.departure,
+          booking.numAdult || 1,
+          booking.numChild || 0,
+          booking.price || 0,
+          propData.propCurrency || 'USD',
+          booking.status || 'confirmed'
+        ]);
+        bookingsCount++;
+      }
+    } catch (bookingError) {
+      console.log('No bookings found or error fetching bookings');
+    }
+    
+    await client.query('COMMIT');
+    
+    console.log('🎉 Import complete!');
+    
+    res.json({
+      success: true,
+      stats: {
+        propertyId: gasPropertyId,
+        images: imageCount,
+        amenities: amenitiesCount,
+        units: unitsCount,
+        bookings: bookingsCount
+      },
+      message: 'Property imported successfully!'
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Import failed:', error.message);
+    res.json({
+      success: false,
+      error: error.message
+    });
+  } finally {
+    client.release();
+  }
+});
+
 // Serve frontend - MUST BE LAST
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
