@@ -978,100 +978,57 @@
             <form id="editRoomForm" onsubmit="return saveRoom(event)">
                 <input type="hidden" id="edit-room-id">
                 
+                <!-- CM Data (reference) -->
+                <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">📡 From Channel Manager</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Room Name</label>
+                            <input type="text" class="form-input" id="edit-room-name" readonly style="background: var(--bg-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Room Type</label>
+                            <input type="text" class="form-input" id="edit-room-type" readonly style="background: var(--bg-primary);">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Max Guests</label>
+                            <input type="text" class="form-input" id="edit-room-maxguests" readonly style="background: var(--bg-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Max Adults</label>
+                            <input type="text" class="form-input" id="edit-room-maxadults" readonly style="background: var(--bg-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Max Children</label>
+                            <input type="text" class="form-input" id="edit-room-maxchildren" readonly style="background: var(--bg-primary);">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- GAS Controls -->
+                <div style="font-size: 0.75rem; color: var(--accent); margin-bottom: 0.5rem;">🎛️ GAS Controls</div>
+                
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
-                        <label class="form-label">Room Name *</label>
-                        <input type="text" class="form-input" id="edit-room-name" required>
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Room Type</label>
-                        <select class="form-input" id="edit-room-type">
-                            <option value="single">Single</option>
-                            <option value="double">Double</option>
-                            <option value="twin">Twin</option>
-                            <option value="triple">Triple</option>
-                            <option value="quad">Quad</option>
-                            <option value="suite">Suite</option>
-                            <option value="apartment">Apartment</option>
-                            <option value="studio">Studio</option>
-                            <option value="dormitory">Dormitory</option>
-                            <option value="family">Family</option>
-                            <option value="bungalow">Bungalow</option>
-                            <option value="villa">Villa</option>
-                        </select>
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
-                    <div class="form-group">
-                        <label class="form-label">Max Guests</label>
-                        <input type="number" class="form-input" id="edit-room-maxguests" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Max Adults</label>
-                        <input type="number" class="form-input" id="edit-room-maxadults" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Max Children</label>
-                        <input type="number" class="form-input" id="edit-room-maxchildren" min="0">
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
-                    <div class="form-group">
-                        <label class="form-label">Bedrooms</label>
-                        <input type="number" class="form-input" id="edit-room-bedrooms" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Bathrooms</label>
-                        <input type="number" class="form-input" id="edit-room-bathrooms" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Size (sqm)</label>
-                        <input type="number" class="form-input" id="edit-room-size" min="0">
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Bed Configuration</label>
-                    <div id="edit-room-beds" style="background: var(--bg-secondary); padding: 0.75rem; border-radius: 8px; font-size: 0.9rem; color: var(--text-secondary);">
-                        No bed configuration
-                    </div>
-                </div>
-                
-                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
-                    <div class="form-group">
-                        <label class="form-label">Base Price</label>
-                        <input type="number" class="form-input" id="edit-room-price" step="0.01" min="0">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Quantity</label>
+                        <label class="form-label">Quantity of Room Type</label>
                         <input type="number" class="form-input" id="edit-room-quantity" min="1">
                     </div>
                     <div class="form-group">
                         <label class="form-label">Status</label>
                         <select class="form-input" id="edit-room-status">
-                            <option value="available">Available</option>
-                            <option value="unavailable">Unavailable</option>
-                            <option value="maintenance">Maintenance</option>
+                            <option value="available">✅ Available</option>
+                            <option value="unavailable">❌ Unavailable</option>
+                            <option value="maintenance">🔧 Maintenance</option>
                         </select>
                     </div>
                 </div>
                 
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                    <div class="form-group">
-                        <label class="form-label">Min Stay (nights)</label>
-                        <input type="number" class="form-input" id="edit-room-minstay" min="1">
-                    </div>
-                    <div class="form-group">
-                        <label class="form-label">Max Stay (nights)</label>
-                        <input type="number" class="form-input" id="edit-room-maxstay" min="0" placeholder="No limit">
-                    </div>
-                </div>
-                
+                <!-- Amenities from CM -->
                 <div class="form-group">
-                    <label class="form-label">Amenities/Features</label>
-                    <div id="edit-room-amenities" style="background: var(--bg-secondary); padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; max-height: 120px; overflow-y: auto;">
+                    <label class="form-label">Amenities & Features (from CM)</label>
+                    <div id="edit-room-amenities" style="background: var(--bg-secondary); padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; max-height: 150px; overflow-y: auto;">
                         Loading amenities...
                     </div>
                 </div>
@@ -1197,9 +1154,8 @@
                                         <th>Room Name</th>
                                         <th>Property</th>
                                         <th>Type</th>
-                                        <th>Beds/Baths</th>
                                         <th>Capacity</th>
-                                        <th>Price</th>
+                                        <th>Qty</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -1210,10 +1166,13 @@
                                             <td><strong>${unit.name}</strong></td>
                                             <td style="font-size: 0.85rem; color: var(--text-secondary);">${unit.property_name || 'N/A'}</td>
                                             <td>${unit.unit_type || 'N/A'}</td>
-                                            <td>${unit.bedroom_count || '-'} BR / ${unit.bathroom_count || '-'} BA</td>
                                             <td>${unit.max_guests || '-'} guests</td>
-                                            <td>$${unit.base_price || 0}</td>
-                                            <td><span class="badge ${unit.status === 'available' ? 'badge-success' : 'badge-secondary'}">${unit.status || 'available'}</span></td>
+                                            <td>${unit.quantity || 1}</td>
+                                            <td>
+                                                <span class="badge ${unit.status === 'available' ? 'badge-success' : unit.status === 'maintenance' ? 'badge-warning' : 'badge-secondary'}">
+                                                    ${unit.status === 'available' ? '✅' : unit.status === 'maintenance' ? '🔧' : '❌'} ${unit.status || 'available'}
+                                                </span>
+                                            </td>
                                             <td><button class="btn btn-secondary btn-small" onclick="editRoom(${unit.id})">Edit</button></td>
                                         </tr>
                                     `).join('')}
@@ -1240,18 +1199,102 @@
         async function loadAmenities() {
             const container = document.getElementById('amenities-list');
             try {
-                // Placeholder - will implement with API
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">⭐</div>
-                        <h3>No Amenities Yet</h3>
-                        <p>Add amenities to your properties</p>
-                        <button class="btn" onclick="openAddAmenityModal()">Add Amenity</button>
-                    </div>
-                `;
+                const response = await fetch('/api/admin/amenities');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const propAmenities = data.propertyAmenities || [];
+                    const unitAmenities = data.unitAmenities || [];
+                    
+                    // Get unique amenity codes from unit amenities
+                    const uniqueAmenities = {};
+                    unitAmenities.forEach(a => {
+                        const code = a.amenity_code;
+                        if (!uniqueAmenities[code]) {
+                            uniqueAmenities[code] = {
+                                code: code,
+                                name: getAmenityDisplayName(a),
+                                category: a.category || 'other',
+                                count: 1
+                            };
+                        } else {
+                            uniqueAmenities[code].count++;
+                        }
+                    });
+                    
+                    const amenitiesList = Object.values(uniqueAmenities);
+                    
+                    if (amenitiesList.length > 0) {
+                        // Group by category
+                        const categories = {};
+                        amenitiesList.forEach(a => {
+                            const cat = a.category || 'other';
+                            if (!categories[cat]) categories[cat] = [];
+                            categories[cat].push(a);
+                        });
+                        
+                        // Category display names
+                        const categoryNames = {
+                            'beds': '🛏️ Beds',
+                            'bedrooms': '🚪 Bedrooms',
+                            'bathrooms': '🚿 Bathrooms',
+                            'kitchen': '🍳 Kitchen',
+                            'entertainment': '📺 Entertainment',
+                            'wellness': '💆 Wellness',
+                            'parking': '🚗 Parking',
+                            'outdoor': '🌳 Outdoor',
+                            'amenities': '✨ Amenities',
+                            'room_feature': '🏠 Room Features',
+                            'other': '📦 Other'
+                        };
+                        
+                        let html = `
+                            <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+                                <strong>${amenitiesList.length}</strong> unique amenities imported from Channel Manager
+                            </div>
+                        `;
+                        
+                        Object.entries(categories).sort().forEach(([cat, items]) => {
+                            html += `
+                                <div style="margin-bottom: 1.5rem;">
+                                    <h4 style="margin-bottom: 0.75rem; color: var(--text-secondary);">${categoryNames[cat] || cat}</h4>
+                                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                        ${items.map(a => `
+                                            <span style="display: inline-flex; align-items: center; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">
+                                                ${a.name}
+                                                <span style="margin-left: 0.5rem; background: var(--primary); color: white; padding: 0.1rem 0.4rem; border-radius: 10px; font-size: 0.7rem;">${a.count}</span>
+                                            </span>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-icon">⭐</div>
+                                <h3>No Amenities Yet</h3>
+                                <p>Amenities are imported with rooms from Beds24</p>
+                            </div>
+                        `;
+                    }
+                }
             } catch (error) {
                 console.error('Error loading amenities:', error);
+                container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading amenities</p>';
             }
+        }
+        
+        function getAmenityDisplayName(a) {
+            if (typeof a.amenity_name === 'string') {
+                if (a.amenity_name.startsWith('{')) {
+                    try { return JSON.parse(a.amenity_name).en || a.amenity_code; } catch(e) {}
+                }
+                return a.amenity_name;
+            }
+            return a.amenity_name?.en || a.amenity_code;
         }
 
         async function loadIntegrations() {
@@ -1381,42 +1424,17 @@
                 if (data.success && data.data) {
                     const room = data.data;
                     document.getElementById('edit-room-id').value = room.id;
+                    
+                    // CM Data (read-only display)
                     document.getElementById('edit-room-name').value = room.name || '';
-                    document.getElementById('edit-room-type').value = room.unit_type || 'double';
-                    document.getElementById('edit-room-maxguests').value = room.max_guests || '';
-                    document.getElementById('edit-room-maxadults').value = room.max_adults || '';
-                    document.getElementById('edit-room-maxchildren').value = room.max_children || '';
-                    document.getElementById('edit-room-bedrooms').value = room.bedroom_count || '';
-                    document.getElementById('edit-room-bathrooms').value = room.bathroom_count || '';
-                    document.getElementById('edit-room-size').value = room.size_sqm || '';
-                    document.getElementById('edit-room-price').value = room.base_price || '';
+                    document.getElementById('edit-room-type').value = room.unit_type || '';
+                    document.getElementById('edit-room-maxguests').value = room.max_guests || '-';
+                    document.getElementById('edit-room-maxadults').value = room.max_adults || '-';
+                    document.getElementById('edit-room-maxchildren').value = room.max_children || '-';
+                    
+                    // GAS Controls
                     document.getElementById('edit-room-quantity').value = room.quantity || 1;
                     document.getElementById('edit-room-status').value = room.status || 'available';
-                    document.getElementById('edit-room-minstay').value = room.min_stay || 1;
-                    document.getElementById('edit-room-maxstay').value = room.max_stay || '';
-                    
-                    // Display bed configuration
-                    const bedsContainer = document.getElementById('edit-room-beds');
-                    if (room.bed_configuration) {
-                        try {
-                            const bedConfig = typeof room.bed_configuration === 'string' 
-                                ? JSON.parse(room.bed_configuration) 
-                                : room.bed_configuration;
-                            if (bedConfig.beds && bedConfig.beds.length > 0) {
-                                bedsContainer.innerHTML = bedConfig.beds.map(bed => 
-                                    `<span style="display: inline-block; background: var(--primary); color: white; padding: 0.25rem 0.5rem; border-radius: 4px; margin: 0.15rem; font-size: 0.8rem;">
-                                        ${bed.quantity || 1}x ${bed.name || bed.type}
-                                    </span>`
-                                ).join('');
-                            } else {
-                                bedsContainer.innerHTML = '<span style="color: var(--text-secondary);">No bed configuration</span>';
-                            }
-                        } catch (e) {
-                            bedsContainer.innerHTML = '<span style="color: var(--text-secondary);">No bed configuration</span>';
-                        }
-                    } else {
-                        bedsContainer.innerHTML = '<span style="color: var(--text-secondary);">No bed configuration</span>';
-                    }
                     
                     // Load amenities for this room
                     const amenitiesContainer = document.getElementById('edit-room-amenities');
@@ -1425,12 +1443,41 @@
                         const amenitiesResp = await fetch(`/api/admin/units/${id}/amenities`);
                         const amenitiesData = await amenitiesResp.json();
                         if (amenitiesData.success && amenitiesData.data && amenitiesData.data.length > 0) {
-                            amenitiesContainer.innerHTML = amenitiesData.data.map(a => {
-                                const name = typeof a.amenity_name === 'string' 
-                                    ? (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name)
-                                    : (a.amenity_name?.en || a.amenity_code);
-                                return `<span style="display: inline-block; background: var(--bg-primary); border: 1px solid var(--border); padding: 0.2rem 0.5rem; border-radius: 4px; margin: 0.15rem; font-size: 0.8rem;">${name}</span>`;
-                            }).join('');
+                            // Group amenities by category
+                            const beds = amenitiesData.data.filter(a => a.amenity_code.startsWith('bed_'));
+                            const baths = amenitiesData.data.filter(a => a.amenity_code.startsWith('bath'));
+                            const others = amenitiesData.data.filter(a => !a.amenity_code.startsWith('bed_') && !a.amenity_code.startsWith('bath'));
+                            
+                            let html = '';
+                            
+                            if (beds.length > 0) {
+                                html += '<div style="margin-bottom: 0.5rem;"><strong style="font-size: 0.75rem; color: var(--text-secondary);">🛏️ BEDS:</strong> ';
+                                html += beds.map(a => {
+                                    const name = getAmenityName(a);
+                                    return `<span style="display: inline-block; background: var(--primary); color: white; padding: 0.15rem 0.4rem; border-radius: 4px; margin: 0.1rem; font-size: 0.75rem;">${name}</span>`;
+                                }).join('');
+                                html += '</div>';
+                            }
+                            
+                            if (baths.length > 0) {
+                                html += '<div style="margin-bottom: 0.5rem;"><strong style="font-size: 0.75rem; color: var(--text-secondary);">🚿 BATHROOMS:</strong> ';
+                                html += baths.map(a => {
+                                    const name = getAmenityName(a);
+                                    return `<span style="display: inline-block; background: var(--accent); color: var(--bg-primary); padding: 0.15rem 0.4rem; border-radius: 4px; margin: 0.1rem; font-size: 0.75rem;">${name}</span>`;
+                                }).join('');
+                                html += '</div>';
+                            }
+                            
+                            if (others.length > 0) {
+                                html += '<div><strong style="font-size: 0.75rem; color: var(--text-secondary);">✨ AMENITIES:</strong> ';
+                                html += others.map(a => {
+                                    const name = getAmenityName(a);
+                                    return `<span style="display: inline-block; background: var(--bg-primary); border: 1px solid var(--border); padding: 0.15rem 0.4rem; border-radius: 4px; margin: 0.1rem; font-size: 0.75rem;">${name}</span>`;
+                                }).join('');
+                                html += '</div>';
+                            }
+                            
+                            amenitiesContainer.innerHTML = html || '<span style="color: var(--text-secondary);">No amenities</span>';
                         } else {
                             amenitiesContainer.innerHTML = '<span style="color: var(--text-secondary);">No amenities imported</span>';
                         }
@@ -1445,24 +1492,25 @@
                 alert('Error loading room details');
             }
         }
+        
+        function getAmenityName(a) {
+            if (typeof a.amenity_name === 'string') {
+                if (a.amenity_name.startsWith('{')) {
+                    try { return JSON.parse(a.amenity_name).en || a.amenity_code; } catch(e) { return a.amenity_code; }
+                }
+                return a.amenity_name;
+            }
+            return a.amenity_name?.en || a.amenity_code;
+        }
 
         async function saveRoom(e) {
             e.preventDefault();
             const id = document.getElementById('edit-room-id').value;
+            
+            // Only save GAS-controlled fields
             const data = {
-                name: document.getElementById('edit-room-name').value,
-                unit_type: document.getElementById('edit-room-type').value,
-                max_guests: document.getElementById('edit-room-maxguests').value || null,
-                max_adults: document.getElementById('edit-room-maxadults').value || null,
-                max_children: document.getElementById('edit-room-maxchildren').value || null,
-                bedroom_count: document.getElementById('edit-room-bedrooms').value || null,
-                bathroom_count: document.getElementById('edit-room-bathrooms').value || null,
-                size_sqm: document.getElementById('edit-room-size').value || null,
-                base_price: document.getElementById('edit-room-price').value || null,
                 quantity: document.getElementById('edit-room-quantity').value || 1,
-                status: document.getElementById('edit-room-status').value,
-                min_stay: document.getElementById('edit-room-minstay').value || 1,
-                max_stay: document.getElementById('edit-room-maxstay').value || null
+                status: document.getElementById('edit-room-status').value
             };
             
             try {
