@@ -886,6 +886,37 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
   try {
     console.log('🔗 Setting up Beds24 connection...');
     
+    // Ensure we have at least one user (create default if needed)
+    const userCheck = await pool.query('SELECT id FROM users LIMIT 1');
+    let userId;
+    
+    if (userCheck.rows.length === 0) {
+      console.log('📝 Creating default user...');
+      const userResult = await pool.query(`
+        INSERT INTO users (
+          user_type,
+          email,
+          password_hash,
+          first_name,
+          last_name,
+          account_status
+        ) VALUES (
+          'property_owner',
+          'admin@gas-system.com',
+          'temp_password_hash',
+          'Admin',
+          'User',
+          'active'
+        )
+        RETURNING id
+      `);
+      userId = userResult.rows[0].id;
+      console.log('✓ Default user created with ID: ' + userId);
+    } else {
+      userId = userCheck.rows[0].id;
+      console.log('✓ Using existing user ID: ' + userId);
+    }
+    
     // Ensure Beds24 exists in channel_managers table
     await pool.query(`
       INSERT INTO channel_managers (
@@ -939,18 +970,18 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
         sync_enabled,
         sync_interval_minutes
       ) VALUES (
-        1,
-        (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
         $1,
+        (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
         $2,
         $3,
+        $4,
         NOW() + INTERVAL '30 days',
         'active',
         true,
         60
       )
       RETURNING id
-    `, [inviteCode, refreshToken, token]);
+    `, [userId, inviteCode, refreshToken, token]);
     
     const connectionId = result.rows[0].id;
     
@@ -1015,6 +1046,10 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     
     console.log('🚀 Starting complete property import for Property ID: ' + propertyId);
     
+    // Get the user_id from the connection
+    const connResult = await client.query('SELECT user_id FROM channel_connections WHERE id = $1', [connectionId]);
+    const userId = connResult.rows[0].user_id;
+    
     // 1. Fetch complete property data from Beds24
     console.log('1️⃣ Fetching property details...');
     const propResponse = await axios.get('https://beds24.com/api/v2/properties/' + propertyId, {
@@ -1042,11 +1077,12 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         currency_code,
         property_status
       ) VALUES (
-        1,
-        $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'active'
+        $1,
+        $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'active'
       )
       RETURNING id
     `, [
+      userId,
       propData.propName,
       propData.propType || 'hotel',
       propData.propContent || '',
