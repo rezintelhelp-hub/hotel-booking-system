@@ -520,6 +520,22 @@ app.get('/api/db/properties', async (req, res) => {
   }
 });
 
+// GET single property by ID
+app.get('/api/db/properties/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM properties WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/db/properties', async (req, res) => {
   const { name, description, address, city, country, property_type, star_rating } = req.body;
   try {
@@ -565,27 +581,47 @@ app.put('/api/db/properties/:id', async (req, res) => {
   }
 });
 
-// DELETE property
+// DELETE property - REQUIRES all rooms to be deleted first
 app.delete('/api/db/properties/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Delete the property (cascading deletes will handle related records)
+    // Check if property has any rooms
+    const roomsCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM bookable_units WHERE property_id = $1',
+      [id]
+    );
+    
+    if (parseInt(roomsCheck.rows[0].count) > 0) {
+      return res.json({ 
+        success: false, 
+        error: 'Cannot delete property: Please delete all rooms first. This property has ' + roomsCheck.rows[0].count + ' room(s).'
+      });
+    }
+    
+    // Check if property has any bookings directly attached
+    const bookingsCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM bookings WHERE property_id = $1',
+      [id]
+    );
+    
+    if (parseInt(bookingsCheck.rows[0].count) > 0) {
+      return res.json({ 
+        success: false, 
+        error: 'Cannot delete property: This property has ' + bookingsCheck.rows[0].count + ' booking(s) attached.'
+      });
+    }
+    
+    // Safe to delete - remove related records first
+    await pool.query('DELETE FROM property_images WHERE property_id = $1', [id]);
+    await pool.query('DELETE FROM property_amenities WHERE property_id = $1', [id]);
+    await pool.query('DELETE FROM property_policies WHERE property_id = $1', [id]);
+    await pool.query('DELETE FROM property_cm_links WHERE property_id = $1', [id]);
+    
+    // Delete the property
     await pool.query('DELETE FROM properties WHERE id = $1', [id]);
     
     res.json({ success: true, message: 'Property deleted successfully' });
-  } catch (error) {
-    console.error('Delete error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// DELETE property
-app.delete('/api/db/properties/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    await pool.query('UPDATE properties SET active = false WHERE id = $1', [id]);
-    res.json({ success: true, message: 'Property deleted' });
   } catch (error) {
     console.error('Delete error:', error);
     res.json({ success: false, error: error.message });
@@ -1998,15 +2034,32 @@ app.put('/api/admin/units/:id', async (req, res) => {
   }
 });
 
-// Delete unit
+// Delete unit - REQUIRES no bookings attached
 app.delete('/api/admin/units/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Delete the unit (cascading deletes will handle related records)
+    // Check if unit has any bookings
+    const bookingsCheck = await pool.query(
+      'SELECT COUNT(*) as count FROM bookings WHERE bookable_unit_id = $1',
+      [id]
+    );
+    
+    if (parseInt(bookingsCheck.rows[0].count) > 0) {
+      return res.json({ 
+        success: false, 
+        error: 'Cannot delete room: This room has ' + bookingsCheck.rows[0].count + ' booking(s) attached. Cancel or reassign bookings first.'
+      });
+    }
+    
+    // Safe to delete - remove related records first
+    await pool.query('DELETE FROM bookable_unit_images WHERE bookable_unit_id = $1', [id]);
+    await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = $1', [id]);
+    
+    // Delete the unit
     await pool.query('DELETE FROM bookable_units WHERE id = $1', [id]);
     
-    res.json({ success: true, message: 'Unit deleted successfully' });
+    res.json({ success: true, message: 'Room deleted successfully' });
   } catch (error) {
     console.error('Unit delete error:', error.message);
     res.json({ success: false, error: error.message });
