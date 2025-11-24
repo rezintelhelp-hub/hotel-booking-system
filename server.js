@@ -1255,16 +1255,19 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     }
     
     // Check if property already exists (by beds24_property_id)
+    // Cast to text to handle any type mismatches
     const existingProp = await client.query(
-      'SELECT id FROM properties WHERE beds24_property_id = $1',
+      'SELECT id FROM properties WHERE beds24_property_id::text = $1::text',
       [propertyId]
     );
     
     let gasPropertyId;
+    let isUpdate = false;
     
     if (existingProp.rows.length > 0) {
       // UPDATE existing property
       gasPropertyId = existingProp.rows[0].id;
+      isUpdate = true;
       
       await client.query(`
         UPDATE properties SET
@@ -1621,11 +1624,11 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         }
       }
       
-      // Check if room exists
+      // Check if room exists (cast to text to handle type mismatches)
       const existingRoom = await client.query(`
         SELECT id FROM bookable_units 
-        WHERE property_id = $1 AND (cm_room_id = $2 OR beds24_room_id = $3)
-      `, [gasPropertyId, beds24RoomId, parseInt(beds24RoomId) || null]);
+        WHERE property_id = $1 AND (cm_room_id::text = $2::text OR beds24_room_id::text = $2::text)
+      `, [gasPropertyId, beds24RoomId]);
       
       let unitId;
       
@@ -1914,7 +1917,8 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       roomsAdded: roomsAdded,
       roomsUpdated: roomsUpdated,
       roomImages: roomImagesCount,
-      roomAmenities: roomAmenitiesCount
+      roomAmenities: roomAmenitiesCount,
+      isUpdate: isUpdate
     };
     
     console.log('   📊 Stats:', JSON.stringify(stats, null, 2));
@@ -1922,7 +1926,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     res.json({
       success: true,
       stats: stats,
-      message: 'Property imported successfully with all content!'
+      message: isUpdate ? 'Property updated successfully with all content!' : 'Property imported successfully with all content!'
     });
     
   } catch (error) {
