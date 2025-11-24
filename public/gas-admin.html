@@ -664,6 +664,10 @@
                             <span>💰</span>
                             <span>Create Rate Plan</span>
                         </button>
+                        <button class="btn btn-secondary" onclick="cleanupDuplicates()" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #ef4444;">
+                            <span>🧹</span>
+                            <span>Remove Duplicates</span>
+                        </button>
                     </div>
                 </div>
             </div>
@@ -1326,6 +1330,37 @@
 
         function openAddUpsellModal() {
             alert('Upsell creation feature coming soon!');
+        }
+
+        // Cleanup duplicates
+        async function cleanupDuplicates() {
+            if (!confirm('This will remove duplicate properties and rooms, keeping only the most recent imports. Continue?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/cleanup-duplicates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ Duplicates removed!\n\nProperties: ' + result.counts.properties + '\nRooms: ' + result.counts.units);
+                    loadDashboard();
+                    if (document.getElementById('properties').classList.contains('active')) {
+                        loadProperties();
+                    }
+                    if (document.getElementById('rooms').classList.contains('active')) {
+                        loadRooms();
+                    }
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error cleaning up: ' + error.message);
+            }
         }
 
         // Initial load
