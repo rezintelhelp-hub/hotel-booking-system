@@ -1387,12 +1387,14 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
             departure_date,
             num_adults,
             num_children,
-            total_amount,
-            currency,
-            status,
+            accommodation_price,
+            subtotal,
+            grand_total,
+            currency_code,
+            booking_status,
             booking_source
           ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'beds24'
+            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'beds24'
           )
         `, [
           gasPropertyId,
@@ -1406,7 +1408,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           booking.numAdult || 1,
           booking.numChild || 0,
           booking.price || 0,
-          propData.currency || propData.propCurrency || 'USD',
+          booking.price || 0,
+          booking.price || 0,
+          propData.currency || 'USD',
           booking.status || 'confirmed'
         ]);
         bookingsCount++;
