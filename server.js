@@ -1070,9 +1070,10 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     
     // 1. Fetch complete property data from Beds24
     console.log('1️⃣ Fetching property details...');
-    const propResponse = await axios.get('https://beds24.com/api/v2/properties/' + propertyId, {
+    const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
       headers: { 'token': token, 'accept': 'application/json' },
       params: {
+        id: propertyId,
         includeTexts: 'all',
         includePictures: true,
         includeAllRooms: true,
@@ -1081,6 +1082,10 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     });
     
     const propData = propResponse.data.data[0];
+    
+    if (!propData) {
+      throw new Error('Property not found in Beds24 response');
+    }
     
     // 2. Insert into properties table
     console.log('2️⃣ Saving property to database...');
@@ -1313,6 +1318,8 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Import failed:', error.message);
+    console.error('Error details:', error.response?.data || error);
+    console.error('Stack trace:', error.stack);
     res.json({
       success: false,
       error: error.message
