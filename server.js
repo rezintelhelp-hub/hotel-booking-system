@@ -1527,6 +1527,77 @@ app.get('/api/admin/channels', async (req, res) => {
   }
 });
 
+// Cleanup duplicate imports
+app.post('/api/admin/cleanup-duplicates', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🧹 Cleaning up duplicates...');
+    
+    // Delete duplicate properties (keep most recent)
+    const propsDeleted = await client.query(`
+      DELETE FROM properties 
+      WHERE id NOT IN (
+        SELECT MAX(id) 
+        FROM properties 
+        GROUP BY name, address, city
+      )
+    `);
+    
+    // Delete orphaned units
+    await client.query(`
+      DELETE FROM bookable_units
+      WHERE property_id NOT IN (SELECT id FROM properties)
+    `);
+    
+    // Delete duplicate units (keep most recent)
+    const unitsDeleted = await client.query(`
+      DELETE FROM bookable_units
+      WHERE id NOT IN (
+        SELECT MAX(id)
+        FROM bookable_units
+        GROUP BY property_id, name
+      )
+    `);
+    
+    // Clean up orphaned images
+    await client.query('DELETE FROM property_images WHERE property_id NOT IN (SELECT id FROM properties)');
+    await client.query('DELETE FROM bookable_unit_images WHERE unit_id NOT IN (SELECT id FROM bookable_units)');
+    
+    // Clean up orphaned amenities
+    await client.query('DELETE FROM property_amenities WHERE property_id NOT IN (SELECT id FROM properties)');
+    await client.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id NOT IN (SELECT id FROM bookable_units)');
+    
+    // Clean up orphaned links
+    await client.query('DELETE FROM property_cm_links WHERE property_id NOT IN (SELECT id FROM properties)');
+    
+    await client.query('COMMIT');
+    
+    // Get final counts
+    const counts = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM properties) as properties,
+        (SELECT COUNT(*) FROM bookable_units) as units
+    `);
+    
+    console.log('✓ Cleanup complete');
+    
+    res.json({
+      success: true,
+      message: 'Duplicates removed successfully',
+      counts: counts.rows[0]
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Cleanup error:', error.message);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Serve frontend - MUST BE LAST
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
