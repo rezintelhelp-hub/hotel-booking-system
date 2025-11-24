@@ -1220,10 +1220,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           max_children,
           quantity,
           base_price,
-          currency,
           status
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'available'
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, 'available'
         )
         RETURNING id
       `, [
@@ -1235,8 +1234,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         room.maxAdult || 2,
         room.maxChildren || 0,
         room.qty || 1,
-        room.rackRate || 100,
-        propData.currency || 'USD'
+        room.rackRate || 100
       ]);
       
       const unitId = unitResult.rows[0].id;
