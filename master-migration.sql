@@ -88,7 +88,20 @@ DROP TABLE IF EXISTS rooms CASCADE;
 DROP TABLE IF EXISTS sync_log CASCADE;
 
 -- =====================================================
--- STEP 2: CREATE ALL TABLES (CORRECT ORDER)
+-- STEP 2: CREATE HELPER FUNCTIONS (BEFORE TABLES)
+-- =====================================================
+
+-- Function to automatically update updated_at timestamp
+CREATE OR REPLACE FUNCTION update_updated_at_column()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = CURRENT_TIMESTAMP;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- =====================================================
+-- STEP 3: CREATE ALL TABLES (CORRECT ORDER)
 -- =====================================================
 
 -- Progress indicator
