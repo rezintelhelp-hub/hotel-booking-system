@@ -517,6 +517,29 @@
         let selectedProperty = null;
         let importedData = {};
 
+        // Check for existing connection on load
+        async function checkExistingConnection() {
+            try {
+                const response = await fetch('/api/beds24/check-connection');
+                const data = await response.json();
+                
+                if (data.success && data.hasConnection) {
+                    console.log('Existing Beds24 connection found!');
+                    beds24Token = data.token;
+                    beds24RefreshToken = data.refreshToken;
+                    connectionId = data.connectionId;
+                    
+                    // Skip to property selection
+                    showAlert('step1Alert', 'success', '✓ Using existing Beds24 connection');
+                    setTimeout(() => {
+                        loadProperties();
+                    }, 1000);
+                }
+            } catch (error) {
+                console.log('No existing connection, user needs to connect');
+            }
+        }
+
         // Navigation
         function goToStep(step) {
             // Hide all steps
@@ -788,6 +811,11 @@
 
         document.querySelectorAll('.step').forEach(step => {
             step4Observer.observe(step, { attributes: true, attributeFilter: ['class'] });
+        });
+
+        // Check for existing connection when page loads
+        window.addEventListener('DOMContentLoaded', () => {
+            checkExistingConnection();
         });
     </script>
 </body>
