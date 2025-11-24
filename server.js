@@ -1229,7 +1229,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         gasPropertyId,
         room.name || 'Room',
         room.roomType || 'single',
-        room.texts && room.texts[0] ? (room.texts[0].roomDescription || '') : '',
+        JSON.stringify({ en: room.texts && room.texts[0] ? (room.texts[0].roomDescription || '') : '' }),
         room.maxPeople || 2,
         room.maxAdult || 2,
         room.maxChildren || 0,
