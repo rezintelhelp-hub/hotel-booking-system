@@ -1391,7 +1391,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
             subtotal,
             grand_total,
             currency,
-            booking_status,
+            status,
             booking_source
           ) VALUES (
             $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'beds24'
