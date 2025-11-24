@@ -875,6 +875,92 @@ Return this EXACT JSON structure:
 // NEW BEDS24 IMPORT SYSTEM (Complete Property Import)
 // =====================================================
 
+// Check for existing Beds24 connection
+app.get('/api/beds24/check-connection', async (req, res) => {
+  try {
+    // Get most recent active Beds24 connection
+    const result = await pool.query(`
+      SELECT 
+        cc.id,
+        cc.access_token,
+        cc.refresh_token,
+        cc.token_expires_at
+      FROM channel_connections cc
+      JOIN channel_managers cm ON cc.cm_id = cm.id
+      WHERE cm.cm_code = 'beds24' 
+        AND cc.status = 'active'
+      ORDER BY cc.created_at DESC
+      LIMIT 1
+    `);
+    
+    if (result.rows.length > 0) {
+      const connection = result.rows[0];
+      
+      // Check if token needs refresh (if expired or expiring soon)
+      const expiresAt = new Date(connection.token_expires_at);
+      const now = new Date();
+      const needsRefresh = expiresAt <= now;
+      
+      if (needsRefresh && connection.refresh_token) {
+        // Refresh the token
+        try {
+          const refreshResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+            refreshToken: connection.refresh_token
+          }, {
+            headers: { 'accept': 'application/json' }
+          });
+          
+          const newToken = refreshResponse.data.token;
+          
+          // Update database with new token
+          await pool.query(`
+            UPDATE channel_connections 
+            SET 
+              access_token = $1,
+              token_expires_at = NOW() + INTERVAL '30 days',
+              updated_at = NOW()
+            WHERE id = $2
+          `, [newToken, connection.id]);
+          
+          console.log('✓ Beds24 token refreshed automatically');
+          
+          res.json({
+            success: true,
+            hasConnection: true,
+            connectionId: connection.id,
+            token: newToken,
+            refreshToken: connection.refresh_token
+          });
+        } catch (refreshError) {
+          console.error('Token refresh failed:', refreshError.message);
+          res.json({
+            success: false,
+            hasConnection: false,
+            error: 'Token expired and refresh failed'
+          });
+        }
+      } else {
+        // Token is still valid
+        res.json({
+          success: true,
+          hasConnection: true,
+          connectionId: connection.id,
+          token: connection.access_token,
+          refreshToken: connection.refresh_token
+        });
+      }
+    } else {
+      res.json({
+        success: true,
+        hasConnection: false
+      });
+    }
+  } catch (error) {
+    console.error('Check connection error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Step 1: Setup Beds24 Connection (Save to channel_connections table)
 app.post('/api/beds24/setup-connection', async (req, res) => {
   const { inviteCode } = req.body;
