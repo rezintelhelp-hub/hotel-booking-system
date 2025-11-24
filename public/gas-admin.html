@@ -950,9 +950,14 @@
                     <label class="form-label">Country</label>
                     <input type="text" class="form-input" id="edit-property-country">
                 </div>
-                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('editPropertyModal')">Cancel</button>
-                    <button type="submit" class="btn">Save Changes</button>
+                <div style="display: flex; gap: 1rem; justify-content: space-between;">
+                    <button type="button" class="btn" style="background: var(--error); border-color: var(--error);" onclick="deleteProperty()">
+                        Delete Property
+                    </button>
+                    <div style="display: flex; gap: 1rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('editPropertyModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Changes</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -993,9 +998,14 @@
                     <label class="form-label">Quantity</label>
                     <input type="number" class="form-input" id="edit-room-quantity">
                 </div>
-                <div style="display: flex; gap: 1rem; justify-content: flex-end;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('editRoomModal')">Cancel</button>
-                    <button type="submit" class="btn">Save Changes</button>
+                <div style="display: flex; gap: 1rem; justify-content: space-between;">
+                    <button type="button" class="btn" style="background: var(--error); border-color: var(--error);" onclick="deleteRoom()">
+                        Delete Room
+                    </button>
+                    <div style="display: flex; gap: 1rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('editRoomModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Changes</button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -1255,6 +1265,34 @@
             return false;
         }
 
+        async function deleteProperty() {
+            const id = document.getElementById('edit-property-id').value;
+            const name = document.getElementById('edit-property-name').value;
+            
+            if (!confirm(`Are you sure you want to delete "${name}"?\n\nThis will also delete all rooms, images, and related data.\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/db/properties/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Property deleted successfully!');
+                    closeModal('editPropertyModal');
+                    loadProperties();
+                    loadDashboard(); // Refresh stats
+                } else {
+                    alert('Error deleting property: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting property:', error);
+                alert('Error deleting property');
+            }
+        }
+
         async function editRoom(id) {
             try {
                 const response = await fetch(`/api/admin/units/${id}`);
@@ -1309,6 +1347,34 @@
             }
             
             return false;
+        }
+
+        async function deleteRoom() {
+            const id = document.getElementById('edit-room-id').value;
+            const name = document.getElementById('edit-room-name').value;
+            
+            if (!confirm(`Are you sure you want to delete "${name}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/units/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Room deleted successfully!');
+                    closeModal('editRoomModal');
+                    loadRooms();
+                    loadDashboard(); // Refresh stats
+                } else {
+                    alert('Error deleting room: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting room:', error);
+                alert('Error deleting room');
+            }
         }
 
         // Placeholder functions for other modals
