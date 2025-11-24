@@ -1360,6 +1360,136 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
   }
 });
 
+// =====================================================
+// ADMIN DASHBOARD API ENDPOINTS
+// =====================================================
+
+// Get dashboard statistics
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const propertiesCount = await pool.query('SELECT COUNT(*) FROM properties');
+    const unitsCount = await pool.query('SELECT COUNT(*) FROM bookable_units');
+    const bookingsCount = await pool.query('SELECT COUNT(*) FROM bookings');
+    const connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE status = $1', ['active']);
+    
+    res.json({
+      success: true,
+      properties: parseInt(propertiesCount.rows[0].count),
+      units: parseInt(unitsCount.rows[0].count),
+      bookings: parseInt(bookingsCount.rows[0].count),
+      connections: parseInt(connectionsCount.rows[0].count)
+    });
+  } catch (error) {
+    console.error('Stats error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all bookable units with property details
+app.get('/api/admin/units', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        bu.*,
+        p.name as property_name
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      ORDER BY bu.created_at DESC
+    `);
+    
+    res.json({
+      success: true,
+      data: result.rows
+    });
+  } catch (error) {
+    console.error('Units error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single unit
+app.get('/api/admin/units/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [id]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      res.json({ success: false, error: 'Unit not found' });
+    }
+  } catch (error) {
+    console.error('Unit fetch error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update unit
+app.put('/api/admin/units/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, unit_type, max_guests, base_price, quantity } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE bookable_units 
+      SET 
+        name = $1,
+        unit_type = $2,
+        max_guests = $3,
+        base_price = $4,
+        quantity = $5,
+        updated_at = NOW()
+      WHERE id = $6
+      RETURNING *
+    `, [name, unit_type, max_guests, base_price, quantity, id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Unit update error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all amenities
+app.get('/api/admin/amenities', async (req, res) => {
+  try {
+    const propAmenities = await pool.query('SELECT * FROM property_amenities ORDER BY created_at DESC');
+    const unitAmenities = await pool.query('SELECT * FROM bookable_unit_amenities ORDER BY created_at DESC');
+    
+    res.json({
+      success: true,
+      propertyAmenities: propAmenities.rows,
+      unitAmenities: unitAmenities.rows
+    });
+  } catch (error) {
+    console.error('Amenities error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get integrations/connections
+app.get('/api/admin/channels', async (req, res) => {
+  try {
+    const connections = await pool.query(`
+      SELECT 
+        cc.*,
+        cm.cm_name,
+        cm.cm_code
+      FROM channel_connections cc
+      LEFT JOIN channel_managers cm ON cc.cm_id = cm.id
+      ORDER BY cc.created_at DESC
+    `);
+    
+    res.json({
+      success: true,
+      data: connections.rows
+    });
+  } catch (error) {
+    console.error('Channels error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Serve frontend - MUST BE LAST
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
