@@ -1,9 +1,10 @@
-// Updated for DELETE endpoint
+// Updated for DELETE endpoint + DATABASE MIGRATION
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
 const cors = require('cors');
 const path = require('path');
+const fs = require('fs');
 const { Pool } = require('pg');
 
 const app = express();
@@ -43,6 +44,418 @@ async function beds24Request(endpoint, method = 'GET', data = null) {
     return { success: false, error: error.response?.data?.error || error.message };
   }
 }
+
+// =====================================================
+// DATABASE MIGRATION ROUTES (NEW)
+// =====================================================
+
+// Admin page for database migration
+app.get('/admin/deploy-database', (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>🚀 Deploy GAS Database</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+          min-height: 100vh;
+          padding: 20px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .container {
+          max-width: 900px;
+          width: 100%;
+          background: white;
+          border-radius: 20px;
+          padding: 40px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+          color: #333;
+          font-size: 36px;
+          margin-bottom: 10px;
+          display: flex;
+          align-items: center;
+          gap: 15px;
+        }
+        .subtitle {
+          color: #666;
+          margin-bottom: 30px;
+          font-size: 16px;
+        }
+        .card {
+          background: #f8f9fa;
+          border-radius: 12px;
+          padding: 25px;
+          margin: 20px 0;
+          border-left: 5px solid #667eea;
+        }
+        .card.warning {
+          background: #fff3cd;
+          border-left-color: #ffc107;
+        }
+        .card.info {
+          background: #e7f3ff;
+          border-left-color: #0dcaf0;
+        }
+        .card.success {
+          background: #d4edda;
+          border-left-color: #28a745;
+        }
+        .card.error {
+          background: #f8d7da;
+          border-left-color: #dc3545;
+        }
+        .card strong {
+          display: block;
+          margin-bottom: 12px;
+          font-size: 18px;
+          color: #333;
+        }
+        .card ul {
+          margin-left: 25px;
+          margin-top: 12px;
+          line-height: 1.8;
+        }
+        .button-group {
+          display: flex;
+          gap: 15px;
+          justify-content: center;
+          margin: 35px 0;
+          flex-wrap: wrap;
+        }
+        button {
+          background: #667eea;
+          color: white;
+          border: none;
+          padding: 18px 35px;
+          font-size: 16px;
+          font-weight: 600;
+          border-radius: 12px;
+          cursor: pointer;
+          transition: all 0.3s;
+          box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        button:hover:not(:disabled) {
+          transform: translateY(-3px);
+          box-shadow: 0 6px 20px rgba(102, 126, 234, 0.6);
+        }
+        button:active {
+          transform: translateY(0);
+        }
+        button.danger {
+          background: #dc3545;
+          box-shadow: 0 4px 15px rgba(220, 53, 69, 0.4);
+        }
+        button.danger:hover:not(:disabled) {
+          box-shadow: 0 6px 20px rgba(220, 53, 69, 0.6);
+        }
+        button:disabled {
+          background: #ccc;
+          cursor: not-allowed;
+          box-shadow: none;
+        }
+        #result {
+          margin-top: 25px;
+          display: none;
+          animation: slideIn 0.3s ease;
+        }
+        #result.show {
+          display: block;
+        }
+        @keyframes slideIn {
+          from { opacity: 0; transform: translateY(-10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .spinner {
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #667eea;
+          border-radius: 50%;
+          width: 50px;
+          height: 50px;
+          animation: spin 1s linear infinite;
+          margin: 25px auto;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
+        .stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 20px;
+          margin-top: 25px;
+        }
+        .stat-box {
+          background: white;
+          padding: 20px;
+          border-radius: 10px;
+          text-align: center;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .stat-number {
+          font-size: 42px;
+          font-weight: bold;
+          color: #667eea;
+          margin-bottom: 8px;
+        }
+        .stat-label {
+          font-size: 14px;
+          color: #666;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        .table-list {
+          max-height: 350px;
+          overflow-y: auto;
+          background: white;
+          padding: 20px;
+          border-radius: 8px;
+          margin-top: 15px;
+          font-family: 'Courier New', monospace;
+          font-size: 13px;
+          line-height: 2;
+          box-shadow: inset 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .table-list div {
+          padding: 5px 10px;
+          border-radius: 4px;
+          transition: background 0.2s;
+        }
+        .table-list div:hover {
+          background: #f0f0f0;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>
+          <span>🚀</span>
+          <span>GAS Database Deployment</span>
+        </h1>
+        <div class="subtitle">Deploy the complete 43-table schema to your Railway database</div>
+        
+        <div class="card info">
+          <strong>📊 What Will Be Deployed:</strong>
+          <ul>
+            <li><strong>43 tables</strong> across 7 major systems</li>
+            <li><strong>500+ fields</strong> with complete relationships</li>
+            <li><strong>Users, Properties, Bookable Units, Bookings, Channel Managers, Rate Plans, Upsells</strong></li>
+            <li><strong>All indexes, triggers, and functions</strong></li>
+          </ul>
+        </div>
+
+        <div class="card warning">
+          <strong>⚠️ Important Warning:</strong>
+          This will <strong>DELETE ALL</strong> existing tables and data. Your current database will be completely replaced with the new schema. This action cannot be undone without a backup.
+        </div>
+
+        <div class="button-group">
+          <button onclick="checkStatus()" id="checkBtn">
+            <span>📋</span>
+            <span>Check Current Database</span>
+          </button>
+          <button onclick="deployDatabase()" class="danger" id="deployBtn">
+            <span>🚀</span>
+            <span>Deploy New Schema</span>
+          </button>
+        </div>
+
+        <div id="result"></div>
+      </div>
+
+      <script>
+        async function checkStatus() {
+          const btn = document.getElementById('checkBtn');
+          const result = document.getElementById('result');
+          
+          btn.disabled = true;
+          result.className = 'card info show';
+          result.innerHTML = '<div class="spinner"></div><p style="text-align:center; margin-top:10px; font-size:16px;">Checking database...</p>';
+
+          try {
+            const res = await fetch('/api/migration/status');
+            const data = await res.json();
+            
+            if (data.success) {
+              result.className = 'card success show';
+              result.innerHTML = \`
+                <strong>✓ Current Database Status</strong>
+                <div class="stats">
+                  <div class="stat-box">
+                    <div class="stat-number">\${data.tableCount}</div>
+                    <div class="stat-label">Tables</div>
+                  </div>
+                </div>
+                <div class="table-list">
+                  \${data.tables.map(t => '<div>• ' + t + '</div>').join('')}
+                </div>
+              \`;
+            } else {
+              throw new Error(data.error);
+            }
+          } catch (error) {
+            result.className = 'card error show';
+            result.innerHTML = '<strong>✗ Error:</strong> ' + error.message;
+          } finally {
+            btn.disabled = false;
+          }
+        }
+
+        async function deployDatabase() {
+          if (!confirm('⚠️ FINAL WARNING\\n\\nThis will DELETE ALL existing data and create a fresh database with 43 new tables.\\n\\nThis action CANNOT be undone!\\n\\nAre you absolutely sure you want to proceed?')) {
+            return;
+          }
+
+          const btn = document.getElementById('deployBtn');
+          const checkBtn = document.getElementById('checkBtn');
+          const result = document.getElementById('result');
+          
+          btn.disabled = true;
+          checkBtn.disabled = true;
+          result.className = 'card info show';
+          result.innerHTML = '<div class="spinner"></div><p style="text-align:center; margin-top:10px; font-size:16px;"><strong>Deploying database...</strong><br>This may take 30-60 seconds. Please wait...</p>';
+
+          const startTime = Date.now();
+
+          try {
+            const res = await fetch('/api/migration/deploy', { method: 'POST' });
+            const data = await res.json();
+            
+            const timeTaken = ((Date.now() - startTime) / 1000).toFixed(1);
+            
+            if (data.success) {
+              result.className = 'card success show';
+              result.innerHTML = \`
+                <strong>🎉 DEPLOYMENT SUCCESSFUL!</strong>
+                <p style="margin: 15px 0; font-size: 16px;">Your database has been successfully deployed with the complete schema.</p>
+                <div class="stats">
+                  <div class="stat-box">
+                    <div class="stat-number">\${data.tableCount}</div>
+                    <div class="stat-label">Tables Created</div>
+                  </div>
+                  <div class="stat-box">
+                    <div class="stat-number">\${timeTaken}s</div>
+                    <div class="stat-label">Time Taken</div>
+                  </div>
+                </div>
+                <strong style="margin-top: 25px; display: block;">✓ New Tables:</strong>
+                <div class="table-list">
+                  \${data.tables.map(t => '<div>✓ ' + t + '</div>').join('')}
+                </div>
+                <div style="margin-top: 25px; padding: 20px; background: #e7f3ff; border-radius: 8px; border-left: 5px solid #0dcaf0;">
+                  <strong style="color: #0c5460;">🎯 Next Steps:</strong>
+                  <ul style="margin-top: 10px; line-height: 2;">
+                    <li>Your database is now ready to use!</li>
+                    <li>Update your API endpoints to use new table names</li>
+                    <li>Test Beds24 integration with new schema</li>
+                    <li>Update admin panel for new features</li>
+                  </ul>
+                </div>
+              \`;
+            } else {
+              throw new Error(data.error);
+            }
+          } catch (error) {
+            result.className = 'card error show';
+            result.innerHTML = \`
+              <strong>✗ Deployment Failed</strong>
+              <p style="margin: 15px 0; font-size: 16px; color: #721c24;">\${error.message}</p>
+              <div style="padding: 15px; background: white; border-radius: 8px; margin-top: 15px;">
+                <strong>ℹ️ Good News:</strong> The database has been automatically rolled back. No changes were made to your existing database.
+              </div>
+            \`;
+          } finally {
+            btn.disabled = false;
+            checkBtn.disabled = false;
+          }
+        }
+      </script>
+    </body>
+    </html>
+  `);
+});
+
+// API: Check current database status
+app.get('/api/migration/status', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+    
+    res.json({
+      success: true,
+      tableCount: result.rows.length,
+      tables: result.rows.map(row => row.table_name)
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// API: Deploy new database schema
+app.post('/api/migration/deploy', async (req, res) => {
+  const client = await pool.connect();
+  
+  try {
+    console.log('🚀 Starting database migration...');
+    
+    // Read the migration SQL file
+    const migrationPath = path.join(__dirname, 'master-migration.sql');
+    
+    if (!fs.existsSync(migrationPath)) {
+      throw new Error('Migration file not found! Please ensure master-migration.sql is in the project root.');
+    }
+    
+    const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
+    console.log(\`📄 Migration file loaded (\${migrationSQL.length} characters)\`);
+    
+    // Execute the migration
+    console.log('⚙️  Executing migration...');
+    await client.query(migrationSQL);
+    
+    // Verify deployment
+    const result = await client.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public'
+      ORDER BY table_name
+    `);
+    
+    console.log(\`✅ Migration complete! Created \${result.rows.length} tables.\`);
+    
+    res.json({
+      success: true,
+      tableCount: result.rows.length,
+      tables: result.rows.map(row => row.table_name)
+    });
+    
+  } catch (error) {
+    console.error('❌ Migration failed:', error.message);
+    res.json({ 
+      success: false, 
+      error: error.message 
+    });
+  } finally {
+    client.release();
+  }
+});
+
+// =====================================================
+// EXISTING ROUTES (UNCHANGED)
+// =====================================================
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', database: !!process.env.DATABASE_URL, beds24: !!BEDS24_TOKEN });
@@ -281,7 +694,7 @@ app.get('/api/beds24/properties', async (req, res) => {
       }
     });
     
-    console.log(`Found ${response.data.data?.length || 0} properties`);
+    console.log(\`Found \${response.data.data?.length || 0} properties\`);
     res.json({ success: true, data: response.data.data || [] });
     
   } catch (error) {
@@ -338,7 +751,7 @@ CRITICAL: Extract EVERYTHING including:
 Categorize amenities into these EXACT categories:
 Amenities, Business, Entertainment, Food and Drink, Internet, Kitchen, Location, Pets, Pool and Wellness, Services, Sports, Suitability
 
-${textContent}
+\${textContent}
 
 Return this EXACT JSON structure:
 {
@@ -464,5 +877,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Server running on port ${PORT}`);
+  console.log(\`🚀 Server running on port \${PORT}\`);
 });
