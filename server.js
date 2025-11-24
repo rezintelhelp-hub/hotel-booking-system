@@ -1390,7 +1390,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
             accommodation_price,
             subtotal,
             grand_total,
-            currency_code,
+            currency,
             booking_status,
             booking_source
           ) VALUES (
