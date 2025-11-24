@@ -1107,18 +1107,18 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       RETURNING id
     `, [
       userId,
-      propData.name || propData.propName || 'Property',
-      propData.type || propData.propType || 'hotel',
-      propData.description || propData.propContent || '',
-      propData.address || propData.propAddress || '',
-      propData.city || propData.propCity || '',
-      propData.country || propData.propCountry || '',
-      propData.latitude || propData.propLatitude || null,
-      propData.longitude || propData.propLongitude || null,
-      '15:00',
-      '22:00',
-      '11:00',
-      propData.currency || propData.propCurrency || 'USD'
+      propData.name || 'Property',
+      propData.propertyType || 'apartment',
+      propData.texts && propData.texts[0] ? (propData.texts[0].propertyDescription || '') : '',
+      propData.address || '',
+      propData.city || '',
+      propData.country || '',
+      propData.latitude || null,
+      propData.longitude || null,
+      propData.checkInStart || '15:00',
+      propData.checkInEnd || '22:00',
+      propData.checkOutEnd || '11:00',
+      propData.currency || 'USD'
     ]);
     
     const gasPropertyId = propertyResult.rows[0].id;
@@ -1127,19 +1127,35 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     // 3. Import property images
     console.log('3️⃣ Importing property images...');
     let imageCount = 0;
-    if (propData.propImages && propData.propImages.length > 0) {
-      for (let i = 0; i < propData.propImages.length; i++) {
-        const img = propData.propImages[i];
-        await client.query(`
-          INSERT INTO property_images (
-            property_id,
-            image_url,
-            image_category,
-            display_order,
-            is_primary
-          ) VALUES ($1, $2, $3, $4, $5)
-        `, [gasPropertyId, img.url, 'gallery', i, i === 0]);
-        imageCount++;
+    
+    // Handle images - might be array, string, or undefined
+    let images = propData.images || propData.propImages || [];
+    if (typeof images === 'string') {
+      try {
+        images = JSON.parse(images);
+      } catch (e) {
+        images = [];
+      }
+    }
+    if (!Array.isArray(images)) {
+      images = [];
+    }
+    
+    if (images.length > 0) {
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        if (img && img.url) {
+          await client.query(`
+            INSERT INTO property_images (
+              property_id,
+              image_url,
+              image_category,
+              display_order,
+              is_primary
+            ) VALUES ($1, $2, $3, $4, $5)
+          `, [gasPropertyId, img.url, 'gallery', i, i === 0]);
+          imageCount++;
+        }
       }
     }
     console.log('✓ Imported ' + imageCount + ' images');
@@ -1147,28 +1163,46 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     // 4. Import amenities
     console.log('4️⃣ Importing amenities...');
     let amenitiesCount = 0;
-    if (propData.propAmenities && propData.propAmenities.length > 0) {
-      for (const amenity of propData.propAmenities) {
-        await client.query(`
-          INSERT INTO property_amenities (
-            property_id,
-            amenity_name,
-            amenity_category
-          ) VALUES ($1, $2, $3)
-        `, [gasPropertyId, amenity.name || amenity, 'general']);
-        amenitiesCount++;
+    
+    // Handle amenities - might be array, string, or undefined
+    let amenities = propData.amenities || propData.propAmenities || [];
+    if (typeof amenities === 'string') {
+      try {
+        amenities = JSON.parse(amenities);
+      } catch (e) {
+        amenities = [];
+      }
+    }
+    if (!Array.isArray(amenities)) {
+      amenities = [];
+    }
+    
+    if (amenities.length > 0) {
+      for (const amenity of amenities) {
+        const amenityName = typeof amenity === 'string' ? amenity : (amenity.name || amenity);
+        if (amenityName) {
+          await client.query(`
+            INSERT INTO property_amenities (
+              property_id,
+              amenity_name,
+              amenity_category
+            ) VALUES ($1, $2, $3)
+          `, [gasPropertyId, amenityName, 'general']);
+          amenitiesCount++;
+        }
       }
     }
     console.log('✓ Imported ' + amenitiesCount + ' amenities');
     
     // 5. Import bookable units (rooms)
     console.log('5️⃣ Importing bookable units...');
-    const roomsResponse = await axios.get('https://beds24.com/api/v2/rooms', {
-      headers: { 'token': token, 'accept': 'application/json' },
-      params: { propId: propertyId }
-    });
     
-    const rooms = roomsResponse.data.data || [];
+    // Get roomTypes from property data
+    let rooms = propData.roomTypes || [];
+    if (!Array.isArray(rooms)) {
+      rooms = [];
+    }
+    
     let unitsCount = 0;
     
     for (const room of rooms) {
@@ -1191,15 +1225,15 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
         RETURNING id
       `, [
         gasPropertyId,
-        room.name || room.roomName || 'Room',
-        room.type || room.roomType || 'standard',
-        room.description || room.roomDescription || '',
-        room.maxGuests || room.numAdult || 2,
-        room.maxAdults || room.numAdult || 2,
-        room.maxChildren || room.numChild || 0,
-        room.quantity || room.roomQty || 1,
-        room.price || room.roomPrice || 100,
-        propData.currency || propData.propCurrency || 'USD'
+        room.name || 'Room',
+        room.roomType || 'single',
+        room.texts && room.texts[0] ? (room.texts[0].roomDescription || '') : '',
+        room.maxPeople || 2,
+        room.maxAdult || 2,
+        room.maxChildren || 0,
+        room.qty || 1,
+        room.rackRate || 100,
+        propData.currency || 'USD'
       ]);
       
       const unitId = unitResult.rows[0].id;
