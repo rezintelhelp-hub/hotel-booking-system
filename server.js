@@ -1392,43 +1392,13 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     console.log('   🏷️  Type: ' + (prop.propertyType || 'N/A'));
     
     // =========================================================
-    // 3. IMPORT PROPERTY IMAGES
+    // 3. SKIP PROPERTY IMAGES - Users upload directly in GAS
     // =========================================================
-    console.log('\n🖼️  STEP 3: Importing property images...');
-    
-    // Delete existing images first (clean sync)
-    await client.query('DELETE FROM property_images WHERE property_id = $1', [gasPropertyId]);
-    
-    let imageCount = 0;
-    let images = prop.images || prop.propImages || prop.pictures || [];
-    
-    // Handle various formats
-    if (typeof images === 'string') {
-      try { images = JSON.parse(images); } catch (e) { images = []; }
-    }
-    if (!Array.isArray(images)) images = [];
-    
-    for (let i = 0; i < images.length; i++) {
-      const img = images[i];
-      const imageUrl = typeof img === 'string' ? img : (img.url || img.imageUrl || img.src);
-      
-      if (imageUrl) {
-        await client.query(`
-          INSERT INTO property_images (
-            property_id, image_url, image_category, display_order, is_primary, alt_text
-          ) VALUES ($1, $2, $3, $4, $5, $6)
-        `, [
-          gasPropertyId,
-          imageUrl,
-          img.category || img.type || 'gallery',
-          i,
-          i === 0,
-          JSON.stringify({ en: img.description || img.caption || '' })
-        ]);
-        imageCount++;
-      }
-    }
-    console.log('   ✓ Imported ' + imageCount + ' images');
+    // Images are NOT imported from CM because:
+    // - URL references break over time
+    // - GAS needs to validate size, format, orientation
+    // - Users have full control over their image content
+    console.log('\n🖼️  STEP 3: Skipping property images (users upload in GAS)');
     
     // =========================================================
     // 4. IMPORT PROPERTY AMENITIES
@@ -1539,7 +1509,6 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     
     let roomsAdded = 0;
     let roomsUpdated = 0;
-    let roomImagesCount = 0;
     let roomAmenitiesCount = 0;
     
     for (const room of rooms) {
@@ -1730,36 +1699,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       }
       
       // =========================================================
-      // 6a. IMPORT ROOM IMAGES
+      // 6a. SKIP ROOM IMAGES - Users upload directly in GAS
       // =========================================================
-      // Delete existing room images first
-      await client.query('DELETE FROM bookable_unit_images WHERE bookable_unit_id = $1', [unitId]);
-      
-      let roomImages = room.roomImages || room.images || room.pictures || [];
-      if (typeof roomImages === 'string') {
-        try { roomImages = JSON.parse(roomImages); } catch (e) { roomImages = []; }
-      }
-      if (!Array.isArray(roomImages)) roomImages = [];
-      
-      for (let i = 0; i < roomImages.length; i++) {
-        const img = roomImages[i];
-        const imageUrl = typeof img === 'string' ? img : (img.url || img.imageUrl || img.src);
-        
-        if (imageUrl) {
-          await client.query(`
-            INSERT INTO bookable_unit_images (
-              bookable_unit_id, image_url, display_order, is_primary, alt_text
-            ) VALUES ($1, $2, $3, $4, $5)
-          `, [
-            unitId,
-            imageUrl,
-            i,
-            i === 0,
-            JSON.stringify({ en: img.description || img.caption || '' })
-          ]);
-          roomImagesCount++;
-        }
-      }
+      // Room images are NOT imported - users upload in GAS for quality control
       
       // =========================================================
       // 6b. IMPORT ROOM AMENITIES/FEATURES (Beds24 featureCodes)
@@ -1859,7 +1801,6 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     }
     
     console.log('   📊 Rooms: ' + roomsAdded + ' added, ' + roomsUpdated + ' updated');
-    console.log('   🖼️  Room images: ' + roomImagesCount);
     console.log('   🛎️  Room amenities: ' + roomAmenitiesCount);
     
     // =========================================================
@@ -1911,12 +1852,10 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       propertyId: gasPropertyId,
       beds24PropertyId: propertyId,
       propertyName: prop.name || prop.propName || 'Property',
-      images: imageCount,
       amenities: amenitiesCount,
       policies: policiesCount,
       roomsAdded: roomsAdded,
       roomsUpdated: roomsUpdated,
-      roomImages: roomImagesCount,
       roomAmenities: roomAmenitiesCount,
       isUpdate: isUpdate
     };
