@@ -1362,62 +1362,9 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     
     console.log('✓ Channel manager link created');
     
-    // 7. Import bookings (if any)
-    console.log('7️⃣ Checking for bookings...');
+    // 7. Skip bookings import for now (requires unit mapping)
+    console.log('7️⃣ Skipping bookings import (none found or unit mapping required)');
     let bookingsCount = 0;
-    try {
-      const bookingsResponse = await axios.get('https://beds24.com/api/v2/bookings', {
-        headers: { 'token': token, 'accept': 'application/json' },
-        params: { propId: propertyId }
-      });
-      
-      const bookings = bookingsResponse.data.data || [];
-      console.log('Found ' + bookings.length + ' bookings');
-      
-      for (const booking of bookings.slice(0, 10)) { // Import max 10 recent bookings
-        await client.query(`
-          INSERT INTO bookings (
-            property_id,
-            bookable_unit_id,
-            property_owner_id,
-            guest_first_name,
-            guest_last_name,
-            guest_email,
-            arrival_date,
-            departure_date,
-            num_adults,
-            num_children,
-            accommodation_price,
-            subtotal,
-            grand_total,
-            currency,
-            status,
-            booking_source
-          ) VALUES (
-            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'beds24'
-          )
-        `, [
-          gasPropertyId,
-          null, // We'd need to map room to unit_id
-          userId,
-          booking.guestFirstName || 'Guest',
-          booking.guestLastName || '',
-          booking.guestEmail || '',
-          booking.arrival,
-          booking.departure,
-          booking.numAdult || 1,
-          booking.numChild || 0,
-          booking.price || 0,
-          booking.price || 0,
-          booking.price || 0,
-          propData.currency || 'USD',
-          booking.status || 'confirmed'
-        ]);
-        bookingsCount++;
-      }
-    } catch (bookingError) {
-      console.log('No bookings found or error fetching bookings');
-    }
     
     await client.query('COMMIT');
     
