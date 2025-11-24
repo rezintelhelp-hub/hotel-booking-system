@@ -625,7 +625,7 @@
                 <div class="property-card" onclick="selectProperty(${prop.id}, '${(prop.name || 'Unnamed Property').replace(/'/g, "\\'")}')">
                     <h3>${prop.name || 'Unnamed Property'}</h3>
                     <p><strong>Property ID:</strong> ${prop.id}</p>
-                    <p><strong>Type:</strong> ${prop.type || 'Not specified'}</p>
+                    <p><strong>Type:</strong> ${prop.propertyType || 'Not specified'}</p>
                     ${prop.address ? `<p><strong>Location:</strong> ${prop.address}</p>` : ''}
                 </div>
             `).join('');
