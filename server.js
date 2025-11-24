@@ -1955,7 +1955,11 @@ app.get('/api/admin/units/:id', async (req, res) => {
 app.put('/api/admin/units/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, unit_type, max_guests, base_price, quantity } = req.body;
+    const { 
+      name, unit_type, max_guests, max_adults, max_children,
+      bedroom_count, bathroom_count, size_sqm,
+      base_price, quantity, status, min_stay, max_stay
+    } = req.body;
     
     const result = await pool.query(`
       UPDATE bookable_units 
@@ -1963,12 +1967,24 @@ app.put('/api/admin/units/:id', async (req, res) => {
         name = $1,
         unit_type = $2,
         max_guests = $3,
-        base_price = $4,
-        quantity = $5,
+        max_adults = $4,
+        max_children = $5,
+        bedroom_count = $6,
+        bathroom_count = $7,
+        size_sqm = $8,
+        base_price = $9,
+        quantity = $10,
+        status = $11,
+        min_stay = $12,
+        max_stay = $13,
         updated_at = NOW()
-      WHERE id = $6
+      WHERE id = $14
       RETURNING *
-    `, [name, unit_type, max_guests, base_price, quantity, id]);
+    `, [
+      name, unit_type, max_guests, max_adults, max_children,
+      bedroom_count, bathroom_count, size_sqm,
+      base_price, quantity, status, min_stay, max_stay, id
+    ]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -2022,6 +2038,21 @@ app.get('/api/admin/amenities', async (req, res) => {
     });
   } catch (error) {
     console.error('Amenities error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get amenities for a specific room
+app.get('/api/admin/units/:id/amenities', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM bookable_unit_amenities WHERE bookable_unit_id = $1 ORDER BY display_order',
+      [id]
+    );
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Unit amenities error:', error.message);
     res.json({ success: false, error: error.message });
   }
 });
