@@ -957,7 +957,7 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
     
     const { token, refreshToken } = response.data;
     
-    // Save to channel_connections table
+    // Save to channel_connections table (or update if exists)
     const result = await pool.query(`
       INSERT INTO channel_connections (
         user_id,
@@ -980,6 +980,14 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
         true,
         60
       )
+      ON CONFLICT (user_id, cm_id) 
+      DO UPDATE SET
+        api_key = EXCLUDED.api_key,
+        refresh_token = EXCLUDED.refresh_token,
+        access_token = EXCLUDED.access_token,
+        token_expires_at = EXCLUDED.token_expires_at,
+        status = 'active',
+        updated_at = NOW()
       RETURNING id
     `, [userId, inviteCode, refreshToken, token]);
     
