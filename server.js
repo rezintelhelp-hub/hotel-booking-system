@@ -420,7 +420,7 @@ app.post('/api/migration/deploy', async (req, res) => {
     }
     
     const migrationSQL = fs.readFileSync(migrationPath, 'utf8');
-    console.log(\`📄 Migration file loaded (\${migrationSQL.length} characters)\`);
+    console.log('📄 Migration file loaded (' + migrationSQL.length + ' characters)');
     
     // Execute the migration
     console.log('⚙️  Executing migration...');
@@ -434,7 +434,7 @@ app.post('/api/migration/deploy', async (req, res) => {
       ORDER BY table_name
     `);
     
-    console.log(\`✅ Migration complete! Created \${result.rows.length} tables.\`);
+    console.log('✅ Migration complete! Created ' + result.rows.length + ' tables.');
     
     res.json({
       success: true,
@@ -694,7 +694,7 @@ app.get('/api/beds24/properties', async (req, res) => {
       }
     });
     
-    console.log(\`Found \${response.data.data?.length || 0} properties\`);
+    console.log('Found ' + (response.data.data?.length || 0) + ' properties');
     res.json({ success: true, data: response.data.data || [] });
     
   } catch (error) {
@@ -877,5 +877,5 @@ app.get('*', (req, res) => {
 });
 
 app.listen(PORT, '0.0.0.0', () => {
-  console.log(\`🚀 Server running on port \${PORT}\`);
+  console.log('🚀 Server running on port ' + PORT);
 });
