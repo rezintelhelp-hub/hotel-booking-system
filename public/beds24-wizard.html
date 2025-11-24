@@ -597,6 +597,11 @@
                 const data = await response.json();
                 
                 console.log('Properties response:', data);
+                
+                // Log first property to see structure
+                if (data.properties && data.properties.length > 0) {
+                    console.log('First property structure:', data.properties[0]);
+                }
 
                 if (data.success && data.properties && data.properties.length > 0) {
                     displayProperties(data.properties);
@@ -617,11 +622,11 @@
         function displayProperties(properties) {
             const container = document.getElementById('propertiesList');
             container.innerHTML = properties.map(prop => `
-                <div class="property-card" onclick="selectProperty(${prop.propId}, '${(prop.propName || 'Unnamed Property').replace(/'/g, "\\'")}')">
-                    <h3>${prop.propName || 'Unnamed Property'}</h3>
-                    <p><strong>Property ID:</strong> ${prop.propId}</p>
-                    <p><strong>Type:</strong> ${prop.propType || 'Not specified'}</p>
-                    ${prop.propAddress ? `<p><strong>Location:</strong> ${prop.propAddress}</p>` : ''}
+                <div class="property-card" onclick="selectProperty(${prop.id}, '${(prop.name || 'Unnamed Property').replace(/'/g, "\\'")}')">
+                    <h3>${prop.name || 'Unnamed Property'}</h3>
+                    <p><strong>Property ID:</strong> ${prop.id}</p>
+                    <p><strong>Type:</strong> ${prop.type || 'Not specified'}</p>
+                    ${prop.address ? `<p><strong>Location:</strong> ${prop.address}</p>` : ''}
                 </div>
             `).join('');
         }
