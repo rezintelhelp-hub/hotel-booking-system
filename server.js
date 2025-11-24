@@ -569,6 +569,21 @@ app.put('/api/db/properties/:id', async (req, res) => {
 app.delete('/api/db/properties/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Delete the property (cascading deletes will handle related records)
+    await pool.query('DELETE FROM properties WHERE id = $1', [id]);
+    
+    res.json({ success: true, message: 'Property deleted successfully' });
+  } catch (error) {
+    console.error('Delete error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// DELETE property
+app.delete('/api/db/properties/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
     await pool.query('UPDATE properties SET active = false WHERE id = $1', [id]);
     res.json({ success: true, message: 'Property deleted' });
   } catch (error) {
@@ -1483,6 +1498,21 @@ app.put('/api/admin/units/:id', async (req, res) => {
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Unit update error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete unit
+app.delete('/api/admin/units/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete the unit (cascading deletes will handle related records)
+    await pool.query('DELETE FROM bookable_units WHERE id = $1', [id]);
+    
+    res.json({ success: true, message: 'Unit deleted successfully' });
+  } catch (error) {
+    console.error('Unit delete error:', error.message);
     res.json({ success: false, error: error.message });
   }
 });
