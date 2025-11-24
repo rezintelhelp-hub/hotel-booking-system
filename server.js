@@ -1023,11 +1023,21 @@ app.post('/api/beds24/list-properties', async (req, res) => {
       headers: {
         'token': token,
         'accept': 'application/json'
+      },
+      params: {
+        includeTexts: 'all',
+        includePictures: true,
+        includeAllRooms: true
       }
     });
     
     const properties = response.data.data || [];
     console.log('Found ' + properties.length + ' properties');
+    
+    // Log the first property to see what fields we get
+    if (properties.length > 0) {
+      console.log('Sample property structure:', JSON.stringify(properties[0], null, 2));
+    }
     
     res.json({
       success: true,
@@ -1061,13 +1071,23 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     // 1. Fetch complete property data from Beds24
     console.log('1️⃣ Fetching property details...');
     const propResponse = await axios.get('https://beds24.com/api/v2/properties/' + propertyId, {
-      headers: { 'token': token, 'accept': 'application/json' }
+      headers: { 'token': token, 'accept': 'application/json' },
+      params: {
+        includeTexts: 'all',
+        includePictures: true,
+        includeAllRooms: true,
+        includeUnitDetails: true
+      }
     });
     
     const propData = propResponse.data.data[0];
     
     // 2. Insert into properties table
     console.log('2️⃣ Saving property to database...');
+    
+    // Log what we received to debug
+    console.log('Property data from Beds24:', JSON.stringify(propData, null, 2));
+    
     const propertyResult = await client.query(`
       INSERT INTO properties (
         user_id,
@@ -1091,18 +1111,18 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       RETURNING id
     `, [
       userId,
-      propData.propName,
-      propData.propType || 'hotel',
-      propData.propContent || '',
-      propData.propAddress || '',
-      propData.propCity || '',
-      propData.propCountry || '',
-      propData.propLatitude || null,
-      propData.propLongitude || null,
+      propData.name || propData.propName || 'Property',
+      propData.type || propData.propType || 'hotel',
+      propData.description || propData.propContent || '',
+      propData.address || propData.propAddress || '',
+      propData.city || propData.propCity || '',
+      propData.country || propData.propCountry || '',
+      propData.latitude || propData.propLatitude || null,
+      propData.longitude || propData.propLongitude || null,
       '15:00',
       '22:00',
       '11:00',
-      propData.propCurrency || 'USD'
+      propData.currency || propData.propCurrency || 'USD'
     ]);
     
     const gasPropertyId = propertyResult.rows[0].id;
