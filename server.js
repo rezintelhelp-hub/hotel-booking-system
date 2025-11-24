@@ -1563,7 +1563,7 @@ app.post('/api/admin/cleanup-duplicates', async (req, res) => {
     
     // Clean up orphaned images
     await client.query('DELETE FROM property_images WHERE property_id NOT IN (SELECT id FROM properties)');
-    await client.query('DELETE FROM bookable_unit_images WHERE unit_id NOT IN (SELECT id FROM bookable_units)');
+    await client.query('DELETE FROM bookable_unit_images WHERE bookable_unit_id NOT IN (SELECT id FROM bookable_units)');
     
     // Clean up orphaned amenities
     await client.query('DELETE FROM property_amenities WHERE property_id NOT IN (SELECT id FROM properties)');
