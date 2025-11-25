@@ -1677,52 +1677,78 @@
 
         async function loadImages() {
             try {
-                // Load all properties
-                const propsResp = await fetch('/api/db/properties');
-                const propsData = await propsResp.json();
-                const properties = propsData.data || [];
-
-                // Load all rooms
-                const roomsResp = await fetch('/api/db/bookable-units');
-                const roomsData = await roomsResp.json();
-                const rooms = roomsData.data || [];
-
                 allImages = [];
                 let propertyCount = 0;
                 let roomCount = 0;
                 let locationCount = 0;
 
+                // Load all properties
+                let properties = [];
+                try {
+                    const propsResp = await fetch('/api/db/properties');
+                    if (propsResp.ok) {
+                        const propsData = await propsResp.json();
+                        properties = propsData.data || [];
+                    }
+                } catch (e) {
+                    console.log('No properties found:', e.message);
+                }
+
+                // Load all rooms
+                let rooms = [];
+                try {
+                    const roomsResp = await fetch('/api/db/bookable-units');
+                    if (roomsResp.ok) {
+                        const roomsData = await roomsResp.json();
+                        rooms = roomsData.data || [];
+                    }
+                } catch (e) {
+                    console.log('No rooms found:', e.message);
+                }
+
                 // Load property images
                 for (const prop of properties) {
-                    const imgResp = await fetch(`/api/admin/properties/${prop.id}/images`);
-                    const imgData = await imgResp.json();
-                    if (imgData.success && imgData.images) {
-                        imgData.images.forEach(img => {
-                            allImages.push({
-                                ...img,
-                                type: 'property',
-                                entityId: prop.id,
-                                entityName: prop.name
-                            });
-                        });
-                        propertyCount += imgData.images.length;
+                    try {
+                        const imgResp = await fetch(`/api/admin/properties/${prop.id}/images`);
+                        if (imgResp.ok) {
+                            const imgData = await imgResp.json();
+                            if (imgData.success && imgData.images) {
+                                imgData.images.forEach(img => {
+                                    allImages.push({
+                                        ...img,
+                                        type: 'property',
+                                        entityId: prop.id,
+                                        entityName: prop.name
+                                    });
+                                });
+                                propertyCount += imgData.images.length;
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`Error loading images for property ${prop.id}:`, e.message);
                     }
                 }
 
                 // Load room images
                 for (const room of rooms) {
-                    const imgResp = await fetch(`/api/admin/rooms/${room.id}/images`);
-                    const imgData = await imgResp.json();
-                    if (imgData.success && imgData.images) {
-                        imgData.images.forEach(img => {
-                            allImages.push({
-                                ...img,
-                                type: 'room',
-                                entityId: room.id,
-                                entityName: room.name
-                            });
-                        });
-                        roomCount += imgData.images.length;
+                    try {
+                        const imgResp = await fetch(`/api/admin/rooms/${room.id}/images`);
+                        if (imgResp.ok) {
+                            const imgData = await imgResp.json();
+                            if (imgData.success && imgData.images) {
+                                imgData.images.forEach(img => {
+                                    allImages.push({
+                                        ...img,
+                                        type: 'room',
+                                        entityId: room.id,
+                                        entityName: room.name
+                                    });
+                                });
+                                roomCount += imgData.images.length;
+                            }
+                        }
+                    } catch (e) {
+                        console.log(`Error loading images for room ${room.id}:`, e.message);
                     }
                 }
 
@@ -1736,6 +1762,16 @@
                 displayImages();
             } catch (error) {
                 console.error('Error loading images:', error);
+                // Show empty state on error
+                const gallery = document.getElementById('images-gallery');
+                gallery.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🖼️</div>
+                        <h3>No Images Yet</h3>
+                        <p>Upload images to showcase your properties</p>
+                        <button class="btn" onclick="openImageUploadModal()">Upload Images</button>
+                    </div>
+                `;
             }
         }
 
@@ -1842,12 +1878,15 @@
         async function loadRoomCheckboxes() {
             try {
                 const response = await fetch('/api/db/bookable-units');
+                if (!response.ok) {
+                    throw new Error('Failed to load rooms');
+                }
                 const data = await response.json();
                 const rooms = data.data || [];
                 
                 const container = document.getElementById('roomCheckboxes');
                 if (rooms.length === 0) {
-                    container.innerHTML = '<p style="color: var(--text-secondary);">No rooms available</p>';
+                    container.innerHTML = '<p style="color: var(--text-secondary);">No rooms available. Import from Beds24 first.</p>';
                     return;
                 }
                 
@@ -1857,6 +1896,12 @@
                         <span style="flex: 1;">${room.name}</span>
                     </label>
                 `).join('');
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+                const container = document.getElementById('roomCheckboxes');
+                container.innerHTML = '<p style="color: var(--error); padding: 1rem;">Error loading rooms. Make sure server is deployed.</p>';
+            }
+        }
             } catch (error) {
                 console.error('Error loading rooms:', error);
                 document.getElementById('roomCheckboxes').innerHTML = '<p style="color: var(--error);">Error loading rooms</p>';
