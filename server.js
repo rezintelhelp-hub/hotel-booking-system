@@ -2133,15 +2133,28 @@ app.get('/api/admin/content/property/:id', async (req, res) => {
 app.put('/api/admin/content/property/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { description, location_description } = req.body;
+    let { description, location_description } = req.body;
     
-    await pool.query(
-      'UPDATE properties SET description = $1, location_description = $2, updated_at = NOW() WHERE id = $3',
-      [description, location_description, id]
-    );
+    // Ensure we're saving strings, not objects
+    if (typeof description === 'object') {
+      description = description.en || JSON.stringify(description);
+    }
+    if (typeof location_description === 'object') {
+      location_description = location_description.en || JSON.stringify(location_description);
+    }
+    
+    // Use a simple update - the migration should have created TEXT columns
+    await pool.query(`
+      UPDATE properties 
+      SET description = $1::text, 
+          location_description = $2::text, 
+          updated_at = NOW() 
+      WHERE id = $3
+    `, [description || '', location_description || '', id]);
     
     res.json({ success: true, message: 'Property content saved' });
   } catch (error) {
+    console.error('Save property content error:', error.message);
     res.json({ success: false, error: error.message });
   }
 });
@@ -2402,9 +2415,25 @@ app.post('/api/admin/migrate-content-columns', async (req, res) => {
   try {
     await client.query('BEGIN');
     
+    // First, check if description is JSONB and convert to TEXT
+    try {
+      // Try to alter the column type - this will fail if it's already TEXT
+      await client.query(`
+        ALTER TABLE properties 
+        ALTER COLUMN description TYPE TEXT 
+        USING CASE 
+          WHEN description IS NULL THEN NULL
+          WHEN description::text LIKE '{%' THEN description::jsonb->>'en'
+          ELSE description::text
+        END
+      `);
+      console.log('   ✓ Converted description to TEXT');
+    } catch (e) {
+      console.log('   - description column OK or conversion not needed');
+    }
+    
     // Add columns to properties table
     const propertyColumns = [
-      'description TEXT',
       'location_description TEXT',
       'house_rules TEXT',
       'cancellation_policy TEXT',
@@ -2443,7 +2472,7 @@ app.post('/api/admin/migrate-content-columns', async (req, res) => {
       success: true,
       message: 'Content columns added successfully',
       columns: {
-        properties: propertyColumns,
+        properties: ['description (converted)', ...propertyColumns],
         rooms: roomColumns
       }
     });
