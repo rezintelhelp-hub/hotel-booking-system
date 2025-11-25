@@ -1553,12 +1553,27 @@
                                 roomAmenitiesData.data.forEach(a => selectedIds.add(a.amenity_id));
                             }
                             
-                            // Group by category
+                            // Group by category and sort selected to top
                             const categories = {};
                             allAmenities.forEach(a => {
                                 const cat = a.category || 'other';
                                 if (!categories[cat]) categories[cat] = [];
                                 categories[cat].push(a);
+                            });
+                            
+                            // Sort each category: selected first, then alphabetically
+                            Object.keys(categories).forEach(cat => {
+                                categories[cat].sort((a, b) => {
+                                    const aSelected = selectedIds.has(a.id);
+                                    const bSelected = selectedIds.has(b.id);
+                                    
+                                    // Selected items come first
+                                    if (aSelected && !bSelected) return -1;
+                                    if (!aSelected && bSelected) return 1;
+                                    
+                                    // Within same selection status, sort by display_order
+                                    return a.display_order - b.display_order;
+                                });
                             });
                             
                             // Category names
@@ -1596,12 +1611,13 @@
                                                 const name = typeof a.amenity_name === 'string' ? 
                                                     (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name) :
                                                     a.amenity_name?.en || a.amenity_code;
+                                                const isSelected = selectedIds.has(a.id);
                                                 return `
-                                                <label style="display: flex; align-items: center; cursor: pointer; padding: 0.4rem; border-radius: 4px; background: var(--bg-primary); border: 1px solid var(--border); font-size: 0.85rem;">
+                                                <label style="display: flex; align-items: center; cursor: pointer; padding: 0.4rem; border-radius: 4px; background: ${isSelected ? 'var(--primary)' : 'var(--bg-primary)'}; border: 1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}; font-size: 0.85rem; color: ${isSelected ? 'white' : 'var(--text-primary)'};">
                                                     <input type="checkbox" 
                                                            class="amenity-checkbox" 
                                                            value="${a.id}" 
-                                                           ${selectedIds.has(a.id) ? 'checked' : ''}
+                                                           ${isSelected ? 'checked' : ''}
                                                            style="margin-right: 0.5rem;">
                                                     <span>${a.icon || ''} ${name}</span>
                                                 </label>
