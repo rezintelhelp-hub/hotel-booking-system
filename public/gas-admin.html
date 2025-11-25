@@ -764,6 +764,10 @@
                         <span class="nav-icon">⭐</span>
                         <span>Amenities</span>
                     </a>
+                    <a class="nav-item" data-view="content">
+                        <span class="nav-icon">📝</span>
+                        <span>Content</span>
+                    </a>
                 </div>
 
                 <div class="nav-section">
@@ -1028,6 +1032,129 @@
                         <div class="loading">
                             <div class="spinner"></div>
                             <p style="margin-top: 1rem;">Loading amenities...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content View -->
+            <div id="content" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Content Management</h2>
+                            <p>Manage descriptions, policies and terms</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Content Type Tabs -->
+                <div class="filter-tabs" style="margin-bottom: 1.5rem;">
+                    <button class="filter-tab active" data-content-type="property" onclick="filterContent('property')">🏨 Property Content</button>
+                    <button class="filter-tab" data-content-type="room" onclick="filterContent('room')">🛏️ Room Content</button>
+                    <button class="filter-tab" data-content-type="policies" onclick="filterContent('policies')">📋 Policies & Terms</button>
+                </div>
+
+                <!-- Property Content Section -->
+                <div id="content-property" class="content-section">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Property Descriptions</h3>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Select Property</label>
+                            <select class="form-input" id="content-property-select" onchange="loadPropertyContent()">
+                                <option value="">Choose a property...</option>
+                            </select>
+                        </div>
+                        
+                        <div id="property-content-form" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">Property Description</label>
+                                <textarea class="form-input" id="property-description" rows="6" placeholder="Describe your property... its history, character, what makes it special"></textarea>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                    This is the main description shown to guests
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Location Description</label>
+                                <textarea class="form-input" id="property-location" rows="4" placeholder="Describe the area, nearby attractions, transport links, directions..."></textarea>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                    Help guests understand where you are and what's nearby
+                                </div>
+                            </div>
+                            
+                            <button class="btn" onclick="savePropertyContent()">💾 Save Property Content</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Room Content Section -->
+                <div id="content-room" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Room Descriptions</h3>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Select Room</label>
+                            <select class="form-input" id="content-room-select" onchange="loadRoomContent()">
+                                <option value="">Choose a room...</option>
+                            </select>
+                        </div>
+                        
+                        <div id="room-content-form" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">Short Description</label>
+                                <textarea class="form-input" id="room-short-description" rows="3" placeholder="Brief, punchy description of the room (1-2 sentences)"></textarea>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                    Shown in listings and search results
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Full Description</label>
+                                <textarea class="form-input" id="room-full-description" rows="6" placeholder="Detailed description of the room, its features, views, atmosphere..."></textarea>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                    Extended information shown on room detail page
+                                </div>
+                            </div>
+                            
+                            <button class="btn" onclick="saveRoomContent()">💾 Save Room Content</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Policies Section -->
+                <div id="content-policies" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Policies & Terms</h3>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Select Property</label>
+                            <select class="form-input" id="content-policies-property-select" onchange="loadPoliciesContent()">
+                                <option value="">Choose a property...</option>
+                            </select>
+                        </div>
+                        
+                        <div id="policies-content-form" style="display: none;">
+                            <div class="form-group">
+                                <label class="form-label">House Rules</label>
+                                <textarea class="form-input" id="policy-house-rules" rows="6" placeholder="Check-in/out times, noise policy, smoking policy, pet policy, etc."></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Cancellation Policy</label>
+                                <textarea class="form-input" id="policy-cancellation" rows="4" placeholder="Describe your cancellation and refund policy"></textarea>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">General Terms & Conditions</label>
+                                <textarea class="form-input" id="policy-terms" rows="6" placeholder="Liability, damages, additional terms..."></textarea>
+                            </div>
+                            
+                            <button class="btn" onclick="savePoliciesContent()">💾 Save Policies</button>
                         </div>
                     </div>
                 </div>
@@ -1452,6 +1579,7 @@
             if (viewName === 'rooms') loadRooms();
             if (viewName === 'images') loadImages();
             if (viewName === 'amenities') loadAmenities();
+            if (viewName === 'content') loadContentView();
             if (viewName === 'integrations') loadIntegrations();
         }
 
@@ -2550,6 +2678,227 @@
             } catch (error) {
                 console.error('Error deleting all amenities:', error);
                 alert('Error deleting amenities');
+            }
+        }
+
+        // ========================================
+        // CONTENT MANAGEMENT FUNCTIONS
+        // ========================================
+        
+        let currentContentType = 'property';
+        
+        function filterContent(type) {
+            currentContentType = type;
+            
+            // Update tabs
+            document.querySelectorAll('[data-content-type]').forEach(tab => {
+                tab.classList.remove('active');
+                if (tab.dataset.contentType === type) tab.classList.add('active');
+            });
+            
+            // Show/hide sections
+            document.getElementById('content-property').style.display = type === 'property' ? 'block' : 'none';
+            document.getElementById('content-room').style.display = type === 'room' ? 'block' : 'none';
+            document.getElementById('content-policies').style.display = type === 'policies' ? 'block' : 'none';
+        }
+        
+        async function loadContentView() {
+            // Load properties into all selects
+            try {
+                const response = await fetch('/api/db/properties');
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const propertyOptions = '<option value="">Choose a property...</option>' + 
+                        data.data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                    
+                    document.getElementById('content-property-select').innerHTML = propertyOptions;
+                    document.getElementById('content-policies-property-select').innerHTML = propertyOptions;
+                }
+                
+                // Load rooms
+                const roomsResp = await fetch('/api/db/bookable-units');
+                const roomsData = await roomsResp.json();
+                
+                if (roomsData.success && roomsData.data) {
+                    const roomOptions = '<option value="">Choose a room...</option>' + 
+                        roomsData.data.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+                    
+                    document.getElementById('content-room-select').innerHTML = roomOptions;
+                }
+            } catch (error) {
+                console.error('Error loading content view:', error);
+            }
+        }
+        
+        async function loadPropertyContent() {
+            const propertyId = document.getElementById('content-property-select').value;
+            const form = document.getElementById('property-content-form');
+            
+            if (!propertyId) {
+                form.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/content/property/${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.content) {
+                    document.getElementById('property-description').value = data.content.description || '';
+                    document.getElementById('property-location').value = data.content.location_description || '';
+                } else {
+                    document.getElementById('property-description').value = '';
+                    document.getElementById('property-location').value = '';
+                }
+                
+                form.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading property content:', error);
+                form.style.display = 'block';
+            }
+        }
+        
+        async function savePropertyContent() {
+            const propertyId = document.getElementById('content-property-select').value;
+            if (!propertyId) return alert('Please select a property');
+            
+            const content = {
+                description: document.getElementById('property-description').value,
+                location_description: document.getElementById('property-location').value
+            };
+            
+            try {
+                const response = await fetch(`/api/admin/content/property/${propertyId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(content)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Property content saved!');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving property content:', error);
+                alert('Error saving content');
+            }
+        }
+        
+        async function loadRoomContent() {
+            const roomId = document.getElementById('content-room-select').value;
+            const form = document.getElementById('room-content-form');
+            
+            if (!roomId) {
+                form.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/content/room/${roomId}`);
+                const data = await response.json();
+                
+                if (data.success && data.content) {
+                    document.getElementById('room-short-description').value = data.content.short_description || '';
+                    document.getElementById('room-full-description').value = data.content.full_description || '';
+                } else {
+                    document.getElementById('room-short-description').value = '';
+                    document.getElementById('room-full-description').value = '';
+                }
+                
+                form.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading room content:', error);
+                form.style.display = 'block';
+            }
+        }
+        
+        async function saveRoomContent() {
+            const roomId = document.getElementById('content-room-select').value;
+            if (!roomId) return alert('Please select a room');
+            
+            const content = {
+                short_description: document.getElementById('room-short-description').value,
+                full_description: document.getElementById('room-full-description').value
+            };
+            
+            try {
+                const response = await fetch(`/api/admin/content/room/${roomId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(content)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Room content saved!');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving room content:', error);
+                alert('Error saving content');
+            }
+        }
+        
+        async function loadPoliciesContent() {
+            const propertyId = document.getElementById('content-policies-property-select').value;
+            const form = document.getElementById('policies-content-form');
+            
+            if (!propertyId) {
+                form.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/content/policies/${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.content) {
+                    document.getElementById('policy-house-rules').value = data.content.house_rules || '';
+                    document.getElementById('policy-cancellation').value = data.content.cancellation_policy || '';
+                    document.getElementById('policy-terms').value = data.content.terms_conditions || '';
+                } else {
+                    document.getElementById('policy-house-rules').value = '';
+                    document.getElementById('policy-cancellation').value = '';
+                    document.getElementById('policy-terms').value = '';
+                }
+                
+                form.style.display = 'block';
+            } catch (error) {
+                console.error('Error loading policies:', error);
+                form.style.display = 'block';
+            }
+        }
+        
+        async function savePoliciesContent() {
+            const propertyId = document.getElementById('content-policies-property-select').value;
+            if (!propertyId) return alert('Please select a property');
+            
+            const content = {
+                house_rules: document.getElementById('policy-house-rules').value,
+                cancellation_policy: document.getElementById('policy-cancellation').value,
+                terms_conditions: document.getElementById('policy-terms').value
+            };
+            
+            try {
+                const response = await fetch(`/api/admin/content/policies/${propertyId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(content)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Policies saved!');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving policies:', error);
+                alert('Error saving policies');
             }
         }
 
