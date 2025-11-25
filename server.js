@@ -2665,13 +2665,17 @@ app.get('*', (req, res) => {
 // =========================================================
 
 /**
- * Validate image is landscape (width > height)
+ * Validate image meets minimum aspect ratio (1.2:1 or wider)
+ * Allows images that are at least 20% wider than tall
  */
 async function validateLandscape(buffer) {
   const metadata = await sharp(buffer).metadata();
-  if (metadata.height >= metadata.width) {
-    throw new Error('Only landscape images are allowed (width must be greater than height)');
+  const ratio = metadata.width / metadata.height;
+  
+  if (ratio < 1.2) {
+    throw new Error('Images must be at least 1.2:1 ratio (width:height). Portrait and square images are not accepted.');
   }
+  
   return metadata;
 }
 
