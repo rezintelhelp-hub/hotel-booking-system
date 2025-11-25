@@ -1401,45 +1401,11 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     console.log('\n🖼️  STEP 3: Skipping property images (users upload in GAS)');
     
     // =========================================================
-    // 4. IMPORT PROPERTY AMENITIES
+    // 4. SKIP PROPERTY AMENITIES - Users select from master list in GAS
     // =========================================================
-    console.log('\n🛎️  STEP 4: Importing property amenities...');
-    
-    // Delete existing amenities first (clean sync)
-    await client.query('DELETE FROM property_amenities WHERE property_id = $1', [gasPropertyId]);
-    
-    let amenitiesCount = 0;
-    let amenities = prop.amenities || prop.propAmenities || prop.facilities || [];
-    
-    if (typeof amenities === 'string') {
-      try { amenities = JSON.parse(amenities); } catch (e) { amenities = []; }
-    }
-    if (!Array.isArray(amenities)) amenities = [];
-    
-    for (let i = 0; i < amenities.length; i++) {
-      const amenity = amenities[i];
-      const amenityName = typeof amenity === 'string' ? amenity : (amenity.name || amenity.amenityName || String(amenity));
-      const amenityCode = amenityName.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 100);
-      
-      if (amenityName) {
-        await client.query(`
-          INSERT INTO property_amenities (
-            property_id, amenity_code, amenity_name, category, display_order, is_active
-          ) VALUES ($1, $2, $3, $4, $5, true)
-          ON CONFLICT (property_id, amenity_code) DO UPDATE SET
-            amenity_name = EXCLUDED.amenity_name,
-            updated_at = NOW()
-        `, [
-          gasPropertyId,
-          amenityCode,
-          JSON.stringify({ en: amenityName }),
-          amenity.category || 'general',
-          i
-        ]);
-        amenitiesCount++;
-      }
-    }
-    console.log('   ✓ Imported ' + amenitiesCount + ' amenities');
+    console.log('\n🛎️  STEP 4: Skipping property amenities (users select from master list)');
+    // Property amenities will be selected by users from master_amenities table
+    // and stored in property_amenity_selections
     
     // =========================================================
     // 5. IMPORT PROPERTY POLICIES
@@ -1509,7 +1475,6 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     
     let roomsAdded = 0;
     let roomsUpdated = 0;
-    let roomAmenitiesCount = 0;
     
     for (const room of rooms) {
       const beds24RoomId = String(room.id || room.roomId);
@@ -1704,104 +1669,14 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       // Room images are NOT imported - users upload in GAS for quality control
       
       // =========================================================
-      // 6b. IMPORT ROOM AMENITIES/FEATURES (Beds24 featureCodes)
+      // 6b. SKIP ROOM AMENITIES - Users select from master list in GAS
       // =========================================================
-      // Delete existing room amenities first
-      await client.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = $1', [unitId]);
-      
-      // Beds24 stores features as comma-separated codes in featureCodes field
-      // Example: "WIFI,KITCHEN,AIR_CONDITIONING,BEDROOM,BED_KING,BATHROOM_FULL,BATH_SHOWER"
-      let featureCodesStr = room.featureCodes || room.features || room.amenities || '';
-      
-      // Also check for array format
-      let roomFeatures = [];
-      if (typeof featureCodesStr === 'string' && featureCodesStr.includes(',')) {
-        // Comma-separated Beds24 format
-        roomFeatures = featureCodesStr.split(',').map(c => c.trim()).filter(c => c);
-      } else if (Array.isArray(featureCodesStr)) {
-        roomFeatures = featureCodesStr;
-      } else if (typeof featureCodesStr === 'string' && featureCodesStr) {
-        // Single code or JSON
-        try { 
-          roomFeatures = JSON.parse(featureCodesStr); 
-        } catch (e) { 
-          roomFeatures = [featureCodesStr]; 
-        }
-      }
-      
-      // Beds24 feature code name mappings
-      const BEDS24_FEATURE_NAMES = {
-        // Bed types
-        'BED_BUNK': 'Bunkbed', 'BED_CHILD': 'Child Bed', 'BED_CRIB': 'Cot',
-        'BED_DOUBLE': 'Double Bed', 'BED_KING': 'King Bed', 'BED_MURPHY': 'Murphy Bed',
-        'BED_QUEEN': 'Queen Bed', 'BED_SOFA': 'Sofa Bed', 'BED_SINGLE': 'Single Bed',
-        'BED_FUTON': 'Futon', 'BED_FLOORMATTRESS': 'Floor Mattress', 'BED_TODDLER': 'Toddler Bed',
-        'BED_HAMMOCK': 'Hammock', 'BED_AIRMATTRESS': 'Air Mattress', 'BED_COUCH': 'Couch',
-        // Bedroom types
-        'BEDROOM': 'Bedroom', 'BEDROOM_ENSUITE': 'Ensuite Bedroom',
-        'BEDROOM_LIVING_SLEEPING_COMBO': 'Living/Sleeping Area', 'BEDROOM_OTHER_SLEEPING_AREA': 'Other Sleeping Area',
-        // Bathroom types
-        'BATHROOM': 'Bathroom', 'BATHROOM_FULL': 'Full Bathroom',
-        'BATHROOM_HALF': 'Half Bathroom', 'BATHROOM_SHOWER': 'Shower Room',
-        // Bath facilities
-        'BATH_BIDET': 'Bidet', 'BATH_COMBO_TUB_SHOWER': 'Shower/Tub Combo',
-        'BATH_JETTED_TUB': 'Jacuzzi', 'BATH_OUTDOOR_SHOWER': 'Outdoor Shower',
-        'BATH_SHOWER': 'Shower', 'BATH_TOILET': 'Toilet', 'BATH_TUB': 'Bathtub',
-        // Common amenities
-        'WIFI': 'WiFi', 'INTERNET': 'Internet', 'TV': 'TV', 'CABLE': 'Cable TV',
-        'AIR_CONDITIONING': 'Air Conditioning', 'HEATING': 'Heating', 'CEILING_FAN': 'Ceiling Fan',
-        'KITCHEN': 'Kitchen', 'REFRIGERATOR': 'Refrigerator', 'MICROWAVE': 'Microwave',
-        'COFFEE_MAKER': 'Coffee Maker', 'DISHWASHER': 'Dishwasher', 'WASHER': 'Washer', 'DRYER': 'Dryer',
-        'POOL': 'Pool', 'POOL_PRIVATE': 'Private Pool', 'HOT_TUB': 'Hot Tub', 'SAUNA': 'Sauna',
-        'PARKING_INCLUDED': 'Free Parking', 'GARAGE': 'Garage', 'BALCONY': 'Balcony',
-        'GARDEN': 'Garden', 'GRILL': 'BBQ/Grill', 'FIREPLACE': 'Fireplace',
-        'SAFE': 'Safe', 'DESK': 'Desk', 'IRON_BOARD': 'Iron & Board',
-        'HAIR_DRYER': 'Hair Dryer', 'TOWELS': 'Towels', 'LINENS': 'Linens',
-        'SMOKE_DETECTOR': 'Smoke Detector', 'FIRST_AID_KIT': 'First Aid Kit',
-        'PETS_CONSIDERED': 'Pets Allowed', 'PETS_NOT_ALLOWED': 'No Pets',
-        'SMOKING_ALLOWED': 'Smoking Allowed', 'SMOKING_NOT_ALLOWED': 'No Smoking',
-        'CHILDREN_WELCOME': 'Children Welcome', 'WHEELCHAIR_YES': 'Wheelchair Accessible'
-      };
-      
-      // Categorize features
-      const categorizeFeature = (code) => {
-        if (code.startsWith('BED_')) return 'beds';
-        if (code.startsWith('BEDROOM')) return 'bedrooms';
-        if (code.startsWith('BATH')) return 'bathrooms';
-        if (['WIFI', 'INTERNET', 'TV', 'CABLE', 'SATELLITE'].includes(code)) return 'entertainment';
-        if (['KITCHEN', 'REFRIGERATOR', 'MICROWAVE', 'COFFEE_MAKER', 'DISHWASHER', 'OVEN', 'STOVE'].includes(code)) return 'kitchen';
-        if (['POOL', 'POOL_PRIVATE', 'HOT_TUB', 'SAUNA', 'GYM'].includes(code)) return 'wellness';
-        if (['PARKING_INCLUDED', 'GARAGE', 'PARKING_POSSIBLE'].includes(code)) return 'parking';
-        if (['BALCONY', 'GARDEN', 'GRILL', 'ROOF_TERRACE', 'PRIVATE_YARD'].includes(code)) return 'outdoor';
-        return 'amenities';
-      };
-      
-      for (let i = 0; i < roomFeatures.length; i++) {
-        const feature = roomFeatures[i];
-        const featureCode = typeof feature === 'string' ? feature : (feature.code || feature.name || String(feature));
-        const featureName = BEDS24_FEATURE_NAMES[featureCode] || featureCode.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase());
-        const category = categorizeFeature(featureCode);
-        
-        if (featureCode) {
-          await client.query(`
-            INSERT INTO bookable_unit_amenities (
-              bookable_unit_id, amenity_code, amenity_name, category, display_order
-            ) VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (bookable_unit_id, amenity_code) DO NOTHING
-          `, [
-            unitId,
-            featureCode.toLowerCase(),
-            JSON.stringify({ en: featureName }),
-            category,
-            i
-          ]);
-          roomAmenitiesCount++;
-        }
-      }
+      // Room amenities will be selected by users from master_amenities table
+      // and stored in room_amenity_selections
+      // This allows proper control and consistency across all properties
     }
     
     console.log('   📊 Rooms: ' + roomsAdded + ' added, ' + roomsUpdated + ' updated');
-    console.log('   🛎️  Room amenities: ' + roomAmenitiesCount);
     
     // =========================================================
     // 7. CREATE/UPDATE PROPERTY-CM LINK
@@ -1852,12 +1727,11 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       propertyId: gasPropertyId,
       beds24PropertyId: propertyId,
       propertyName: prop.name || prop.propName || 'Property',
-      amenities: amenitiesCount,
       policies: policiesCount,
       roomsAdded: roomsAdded,
       roomsUpdated: roomsUpdated,
-      roomAmenities: roomAmenitiesCount,
-      isUpdate: isUpdate
+      isUpdate: isUpdate,
+      note: 'Amenities not imported - users select from master list in GAS'
     };
     
     console.log('   📊 Stats:', JSON.stringify(stats, null, 2));
@@ -1865,7 +1739,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     res.json({
       success: true,
       stats: stats,
-      message: isUpdate ? 'Property updated successfully with all content!' : 'Property imported successfully with all content!'
+      message: isUpdate ? 'Property & rooms updated. Select amenities in GAS.' : 'Property & rooms imported. Select amenities in GAS.'
     });
     
   } catch (error) {
@@ -2166,6 +2040,145 @@ app.get('/api/admin/channels', async (req, res) => {
   } catch (error) {
     console.error('Channels error:', error.message);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Migration 001: Create Master Amenities System
+app.post('/api/admin/migrate-001-master-amenities', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🔄 Running Migration 001: Master Amenities System...');
+    
+    // Create master_amenities table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS master_amenities (
+        id SERIAL PRIMARY KEY,
+        amenity_code VARCHAR(100) UNIQUE NOT NULL,
+        amenity_name JSONB NOT NULL,
+        category VARCHAR(50) NOT NULL,
+        icon VARCHAR(50),
+        display_order INTEGER DEFAULT 0,
+        is_system BOOLEAN DEFAULT true,
+        created_by VARCHAR(20) DEFAULT 'system',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created master_amenities table');
+    
+    // Create indexes
+    await client.query('CREATE INDEX IF NOT EXISTS idx_master_amenities_category ON master_amenities(category)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_master_amenities_active ON master_amenities(is_active)');
+    
+    // Create property_amenity_selections table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS property_amenity_selections (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        amenity_id INTEGER NOT NULL REFERENCES master_amenities(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(property_id, amenity_id)
+      )
+    `);
+    console.log('   ✓ Created property_amenity_selections table');
+    
+    await client.query('CREATE INDEX IF NOT EXISTS idx_prop_amenity_sel_property ON property_amenity_selections(property_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_prop_amenity_sel_amenity ON property_amenity_selections(amenity_id)');
+    
+    // Create room_amenity_selections table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS room_amenity_selections (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        amenity_id INTEGER NOT NULL REFERENCES master_amenities(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(room_id, amenity_id)
+      )
+    `);
+    console.log('   ✓ Created room_amenity_selections table');
+    
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_amenity_sel_room ON room_amenity_selections(room_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_amenity_sel_amenity ON room_amenity_selections(amenity_id)');
+    
+    // Insert standard amenities (just a subset here, full list in SQL file)
+    const amenities = [
+      // BEDS
+      ['bed_single', '{"en": "Single"}', 'beds', '🛏️', 1],
+      ['bed_twin', '{"en": "Twin"}', 'beds', '🛏️', 2],
+      ['bed_double', '{"en": "Double"}', 'beds', '🛏️', 3],
+      ['bed_queen', '{"en": "Queen"}', 'beds', '🛏️', 4],
+      ['bed_king', '{"en": "King"}', 'beds', '🛏️', 5],
+      ['bed_super_king', '{"en": "Super King"}', 'beds', '🛏️', 6],
+      ['bed_sofa_single', '{"en": "Sofa Bed (Single)"}', 'beds', '🛋️', 7],
+      ['bed_sofa_double', '{"en": "Sofa Bed (Double)"}', 'beds', '🛋️', 8],
+      ['bed_bunk', '{"en": "Bunk Bed"}', 'beds', '🛏️', 9],
+      ['bed_cot', '{"en": "Cot / Crib"}', 'beds', '👶', 10],
+      ['bed_futon', '{"en": "Futon"}', 'beds', '🛏️', 11],
+      // BATHROOMS
+      ['bathroom_full', '{"en": "Full Bathroom"}', 'bathrooms', '🚿', 1],
+      ['bathroom_shower_only', '{"en": "Shower Only"}', 'bathrooms', '🚿', 2],
+      ['bathroom_bath_only', '{"en": "Bath Only"}', 'bathrooms', '🛁', 3],
+      ['bathroom_shower_bath_combo', '{"en": "Shower–Bath Combo"}', 'bathrooms', '🚿', 4],
+      ['bathroom_private_ensuite', '{"en": "Private Ensuite"}', 'bathrooms', '🚪', 5],
+      ['bathroom_shared', '{"en": "Shared Bathroom"}', 'bathrooms', '🚿', 6],
+      ['bathroom_private_external', '{"en": "Private External Bathroom"}', 'bathrooms', '🚪', 7],
+      ['bathroom_jack_and_jill', '{"en": "Jack & Jill Bathroom"}', 'bathrooms', '🚪', 8],
+      ['bathroom_accessible', '{"en": "Accessible Bathroom"}', 'bathrooms', '♿', 9],
+      ['bathroom_wet_room', '{"en": "Wet Room"}', 'bathrooms', '🚿', 10],
+      ['bathroom_outdoor_shower', '{"en": "Outdoor Shower"}', 'bathrooms', '🌳', 11],
+      ['bathroom_outdoor_bath', '{"en": "Outdoor Bath"}', 'bathrooms', '🌳', 12],
+      ['bathroom_double_vanity', '{"en": "Double Vanity"}', 'bathrooms', '🚰', 13],
+      // ESSENTIALS
+      ['wifi', '{"en": "WiFi"}', 'essentials', '📶', 1],
+      ['air_conditioning', '{"en": "Air Conditioning"}', 'essentials', '❄️', 2],
+      ['heating', '{"en": "Heating"}', 'essentials', '🔥', 3],
+      // KITCHEN
+      ['kitchen_full', '{"en": "Full Kitchen"}', 'kitchen', '🍳', 1],
+      ['refrigerator', '{"en": "Refrigerator"}', 'kitchen', '🧊', 2],
+      ['microwave', '{"en": "Microwave"}', 'kitchen', '📻', 3],
+      // PARKING
+      ['free_parking', '{"en": "Free Parking"}', 'parking', '🚗', 1],
+      ['paid_parking', '{"en": "Paid Parking"}', 'parking', '🚗', 2]
+    ];
+    
+    let insertedCount = 0;
+    for (const [code, name, category, icon, order] of amenities) {
+      try {
+        await client.query(`
+          INSERT INTO master_amenities (amenity_code, amenity_name, category, icon, display_order, is_system)
+          VALUES ($1, $2, $3, $4, $5, true)
+          ON CONFLICT (amenity_code) DO NOTHING
+        `, [code, name, category, icon, order]);
+        insertedCount++;
+      } catch (e) {
+        // Ignore conflicts
+      }
+    }
+    
+    console.log('   ✓ Inserted ' + insertedCount + ' standard amenities');
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Master amenities system created successfully',
+      stats: {
+        amenitiesCreated: insertedCount,
+        tables: ['master_amenities', 'property_amenity_selections', 'room_amenity_selections']
+      }
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 
