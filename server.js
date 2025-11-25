@@ -7,6 +7,12 @@ const path = require('path');
 const fs = require('fs');
 const { Pool } = require('pg');
 
+// Image processing dependencies
+const multer = require('multer');
+const sharp = require('sharp');
+const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+const { v4: uuidv4 } = require('uuid');
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -21,6 +27,38 @@ pool.query('SELECT NOW()', (err, res) => {
   } else {
     console.log('✅ Database connected:', res.rows[0].now);
   }
+});
+
+// =========================================================
+// R2/S3 CLIENT CONFIGURATION
+// =========================================================
+const r2Client = new S3Client({
+  region: 'auto',
+  endpoint: process.env.R2_ENDPOINT || `https://${process.env.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
+  credentials: {
+    accessKeyId: process.env.R2_ACCESS_KEY_ID,
+    secretAccessKey: process.env.R2_SECRET_ACCESS_KEY,
+  },
+});
+
+const R2_BUCKET = process.env.R2_BUCKET_NAME || 'gas-property-images';
+const R2_PUBLIC_URL = process.env.R2_PUBLIC_URL || `https://pub-${process.env.R2_ACCOUNT_ID}.r2.dev`;
+
+// =========================================================
+// MULTER CONFIGURATION (Memory storage for processing)
+// =========================================================
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: {
+    fileSize: 10 * 1024 * 1024, // 10MB max
+  },
+  fileFilter: (req, file, cb) => {
+    // Accept images only
+    if (!file.mimetype.startsWith('image/')) {
+      return cb(new Error('Only image files are allowed!'), false);
+    }
+    cb(null, true);
+  },
 });
 
 app.use(cors());
@@ -2290,6 +2328,97 @@ app.post('/api/admin/migrate-clean-amenities', async (req, res) => {
   }
 });
 
+// Migration 002: Create Image Management System
+app.post('/api/admin/migrate-002-image-management', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🔄 Running Migration 002: Image Management System...');
+    
+    // Create property_images table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS property_images (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        image_key VARCHAR(500) NOT NULL,
+        image_url TEXT NOT NULL,
+        large_url TEXT,
+        medium_url TEXT,
+        thumbnail_url TEXT,
+        original_filename VARCHAR(255),
+        file_size INTEGER,
+        width INTEGER,
+        height INTEGER,
+        mime_type VARCHAR(50),
+        is_primary BOOLEAN DEFAULT false,
+        display_order INTEGER DEFAULT 0,
+        caption TEXT,
+        alt_text TEXT,
+        uploaded_by INTEGER,
+        upload_source VARCHAR(50) DEFAULT 'manual',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created property_images table');
+    
+    // Create indexes for property_images
+    await client.query('CREATE INDEX IF NOT EXISTS idx_property_images_property ON property_images(property_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_property_images_primary ON property_images(property_id, is_primary)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_property_images_order ON property_images(property_id, display_order)');
+    
+    // Create room_images table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS room_images (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        image_key VARCHAR(500) NOT NULL,
+        image_url TEXT NOT NULL,
+        large_url TEXT,
+        medium_url TEXT,
+        thumbnail_url TEXT,
+        original_filename VARCHAR(255),
+        file_size INTEGER,
+        width INTEGER,
+        height INTEGER,
+        mime_type VARCHAR(50),
+        is_primary BOOLEAN DEFAULT false,
+        display_order INTEGER DEFAULT 0,
+        caption TEXT,
+        alt_text TEXT,
+        uploaded_by INTEGER,
+        upload_source VARCHAR(50) DEFAULT 'manual',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created room_images table');
+    
+    // Create indexes for room_images
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_images_room ON room_images(room_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_images_primary ON room_images(room_id, is_primary)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_images_order ON room_images(room_id, display_order)');
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Image management system created successfully',
+      tables: ['property_images', 'room_images']
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Cleanup duplicate imports
 app.post('/api/admin/cleanup-duplicates', async (req, res) => {
   const client = await pool.connect();
@@ -2391,6 +2520,471 @@ app.post('/api/admin/add-cm-room-id', async (req, res) => {
 // Serve frontend - MUST BE LAST
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// =========================================================
+// IMAGE PROCESSING HELPER FUNCTIONS
+// =========================================================
+
+/**
+ * Validate image is landscape (width > height)
+ */
+async function validateLandscape(buffer) {
+  const metadata = await sharp(buffer).metadata();
+  if (metadata.height >= metadata.width) {
+    throw new Error('Only landscape images are allowed (width must be greater than height)');
+  }
+  return metadata;
+}
+
+/**
+ * Process and upload image to R2 in multiple sizes
+ * Returns URLs for all variants
+ */
+async function processAndUploadImage(buffer, type, entityId, filename) {
+  const ext = path.extname(filename).toLowerCase();
+  const baseFilename = path.basename(filename, ext);
+  const uniqueId = uuidv4();
+  
+  const sizes = {
+    large: { width: 1920, quality: 85 },
+    medium: { width: 1200, quality: 85 },
+    thumbnail: { width: 400, quality: 80 }
+  };
+  
+  const results = {
+    original: null,
+    large: null,
+    medium: null,
+    thumbnail: null
+  };
+  
+  // Convert to WebP and upload each size
+  for (const [sizeName, config] of Object.entries(sizes)) {
+    const key = `${type}/${entityId}/${sizeName}/${uniqueId}-${baseFilename}.webp`;
+    
+    const processedBuffer = await sharp(buffer)
+      .resize(config.width, null, { 
+        fit: 'inside',
+        withoutEnlargement: true 
+      })
+      .webp({ quality: config.quality })
+      .toBuffer();
+    
+    // Upload to R2
+    await r2Client.send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: processedBuffer,
+      ContentType: 'image/webp',
+      CacheControl: 'public, max-age=31536000' // 1 year cache
+    }));
+    
+    results[sizeName] = `${R2_PUBLIC_URL}/${key}`;
+  }
+  
+  // Also create JPG fallback for original
+  const originalKey = `${type}/${entityId}/original/${uniqueId}-${baseFilename}.jpg`;
+  const jpgBuffer = await sharp(buffer)
+    .jpeg({ quality: 90 })
+    .toBuffer();
+  
+  await r2Client.send(new PutObjectCommand({
+    Bucket: R2_BUCKET,
+    Key: originalKey,
+    Body: jpgBuffer,
+    ContentType: 'image/jpeg',
+    CacheControl: 'public, max-age=31536000'
+  }));
+  
+  results.original = `${R2_PUBLIC_URL}/${originalKey}`;
+  results.imageKey = originalKey;
+  
+  return results;
+}
+
+/**
+ * Delete image and all variants from R2
+ */
+async function deleteImageFromR2(imageKey) {
+  try {
+    // Extract base path
+    const parts = imageKey.split('/');
+    const type = parts[0];
+    const entityId = parts[1];
+    const filename = parts[3];
+    const baseFilename = path.basename(filename, path.extname(filename));
+    
+    // Delete all variants
+    const keys = [
+      imageKey, // original
+      `${type}/${entityId}/large/${baseFilename}.webp`,
+      `${type}/${entityId}/medium/${baseFilename}.webp`,
+      `${type}/${entityId}/thumbnail/${baseFilename}.webp`
+    ];
+    
+    for (const key of keys) {
+      await r2Client.send(new DeleteObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: key
+      }));
+    }
+  } catch (error) {
+    console.error('Error deleting from R2:', error);
+    // Don't throw - image might already be deleted
+  }
+}
+
+// =========================================================
+// IMAGE UPLOAD ENDPOINTS
+// =========================================================
+
+// Upload property images
+app.post('/api/admin/properties/:id/images', upload.array('images', 10), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const files = req.files;
+    
+    if (!files || files.length === 0) {
+      return res.json({ success: false, error: 'No files uploaded' });
+    }
+    
+    await client.query('BEGIN');
+    
+    const uploadedImages = [];
+    
+    for (const file of files) {
+      // Validate landscape
+      try {
+        const metadata = await validateLandscape(file.buffer);
+        
+        // Process and upload
+        const urls = await processAndUploadImage(
+          file.buffer,
+          'properties',
+          id,
+          file.originalname
+        );
+        
+        // Get current max display_order
+        const maxOrder = await client.query(
+          'SELECT COALESCE(MAX(display_order), -1) as max FROM property_images WHERE property_id = $1',
+          [id]
+        );
+        const nextOrder = maxOrder.rows[0].max + 1;
+        
+        // Insert into database
+        const result = await client.query(`
+          INSERT INTO property_images (
+            property_id, image_key, image_url, large_url, medium_url, thumbnail_url,
+            original_filename, file_size, width, height, mime_type, display_order
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING *
+        `, [
+          id, urls.imageKey, urls.original, urls.large, urls.medium, urls.thumbnail,
+          file.originalname, file.size, metadata.width, metadata.height, 'image/webp', nextOrder
+        ]);
+        
+        uploadedImages.push(result.rows[0]);
+        
+      } catch (error) {
+        console.error(`Error processing ${file.originalname}:`, error.message);
+        // Continue with next file
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: `${uploadedImages.length} of ${files.length} images uploaded successfully`,
+      images: uploadedImages
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Upload error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Upload room images
+app.post('/api/admin/rooms/:id/images', upload.array('images', 10), async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const files = req.files;
+    
+    if (!files || files.length === 0) {
+      return res.json({ success: false, error: 'No files uploaded' });
+    }
+    
+    await client.query('BEGIN');
+    
+    const uploadedImages = [];
+    
+    for (const file of files) {
+      try {
+        const metadata = await validateLandscape(file.buffer);
+        
+        const urls = await processAndUploadImage(
+          file.buffer,
+          'rooms',
+          id,
+          file.originalname
+        );
+        
+        const maxOrder = await client.query(
+          'SELECT COALESCE(MAX(display_order), -1) as max FROM room_images WHERE room_id = $1',
+          [id]
+        );
+        const nextOrder = maxOrder.rows[0].max + 1;
+        
+        const result = await client.query(`
+          INSERT INTO room_images (
+            room_id, image_key, image_url, large_url, medium_url, thumbnail_url,
+            original_filename, file_size, width, height, mime_type, display_order
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+          RETURNING *
+        `, [
+          id, urls.imageKey, urls.original, urls.large, urls.medium, urls.thumbnail,
+          file.originalname, file.size, metadata.width, metadata.height, 'image/webp', nextOrder
+        ]);
+        
+        uploadedImages.push(result.rows[0]);
+        
+      } catch (error) {
+        console.error(`Error processing ${file.originalname}:`, error.message);
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: `${uploadedImages.length} of ${files.length} images uploaded successfully`,
+      images: uploadedImages
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Upload error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Get property images
+app.get('/api/admin/properties/:id/images', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT * FROM property_images WHERE property_id = $1 AND is_active = true ORDER BY display_order',
+      [id]
+    );
+    res.json({ success: true, images: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get room images
+app.get('/api/admin/rooms/:id/images', async (req, res) => {
+  try {
+    const { id} = req.params;
+    const result = await pool.query(
+      'SELECT * FROM room_images WHERE room_id = $1 AND is_active = true ORDER BY display_order',
+      [id]
+    );
+    res.json({ success: true, images: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete property image
+app.delete('/api/admin/properties/images/:imageId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { imageId } = req.params;
+    
+    // Get image details
+    const image = await client.query(
+      'SELECT * FROM property_images WHERE id = $1',
+      [imageId]
+    );
+    
+    if (image.rows.length === 0) {
+      return res.json({ success: false, error: 'Image not found' });
+    }
+    
+    await client.query('BEGIN');
+    
+    // Delete from R2
+    await deleteImageFromR2(image.rows[0].image_key);
+    
+    // Delete from database
+    await client.query('DELETE FROM property_images WHERE id = $1', [imageId]);
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'Image deleted' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Delete room image
+app.delete('/api/admin/rooms/images/:imageId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { imageId } = req.params;
+    
+    const image = await client.query(
+      'SELECT * FROM room_images WHERE id = $1',
+      [imageId]
+    );
+    
+    if (image.rows.length === 0) {
+      return res.json({ success: false, error: 'Image not found' });
+    }
+    
+    await client.query('BEGIN');
+    
+    await deleteImageFromR2(image.rows[0].image_key);
+    
+    await client.query('DELETE FROM room_images WHERE id = $1', [imageId]);
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'Image deleted' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Set primary property image
+app.put('/api/admin/properties/:propertyId/images/:imageId/primary', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { propertyId, imageId } = req.params;
+    
+    await client.query('BEGIN');
+    
+    // Remove primary from all images for this property
+    await client.query(
+      'UPDATE property_images SET is_primary = false WHERE property_id = $1',
+      [propertyId]
+    );
+    
+    // Set new primary
+    await client.query(
+      'UPDATE property_images SET is_primary = true WHERE id = $1',
+      [imageId]
+    );
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'Primary image updated' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Set primary room image
+app.put('/api/admin/rooms/:roomId/images/:imageId/primary', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { roomId, imageId } = req.params;
+    
+    await client.query('BEGIN');
+    
+    await client.query(
+      'UPDATE room_images SET is_primary = false WHERE room_id = $1',
+      [roomId]
+    );
+    
+    await client.query(
+      'UPDATE room_images SET is_primary = true WHERE id = $1',
+      [imageId]
+    );
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'Primary image updated' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Update image display order
+app.put('/api/admin/properties/:propertyId/images/reorder', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { propertyId } = req.params;
+    const { imageIds } = req.body; // Array of image IDs in new order
+    
+    await client.query('BEGIN');
+    
+    for (let i = 0; i < imageIds.length; i++) {
+      await client.query(
+        'UPDATE property_images SET display_order = $1 WHERE id = $2 AND property_id = $3',
+        [i, imageIds[i], propertyId]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'Image order updated' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Update room image display order
+app.put('/api/admin/rooms/:roomId/images/reorder', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { roomId } = req.params;
+    const { imageIds } = req.body;
+    
+    await client.query('BEGIN');
+    
+    for (let i = 0; i < imageIds.length; i++) {
+      await client.query(
+        'UPDATE room_images SET display_order = $1 WHERE id = $2 AND room_id = $3',
+        [i, imageIds[i], roomId]
+      );
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'Image order updated' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
