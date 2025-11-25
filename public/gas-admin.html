@@ -1407,6 +1407,20 @@
                     </div>
                 </div>
                 
+                <!-- Danger Zone -->
+                <div style="border-top: 1px solid var(--error); padding-top: 1.5rem; margin-top: 2rem; background: rgba(239, 68, 68, 0.05); padding: 1rem; border-radius: 8px;">
+                    <h4 style="margin-bottom: 0.5rem; color: var(--error);">⚠️ Danger Zone</h4>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">These actions cannot be undone.</p>
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap;">
+                        <button class="btn" onclick="deleteAllInCategory()" style="background: var(--error); border-color: var(--error);">
+                            🗑️ Delete All in Selected Category
+                        </button>
+                        <button class="btn" onclick="deleteAllAmenities()" style="background: #7f1d1d; border-color: #7f1d1d;">
+                            ⚠️ Delete ALL Amenities
+                        </button>
+                    </div>
+                </div>
+                
                 <div style="margin-top: 1.5rem; text-align: right;">
                     <button class="btn btn-secondary" onclick="closeModal('addAmenityModal')">Close</button>
                 </div>
@@ -2444,6 +2458,76 @@
                     iconInput.value = icon;
                     return;
                 }
+            }
+        }
+        
+        async function deleteAllInCategory() {
+            const category = document.getElementById('amenity-category-select').value;
+            
+            if (!category) {
+                alert('Please select a category first');
+                return;
+            }
+            
+            const categoryAmenities = allAmenitiesData.filter(a => a.category === category);
+            const displayName = category.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+            
+            if (!confirm(`Delete ALL ${categoryAmenities.length} amenities in "${displayName}"?\n\nThis cannot be undone!`)) {
+                return;
+            }
+            
+            try {
+                let deleted = 0;
+                for (const amenity of categoryAmenities) {
+                    const response = await fetch(`/api/admin/amenities/${amenity.id}`, {
+                        method: 'DELETE'
+                    });
+                    const result = await response.json();
+                    if (result.success) deleted++;
+                }
+                
+                alert(`Deleted ${deleted} amenities from ${displayName}`);
+                await loadAllAmenitiesData();
+                loadCategoryAmenities();
+                loadAmenities();
+            } catch (error) {
+                console.error('Error deleting amenities:', error);
+                alert('Error deleting amenities');
+            }
+        }
+        
+        async function deleteAllAmenities() {
+            const totalCount = allAmenitiesData.length;
+            
+            if (!confirm(`⚠️ DELETE ALL ${totalCount} AMENITIES?\n\nThis will remove EVERY amenity from your system.\n\nThis action CANNOT be undone!\n\nType "DELETE" to confirm.`)) {
+                return;
+            }
+            
+            const confirmation = prompt('Type DELETE to confirm:');
+            if (confirmation !== 'DELETE') {
+                alert('Deletion cancelled');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/amenities/delete-all', {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Deleted ${result.deleted} amenities`);
+                    await loadAllAmenitiesData();
+                    document.getElementById('amenity-category-select').value = '';
+                    document.getElementById('category-amenities-list').style.display = 'none';
+                    document.getElementById('add-amenity-section').style.display = 'none';
+                    loadAmenities();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting all amenities:', error);
+                alert('Error deleting amenities');
             }
         }
 
