@@ -2032,7 +2032,7 @@ app.put('/api/admin/units/:id/amenities', async (req, res) => {
 // Create new custom amenity
 app.post('/api/admin/amenities', async (req, res) => {
   try {
-    const { name, category } = req.body;
+    const { name, category, icon } = req.body;
     
     if (!name || !category) {
       return res.json({ success: false, error: 'Name and category are required' });
@@ -2051,12 +2051,13 @@ app.post('/api/admin/amenities', async (req, res) => {
       return res.json({ success: false, error: 'An amenity with this name already exists' });
     }
     
-    // Insert into master_amenities
+    // Insert into master_amenities - amenity_name must be JSONB
+    const amenityNameJson = JSON.stringify({ en: name });
     const result = await pool.query(`
-      INSERT INTO master_amenities (amenity_code, amenity_name, category, is_system, created_by)
-      VALUES ($1, $2, $3, false, 'user')
+      INSERT INTO master_amenities (amenity_code, amenity_name, category, icon, is_system, created_by)
+      VALUES ($1, $2::jsonb, $3, $4, false, 'user')
       RETURNING *
-    `, [code, JSON.stringify({ en: name }), category]);
+    `, [code, amenityNameJson, category, icon || '✓']);
     
     res.json({ 
       success: true, 
