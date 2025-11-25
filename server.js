@@ -1884,13 +1884,16 @@ app.delete('/api/admin/units/:id', async (req, res) => {
 // Get all amenities
 app.get('/api/admin/amenities', async (req, res) => {
   try {
-    const propAmenities = await pool.query('SELECT * FROM property_amenities ORDER BY created_at DESC');
-    const unitAmenities = await pool.query('SELECT * FROM bookable_unit_amenities ORDER BY created_at DESC');
+    // Get all master amenities
+    const masterAmenities = await pool.query(`
+      SELECT * FROM master_amenities 
+      WHERE is_active = true 
+      ORDER BY category, display_order
+    `);
     
     res.json({
       success: true,
-      propertyAmenities: propAmenities.rows,
-      unitAmenities: unitAmenities.rows
+      amenities: masterAmenities.rows
     });
   } catch (error) {
     console.error('Amenities error:', error.message);
@@ -1902,10 +1905,20 @@ app.get('/api/admin/amenities', async (req, res) => {
 app.get('/api/admin/units/:id/amenities', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      'SELECT * FROM bookable_unit_amenities WHERE bookable_unit_id = $1 ORDER BY display_order',
-      [id]
-    );
+    const result = await pool.query(`
+      SELECT 
+        ras.id as selection_id,
+        ras.display_order,
+        ma.id as amenity_id,
+        ma.amenity_code,
+        ma.amenity_name,
+        ma.category,
+        ma.icon
+      FROM room_amenity_selections ras
+      JOIN master_amenities ma ON ras.amenity_id = ma.id
+      WHERE ras.room_id = $1
+      ORDER BY ras.display_order
+    `, [id]);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     console.error('Unit amenities error:', error.message);
@@ -1917,35 +1930,19 @@ app.get('/api/admin/units/:id/amenities', async (req, res) => {
 app.put('/api/admin/units/:id/amenities', async (req, res) => {
   try {
     const { id } = req.params;
-    const { amenities } = req.body; // Array of amenity codes
+    const { amenities } = req.body; // Array of amenity IDs from master_amenities
     
-    // Delete existing amenities for this room
-    await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = $1', [id]);
+    // Delete existing selections for this room
+    await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [id]);
     
-    // Insert new amenities
+    // Insert new selections
     if (amenities && amenities.length > 0) {
-      // Get amenity details from the master list
-      const placeholders = amenities.map((_, i) => `$${i + 1}`).join(',');
-      const masterAmenities = await pool.query(
-        `SELECT DISTINCT amenity_code, amenity_name, category 
-         FROM bookable_unit_amenities 
-         WHERE amenity_code IN (${placeholders})
-         LIMIT ${amenities.length}`,
-        amenities
-      );
-      
-      // Insert each selected amenity
       for (let i = 0; i < amenities.length; i++) {
-        const code = amenities[i];
-        const master = masterAmenities.rows.find(a => a.amenity_code === code);
-        
-        if (master) {
-          await pool.query(`
-            INSERT INTO bookable_unit_amenities (
-              bookable_unit_id, amenity_code, amenity_name, category, display_order
-            ) VALUES ($1, $2, $3, $4, $5)
-          `, [id, code, master.amenity_name, master.category, i]);
-        }
+        const amenityId = amenities[i];
+        await pool.query(`
+          INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+          VALUES ($1, $2, $3)
+        `, [id, amenityId, i]);
       }
     }
     
@@ -1970,7 +1967,7 @@ app.post('/api/admin/amenities', async (req, res) => {
     
     // Check if code already exists
     const existing = await pool.query(
-      'SELECT COUNT(*) as count FROM bookable_unit_amenities WHERE amenity_code = $1',
+      'SELECT COUNT(*) as count FROM master_amenities WHERE amenity_code = $1',
       [code]
     );
     
@@ -1978,10 +1975,17 @@ app.post('/api/admin/amenities', async (req, res) => {
       return res.json({ success: false, error: 'An amenity with this name already exists' });
     }
     
+    // Insert into master_amenities
+    const result = await pool.query(`
+      INSERT INTO master_amenities (amenity_code, amenity_name, category, is_system, created_by)
+      VALUES ($1, $2, $3, false, 'user')
+      RETURNING *
+    `, [code, JSON.stringify({ en: name }), category]);
+    
     res.json({ 
       success: true, 
       message: 'Custom amenity created',
-      data: { code, name, category }
+      data: result.rows[0]
     });
   } catch (error) {
     console.error('Create amenity error:', error.message);
@@ -1990,14 +1994,28 @@ app.post('/api/admin/amenities', async (req, res) => {
 });
 
 // Delete amenity (only if unused)
-app.delete('/api/admin/amenities/:code', async (req, res) => {
+app.delete('/api/admin/amenities/:id', async (req, res) => {
   try {
-    const { code } = req.params;
+    const { id } = req.params;
     
-    // Check usage
+    // Check if it's a system amenity
+    const amenity = await pool.query(
+      'SELECT is_system FROM master_amenities WHERE id = $1',
+      [id]
+    );
+    
+    if (amenity.rows.length === 0) {
+      return res.json({ success: false, error: 'Amenity not found' });
+    }
+    
+    if (amenity.rows[0].is_system) {
+      return res.json({ success: false, error: 'Cannot delete system amenities' });
+    }
+    
+    // Check usage in rooms
     const usage = await pool.query(
-      'SELECT COUNT(*) as count FROM bookable_unit_amenities WHERE amenity_code = $1',
-      [code]
+      'SELECT COUNT(*) as count FROM room_amenity_selections WHERE amenity_id = $1',
+      [id]
     );
     
     const usageCount = parseInt(usage.rows[0].count);
@@ -2009,9 +2027,8 @@ app.delete('/api/admin/amenities/:code', async (req, res) => {
       });
     }
     
-    // Amenity is unused, safe to delete
-    // (In this case, it means the amenity was never actually in the DB as a master record,
-    //  or it was but has no references, so there's nothing to delete from a master table)
+    // Safe to delete
+    await pool.query('DELETE FROM master_amenities WHERE id = $1', [id]);
     
     res.json({ success: true, message: 'Amenity deleted successfully' });
   } catch (error) {
