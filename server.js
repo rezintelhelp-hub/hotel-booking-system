@@ -2163,8 +2163,19 @@ app.put('/api/admin/content/property/:id', async (req, res) => {
 app.get('/api/admin/content/room/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      'SELECT short_description, full_description FROM bookable_units WHERE id = $1',
+    const result = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN short_description IS NULL THEN NULL
+          WHEN jsonb_typeof(short_description::jsonb) = 'object' THEN short_description::jsonb->>'en'
+          ELSE short_description::text
+        END as short_description,
+        CASE 
+          WHEN full_description IS NULL THEN NULL
+          WHEN jsonb_typeof(full_description::jsonb) = 'object' THEN full_description::jsonb->>'en'
+          ELSE full_description::text
+        END as full_description
+      FROM bookable_units WHERE id = $1`,
       [id]
     );
     
@@ -2174,7 +2185,16 @@ app.get('/api/admin/content/room/:id', async (req, res) => {
     
     res.json({ success: true, content: result.rows[0] });
   } catch (error) {
-    res.json({ success: false, error: error.message });
+    // If JSONB parsing fails, try simple select
+    try {
+      const result = await pool.query(
+        'SELECT short_description, full_description FROM bookable_units WHERE id = $1',
+        [id]
+      );
+      res.json({ success: true, content: result.rows[0] || {} });
+    } catch (e) {
+      res.json({ success: false, error: error.message });
+    }
   }
 });
 
@@ -2184,10 +2204,31 @@ app.put('/api/admin/content/room/:id', async (req, res) => {
     const { id } = req.params;
     const { short_description, full_description } = req.body;
     
-    await pool.query(
-      'UPDATE bookable_units SET short_description = $1, full_description = $2, updated_at = NOW() WHERE id = $3',
-      [short_description, full_description, id]
-    );
+    // Try as JSONB first
+    try {
+      await pool.query(`
+        UPDATE bookable_units 
+        SET short_description = $1::jsonb, 
+            full_description = $2::jsonb, 
+            updated_at = NOW() 
+        WHERE id = $3`,
+        [
+          JSON.stringify({ en: short_description || '' }), 
+          JSON.stringify({ en: full_description || '' }), 
+          id
+        ]
+      );
+    } catch (e) {
+      // If JSONB fails, try as TEXT
+      await pool.query(`
+        UPDATE bookable_units 
+        SET short_description = $1, 
+            full_description = $2, 
+            updated_at = NOW() 
+        WHERE id = $3`,
+        [short_description || '', full_description || '', id]
+      );
+    }
     
     res.json({ success: true, message: 'Room content saved' });
   } catch (error) {
@@ -2199,8 +2240,24 @@ app.put('/api/admin/content/room/:id', async (req, res) => {
 app.get('/api/admin/content/policies/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const result = await pool.query(
-      'SELECT house_rules, cancellation_policy, terms_conditions FROM properties WHERE id = $1',
+    const result = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN house_rules IS NULL THEN NULL
+          WHEN jsonb_typeof(house_rules::jsonb) = 'object' THEN house_rules::jsonb->>'en'
+          ELSE house_rules::text
+        END as house_rules,
+        CASE 
+          WHEN cancellation_policy IS NULL THEN NULL
+          WHEN jsonb_typeof(cancellation_policy::jsonb) = 'object' THEN cancellation_policy::jsonb->>'en'
+          ELSE cancellation_policy::text
+        END as cancellation_policy,
+        CASE 
+          WHEN terms_conditions IS NULL THEN NULL
+          WHEN jsonb_typeof(terms_conditions::jsonb) = 'object' THEN terms_conditions::jsonb->>'en'
+          ELSE terms_conditions::text
+        END as terms_conditions
+      FROM properties WHERE id = $1`,
       [id]
     );
     
@@ -2210,7 +2267,16 @@ app.get('/api/admin/content/policies/:id', async (req, res) => {
     
     res.json({ success: true, content: result.rows[0] });
   } catch (error) {
-    res.json({ success: false, error: error.message });
+    // If JSONB parsing fails, try simple select
+    try {
+      const result = await pool.query(
+        'SELECT house_rules, cancellation_policy, terms_conditions FROM properties WHERE id = $1',
+        [id]
+      );
+      res.json({ success: true, content: result.rows[0] || {} });
+    } catch (e) {
+      res.json({ success: false, error: error.message });
+    }
   }
 });
 
@@ -2220,10 +2286,34 @@ app.put('/api/admin/content/policies/:id', async (req, res) => {
     const { id } = req.params;
     const { house_rules, cancellation_policy, terms_conditions } = req.body;
     
-    await pool.query(
-      'UPDATE properties SET house_rules = $1, cancellation_policy = $2, terms_conditions = $3, updated_at = NOW() WHERE id = $4',
-      [house_rules, cancellation_policy, terms_conditions, id]
-    );
+    // Try as JSONB first
+    try {
+      await pool.query(`
+        UPDATE properties 
+        SET house_rules = $1::jsonb, 
+            cancellation_policy = $2::jsonb, 
+            terms_conditions = $3::jsonb, 
+            updated_at = NOW() 
+        WHERE id = $4`,
+        [
+          JSON.stringify({ en: house_rules || '' }), 
+          JSON.stringify({ en: cancellation_policy || '' }), 
+          JSON.stringify({ en: terms_conditions || '' }), 
+          id
+        ]
+      );
+    } catch (e) {
+      // If JSONB fails, try as TEXT
+      await pool.query(`
+        UPDATE properties 
+        SET house_rules = $1, 
+            cancellation_policy = $2, 
+            terms_conditions = $3, 
+            updated_at = NOW() 
+        WHERE id = $4`,
+        [house_rules || '', cancellation_policy || '', terms_conditions || '', id]
+      );
+    }
     
     res.json({ success: true, message: 'Policies saved' });
   } catch (error) {
