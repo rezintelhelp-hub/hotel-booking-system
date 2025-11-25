@@ -2115,7 +2115,13 @@ app.get('/api/admin/content/property/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      'SELECT description, location_description FROM properties WHERE id = $1',
+      `SELECT 
+        CASE 
+          WHEN jsonb_typeof(description) = 'object' THEN description->>'en'
+          ELSE description::text
+        END as description,
+        location_description 
+      FROM properties WHERE id = $1`,
       [id]
     );
     
@@ -2135,22 +2141,16 @@ app.put('/api/admin/content/property/:id', async (req, res) => {
     const { id } = req.params;
     let { description, location_description } = req.body;
     
-    // Ensure we're saving strings, not objects
-    if (typeof description === 'object') {
-      description = description.en || JSON.stringify(description);
-    }
-    if (typeof location_description === 'object') {
-      location_description = location_description.en || JSON.stringify(location_description);
-    }
+    // Convert description to JSONB format
+    const descriptionJson = JSON.stringify({ en: description || '' });
     
-    // Use a simple update - the migration should have created TEXT columns
     await pool.query(`
       UPDATE properties 
-      SET description = $1::text, 
-          location_description = $2::text, 
+      SET description = $1::jsonb, 
+          location_description = $2, 
           updated_at = NOW() 
       WHERE id = $3
-    `, [description || '', location_description || '', id]);
+    `, [descriptionJson, location_description || '', id]);
     
     res.json({ success: true, message: 'Property content saved' });
   } catch (error) {
