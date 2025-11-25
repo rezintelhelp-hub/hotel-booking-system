@@ -2217,6 +2217,184 @@ app.put('/api/admin/content/policies/:id', async (req, res) => {
   }
 });
 
+// ========================================
+// AVAILABILITY & PRICING ENDPOINTS
+// ========================================
+
+// Get availability for a room (PUBLIC API)
+app.get('/api/availability/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { from, to } = req.query;
+    
+    if (!from || !to) {
+      return res.json({ success: false, error: 'from and to dates required' });
+    }
+    
+    // Get availability data
+    const availability = await pool.query(`
+      SELECT 
+        date,
+        price,
+        is_available,
+        is_blocked,
+        min_stay,
+        notes
+      FROM room_availability
+      WHERE room_id = $1 
+        AND date >= $2 
+        AND date <= $3
+      ORDER BY date
+    `, [roomId, from, to]);
+    
+    // Get bookings for this period
+    const bookings = await pool.query(`
+      SELECT 
+        check_in_date,
+        check_out_date,
+        guest_first_name,
+        status
+      FROM bookings
+      WHERE room_id = $1 
+        AND status NOT IN ('cancelled', 'rejected')
+        AND check_in_date <= $3
+        AND check_out_date >= $2
+    `, [roomId, from, to]);
+    
+    // Build availability map
+    const availMap = {};
+    availability.rows.forEach(a => {
+      availMap[a.date.toISOString().split('T')[0]] = {
+        date: a.date.toISOString().split('T')[0],
+        price: a.price,
+        is_available: a.is_available,
+        is_blocked: a.is_blocked,
+        min_stay: a.min_stay
+      };
+    });
+    
+    // Mark booked dates
+    bookings.rows.forEach(b => {
+      const checkIn = new Date(b.check_in_date);
+      const checkOut = new Date(b.check_out_date);
+      
+      for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        if (!availMap[dateStr]) {
+          availMap[dateStr] = { date: dateStr };
+        }
+        availMap[dateStr].is_booked = true;
+        availMap[dateStr].guest_name = b.guest_first_name;
+      }
+    });
+    
+    // Convert to array and fill missing dates
+    const result = [];
+    const startDate = new Date(from);
+    const endDate = new Date(to);
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      result.push(availMap[dateStr] || {
+        date: dateStr,
+        is_available: true,
+        is_booked: false,
+        is_blocked: false
+      });
+    }
+    
+    res.json({ success: true, availability: result });
+  } catch (error) {
+    console.error('Availability error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Set availability for date range (ADMIN)
+app.post('/api/admin/availability', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { room_id, from_date, to_date, status, price } = req.body;
+    
+    await client.query('BEGIN');
+    
+    const startDate = new Date(from_date);
+    const endDate = new Date(to_date);
+    let daysUpdated = 0;
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      
+      await client.query(`
+        INSERT INTO room_availability (room_id, date, price, is_available, is_blocked)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (room_id, date) 
+        DO UPDATE SET 
+          price = COALESCE($3, room_availability.price),
+          is_available = $4,
+          is_blocked = $5,
+          updated_at = NOW()
+      `, [
+        room_id,
+        dateStr,
+        price || null,
+        status === 'available',
+        status === 'blocked'
+      ]);
+      
+      daysUpdated++;
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, days_updated: daysUpdated });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Set availability error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Migration: Create room_availability table
+app.post('/api/admin/migrate-availability', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS room_availability (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        date DATE NOT NULL,
+        price DECIMAL(10,2),
+        is_available BOOLEAN DEFAULT true,
+        is_blocked BOOLEAN DEFAULT false,
+        min_stay INTEGER DEFAULT 1,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(room_id, date)
+      )
+    `);
+    
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_avail_room ON room_availability(room_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_avail_date ON room_availability(date)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_avail_room_date ON room_availability(room_id, date)');
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'room_availability table created' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Migration: Add content columns to properties and rooms
 app.post('/api/admin/migrate-content-columns', async (req, res) => {
   const client = await pool.connect();
