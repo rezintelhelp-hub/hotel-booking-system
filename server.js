@@ -2328,6 +2328,106 @@ app.post('/api/admin/migrate-clean-amenities', async (req, res) => {
   }
 });
 
+// Migration 002-FIX: Drop and recreate image tables
+app.post('/api/admin/migrate-002-fix', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🔄 Fixing Migration 002: Dropping and recreating image tables...');
+    
+    // Drop existing tables if they exist
+    await client.query('DROP TABLE IF EXISTS property_images CASCADE');
+    console.log('   ✓ Dropped property_images table');
+    
+    await client.query('DROP TABLE IF EXISTS room_images CASCADE');
+    console.log('   ✓ Dropped room_images table');
+    
+    // Create property_images table with correct structure
+    await client.query(`
+      CREATE TABLE property_images (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        image_key VARCHAR(500) NOT NULL,
+        image_url TEXT NOT NULL,
+        large_url TEXT,
+        medium_url TEXT,
+        thumbnail_url TEXT,
+        original_filename VARCHAR(255),
+        file_size INTEGER,
+        width INTEGER,
+        height INTEGER,
+        mime_type VARCHAR(50),
+        is_primary BOOLEAN DEFAULT false,
+        display_order INTEGER DEFAULT 0,
+        caption TEXT,
+        alt_text TEXT,
+        uploaded_by INTEGER,
+        upload_source VARCHAR(50) DEFAULT 'manual',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created property_images table');
+    
+    // Create indexes for property_images
+    await client.query('CREATE INDEX idx_property_images_property ON property_images(property_id)');
+    await client.query('CREATE UNIQUE INDEX idx_property_images_primary_unique ON property_images(property_id) WHERE is_primary = true');
+    await client.query('CREATE INDEX idx_property_images_order ON property_images(property_id, display_order)');
+    console.log('   ✓ Created property_images indexes');
+    
+    // Create room_images table
+    await client.query(`
+      CREATE TABLE room_images (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        image_key VARCHAR(500) NOT NULL,
+        image_url TEXT NOT NULL,
+        large_url TEXT,
+        medium_url TEXT,
+        thumbnail_url TEXT,
+        original_filename VARCHAR(255),
+        file_size INTEGER,
+        width INTEGER,
+        height INTEGER,
+        mime_type VARCHAR(50),
+        is_primary BOOLEAN DEFAULT false,
+        display_order INTEGER DEFAULT 0,
+        caption TEXT,
+        alt_text TEXT,
+        uploaded_by INTEGER,
+        upload_source VARCHAR(50) DEFAULT 'manual',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created room_images table');
+    
+    // Create indexes for room_images
+    await client.query('CREATE INDEX idx_room_images_room ON room_images(room_id)');
+    await client.query('CREATE UNIQUE INDEX idx_room_images_primary_unique ON room_images(room_id) WHERE is_primary = true');
+    await client.query('CREATE INDEX idx_room_images_order ON room_images(room_id, display_order)');
+    console.log('   ✓ Created room_images indexes');
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Image tables fixed and recreated successfully',
+      tables: ['property_images', 'room_images']
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Migration 002: Create Image Management System
 app.post('/api/admin/migrate-002-image-management', async (req, res) => {
   const client = await pool.connect();
