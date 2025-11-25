@@ -2957,6 +2957,25 @@ app.get('/api/admin/rooms/:id/images', async (req, res) => {
   }
 });
 
+// Simple test endpoint - check ALL room images in database
+app.get('/api/admin/all-images', async (req, res) => {
+  try {
+    const roomImages = await pool.query('SELECT * FROM room_images');
+    const propertyImages = await pool.query('SELECT * FROM property_images');
+    res.json({ 
+      success: true, 
+      roomImages: roomImages.rows,
+      propertyImages: propertyImages.rows,
+      counts: {
+        room: roomImages.rows.length,
+        property: propertyImages.rows.length
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Delete property image
 app.delete('/api/admin/properties/images/:imageId', async (req, res) => {
   const client = await pool.connect();
