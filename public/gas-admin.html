@@ -1027,8 +1027,8 @@
                 
                 <!-- Amenities from CM -->
                 <div class="form-group">
-                    <label class="form-label">Amenities & Features (from CM)</label>
-                    <div id="edit-room-amenities" style="background: var(--bg-secondary); padding: 0.75rem; border-radius: 8px; font-size: 0.85rem; max-height: 150px; overflow-y: auto;">
+                    <label class="form-label">Select Amenities for this Room</label>
+                    <div id="edit-room-amenities" style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; max-height: 400px; overflow-y: auto;">
                         Loading amenities...
                     </div>
                 </div>
@@ -1041,6 +1041,43 @@
                         <button type="button" class="btn btn-secondary" onclick="closeModal('editRoomModal')">Cancel</button>
                         <button type="submit" class="btn">Save Changes</button>
                     </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Amenity Modal -->
+    <div id="addAmenityModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Custom Amenity</h3>
+                <button class="modal-close" onclick="closeModal('addAmenityModal')">×</button>
+            </div>
+            <form id="addAmenityForm" onsubmit="return saveNewAmenity(event)">
+                <div class="form-group">
+                    <label class="form-label">Amenity Name *</label>
+                    <input type="text" class="form-input" id="new-amenity-name" required placeholder="e.g., Smart TV">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category *</label>
+                    <select class="form-input" id="new-amenity-category" required>
+                        <option value="">Select category...</option>
+                        <option value="beds">🛏️ Beds</option>
+                        <option value="bedrooms">🚪 Bedrooms</option>
+                        <option value="bathrooms">🚿 Bathrooms</option>
+                        <option value="kitchen">🍳 Kitchen</option>
+                        <option value="entertainment">📺 Entertainment</option>
+                        <option value="wellness">💆 Wellness</option>
+                        <option value="parking">🚗 Parking</option>
+                        <option value="outdoor">🌳 Outdoor</option>
+                        <option value="amenities">✨ Amenities</option>
+                        <option value="room_feature">🏠 Room Features</option>
+                        <option value="other">📦 Other</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addAmenityModal')">Cancel</button>
+                    <button type="submit" class="btn">Add Amenity</button>
                 </div>
             </form>
         </div>
@@ -1203,26 +1240,32 @@
                 const data = await response.json();
                 
                 if (data.success) {
-                    const propAmenities = data.propertyAmenities || [];
                     const unitAmenities = data.unitAmenities || [];
                     
-                    // Get unique amenity codes from unit amenities
-                    const uniqueAmenities = {};
+                    // Get unique amenities with usage count
+                    const amenitiesMap = {};
                     unitAmenities.forEach(a => {
                         const code = a.amenity_code;
-                        if (!uniqueAmenities[code]) {
-                            uniqueAmenities[code] = {
+                        if (!amenitiesMap[code]) {
+                            amenitiesMap[code] = {
                                 code: code,
                                 name: getAmenityDisplayName(a),
                                 category: a.category || 'other',
-                                count: 1
+                                created_by: a.created_by || 'system',
+                                usageCount: 0,
+                                rooms: new Set()
                             };
-                        } else {
-                            uniqueAmenities[code].count++;
                         }
+                        amenitiesMap[code].rooms.add(a.bookable_unit_id);
                     });
                     
-                    const amenitiesList = Object.values(uniqueAmenities);
+                    // Calculate usage counts
+                    Object.values(amenitiesMap).forEach(a => {
+                        a.usageCount = a.rooms.size;
+                        delete a.rooms; // Clean up
+                    });
+                    
+                    const amenitiesList = Object.values(amenitiesMap);
                     
                     if (amenitiesList.length > 0) {
                         // Group by category
@@ -1233,7 +1276,7 @@
                             categories[cat].push(a);
                         });
                         
-                        // Category display names
+                        // Category display names with icons
                         const categoryNames = {
                             'beds': '🛏️ Beds',
                             'bedrooms': '🚪 Bedrooms',
@@ -1249,21 +1292,45 @@
                         };
                         
                         let html = `
-                            <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
-                                <strong>${amenitiesList.length}</strong> unique amenities imported from Channel Manager
+                            <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="font-size: 1.1rem;">${amenitiesList.length}</strong> amenities available
+                                    <span style="color: var(--text-secondary); margin-left: 1rem; font-size: 0.9rem;">
+                                        Select amenities for each room in the room editor
+                                    </span>
+                                </div>
                             </div>
                         `;
                         
-                        Object.entries(categories).sort().forEach(([cat, items]) => {
+                        // Sort categories
+                        const sortedCategories = Object.entries(categories).sort((a, b) => {
+                            const order = ['beds', 'bedrooms', 'bathrooms', 'kitchen', 'entertainment', 'wellness', 'parking', 'outdoor', 'amenities', 'room_feature', 'other'];
+                            return order.indexOf(a[0]) - order.indexOf(b[0]);
+                        });
+                        
+                        sortedCategories.forEach(([cat, items]) => {
                             html += `
-                                <div style="margin-bottom: 1.5rem;">
-                                    <h4 style="margin-bottom: 0.75rem; color: var(--text-secondary);">${categoryNames[cat] || cat}</h4>
-                                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <div style="margin-bottom: 2rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                        <h3 style="margin: 0; color: var(--text-primary);">${categoryNames[cat] || cat}</h3>
+                                        <span style="color: var(--text-secondary); font-size: 0.85rem;">${items.length} items</span>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
                                         ${items.map(a => `
-                                            <span style="display: inline-flex; align-items: center; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.4rem 0.75rem; border-radius: 6px; font-size: 0.85rem;">
-                                                ${a.name}
-                                                <span style="margin-left: 0.5rem; background: var(--primary); color: white; padding: 0.1rem 0.4rem; border-radius: 10px; font-size: 0.7rem;">${a.count}</span>
-                                            </span>
+                                            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.75rem; border-radius: 6px;">
+                                                <div style="flex: 1;">
+                                                    <div style="font-weight: 500;">${a.name}</div>
+                                                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                                        Used in ${a.usageCount} room${a.usageCount !== 1 ? 's' : ''}
+                                                        ${a.created_by !== 'system' ? ' • Custom' : ''}
+                                                    </div>
+                                                </div>
+                                                ${a.usageCount === 0 && a.created_by !== 'system' ? `
+                                                    <button onclick="deleteAmenity('${a.code}')" class="btn btn-secondary btn-small" style="background: var(--error); border-color: var(--error); color: white; padding: 0.25rem 0.5rem; margin-left: 0.5rem;">
+                                                        Delete
+                                                    </button>
+                                                ` : ''}
+                                            </div>
                                         `).join('')}
                                     </div>
                                 </div>
@@ -1276,7 +1343,8 @@
                             <div class="empty-state">
                                 <div class="empty-icon">⭐</div>
                                 <h3>No Amenities Yet</h3>
-                                <p>Amenities are imported with rooms from Beds24</p>
+                                <p>Amenities are imported with rooms from Beds24, or you can add custom ones</p>
+                                <button class="btn" onclick="openAddAmenityModal()">Add Custom Amenity</button>
                             </div>
                         `;
                     }
@@ -1295,6 +1363,29 @@
                 return a.amenity_name;
             }
             return a.amenity_name?.en || a.amenity_code;
+        }
+        
+        async function deleteAmenity(code) {
+            if (!confirm(`Delete this amenity?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/amenities/${encodeURIComponent(code)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Amenity deleted successfully!');
+                    loadAmenities();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting amenity:', error);
+                alert('Error deleting amenity');
+            }
         }
 
         async function loadIntegrations() {
@@ -1330,6 +1421,41 @@
 
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove('active');
+        }
+
+        function openAddAmenityModal() {
+            document.getElementById('new-amenity-name').value = '';
+            document.getElementById('new-amenity-category').value = '';
+            openModal('addAmenityModal');
+        }
+
+        async function saveNewAmenity(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('new-amenity-name').value;
+            const category = document.getElementById('new-amenity-category').value;
+            
+            try {
+                const response = await fetch('/api/admin/amenities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, category })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Amenity added successfully!');
+                    closeModal('addAmenityModal');
+                    loadAmenities();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding amenity:', error);
+                alert('Error adding amenity');
+            }
+            
+            return false;
         }
 
         async function editProperty(id) {
@@ -1436,52 +1562,97 @@
                     document.getElementById('edit-room-quantity').value = room.quantity || 1;
                     document.getElementById('edit-room-status').value = room.status || 'available';
                     
-                    // Load amenities for this room
+                    // Load all available amenities and room's current selections
                     const amenitiesContainer = document.getElementById('edit-room-amenities');
                     amenitiesContainer.innerHTML = 'Loading amenities...';
+                    
                     try {
-                        const amenitiesResp = await fetch(`/api/admin/units/${id}/amenities`);
-                        const amenitiesData = await amenitiesResp.json();
-                        if (amenitiesData.success && amenitiesData.data && amenitiesData.data.length > 0) {
-                            // Group amenities by category
-                            const beds = amenitiesData.data.filter(a => a.amenity_code.startsWith('bed_'));
-                            const baths = amenitiesData.data.filter(a => a.amenity_code.startsWith('bath'));
-                            const others = amenitiesData.data.filter(a => !a.amenity_code.startsWith('bed_') && !a.amenity_code.startsWith('bath'));
+                        // Get all available amenities
+                        const allAmenitiesResp = await fetch('/api/admin/amenities');
+                        const allAmenitiesData = await allAmenitiesResp.json();
+                        
+                        // Get this room's current amenities
+                        const roomAmenitiesResp = await fetch(`/api/admin/units/${id}/amenities`);
+                        const roomAmenitiesData = await roomAmenitiesResp.json();
+                        
+                        if (allAmenitiesData.success) {
+                            const unitAmenities = allAmenitiesData.unitAmenities || [];
                             
+                            // Get unique amenities
+                            const uniqueAmenities = {};
+                            unitAmenities.forEach(a => {
+                                const code = a.amenity_code;
+                                if (!uniqueAmenities[code]) {
+                                    uniqueAmenities[code] = {
+                                        code: code,
+                                        name: getAmenityName(a),
+                                        category: a.category || 'other'
+                                    };
+                                }
+                            });
+                            
+                            // Get selected amenity codes
+                            const selectedCodes = new Set();
+                            if (roomAmenitiesData.success && roomAmenitiesData.data) {
+                                roomAmenitiesData.data.forEach(a => selectedCodes.add(a.amenity_code));
+                            }
+                            
+                            // Group by category
+                            const categories = {};
+                            Object.values(uniqueAmenities).forEach(a => {
+                                const cat = a.category || 'other';
+                                if (!categories[cat]) categories[cat] = [];
+                                categories[cat].push(a);
+                            });
+                            
+                            // Category names
+                            const categoryNames = {
+                                'beds': '🛏️ Beds',
+                                'bedrooms': '🚪 Bedrooms',
+                                'bathrooms': '🚿 Bathrooms',
+                                'kitchen': '🍳 Kitchen',
+                                'entertainment': '📺 Entertainment',
+                                'wellness': '💆 Wellness',
+                                'parking': '🚗 Parking',
+                                'outdoor': '🌳 Outdoor',
+                                'amenities': '✨ Amenities',
+                                'room_feature': '🏠 Room Features',
+                                'other': '📦 Other'
+                            };
+                            
+                            // Build checkbox UI
                             let html = '';
+                            const sortOrder = ['beds', 'bedrooms', 'bathrooms', 'kitchen', 'entertainment', 'wellness', 'parking', 'outdoor', 'amenities', 'room_feature', 'other'];
+                            const sortedCategories = Object.entries(categories).sort((a, b) => 
+                                sortOrder.indexOf(a[0]) - sortOrder.indexOf(b[0])
+                            );
                             
-                            if (beds.length > 0) {
-                                html += '<div style="margin-bottom: 0.5rem;"><strong style="font-size: 0.75rem; color: var(--text-secondary);">🛏️ BEDS:</strong> ';
-                                html += beds.map(a => {
-                                    const name = getAmenityName(a);
-                                    return `<span style="display: inline-block; background: var(--primary); color: white; padding: 0.15rem 0.4rem; border-radius: 4px; margin: 0.1rem; font-size: 0.75rem;">${name}</span>`;
-                                }).join('');
-                                html += '</div>';
-                            }
+                            sortedCategories.forEach(([cat, items]) => {
+                                html += `
+                                    <div style="margin-bottom: 1rem;">
+                                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 0.9rem;">
+                                            ${categoryNames[cat] || cat}
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem;">
+                                            ${items.map(a => `
+                                                <label style="display: flex; align-items: center; cursor: pointer; padding: 0.4rem; border-radius: 4px; background: var(--bg-primary); border: 1px solid var(--border); font-size: 0.85rem;">
+                                                    <input type="checkbox" 
+                                                           class="amenity-checkbox" 
+                                                           value="${a.code}" 
+                                                           ${selectedCodes.has(a.code) ? 'checked' : ''}
+                                                           style="margin-right: 0.5rem;">
+                                                    <span>${a.name}</span>
+                                                </label>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                `;
+                            });
                             
-                            if (baths.length > 0) {
-                                html += '<div style="margin-bottom: 0.5rem;"><strong style="font-size: 0.75rem; color: var(--text-secondary);">🚿 BATHROOMS:</strong> ';
-                                html += baths.map(a => {
-                                    const name = getAmenityName(a);
-                                    return `<span style="display: inline-block; background: var(--accent); color: var(--bg-primary); padding: 0.15rem 0.4rem; border-radius: 4px; margin: 0.1rem; font-size: 0.75rem;">${name}</span>`;
-                                }).join('');
-                                html += '</div>';
-                            }
-                            
-                            if (others.length > 0) {
-                                html += '<div><strong style="font-size: 0.75rem; color: var(--text-secondary);">✨ AMENITIES:</strong> ';
-                                html += others.map(a => {
-                                    const name = getAmenityName(a);
-                                    return `<span style="display: inline-block; background: var(--bg-primary); border: 1px solid var(--border); padding: 0.15rem 0.4rem; border-radius: 4px; margin: 0.1rem; font-size: 0.75rem;">${name}</span>`;
-                                }).join('');
-                                html += '</div>';
-                            }
-                            
-                            amenitiesContainer.innerHTML = html || '<span style="color: var(--text-secondary);">No amenities</span>';
-                        } else {
-                            amenitiesContainer.innerHTML = '<span style="color: var(--text-secondary);">No amenities imported</span>';
+                            amenitiesContainer.innerHTML = html || '<span style="color: var(--text-secondary);">No amenities available</span>';
                         }
                     } catch (e) {
+                        console.error('Error loading amenities:', e);
                         amenitiesContainer.innerHTML = '<span style="color: var(--text-secondary);">Error loading amenities</span>';
                     }
                     
@@ -1507,13 +1678,22 @@
             e.preventDefault();
             const id = document.getElementById('edit-room-id').value;
             
-            // Only save GAS-controlled fields
+            const id = document.getElementById('edit-room-id').value;
+            
+            // Get GAS-controlled fields
             const data = {
                 quantity: document.getElementById('edit-room-quantity').value || 1,
                 status: document.getElementById('edit-room-status').value
             };
             
+            // Get selected amenities
+            const selectedAmenities = [];
+            document.querySelectorAll('.amenity-checkbox:checked').forEach(checkbox => {
+                selectedAmenities.push(checkbox.value);
+            });
+            
             try {
+                // Update room fields
                 const response = await fetch(`/api/admin/units/${id}`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
@@ -1521,12 +1701,25 @@
                 });
                 
                 const result = await response.json();
-                if (result.success) {
+                if (!result.success) {
+                    alert('Error updating room: ' + result.error);
+                    return false;
+                }
+                
+                // Update amenities
+                const amenitiesResponse = await fetch(`/api/admin/units/${id}/amenities`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amenities: selectedAmenities })
+                });
+                
+                const amenitiesResult = await amenitiesResponse.json();
+                if (amenitiesResult.success) {
                     alert('Room updated successfully!');
                     closeModal('editRoomModal');
                     loadRooms();
                 } else {
-                    alert('Error updating room: ' + result.error);
+                    alert('Room updated but error updating amenities: ' + amenitiesResult.error);
                 }
             } catch (error) {
                 console.error('Error saving room:', error);
