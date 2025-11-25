@@ -2169,6 +2169,97 @@ app.get('/api/admin/channels', async (req, res) => {
   }
 });
 
+// Migration: Replace bed/bathroom amenities with clean GAS standards
+app.post('/api/admin/migrate-clean-amenities', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🧹 Cleaning up bed/bathroom amenities...');
+    
+    // Delete all bed amenities
+    await client.query(`DELETE FROM bookable_unit_amenities WHERE category = 'beds' OR amenity_code LIKE 'bed%'`);
+    console.log('   ✓ Deleted old bed amenities');
+    
+    // Delete all bathroom amenities
+    await client.query(`DELETE FROM bookable_unit_amenities WHERE category IN ('bathrooms', 'bathroom') OR amenity_code LIKE 'bath%'`);
+    console.log('   ✓ Deleted old bathroom amenities');
+    
+    // Get first room ID to add standards
+    const firstRoom = await client.query('SELECT id FROM bookable_units LIMIT 1');
+    if (firstRoom.rows.length === 0) {
+      throw new Error('No rooms found - import a property first');
+    }
+    const roomId = firstRoom.rows[0].id;
+    
+    // Add standard bed types
+    const bedTypes = [
+      ['bed_single', 'Single', 1],
+      ['bed_twin', 'Twin', 2],
+      ['bed_double', 'Double', 3],
+      ['bed_queen', 'Queen', 4],
+      ['bed_king', 'King', 5],
+      ['bed_super_king', 'Super King', 6],
+      ['bed_sofa_single', 'Sofa Bed (Single)', 7],
+      ['bed_sofa_double', 'Sofa Bed (Double)', 8],
+      ['bed_bunk', 'Bunk Bed', 9],
+      ['bed_cot', 'Cot / Crib', 10],
+      ['bed_futon', 'Futon', 11]
+    ];
+    
+    for (const [code, name, order] of bedTypes) {
+      await client.query(`
+        INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_code, amenity_name, category, display_order)
+        VALUES ($1, $2, $3, 'beds', $4)
+      `, [roomId, code, JSON.stringify({ en: name }), order]);
+    }
+    console.log('   ✓ Added ' + bedTypes.length + ' standard bed types');
+    
+    // Add standard bathroom types
+    const bathroomTypes = [
+      ['bathroom_full', 'Full Bathroom', 1],
+      ['bathroom_shower_only', 'Shower Only', 2],
+      ['bathroom_bath_only', 'Bath Only', 3],
+      ['bathroom_shower_bath_combo', 'Shower–Bath Combo', 4],
+      ['bathroom_private_ensuite', 'Private Ensuite', 5],
+      ['bathroom_shared', 'Shared Bathroom', 6],
+      ['bathroom_private_external', 'Private External Bathroom', 7],
+      ['bathroom_jack_and_jill', 'Jack & Jill Bathroom', 8],
+      ['bathroom_accessible', 'Accessible Bathroom', 9],
+      ['bathroom_wet_room', 'Wet Room', 10],
+      ['bathroom_outdoor_shower', 'Outdoor Shower', 11],
+      ['bathroom_outdoor_bath', 'Outdoor Bath', 12],
+      ['bathroom_double_vanity', 'Double Vanity', 13]
+    ];
+    
+    for (const [code, name, order] of bathroomTypes) {
+      await client.query(`
+        INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_code, amenity_name, category, display_order)
+        VALUES ($1, $2, $3, 'bathrooms', $4)
+      `, [roomId, code, JSON.stringify({ en: name }), order]);
+    }
+    console.log('   ✓ Added ' + bathroomTypes.length + ' standard bathroom types');
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Bed and bathroom amenities replaced with clean GAS standards',
+      stats: {
+        beds: bedTypes.length,
+        bathrooms: bathroomTypes.length
+      }
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Cleanup duplicate imports
 app.post('/api/admin/cleanup-duplicates', async (req, res) => {
   const client = await pool.connect();
