@@ -1834,6 +1834,29 @@ app.get('/api/admin/stats', async (req, res) => {
   }
 });
 
+// Debug endpoint - check what's actually in database
+app.get('/api/admin/debug', async (req, res) => {
+  try {
+    const properties = await pool.query('SELECT id, name, beds24_property_id, created_at FROM properties ORDER BY created_at DESC');
+    const units = await pool.query('SELECT id, name, property_id, created_at FROM bookable_units ORDER BY created_at DESC');
+    const connections = await pool.query('SELECT id, cm_name, cm_property_id, status, created_at FROM channel_connections ORDER BY created_at DESC');
+    
+    res.json({
+      success: true,
+      properties: properties.rows,
+      units: units.rows,
+      connections: connections.rows,
+      counts: {
+        properties: properties.rows.length,
+        units: units.rows.length,
+        connections: connections.rows.length
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get all bookable units with property details
 app.get('/api/admin/units', async (req, res) => {
   try {
