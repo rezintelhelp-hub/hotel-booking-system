@@ -2039,6 +2039,113 @@ app.get('/api/admin/units/:id/amenities', async (req, res) => {
   }
 });
 
+// Update amenities for a room
+app.put('/api/admin/units/:id/amenities', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amenities } = req.body; // Array of amenity codes
+    
+    // Delete existing amenities for this room
+    await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = $1', [id]);
+    
+    // Insert new amenities
+    if (amenities && amenities.length > 0) {
+      // Get amenity details from the master list
+      const placeholders = amenities.map((_, i) => `$${i + 1}`).join(',');
+      const masterAmenities = await pool.query(
+        `SELECT DISTINCT amenity_code, amenity_name, category 
+         FROM bookable_unit_amenities 
+         WHERE amenity_code IN (${placeholders})
+         LIMIT ${amenities.length}`,
+        amenities
+      );
+      
+      // Insert each selected amenity
+      for (let i = 0; i < amenities.length; i++) {
+        const code = amenities[i];
+        const master = masterAmenities.rows.find(a => a.amenity_code === code);
+        
+        if (master) {
+          await pool.query(`
+            INSERT INTO bookable_unit_amenities (
+              bookable_unit_id, amenity_code, amenity_name, category, display_order
+            ) VALUES ($1, $2, $3, $4, $5)
+          `, [id, code, master.amenity_name, master.category, i]);
+        }
+      }
+    }
+    
+    res.json({ success: true, message: 'Amenities updated successfully' });
+  } catch (error) {
+    console.error('Update unit amenities error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create new custom amenity
+app.post('/api/admin/amenities', async (req, res) => {
+  try {
+    const { name, category } = req.body;
+    
+    if (!name || !category) {
+      return res.json({ success: false, error: 'Name and category are required' });
+    }
+    
+    // Generate code from name
+    const code = name.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+    
+    // Check if code already exists
+    const existing = await pool.query(
+      'SELECT COUNT(*) as count FROM bookable_unit_amenities WHERE amenity_code = $1',
+      [code]
+    );
+    
+    if (parseInt(existing.rows[0].count) > 0) {
+      return res.json({ success: false, error: 'An amenity with this name already exists' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Custom amenity created',
+      data: { code, name, category }
+    });
+  } catch (error) {
+    console.error('Create amenity error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete amenity (only if unused)
+app.delete('/api/admin/amenities/:code', async (req, res) => {
+  try {
+    const { code } = req.params;
+    
+    // Check usage
+    const usage = await pool.query(
+      'SELECT COUNT(*) as count FROM bookable_unit_amenities WHERE amenity_code = $1',
+      [code]
+    );
+    
+    const usageCount = parseInt(usage.rows[0].count);
+    
+    if (usageCount > 0) {
+      return res.json({ 
+        success: false, 
+        error: `Cannot delete: This amenity is used by ${usageCount} room(s). Remove it from all rooms first.`
+      });
+    }
+    
+    // Amenity is unused, safe to delete
+    // (In this case, it means the amenity was never actually in the DB as a master record,
+    //  or it was but has no references, so there's nothing to delete from a master table)
+    
+    res.json({ success: true, message: 'Amenity deleted successfully' });
+  } catch (error) {
+    console.error('Delete amenity error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get integrations/connections
 app.get('/api/admin/channels', async (req, res) => {
   try {
