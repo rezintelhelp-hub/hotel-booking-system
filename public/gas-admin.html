@@ -1169,7 +1169,7 @@
                     <h3>Drag & drop images here</h3>
                     <p style="color: var(--text-secondary); margin: 0.5rem 0;">or click to browse</p>
                     <p style="font-size: 0.85rem; color: var(--text-secondary);">
-                        ⚠️ Landscape images only (width > height) • Max 10MB per image
+                        ⚠️ Minimum ratio 1.2:1 (e.g., 1200×1000) • Max 10MB per image
                     </p>
                     <input type="file" id="imageFileInput" multiple accept="image/*" style="display: none;">
                 </div>
@@ -1922,12 +1922,13 @@
                     img.src = e.target.result;
                     
                     img.onload = () => {
-                        const isLandscape = img.width > img.height;
+                        const ratio = img.width / img.height;
+                        const isLandscape = ratio >= 1.2; // At least 1.2:1 ratio
                         
                         const previewHtml = `
                             <div class="upload-preview-item" id="${previewId}">
                                 <img src="${e.target.result}">
-                                ${!isLandscape ? '<div class="error">Portrait - Will be rejected</div>' : ''}
+                                ${!isLandscape ? '<div class="error">Ratio too narrow - Min 1.2:1</div>' : ''}
                                 <button class="remove" onclick="removePreview('${previewId}', '${file.name}')">×</button>
                             </div>
                         `;
