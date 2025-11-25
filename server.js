@@ -574,6 +574,16 @@ app.get('/api/db/properties/:id', async (req, res) => {
   }
 });
 
+// GET all bookable units/rooms
+app.get('/api/db/bookable-units', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM bookable_units ORDER BY property_id, created_at');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/db/properties', async (req, res) => {
   const { name, description, address, city, country, property_type, star_rating } = req.body;
   try {
