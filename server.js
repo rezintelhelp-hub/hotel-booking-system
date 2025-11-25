@@ -1839,7 +1839,12 @@ app.get('/api/admin/debug', async (req, res) => {
   try {
     const properties = await pool.query('SELECT id, name, beds24_property_id, created_at FROM properties ORDER BY created_at DESC');
     const units = await pool.query('SELECT id, name, property_id, created_at FROM bookable_units ORDER BY created_at DESC');
-    const connections = await pool.query('SELECT id, cm_name, cm_property_id, status, created_at FROM channel_connections ORDER BY created_at DESC');
+    const connections = await pool.query(`
+      SELECT cc.id, cm.cm_name, cm.cm_code, cc.status, cc.created_at 
+      FROM channel_connections cc
+      LEFT JOIN channel_managers cm ON cc.cm_id = cm.id
+      ORDER BY cc.created_at DESC
+    `);
     
     res.json({
       success: true,
