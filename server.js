@@ -2860,6 +2860,8 @@ app.post('/api/admin/rooms/:id/images', upload.array('images', 10), async (req, 
     const { id } = req.params;
     const files = req.files;
     
+    console.log(`📸 Room ${id} image upload started - ${files?.length || 0} files`);
+    
     if (!files || files.length === 0) {
       return res.json({ success: false, error: 'No files uploaded' });
     }
@@ -2870,7 +2872,10 @@ app.post('/api/admin/rooms/:id/images', upload.array('images', 10), async (req, 
     
     for (const file of files) {
       try {
+        console.log(`  Processing ${file.originalname}...`);
+        
         const metadata = await validateLandscape(file.buffer);
+        console.log(`  ✓ Validated: ${metadata.width}x${metadata.height}`);
         
         const urls = await processAndUploadImage(
           file.buffer,
@@ -2878,6 +2883,7 @@ app.post('/api/admin/rooms/:id/images', upload.array('images', 10), async (req, 
           id,
           file.originalname
         );
+        console.log(`  ✓ Uploaded to R2`);
         
         const maxOrder = await client.query(
           'SELECT COALESCE(MAX(display_order), -1) as max FROM room_images WHERE room_id = $1',
@@ -2897,13 +2903,16 @@ app.post('/api/admin/rooms/:id/images', upload.array('images', 10), async (req, 
         ]);
         
         uploadedImages.push(result.rows[0]);
+        console.log(`  ✓ Saved to database`);
         
       } catch (error) {
-        console.error(`Error processing ${file.originalname}:`, error.message);
+        console.error(`  ✗ Error processing ${file.originalname}:`, error.message);
       }
     }
     
     await client.query('COMMIT');
+    
+    console.log(`✅ Upload complete: ${uploadedImages.length}/${files.length} succeeded`);
     
     res.json({
       success: true,
@@ -2913,8 +2922,8 @@ app.post('/api/admin/rooms/:id/images', upload.array('images', 10), async (req, 
     
   } catch (error) {
     await client.query('ROLLBACK');
-    console.error('Upload error:', error);
-    res.json({ success: false, error: error.message });
+    console.error('❌ Room image upload error:', error);
+    res.status(500).json({ success: false, error: error.message });
   } finally {
     client.release();
   }
