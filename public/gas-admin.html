@@ -1902,11 +1902,6 @@
                 container.innerHTML = '<p style="color: var(--error); padding: 1rem;">Error loading rooms. Make sure server is deployed.</p>';
             }
         }
-            } catch (error) {
-                console.error('Error loading rooms:', error);
-                document.getElementById('roomCheckboxes').innerHTML = '<p style="color: var(--error);">Error loading rooms</p>';
-            }
-        }
 
         async function handleFiles(files) {
             const preview = document.getElementById('uploadPreview');
