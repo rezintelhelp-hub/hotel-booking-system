@@ -1359,17 +1359,13 @@
     <div id="addAmenityModal" class="modal">
         <div class="modal-content">
             <div class="modal-header">
-                <h3 class="modal-title">Add Custom Amenity</h3>
+                <h3 class="modal-title">Add New Amenity</h3>
                 <button class="modal-close" onclick="closeModal('addAmenityModal')">×</button>
             </div>
             <form id="addAmenityForm" onsubmit="return saveNewAmenity(event)">
                 <div class="form-group">
-                    <label class="form-label">Amenity Name *</label>
-                    <input type="text" class="form-input" id="new-amenity-name" required placeholder="e.g., Smart TV">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Category *</label>
-                    <select class="form-input" id="new-amenity-category" required>
+                    <label class="form-label">Category/Heading *</label>
+                    <select class="form-input" id="new-amenity-category" required onchange="toggleNewCategory()">
                         <option value="">Select category...</option>
                         <option value="beds">🛏️ Beds</option>
                         <option value="bedrooms">🚪 Bedrooms</option>
@@ -1379,11 +1375,36 @@
                         <option value="wellness">💆 Wellness</option>
                         <option value="parking">🚗 Parking</option>
                         <option value="outdoor">🌳 Outdoor</option>
-                        <option value="amenities">✨ Amenities</option>
+                        <option value="amenities">✨ General Amenities</option>
                         <option value="room_feature">🏠 Room Features</option>
-                        <option value="other">📦 Other</option>
+                        <option value="accessibility">♿ Accessibility</option>
+                        <option value="safety">🔒 Safety & Security</option>
+                        <option value="services">🛎️ Services</option>
+                        <option value="_new_">➕ Create New Category...</option>
                     </select>
                 </div>
+                
+                <div class="form-group" id="new-category-group" style="display: none;">
+                    <label class="form-label">New Category Name *</label>
+                    <input type="text" class="form-input" id="new-category-name" placeholder="e.g., Pet Friendly">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        This will create a new heading for your amenities
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Amenity Name *</label>
+                    <input type="text" class="form-input" id="new-amenity-name" required placeholder="e.g., Smart TV, Heated Floors, Dog Bed">
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Icon (optional)</label>
+                    <input type="text" class="form-input" id="new-amenity-icon" placeholder="e.g., 📺, 🐕, ♨️" maxlength="4">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Add an emoji to display next to the amenity
+                    </div>
+                </div>
+                
                 <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('addAmenityModal')">Cancel</button>
                     <button type="submit" class="btn">Add Amenity</button>
@@ -1813,45 +1834,69 @@
                 return;
             }
 
-            // Group images by entity for ordering
-            const groupedByEntity = {};
+            // Group images by entity (room or property)
+            const groupedImages = {};
             filteredImages.forEach(img => {
                 const key = `${img.type}-${img.entityId}`;
-                if (!groupedByEntity[key]) groupedByEntity[key] = [];
-                groupedByEntity[key].push(img);
+                if (!groupedImages[key]) {
+                    groupedImages[key] = {
+                        type: img.type,
+                        entityId: img.entityId,
+                        entityName: img.entityName,
+                        images: []
+                    };
+                }
+                groupedImages[key].images.push(img);
             });
 
-            gallery.innerHTML = `
-                <div class="image-gallery">
-                    ${filteredImages.map((img, idx) => {
-                        const entityKey = `${img.type}-${img.entityId}`;
-                        const entityImages = groupedByEntity[entityKey];
-                        const posInEntity = entityImages.findIndex(i => i.id === img.id);
-                        const isFirst = posInEntity === 0;
-                        const isLast = posInEntity === entityImages.length - 1;
-                        
-                        return `
-                        <div class="image-card" data-id="${img.id}" data-type="${img.type}" data-entity="${img.entityId}">
-                            <img src="${img.thumbnail_url || img.image_url}" alt="${img.alt_text || ''}" loading="lazy">
-                            <div class="image-card-info">
-                                <div class="image-tags">
-                                    <span class="image-tag ${img.type}">${img.type === 'room' ? '🛏️' : '🏨'} ${img.entityName}</span>
-                                    ${img.is_primary ? '<span class="image-tag" style="background: gold; color: #000;">⭐ Primary</span>' : ''}
+            // Sort images within each group by display_order
+            Object.values(groupedImages).forEach(group => {
+                group.images.sort((a, b) => a.display_order - b.display_order);
+            });
+
+            let html = '';
+            
+            Object.values(groupedImages).forEach(group => {
+                const icon = group.type === 'room' ? '🛏️' : (group.type === 'property' ? '🏨' : '📍');
+                
+                html += `
+                    <div class="room-image-section" style="margin-bottom: 2rem;">
+                        <h3 style="margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid var(--border);">
+                            ${icon} ${group.entityName}
+                            <span style="font-size: 0.85rem; color: var(--text-secondary); font-weight: normal; margin-left: 0.5rem;">
+                                (${group.images.length} image${group.images.length !== 1 ? 's' : ''})
+                            </span>
+                        </h3>
+                        <div class="image-gallery">
+                            ${group.images.map((img, idx) => {
+                                const isFirst = idx === 0;
+                                const isLast = idx === group.images.length - 1;
+                                
+                                return `
+                                <div class="image-card" data-id="${img.id}" data-type="${img.type}" data-entity="${img.entityId}">
+                                    <img src="${img.thumbnail_url || img.image_url}" alt="${img.alt_text || ''}" loading="lazy">
+                                    <div class="image-card-info">
+                                        <div class="image-tags">
+                                            ${img.is_primary ? '<span class="image-tag" style="background: gold; color: #000;">⭐ Primary</span>' : ''}
+                                        </div>
+                                        <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                                            ${img.width} × ${img.height} px • Order: ${idx + 1}
+                                        </div>
+                                        <div class="image-actions">
+                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''}>←</button>
+                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''}>→</button>
+                                            ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})">⭐</button>` : ''}
+                                            <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;">🗑️</button>
+                                        </div>
+                                    </div>
                                 </div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                                    ${img.width} × ${img.height} px • Order: ${img.display_order + 1}
-                                </div>
-                                <div class="image-actions">
-                                    <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''}>←</button>
-                                    <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''}>→</button>
-                                    ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})">⭐</button>` : ''}
-                                    <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;">🗑️</button>
-                                </div>
-                            </div>
+                            `}).join('')}
                         </div>
-                    `}).join('')}
-                </div>
-            `;
+                    </div>
+                `;
+            });
+
+            gallery.innerHTML = html;
         }
 
         function openImageUploadModal() {
@@ -2165,22 +2210,48 @@
         }
 
         function openAddAmenityModal() {
-            document.getElementById('new-amenity-name').value = '';
-            document.getElementById('new-amenity-category').value = '';
+            document.getElementById('addAmenityForm').reset();
+            document.getElementById('new-category-group').style.display = 'none';
             openModal('addAmenityModal');
+        }
+        
+        function toggleNewCategory() {
+            const select = document.getElementById('new-amenity-category');
+            const newCategoryGroup = document.getElementById('new-category-group');
+            const newCategoryInput = document.getElementById('new-category-name');
+            
+            if (select.value === '_new_') {
+                newCategoryGroup.style.display = 'block';
+                newCategoryInput.required = true;
+            } else {
+                newCategoryGroup.style.display = 'none';
+                newCategoryInput.required = false;
+            }
         }
 
         async function saveNewAmenity(e) {
             e.preventDefault();
             
-            const name = document.getElementById('new-amenity-name').value;
-            const category = document.getElementById('new-amenity-category').value;
+            const name = document.getElementById('new-amenity-name').value.trim();
+            let category = document.getElementById('new-amenity-category').value;
+            const icon = document.getElementById('new-amenity-icon').value.trim();
+            
+            // Handle new category
+            if (category === '_new_') {
+                const newCategoryName = document.getElementById('new-category-name').value.trim();
+                if (!newCategoryName) {
+                    alert('Please enter a new category name');
+                    return false;
+                }
+                // Convert to code format
+                category = newCategoryName.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+            }
             
             try {
                 const response = await fetch('/api/admin/amenities', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ name, category })
+                    body: JSON.stringify({ name, category, icon })
                 });
                 
                 const result = await response.json();
@@ -2511,11 +2582,7 @@
         }
 
         function openUploadModal() {
-            alert('Image upload feature coming soon!');
-        }
-
-        function openAddAmenityModal() {
-            alert('Add Amenity feature coming soon!');
+            openImageUploadModal();
         }
 
         function openAddRatePlanModal() {
