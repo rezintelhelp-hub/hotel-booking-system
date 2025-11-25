@@ -1813,10 +1813,25 @@
                 return;
             }
 
+            // Group images by entity for ordering
+            const groupedByEntity = {};
+            filteredImages.forEach(img => {
+                const key = `${img.type}-${img.entityId}`;
+                if (!groupedByEntity[key]) groupedByEntity[key] = [];
+                groupedByEntity[key].push(img);
+            });
+
             gallery.innerHTML = `
                 <div class="image-gallery">
-                    ${filteredImages.map(img => `
-                        <div class="image-card">
+                    ${filteredImages.map((img, idx) => {
+                        const entityKey = `${img.type}-${img.entityId}`;
+                        const entityImages = groupedByEntity[entityKey];
+                        const posInEntity = entityImages.findIndex(i => i.id === img.id);
+                        const isFirst = posInEntity === 0;
+                        const isLast = posInEntity === entityImages.length - 1;
+                        
+                        return `
+                        <div class="image-card" data-id="${img.id}" data-type="${img.type}" data-entity="${img.entityId}">
                             <img src="${img.thumbnail_url || img.image_url}" alt="${img.alt_text || ''}" loading="lazy">
                             <div class="image-card-info">
                                 <div class="image-tags">
@@ -1824,15 +1839,17 @@
                                     ${img.is_primary ? '<span class="image-tag" style="background: gold; color: #000;">⭐ Primary</span>' : ''}
                                 </div>
                                 <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                                    ${img.width} × ${img.height} px
+                                    ${img.width} × ${img.height} px • Order: ${img.display_order + 1}
                                 </div>
                                 <div class="image-actions">
-                                    ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})">Set Primary</button>` : ''}
-                                    <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})">Delete</button>
+                                    <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''}>↑</button>
+                                    <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''}>↓</button>
+                                    ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})">⭐</button>` : ''}
+                                    <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;">🗑️</button>
                                 </div>
                             </div>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `;
         }
@@ -2063,13 +2080,52 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    loadImages();
+                    await loadImages(); // await to ensure refresh
                 } else {
                     alert('Error: ' + result.error);
                 }
             } catch (error) {
                 console.error('Error deleting image:', error);
                 alert('Error deleting image');
+            }
+        }
+
+        async function moveImage(type, entityId, imageId, direction) {
+            // Get images for this entity
+            const entityImages = allImages.filter(img => 
+                img.type === type && img.entityId === entityId
+            ).sort((a, b) => a.display_order - b.display_order);
+            
+            const currentIndex = entityImages.findIndex(img => img.id === imageId);
+            const newIndex = currentIndex + direction;
+            
+            if (newIndex < 0 || newIndex >= entityImages.length) return;
+            
+            // Swap positions
+            const newOrder = entityImages.map(img => img.id);
+            [newOrder[currentIndex], newOrder[newIndex]] = [newOrder[newIndex], newOrder[currentIndex]];
+            
+            try {
+                const endpoint = type === 'property'
+                    ? `/api/admin/properties/${entityId}/images/reorder`
+                    : `/api/admin/rooms/${entityId}/images/reorder`;
+                
+                const response = await fetch(endpoint, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ imageIds: newOrder })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadImages();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error reordering:', error);
+                alert('Error reordering images');
             }
         }
 
