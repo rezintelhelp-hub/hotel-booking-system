@@ -1178,7 +1178,7 @@
                 <div id="uploadPreview" class="upload-preview" style="display: none;"></div>
 
                 <!-- Assignment Section -->
-                <div class="assignment-section" id="assignmentSection" style="display: none;">
+                <div class="assignment-section" id="assignmentSection">
                     <h4>📍 Assign images to:</h4>
                     
                     <!-- Property Assignment -->
@@ -1805,8 +1805,10 @@
             selectedFiles = [];
             document.getElementById('uploadPreview').innerHTML = '';
             document.getElementById('uploadPreview').style.display = 'none';
-            document.getElementById('assignmentSection').style.display = 'none';
+            document.getElementById('assignmentSection').style.display = 'block'; // Show by default
             document.getElementById('uploadButton').disabled = true;
+            document.getElementById('uploadProgress').style.display = 'none';
+            document.getElementById('progressBar').style.width = '0%';
             
             // Load rooms for checkboxes
             loadRoomCheckboxes();
@@ -1865,7 +1867,7 @@
             const preview = document.getElementById('uploadPreview');
             preview.innerHTML = '';
             preview.style.display = 'grid';
-            document.getElementById('assignmentSection').style.display = 'block';
+            // Assignment section already visible from modal open
             
             selectedFiles = [];
             
