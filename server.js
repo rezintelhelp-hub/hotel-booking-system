@@ -2074,46 +2074,38 @@ app.delete('/api/admin/amenities/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Check if it's a system amenity
-    const amenity = await pool.query(
-      'SELECT is_system FROM master_amenities WHERE id = $1',
-      [id]
-    );
-    
-    if (amenity.rows.length === 0) {
-      return res.json({ success: false, error: 'Amenity not found' });
-    }
-    
-    if (amenity.rows[0].is_system) {
-      return res.json({ success: false, error: 'Cannot delete system amenities' });
-    }
-    
-    // Check usage in rooms
-    const usage = await pool.query(
-      'SELECT COUNT(*) as count FROM room_amenity_selections WHERE amenity_id = $1',
-      [id]
-    );
-    
-    const usageCount = parseInt(usage.rows[0].count);
-    
-    if (usageCount > 0) {
-      return res.json({ 
-        success: false, 
-        error: `Cannot delete: This amenity is used by ${usageCount} room(s). Remove it from all rooms first.`
-      });
-    }
-    
-    // Safe to delete
+    // Delete the amenity
     await pool.query('DELETE FROM master_amenities WHERE id = $1', [id]);
     
-    res.json({ success: true, message: 'Amenity deleted successfully' });
+    res.json({ success: true, message: 'Amenity deleted' });
   } catch (error) {
     console.error('Delete amenity error:', error.message);
     res.json({ success: false, error: error.message });
   }
 });
 
-// Get integrations/connections
+// Delete ALL amenities
+app.delete('/api/admin/amenities/delete-all', async (req, res) => {
+  try {
+    // First clear any selections
+    await pool.query('DELETE FROM room_amenity_selections');
+    await pool.query('DELETE FROM property_amenity_selections');
+    
+    // Then delete all amenities
+    const result = await pool.query('DELETE FROM master_amenities');
+    
+    res.json({ 
+      success: true, 
+      message: 'All amenities deleted',
+      deleted: result.rowCount
+    });
+  } catch (error) {
+    console.error('Delete all amenities error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get channels/integrations
 app.get('/api/admin/channels', async (req, res) => {
   try {
     const connections = await pool.query(`
