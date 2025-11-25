@@ -2105,7 +2105,179 @@ app.delete('/api/admin/amenities/delete-all', async (req, res) => {
   }
 });
 
-// Get channels/integrations
+// ========================================
+// CONTENT MANAGEMENT ENDPOINTS
+// ========================================
+
+// Get property content
+app.get('/api/admin/content/property/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT description, location_description FROM properties WHERE id = $1',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ success: true, content: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save property content
+app.put('/api/admin/content/property/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { description, location_description } = req.body;
+    
+    await pool.query(
+      'UPDATE properties SET description = $1, location_description = $2, updated_at = NOW() WHERE id = $3',
+      [description, location_description, id]
+    );
+    
+    res.json({ success: true, message: 'Property content saved' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get room content
+app.get('/api/admin/content/room/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT short_description, full_description FROM bookable_units WHERE id = $1',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    res.json({ success: true, content: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save room content
+app.put('/api/admin/content/room/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { short_description, full_description } = req.body;
+    
+    await pool.query(
+      'UPDATE bookable_units SET short_description = $1, full_description = $2, updated_at = NOW() WHERE id = $3',
+      [short_description, full_description, id]
+    );
+    
+    res.json({ success: true, message: 'Room content saved' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get policies content
+app.get('/api/admin/content/policies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(
+      'SELECT house_rules, cancellation_policy, terms_conditions FROM properties WHERE id = $1',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ success: true, content: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save policies content
+app.put('/api/admin/content/policies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { house_rules, cancellation_policy, terms_conditions } = req.body;
+    
+    await pool.query(
+      'UPDATE properties SET house_rules = $1, cancellation_policy = $2, terms_conditions = $3, updated_at = NOW() WHERE id = $4',
+      [house_rules, cancellation_policy, terms_conditions, id]
+    );
+    
+    res.json({ success: true, message: 'Policies saved' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Migration: Add content columns to properties and rooms
+app.post('/api/admin/migrate-content-columns', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    // Add columns to properties table
+    const propertyColumns = [
+      'description TEXT',
+      'location_description TEXT',
+      'house_rules TEXT',
+      'cancellation_policy TEXT',
+      'terms_conditions TEXT'
+    ];
+    
+    for (const col of propertyColumns) {
+      const colName = col.split(' ')[0];
+      try {
+        await client.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS ${col}`);
+        console.log(`   ✓ Added ${colName} to properties`);
+      } catch (e) {
+        // Column might already exist
+      }
+    }
+    
+    // Add columns to bookable_units table
+    const roomColumns = [
+      'short_description TEXT',
+      'full_description TEXT'
+    ];
+    
+    for (const col of roomColumns) {
+      const colName = col.split(' ')[0];
+      try {
+        await client.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS ${col}`);
+        console.log(`   ✓ Added ${colName} to bookable_units`);
+      } catch (e) {
+        // Column might already exist
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Content columns added successfully',
+      columns: {
+        properties: propertyColumns,
+        rooms: roomColumns
+      }
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Get integrations/connections
 app.get('/api/admin/channels', async (req, res) => {
   try {
     const connections = await pool.query(`
