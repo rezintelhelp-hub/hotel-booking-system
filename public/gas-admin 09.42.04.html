@@ -1,0 +1,1816 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAS Admin Dashboard</title>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --bg-primary: #0a0e27;
+            --bg-secondary: #12182f;
+            --bg-card: #1a2139;
+            --accent: #00d9ff;
+            --accent-hover: #00b8d4;
+            --text-primary: #e8eaf6;
+            --text-secondary: #9ca3af;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --border: rgba(255, 255, 255, 0.1);
+        }
+
+        body {
+            font-family: 'DM Sans', sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+        }
+
+        .dashboard {
+            display: grid;
+            grid-template-columns: 260px 1fr;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border);
+            padding: 2rem 0;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+        }
+
+        .logo {
+            padding: 0 1.5rem 2rem;
+            border-bottom: 1px solid var(--border);
+            margin-bottom: 2rem;
+        }
+
+        .logo h1 {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent);
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .logo p {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 0.25rem;
+        }
+
+        .nav {
+            padding: 0 1rem;
+        }
+
+        .nav-section {
+            margin-bottom: 2rem;
+        }
+
+        .nav-label {
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            color: var(--text-secondary);
+            padding: 0 0.5rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.75rem 1rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .nav-item:hover {
+            background: rgba(0, 217, 255, 0.1);
+            color: var(--accent);
+        }
+
+        .nav-item.active {
+            background: rgba(0, 217, 255, 0.15);
+            color: var(--accent);
+            font-weight: 500;
+        }
+
+        .nav-icon {
+            font-size: 1.2rem;
+        }
+
+        /* Main Content */
+        .main {
+            padding: 2rem;
+            overflow-y: auto;
+            height: 100vh;
+        }
+
+        .header {
+            margin-bottom: 2rem;
+        }
+
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.5rem;
+        }
+
+        .header h2 {
+            font-size: 2rem;
+            font-weight: 700;
+        }
+
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+        }
+
+        /* Stats Grid */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: radial-gradient(circle, var(--accent) 0%, transparent 70%);
+            opacity: 0.05;
+        }
+
+        .stat-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1rem;
+        }
+
+        .stat-icon {
+            font-size: 1.5rem;
+            color: var(--accent);
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            font-family: 'JetBrains Mono', monospace;
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+
+        /* Card */
+        .card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        /* Table */
+        .table-container {
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            border-bottom: 1px solid var(--border);
+        }
+
+        th {
+            text-align: left;
+            padding: 0.75rem;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            font-weight: 600;
+        }
+
+        td {
+            padding: 1rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+            font-size: 0.9rem;
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 500;
+            font-family: 'JetBrains Mono', monospace;
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .badge-secondary {
+            background: rgba(156, 163, 175, 0.2);
+            color: var(--text-secondary);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--warning);
+        }
+
+        .badge-info {
+            background: rgba(0, 217, 255, 0.1);
+            color: var(--accent);
+        }
+
+        /* Button */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.625rem 1.25rem;
+            background: var(--accent);
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-color: var(--accent);
+        }
+
+        .btn-small {
+            padding: 0.4rem 0.8rem;
+            font-size: 0.8rem;
+        }
+
+        /* Form */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            color: var(--text-primary);
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+
+        textarea.form-input {
+            min-height: 100px;
+            resize: vertical;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .modal.active {
+            display: flex;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 1rem;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            padding: 2rem;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.5rem;
+            cursor: pointer;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 1rem;
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            opacity: 0.3;
+            margin-bottom: 1rem;
+        }
+
+        .empty-state h3 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .empty-state p {
+            color: var(--text-secondary);
+            margin-bottom: 1.5rem;
+        }
+
+        /* View Sections */
+        .view {
+            display: none;
+        }
+
+        .view.active {
+            display: block;
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 3px solid rgba(0, 217, 255, 0.1);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Image Gallery */
+        .image-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+        }
+
+        .image-item {
+            position: relative;
+            aspect-ratio: 16/9;
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background: var(--bg-secondary);
+        }
+
+        .image-item img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        .image-actions {
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        /* Amenity Item */
+        .amenity-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 0.5rem;
+            margin-bottom: 0.75rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .dashboard {
+                grid-template-columns: 1fr;
+            }
+
+            .sidebar {
+                position: relative;
+                height: auto;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo">
+                <h1>GAS_ADMIN</h1>
+                <p>Property Management System</p>
+            </div>
+
+            <nav class="nav">
+                <div class="nav-section">
+                    <div class="nav-label">Overview</div>
+                    <a class="nav-item active" data-view="dashboard">
+                        <span class="nav-icon">📊</span>
+                        <span>Dashboard</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-label">Property Management</div>
+                    <a class="nav-item" data-view="properties">
+                        <span class="nav-icon">🏨</span>
+                        <span>Properties</span>
+                    </a>
+                    <a class="nav-item" data-view="rooms">
+                        <span class="nav-icon">🛏️</span>
+                        <span>Rooms & Units</span>
+                    </a>
+                    <a class="nav-item" data-view="images">
+                        <span class="nav-icon">🖼️</span>
+                        <span>Images</span>
+                    </a>
+                    <a class="nav-item" data-view="amenities">
+                        <span class="nav-icon">⭐</span>
+                        <span>Amenities</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-label">Bookings & Revenue</div>
+                    <a class="nav-item" data-view="bookings">
+                        <span class="nav-icon">📅</span>
+                        <span>Bookings</span>
+                    </a>
+                    <a class="nav-item" data-view="rateplans">
+                        <span class="nav-icon">💰</span>
+                        <span>Rate Plans</span>
+                    </a>
+                    <a class="nav-item" data-view="upsells">
+                        <span class="nav-icon">🎁</span>
+                        <span>Upsells & Fees</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-label">System</div>
+                    <a class="nav-item" data-view="integrations">
+                        <span class="nav-icon">🔗</span>
+                        <span>Integrations</span>
+                    </a>
+                    <a class="nav-item" data-view="settings">
+                        <span class="nav-icon">⚙️</span>
+                        <span>Settings</span>
+                    </a>
+                </div>
+            </nav>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main">
+            <!-- Dashboard View -->
+            <div id="dashboard" class="view active">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Dashboard Overview</h2>
+                            <p>Welcome back! Here's what's happening with your properties.</p>
+                        </div>
+                        <a href="/beds24-wizard.html" class="btn">
+                            <span>+</span>
+                            <span>Import from Beds24</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="stats-grid">
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-icon">🏨</span>
+                        </div>
+                        <div class="stat-value" id="stat-properties">-</div>
+                        <div class="stat-label">Properties</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-icon">🛏️</span>
+                        </div>
+                        <div class="stat-value" id="stat-rooms">-</div>
+                        <div class="stat-label">Rooms & Units</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-icon">📅</span>
+                        </div>
+                        <div class="stat-value" id="stat-bookings">-</div>
+                        <div class="stat-label">Total Bookings</div>
+                    </div>
+
+                    <div class="stat-card">
+                        <div class="stat-header">
+                            <span class="stat-icon">🔗</span>
+                        </div>
+                        <div class="stat-value" id="stat-integrations">-</div>
+                        <div class="stat-label">Active Integrations</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Actions</h3>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <button class="btn" onclick="showView('properties')">
+                            <span>🏨</span>
+                            <span>Manage Properties</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="showView('rooms')">
+                            <span>🛏️</span>
+                            <span>Manage Rooms</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="showView('images')">
+                            <span>🖼️</span>
+                            <span>Upload Images</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="showView('rateplans')">
+                            <span>💰</span>
+                            <span>Create Rate Plan</span>
+                        </button>
+                        <button class="btn btn-secondary" onclick="cleanupDuplicates()" style="background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.3); color: #ef4444;">
+                            <span>🧹</span>
+                            <span>Remove Duplicates</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Properties View -->
+            <div id="properties" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Properties</h2>
+                            <p>Manage your property listings</p>
+                        </div>
+                        <a href="/beds24-wizard.html" class="btn">
+                            <span>+</span>
+                            <span>Import Property</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="properties-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading properties...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rooms View -->
+            <div id="rooms" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Rooms & Units</h2>
+                            <p>Manage bookable rooms and units</p>
+                        </div>
+                        <button class="btn" onclick="openAddRoomModal()">
+                            <span>+</span>
+                            <span>Add Room</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="rooms-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading rooms...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Bookings View -->
+            <div id="bookings" class="view">
+                <div class="header">
+                    <h2>Bookings</h2>
+                    <p>View all reservations</p>
+                </div>
+
+                <div class="card">
+                    <div id="bookings-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">📅</div>
+                            <h3>No Bookings Yet</h3>
+                            <p>Bookings will appear here when guests make reservations</p>
+                            <a href="/admin-improved.html" class="btn">View Booking Site</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Images View -->
+            <div id="images" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Images</h2>
+                            <p>Manage property and room images</p>
+                        </div>
+                        <button class="btn" onclick="openUploadModal()">
+                            <span>+</span>
+                            <span>Upload Images</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="images-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">🖼️</div>
+                            <h3>No Images Yet</h3>
+                            <p>Upload images to showcase your properties</p>
+                            <button class="btn" onclick="openUploadModal()">Upload Images</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Amenities View -->
+            <div id="amenities" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Amenities</h2>
+                            <p>Manage property and room amenities</p>
+                        </div>
+                        <button class="btn" onclick="openAddAmenityModal()">
+                            <span>+</span>
+                            <span>Add Amenity</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="amenities-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading amenities...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Rate Plans View -->
+            <div id="rateplans" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Rate Plans</h2>
+                            <p>Create and manage pricing strategies</p>
+                        </div>
+                        <button class="btn" onclick="openAddRatePlanModal()">
+                            <span>+</span>
+                            <span>Create Rate Plan</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="rateplans-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">💰</div>
+                            <h3>No Rate Plans</h3>
+                            <p>Create rate plans to offer special pricing</p>
+                            <button class="btn" onclick="openAddRatePlanModal()">Create Rate Plan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Upsells View -->
+            <div id="upsells" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Upsells & Fees</h2>
+                            <p>Additional services and charges</p>
+                        </div>
+                        <button class="btn" onclick="openAddUpsellModal()">
+                            <span>+</span>
+                            <span>Add Upsell</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="upsells-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">🎁</div>
+                            <h3>No Upsells Configured</h3>
+                            <p>Add extra services to increase revenue</p>
+                            <button class="btn" onclick="openAddUpsellModal()">Add Upsell</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Integrations View -->
+            <div id="integrations" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Integrations</h2>
+                            <p>Connected apps and services</p>
+                        </div>
+                        <a href="/beds24-wizard.html" class="btn">
+                            <span>+</span>
+                            <span>Add Integration</span>
+                        </a>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Channel Managers</h3>
+                    </div>
+                    <div id="channel-connections">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Review Apps</h3>
+                        <button class="btn btn-secondary btn-small">Configure</button>
+                    </div>
+                    <p style="color: var(--text-secondary);">Connect to review platforms like TripAdvisor, Google Reviews, etc.</p>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Other Integrations</h3>
+                        <button class="btn btn-secondary btn-small">Explore</button>
+                    </div>
+                    <p style="color: var(--text-secondary);">Payment gateways, analytics, marketing tools, and more...</p>
+                </div>
+            </div>
+
+            <!-- Settings View -->
+            <div id="settings" class="view">
+                <div class="header">
+                    <h2>Settings</h2>
+                    <p>Configure your system</p>
+                </div>
+
+                <div class="card">
+                    <h3 class="card-title">System Settings</h3>
+                    <p style="color: var(--text-secondary); margin-top: 0.5rem;">Configure general system preferences, defaults, and behaviors.</p>
+                </div>
+
+                <div class="card">
+                    <h3 class="card-title">User Management</h3>
+                    <p style="color: var(--text-secondary); margin-top: 0.5rem;">Manage admin users and access permissions.</p>
+                </div>
+
+                <div class="card">
+                    <h3 class="card-title">API Configuration</h3>
+                    <p style="color: var(--text-secondary); margin-top: 0.5rem;">API keys, webhooks, and developer settings.</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <!-- Edit Property Modal -->
+    <div id="editPropertyModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Property</h3>
+                <button class="modal-close" onclick="closeModal('editPropertyModal')">×</button>
+            </div>
+            <form id="editPropertyForm" onsubmit="return saveProperty(event)">
+                <input type="hidden" id="edit-property-id">
+                <div class="form-group">
+                    <label class="form-label">Property Name *</label>
+                    <input type="text" class="form-input" id="edit-property-name" required>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Property Type</label>
+                    <select class="form-input" id="edit-property-type">
+                        <option value="hotel">Hotel</option>
+                        <option value="apartment">Apartment</option>
+                        <option value="house">House</option>
+                        <option value="bedAndBreakfast">Bed & Breakfast</option>
+                        <option value="hostel">Hostel</option>
+                    </select>
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Address</label>
+                    <input type="text" class="form-input" id="edit-property-address">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">City</label>
+                    <input type="text" class="form-input" id="edit-property-city">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Country</label>
+                    <input type="text" class="form-input" id="edit-property-country">
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: space-between;">
+                    <button type="button" class="btn" style="background: var(--error); border-color: var(--error);" onclick="deleteProperty()">
+                        Delete Property
+                    </button>
+                    <div style="display: flex; gap: 1rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('editPropertyModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Changes</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Room Modal -->
+    <div id="editRoomModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Edit Room</h3>
+                <button class="modal-close" onclick="closeModal('editRoomModal')">×</button>
+            </div>
+            <form id="editRoomForm" onsubmit="return saveRoom(event)">
+                <input type="hidden" id="edit-room-id">
+                
+                <!-- CM Data (reference) -->
+                <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">📡 From Channel Manager</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Room Name</label>
+                            <input type="text" class="form-input" id="edit-room-name" readonly style="background: var(--bg-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Room Type</label>
+                            <input type="text" class="form-input" id="edit-room-type" readonly style="background: var(--bg-primary);">
+                        </div>
+                    </div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Max Guests</label>
+                            <input type="text" class="form-input" id="edit-room-maxguests" readonly style="background: var(--bg-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Max Adults</label>
+                            <input type="text" class="form-input" id="edit-room-maxadults" readonly style="background: var(--bg-primary);">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Max Children</label>
+                            <input type="text" class="form-input" id="edit-room-maxchildren" readonly style="background: var(--bg-primary);">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- GAS Controls -->
+                <div style="font-size: 0.75rem; color: var(--accent); margin-bottom: 0.5rem;">🎛️ GAS Controls</div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Quantity of Room Type</label>
+                        <input type="number" class="form-input" id="edit-room-quantity" min="1">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Status</label>
+                        <select class="form-input" id="edit-room-status">
+                            <option value="available">✅ Available</option>
+                            <option value="unavailable">❌ Unavailable</option>
+                            <option value="maintenance">🔧 Maintenance</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Amenities from CM -->
+                <div class="form-group">
+                    <label class="form-label">Select Amenities for this Room</label>
+                    <div id="edit-room-amenities" style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; max-height: 400px; overflow-y: auto;">
+                        Loading amenities...
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem;">
+                    <button type="button" class="btn" style="background: var(--error); border-color: var(--error);" onclick="deleteRoom()">
+                        Delete Room
+                    </button>
+                    <div style="display: flex; gap: 1rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('editRoomModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Changes</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Amenity Modal -->
+    <div id="addAmenityModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 class="modal-title">Add Custom Amenity</h3>
+                <button class="modal-close" onclick="closeModal('addAmenityModal')">×</button>
+            </div>
+            <form id="addAmenityForm" onsubmit="return saveNewAmenity(event)">
+                <div class="form-group">
+                    <label class="form-label">Amenity Name *</label>
+                    <input type="text" class="form-input" id="new-amenity-name" required placeholder="e.g., Smart TV">
+                </div>
+                <div class="form-group">
+                    <label class="form-label">Category *</label>
+                    <select class="form-input" id="new-amenity-category" required>
+                        <option value="">Select category...</option>
+                        <option value="beds">🛏️ Beds</option>
+                        <option value="bedrooms">🚪 Bedrooms</option>
+                        <option value="bathrooms">🚿 Bathrooms</option>
+                        <option value="kitchen">🍳 Kitchen</option>
+                        <option value="entertainment">📺 Entertainment</option>
+                        <option value="wellness">💆 Wellness</option>
+                        <option value="parking">🚗 Parking</option>
+                        <option value="outdoor">🌳 Outdoor</option>
+                        <option value="amenities">✨ Amenities</option>
+                        <option value="room_feature">🏠 Room Features</option>
+                        <option value="other">📦 Other</option>
+                    </select>
+                </div>
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('addAmenityModal')">Cancel</button>
+                    <button type="submit" class="btn">Add Amenity</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // Navigation
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.preventDefault();
+                const viewName = item.dataset.view;
+                showView(viewName);
+                
+                // Update active state
+                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                item.classList.add('active');
+            });
+        });
+
+        function showView(viewName) {
+            document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+            document.getElementById(viewName).classList.add('active');
+            
+            // Load data for specific views
+            if (viewName === 'dashboard') loadDashboard();
+            if (viewName === 'properties') loadProperties();
+            if (viewName === 'rooms') loadRooms();
+            if (viewName === 'amenities') loadAmenities();
+            if (viewName === 'integrations') loadIntegrations();
+        }
+
+        // Data Loading
+        async function loadDashboard() {
+            try {
+                const response = await fetch('/api/admin/stats');
+                const stats = await response.json();
+                
+                if (stats.success) {
+                    document.getElementById('stat-properties').textContent = stats.properties || 0;
+                    document.getElementById('stat-rooms').textContent = stats.units || 0;
+                    document.getElementById('stat-bookings').textContent = stats.bookings || 0;
+                    document.getElementById('stat-integrations').textContent = stats.connections || 0;
+                }
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        async function loadProperties() {
+            const container = document.getElementById('properties-list');
+            try {
+                const response = await fetch('/api/db/properties');
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    const html = `
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Property Name</th>
+                                        <th>Type</th>
+                                        <th>Location</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.data.map(prop => `
+                                        <tr>
+                                            <td><strong>${prop.name || 'Unnamed Property'}</strong></td>
+                                            <td>${prop.property_type || 'N/A'}</td>
+                                            <td>${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
+                                            <td><span class="badge badge-success">${prop.status || 'active'}</span></td>
+                                            <td><button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">🏨</div>
+                            <h3>No Properties Yet</h3>
+                            <p>Import your first property from Beds24</p>
+                            <a href="/beds24-wizard.html" class="btn">Import Property</a>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+                container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading properties</p>';
+            }
+        }
+
+        async function loadRooms() {
+            const container = document.getElementById('rooms-list');
+            try {
+                const response = await fetch('/api/admin/units');
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    const html = `
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Room Name</th>
+                                        <th>Property</th>
+                                        <th>Type</th>
+                                        <th>Capacity</th>
+                                        <th>Qty</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.data.map(unit => `
+                                        <tr>
+                                            <td><strong>${unit.name}</strong></td>
+                                            <td style="font-size: 0.85rem; color: var(--text-secondary);">${unit.property_name || 'N/A'}</td>
+                                            <td>${unit.unit_type || 'N/A'}</td>
+                                            <td>${unit.max_guests || '-'} guests</td>
+                                            <td>${unit.quantity || 1}</td>
+                                            <td>
+                                                <span class="badge ${unit.status === 'available' ? 'badge-success' : unit.status === 'maintenance' ? 'badge-warning' : 'badge-secondary'}">
+                                                    ${unit.status === 'available' ? '✅' : unit.status === 'maintenance' ? '🔧' : '❌'} ${unit.status || 'available'}
+                                                </span>
+                                            </td>
+                                            <td><button class="btn btn-secondary btn-small" onclick="editRoom(${unit.id})">Edit</button></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">🛏️</div>
+                            <h3>No Rooms Found</h3>
+                            <p>Rooms are imported with properties from Beds24</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+                container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading rooms</p>';
+            }
+        }
+
+        async function loadAmenities() {
+            const container = document.getElementById('amenities-list');
+            try {
+                const response = await fetch('/api/admin/amenities');
+                const data = await response.json();
+                
+                if (data.success) {
+                    const unitAmenities = data.unitAmenities || [];
+                    
+                    // Get unique amenities with usage count
+                    const amenitiesMap = {};
+                    unitAmenities.forEach(a => {
+                        const code = a.amenity_code;
+                        if (!amenitiesMap[code]) {
+                            amenitiesMap[code] = {
+                                code: code,
+                                name: getAmenityDisplayName(a),
+                                category: a.category || 'other',
+                                created_by: a.created_by || 'system',
+                                usageCount: 0,
+                                rooms: new Set()
+                            };
+                        }
+                        amenitiesMap[code].rooms.add(a.bookable_unit_id);
+                    });
+                    
+                    // Calculate usage counts
+                    Object.values(amenitiesMap).forEach(a => {
+                        a.usageCount = a.rooms.size;
+                        delete a.rooms; // Clean up
+                    });
+                    
+                    const amenitiesList = Object.values(amenitiesMap);
+                    
+                    if (amenitiesList.length > 0) {
+                        // Group by category
+                        const categories = {};
+                        amenitiesList.forEach(a => {
+                            const cat = a.category || 'other';
+                            if (!categories[cat]) categories[cat] = [];
+                            categories[cat].push(a);
+                        });
+                        
+                        // Category display names with icons
+                        const categoryNames = {
+                            'beds': '🛏️ Beds',
+                            'bedrooms': '🚪 Bedrooms',
+                            'bathrooms': '🚿 Bathrooms',
+                            'kitchen': '🍳 Kitchen',
+                            'entertainment': '📺 Entertainment',
+                            'wellness': '💆 Wellness',
+                            'parking': '🚗 Parking',
+                            'outdoor': '🌳 Outdoor',
+                            'amenities': '✨ Amenities',
+                            'room_feature': '🏠 Room Features',
+                            'other': '📦 Other'
+                        };
+                        
+                        let html = `
+                            <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <strong style="font-size: 1.1rem;">${amenitiesList.length}</strong> amenities available
+                                    <span style="color: var(--text-secondary); margin-left: 1rem; font-size: 0.9rem;">
+                                        Select amenities for each room in the room editor
+                                    </span>
+                                </div>
+                            </div>
+                        `;
+                        
+                        // Sort categories
+                        const sortedCategories = Object.entries(categories).sort((a, b) => {
+                            const order = ['beds', 'bedrooms', 'bathrooms', 'kitchen', 'entertainment', 'wellness', 'parking', 'outdoor', 'amenities', 'room_feature', 'other'];
+                            return order.indexOf(a[0]) - order.indexOf(b[0]);
+                        });
+                        
+                        sortedCategories.forEach(([cat, items]) => {
+                            html += `
+                                <div style="margin-bottom: 2rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                        <h3 style="margin: 0; color: var(--text-primary);">${categoryNames[cat] || cat}</h3>
+                                        <span style="color: var(--text-secondary); font-size: 0.85rem;">${items.length} items</span>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
+                                        ${items.map(a => `
+                                            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.75rem; border-radius: 6px;">
+                                                <div style="flex: 1;">
+                                                    <div style="font-weight: 500;">${a.name}</div>
+                                                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                                        Used in ${a.usageCount} room${a.usageCount !== 1 ? 's' : ''}
+                                                        ${a.created_by !== 'system' ? ' • Custom' : ''}
+                                                    </div>
+                                                </div>
+                                                ${a.usageCount === 0 && a.created_by !== 'system' ? `
+                                                    <button onclick="deleteAmenity('${a.code}')" class="btn btn-secondary btn-small" style="background: var(--error); border-color: var(--error); color: white; padding: 0.25rem 0.5rem; margin-left: 0.5rem;">
+                                                        Delete
+                                                    </button>
+                                                ` : ''}
+                                            </div>
+                                        `).join('')}
+                                    </div>
+                                </div>
+                            `;
+                        });
+                        
+                        container.innerHTML = html;
+                    } else {
+                        container.innerHTML = `
+                            <div class="empty-state">
+                                <div class="empty-icon">⭐</div>
+                                <h3>No Amenities Yet</h3>
+                                <p>Amenities are imported with rooms from Beds24, or you can add custom ones</p>
+                                <button class="btn" onclick="openAddAmenityModal()">Add Custom Amenity</button>
+                            </div>
+                        `;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading amenities:', error);
+                container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading amenities</p>';
+            }
+        }
+        
+        function getAmenityDisplayName(a) {
+            if (typeof a.amenity_name === 'string') {
+                if (a.amenity_name.startsWith('{')) {
+                    try { return JSON.parse(a.amenity_name).en || a.amenity_code; } catch(e) {}
+                }
+                return a.amenity_name;
+            }
+            return a.amenity_name?.en || a.amenity_code;
+        }
+        
+        async function deleteAmenity(code) {
+            if (!confirm(`Delete this amenity?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/amenities/${encodeURIComponent(code)}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Amenity deleted successfully!');
+                    loadAmenities();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting amenity:', error);
+                alert('Error deleting amenity');
+            }
+        }
+
+        async function loadIntegrations() {
+            const container = document.getElementById('channel-connections');
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Status</th>
+                                <th>Properties</th>
+                                <th>Last Sync</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td><strong>Beds24</strong></td>
+                                <td><span class="badge badge-success">Active</span></td>
+                                <td>1</td>
+                                <td>Just now</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
+        // Modal Functions
+        function openModal(modalId) {
+            document.getElementById(modalId).classList.add('active');
+        }
+
+        function closeModal(modalId) {
+            document.getElementById(modalId).classList.remove('active');
+        }
+
+        function openAddAmenityModal() {
+            document.getElementById('new-amenity-name').value = '';
+            document.getElementById('new-amenity-category').value = '';
+            openModal('addAmenityModal');
+        }
+
+        async function saveNewAmenity(e) {
+            e.preventDefault();
+            
+            const name = document.getElementById('new-amenity-name').value;
+            const category = document.getElementById('new-amenity-category').value;
+            
+            try {
+                const response = await fetch('/api/admin/amenities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, category })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Amenity added successfully!');
+                    closeModal('addAmenityModal');
+                    loadAmenities();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error adding amenity:', error);
+                alert('Error adding amenity');
+            }
+            
+            return false;
+        }
+
+        async function editProperty(id) {
+            try {
+                const response = await fetch(`/api/db/properties/${id}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const prop = data.data;
+                    document.getElementById('edit-property-id').value = prop.id;
+                    document.getElementById('edit-property-name').value = prop.name || '';
+                    document.getElementById('edit-property-type').value = prop.property_type || '';
+                    document.getElementById('edit-property-address').value = prop.address || '';
+                    document.getElementById('edit-property-city').value = prop.city || '';
+                    document.getElementById('edit-property-country').value = prop.country || '';
+                    
+                    openModal('editPropertyModal');
+                }
+            } catch (error) {
+                console.error('Error loading property:', error);
+                alert('Error loading property details');
+            }
+        }
+
+        async function saveProperty(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-property-id').value;
+            const data = {
+                name: document.getElementById('edit-property-name').value,
+                property_type: document.getElementById('edit-property-type').value,
+                address: document.getElementById('edit-property-address').value,
+                city: document.getElementById('edit-property-city').value,
+                country: document.getElementById('edit-property-country').value
+            };
+            
+            try {
+                const response = await fetch(`/api/db/properties/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Property updated successfully!');
+                    closeModal('editPropertyModal');
+                    loadProperties();
+                } else {
+                    alert('Error updating property: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving property:', error);
+                alert('Error saving property');
+            }
+            
+            return false;
+        }
+
+        async function deleteProperty() {
+            const id = document.getElementById('edit-property-id').value;
+            const name = document.getElementById('edit-property-name').value;
+            
+            if (!confirm(`Are you sure you want to delete "${name}"?\n\nThis will also delete all rooms, images, and related data.\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/db/properties/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Property deleted successfully!');
+                    closeModal('editPropertyModal');
+                    loadProperties();
+                    loadDashboard(); // Refresh stats
+                } else {
+                    alert('Error deleting property: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting property:', error);
+                alert('Error deleting property');
+            }
+        }
+
+        async function editRoom(id) {
+            try {
+                const response = await fetch(`/api/admin/units/${id}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const room = data.data;
+                    document.getElementById('edit-room-id').value = room.id;
+                    
+                    // CM Data (read-only display)
+                    document.getElementById('edit-room-name').value = room.name || '';
+                    document.getElementById('edit-room-type').value = room.unit_type || '';
+                    document.getElementById('edit-room-maxguests').value = room.max_guests || '-';
+                    document.getElementById('edit-room-maxadults').value = room.max_adults || '-';
+                    document.getElementById('edit-room-maxchildren').value = room.max_children || '-';
+                    
+                    // GAS Controls
+                    document.getElementById('edit-room-quantity').value = room.quantity || 1;
+                    document.getElementById('edit-room-status').value = room.status || 'available';
+                    
+                    // Load all available amenities and room's current selections
+                    const amenitiesContainer = document.getElementById('edit-room-amenities');
+                    amenitiesContainer.innerHTML = 'Loading amenities...';
+                    
+                    try {
+                        // Get all available amenities
+                        const allAmenitiesResp = await fetch('/api/admin/amenities');
+                        const allAmenitiesData = await allAmenitiesResp.json();
+                        
+                        // Get this room's current amenities
+                        const roomAmenitiesResp = await fetch(`/api/admin/units/${id}/amenities`);
+                        const roomAmenitiesData = await roomAmenitiesResp.json();
+                        
+                        if (allAmenitiesData.success) {
+                            const unitAmenities = allAmenitiesData.unitAmenities || [];
+                            
+                            // Get unique amenities
+                            const uniqueAmenities = {};
+                            unitAmenities.forEach(a => {
+                                const code = a.amenity_code;
+                                if (!uniqueAmenities[code]) {
+                                    uniqueAmenities[code] = {
+                                        code: code,
+                                        name: getAmenityName(a),
+                                        category: a.category || 'other'
+                                    };
+                                }
+                            });
+                            
+                            // Get selected amenity codes
+                            const selectedCodes = new Set();
+                            if (roomAmenitiesData.success && roomAmenitiesData.data) {
+                                roomAmenitiesData.data.forEach(a => selectedCodes.add(a.amenity_code));
+                            }
+                            
+                            // Group by category
+                            const categories = {};
+                            Object.values(uniqueAmenities).forEach(a => {
+                                const cat = a.category || 'other';
+                                if (!categories[cat]) categories[cat] = [];
+                                categories[cat].push(a);
+                            });
+                            
+                            // Category names
+                            const categoryNames = {
+                                'beds': '🛏️ Beds',
+                                'bedrooms': '🚪 Bedrooms',
+                                'bathrooms': '🚿 Bathrooms',
+                                'kitchen': '🍳 Kitchen',
+                                'entertainment': '📺 Entertainment',
+                                'wellness': '💆 Wellness',
+                                'parking': '🚗 Parking',
+                                'outdoor': '🌳 Outdoor',
+                                'amenities': '✨ Amenities',
+                                'room_feature': '🏠 Room Features',
+                                'other': '📦 Other'
+                            };
+                            
+                            // Build checkbox UI
+                            let html = '';
+                            const sortOrder = ['beds', 'bedrooms', 'bathrooms', 'kitchen', 'entertainment', 'wellness', 'parking', 'outdoor', 'amenities', 'room_feature', 'other'];
+                            const sortedCategories = Object.entries(categories).sort((a, b) => 
+                                sortOrder.indexOf(a[0]) - sortOrder.indexOf(b[0])
+                            );
+                            
+                            sortedCategories.forEach(([cat, items]) => {
+                                html += `
+                                    <div style="margin-bottom: 1rem;">
+                                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 0.9rem;">
+                                            ${categoryNames[cat] || cat}
+                                        </div>
+                                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem;">
+                                            ${items.map(a => `
+                                                <label style="display: flex; align-items: center; cursor: pointer; padding: 0.4rem; border-radius: 4px; background: var(--bg-primary); border: 1px solid var(--border); font-size: 0.85rem;">
+                                                    <input type="checkbox" 
+                                                           class="amenity-checkbox" 
+                                                           value="${a.code}" 
+                                                           ${selectedCodes.has(a.code) ? 'checked' : ''}
+                                                           style="margin-right: 0.5rem;">
+                                                    <span>${a.name}</span>
+                                                </label>
+                                            `).join('')}
+                                        </div>
+                                    </div>
+                                `;
+                            });
+                            
+                            amenitiesContainer.innerHTML = html || '<span style="color: var(--text-secondary);">No amenities available</span>';
+                        }
+                    } catch (e) {
+                        console.error('Error loading amenities:', e);
+                        amenitiesContainer.innerHTML = '<span style="color: var(--text-secondary);">Error loading amenities</span>';
+                    }
+                    
+                    openModal('editRoomModal');
+                }
+            } catch (error) {
+                console.error('Error loading room:', error);
+                alert('Error loading room details');
+            }
+        }
+        
+        function getAmenityName(a) {
+            if (typeof a.amenity_name === 'string') {
+                if (a.amenity_name.startsWith('{')) {
+                    try { return JSON.parse(a.amenity_name).en || a.amenity_code; } catch(e) { return a.amenity_code; }
+                }
+                return a.amenity_name;
+            }
+            return a.amenity_name?.en || a.amenity_code;
+        }
+
+        async function saveRoom(e) {
+            e.preventDefault();
+            const id = document.getElementById('edit-room-id').value;
+            
+            const id = document.getElementById('edit-room-id').value;
+            
+            // Get GAS-controlled fields
+            const data = {
+                quantity: document.getElementById('edit-room-quantity').value || 1,
+                status: document.getElementById('edit-room-status').value
+            };
+            
+            // Get selected amenities
+            const selectedAmenities = [];
+            document.querySelectorAll('.amenity-checkbox:checked').forEach(checkbox => {
+                selectedAmenities.push(checkbox.value);
+            });
+            
+            try {
+                // Update room fields
+                const response = await fetch(`/api/admin/units/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                if (!result.success) {
+                    alert('Error updating room: ' + result.error);
+                    return false;
+                }
+                
+                // Update amenities
+                const amenitiesResponse = await fetch(`/api/admin/units/${id}/amenities`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amenities: selectedAmenities })
+                });
+                
+                const amenitiesResult = await amenitiesResponse.json();
+                if (amenitiesResult.success) {
+                    alert('Room updated successfully!');
+                    closeModal('editRoomModal');
+                    loadRooms();
+                } else {
+                    alert('Room updated but error updating amenities: ' + amenitiesResult.error);
+                }
+            } catch (error) {
+                console.error('Error saving room:', error);
+                alert('Error saving room');
+            }
+            
+            return false;
+        }
+
+        async function deleteRoom() {
+            const id = document.getElementById('edit-room-id').value;
+            const name = document.getElementById('edit-room-name').value;
+            
+            if (!confirm(`Are you sure you want to delete "${name}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/units/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Room deleted successfully!');
+                    closeModal('editRoomModal');
+                    loadRooms();
+                    loadDashboard(); // Refresh stats
+                } else {
+                    alert('Error deleting room: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting room:', error);
+                alert('Error deleting room');
+            }
+        }
+
+        // Placeholder functions for other modals
+        function openAddRoomModal() {
+            alert('Add Room feature coming soon!');
+        }
+
+        function openUploadModal() {
+            alert('Image upload feature coming soon!');
+        }
+
+        function openAddAmenityModal() {
+            alert('Add Amenity feature coming soon!');
+        }
+
+        function openAddRatePlanModal() {
+            alert('Rate Plan creation feature coming soon!');
+        }
+
+        function openAddUpsellModal() {
+            alert('Upsell creation feature coming soon!');
+        }
+
+        // Cleanup duplicates
+        async function cleanupDuplicates() {
+            if (!confirm('This will remove duplicate properties and rooms, keeping only the most recent imports. Continue?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/cleanup-duplicates', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('✓ Duplicates removed!\n\nProperties: ' + result.counts.properties + '\nRooms: ' + result.counts.units);
+                    loadDashboard();
+                    if (document.getElementById('properties').classList.contains('active')) {
+                        loadProperties();
+                    }
+                    if (document.getElementById('rooms').classList.contains('active')) {
+                        loadRooms();
+                    }
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error cleaning up: ' + error.message);
+            }
+        }
+
+        // Initial load
+        loadDashboard();
+    </script>
+</body>
+</html>
