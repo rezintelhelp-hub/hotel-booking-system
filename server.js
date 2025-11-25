@@ -2655,11 +2655,6 @@ app.post('/api/admin/add-cm-room-id', async (req, res) => {
   }
 });
 
-// Serve frontend - MUST BE LAST
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 // =========================================================
 // IMAGE PROCESSING HELPER FUNCTIONS
 // =========================================================
@@ -3155,6 +3150,11 @@ app.put('/api/admin/rooms/:roomId/images/reorder', async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// Serve frontend - MUST BE LAST (after all API routes)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
 app.listen(PORT, '0.0.0.0', () => {
