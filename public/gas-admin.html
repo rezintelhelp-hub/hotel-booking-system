@@ -1367,19 +1367,7 @@
                     <label class="form-label">Category/Heading *</label>
                     <select class="form-input" id="new-amenity-category" required onchange="toggleNewCategory()">
                         <option value="">Select category...</option>
-                        <option value="beds">🛏️ Beds</option>
-                        <option value="bedrooms">🚪 Bedrooms</option>
-                        <option value="bathrooms">🚿 Bathrooms</option>
-                        <option value="kitchen">🍳 Kitchen</option>
-                        <option value="entertainment">📺 Entertainment</option>
-                        <option value="wellness">💆 Wellness</option>
-                        <option value="parking">🚗 Parking</option>
-                        <option value="outdoor">🌳 Outdoor</option>
-                        <option value="amenities">✨ General Amenities</option>
-                        <option value="room_feature">🏠 Room Features</option>
-                        <option value="accessibility">♿ Accessibility</option>
-                        <option value="safety">🔒 Safety & Security</option>
-                        <option value="services">🛎️ Services</option>
+                        <!-- Loaded dynamically from database -->
                         <option value="_new_">➕ Create New Category...</option>
                     </select>
                 </div>
@@ -2209,10 +2197,54 @@
             document.getElementById(modalId).classList.remove('active');
         }
 
-        function openAddAmenityModal() {
+        async function openAddAmenityModal() {
             document.getElementById('addAmenityForm').reset();
             document.getElementById('new-category-group').style.display = 'none';
+            
+            // Load categories from database
+            await loadAmenityCategories();
+            
             openModal('addAmenityModal');
+        }
+        
+        async function loadAmenityCategories() {
+            try {
+                const response = await fetch('/api/admin/amenities');
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    // Get unique categories
+                    const categories = [...new Set(data.data.map(a => a.category))].sort();
+                    
+                    const categoryIcons = {
+                        'essentials': '📶',
+                        'beds': '🛏️',
+                        'bathrooms': '🚿',
+                        'kitchen': '🍳',
+                        'parking': '🚗',
+                        'entertainment': '📺',
+                        'wellness': '💆',
+                        'outdoor': '🌳',
+                        'safety': '🔒',
+                        'accessibility': '♿',
+                        'services': '🛎️',
+                        'room_features': '🏠'
+                    };
+                    
+                    const select = document.getElementById('new-amenity-category');
+                    select.innerHTML = '<option value="">Select category...</option>';
+                    
+                    categories.forEach(cat => {
+                        const icon = categoryIcons[cat] || '✨';
+                        const displayName = cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        select.innerHTML += `<option value="${cat}">${icon} ${displayName}</option>`;
+                    });
+                    
+                    select.innerHTML += '<option value="_new_">➕ Create New Category...</option>';
+                }
+            } catch (error) {
+                console.error('Error loading categories:', error);
+            }
         }
         
         function toggleNewCategory() {
