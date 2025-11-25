@@ -2366,7 +2366,7 @@ app.post('/api/admin/migrate-002-image-management', async (req, res) => {
     
     // Create indexes for property_images
     await client.query('CREATE INDEX IF NOT EXISTS idx_property_images_property ON property_images(property_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_property_images_primary ON property_images(property_id, is_primary)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_property_images_primary ON property_images(property_id, is_primary) WHERE is_primary = true');
     await client.query('CREATE INDEX IF NOT EXISTS idx_property_images_order ON property_images(property_id, display_order)');
     
     // Create room_images table
@@ -2399,7 +2399,7 @@ app.post('/api/admin/migrate-002-image-management', async (req, res) => {
     
     // Create indexes for room_images
     await client.query('CREATE INDEX IF NOT EXISTS idx_room_images_room ON room_images(room_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_room_images_primary ON room_images(room_id, is_primary)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_room_images_primary ON room_images(room_id, is_primary) WHERE is_primary = true');
     await client.query('CREATE INDEX IF NOT EXISTS idx_room_images_order ON room_images(room_id, display_order)');
     
     await client.query('COMMIT');
