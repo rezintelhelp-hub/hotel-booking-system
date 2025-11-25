@@ -2294,13 +2294,35 @@
                 return `
                     <span style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--bg-card); border-radius: 6px; font-size: 0.9rem;">
                         ${a.icon || '✓'} ${name}
-                        ${!a.is_system ? `<button onclick="deleteAmenity(${a.id})" style="background: none; border: none; color: var(--error); cursor: pointer; padding: 0; margin-left: 0.25rem;">×</button>` : ''}
+                        <button onclick="deleteSingleAmenity(${a.id}, '${name.replace(/'/g, "\\'")}')" style="background: none; border: none; color: var(--error); cursor: pointer; padding: 0; margin-left: 0.25rem; font-size: 1.1rem; line-height: 1;">×</button>
                     </span>
                 `;
             }).join('');
             
             listContainer.style.display = 'block';
             addSection.style.display = 'block';
+        }
+        
+        async function deleteSingleAmenity(id, name) {
+            if (!confirm(`Delete "${name}"?`)) return;
+            
+            try {
+                const response = await fetch(`/api/admin/amenities/${id}`, {
+                    method: 'DELETE'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadAllAmenitiesData();
+                    loadCategoryAmenities();
+                    loadAmenities();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting amenity:', error);
+                alert('Error deleting amenity');
+            }
         }
         
         async function addAmenityToCategory() {
