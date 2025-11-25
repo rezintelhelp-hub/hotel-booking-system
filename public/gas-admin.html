@@ -1183,17 +1183,17 @@
                     
                     <!-- Property Assignment -->
                     <div style="margin-bottom: 1rem;">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="assign-property" value="property">
-                            <span>🏨 Property Images (general photos)</span>
+                        <label class="checkbox-label" style="cursor: pointer;">
+                            <input type="checkbox" id="assign-property" value="property" style="width: 18px; height: 18px; cursor: pointer; margin: 0;">
+                            <span style="flex: 1;">🏨 Property Images (general photos)</span>
                         </label>
                     </div>
 
                     <!-- Location Assignment -->
                     <div style="margin-bottom: 1rem;">
-                        <label class="checkbox-label">
-                            <input type="checkbox" id="assign-location" value="location">
-                            <span>📍 Location Images (area/neighborhood)</span>
+                        <label class="checkbox-label" style="cursor: pointer;">
+                            <input type="checkbox" id="assign-location" value="location" style="width: 18px; height: 18px; cursor: pointer; margin: 0;">
+                            <span style="flex: 1;">📍 Location Images (area/neighborhood)</span>
                         </label>
                     </div>
 
@@ -1844,14 +1844,20 @@
                 const rooms = data.data || [];
                 
                 const container = document.getElementById('roomCheckboxes');
+                if (rooms.length === 0) {
+                    container.innerHTML = '<p style="color: var(--text-secondary);">No rooms available</p>';
+                    return;
+                }
+                
                 container.innerHTML = rooms.map(room => `
-                    <label class="checkbox-label">
-                        <input type="checkbox" class="room-checkbox" value="${room.id}">
-                        <span>${room.name}</span>
+                    <label class="checkbox-label" style="cursor: pointer;">
+                        <input type="checkbox" class="room-checkbox" value="${room.id}" style="width: 18px; height: 18px; cursor: pointer; margin: 0;">
+                        <span style="flex: 1;">${room.name}</span>
                     </label>
                 `).join('');
             } catch (error) {
                 console.error('Error loading rooms:', error);
+                document.getElementById('roomCheckboxes').innerHTML = '<p style="color: var(--error);">Error loading rooms</p>';
             }
         }
 
