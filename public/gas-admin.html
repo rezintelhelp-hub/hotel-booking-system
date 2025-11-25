@@ -1357,47 +1357,60 @@
 
     <!-- Add Amenity Modal -->
     <div id="addAmenityModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 700px;">
             <div class="modal-header">
-                <h3 class="modal-title">Add New Amenity</h3>
+                <h3 class="modal-title">Manage Amenities</h3>
                 <button class="modal-close" onclick="closeModal('addAmenityModal')">×</button>
             </div>
-            <form id="addAmenityForm" onsubmit="return saveNewAmenity(event)">
+            <div class="modal-body">
+                <!-- Category Selection -->
                 <div class="form-group">
-                    <label class="form-label">Category/Heading *</label>
-                    <select class="form-input" id="new-amenity-category" required onchange="toggleNewCategory()">
-                        <option value="">Select category...</option>
-                        <!-- Loaded dynamically from database -->
-                        <option value="_new_">➕ Create New Category...</option>
+                    <label class="form-label">Select Category</label>
+                    <select class="form-input" id="amenity-category-select" onchange="loadCategoryAmenities()">
+                        <option value="">Choose a category...</option>
                     </select>
                 </div>
                 
-                <div class="form-group" id="new-category-group" style="display: none;">
-                    <label class="form-label">New Category Name *</label>
-                    <input type="text" class="form-input" id="new-category-name" placeholder="e.g., Pet Friendly">
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                        This will create a new heading for your amenities
+                <!-- Current Amenities in Category -->
+                <div id="category-amenities-list" style="display: none; margin: 1.5rem 0; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+                    <h4 style="margin-bottom: 1rem;">Current Amenities</h4>
+                    <div id="amenities-in-category" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                        <!-- Amenities will be loaded here -->
                     </div>
                 </div>
                 
-                <div class="form-group">
-                    <label class="form-label">Amenity Name *</label>
-                    <input type="text" class="form-input" id="new-amenity-name" required placeholder="e.g., Smart TV, Heated Floors, Dog Bed">
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Icon (optional)</label>
-                    <input type="text" class="form-input" id="new-amenity-icon" placeholder="e.g., 📺, 🐕, ♨️" maxlength="4">
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                        Add an emoji to display next to the amenity
+                <!-- Add New Amenity Section -->
+                <div id="add-amenity-section" style="display: none; border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 1.5rem;">
+                    <h4 style="margin-bottom: 1rem;">Add New Amenity to this Category</h4>
+                    <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label class="form-label">Amenity Name</label>
+                            <input type="text" class="form-input" id="new-amenity-name" placeholder="e.g., Smart TV">
+                        </div>
+                        <div class="form-group" style="width: 80px; margin-bottom: 0;">
+                            <label class="form-label">Icon</label>
+                            <input type="text" class="form-input" id="new-amenity-icon" placeholder="📺" maxlength="4">
+                        </div>
+                        <button class="btn" onclick="addAmenityToCategory()" style="height: 42px;">Add</button>
                     </div>
                 </div>
                 
-                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('addAmenityModal')">Cancel</button>
-                    <button type="submit" class="btn">Add Amenity</button>
+                <!-- Create New Category Section -->
+                <div style="border-top: 1px solid var(--border); padding-top: 1.5rem; margin-top: 1.5rem;">
+                    <h4 style="margin-bottom: 1rem;">Or Create New Category</h4>
+                    <div style="display: flex; gap: 1rem; align-items: flex-end;">
+                        <div class="form-group" style="flex: 1; margin-bottom: 0;">
+                            <label class="form-label">Category Name</label>
+                            <input type="text" class="form-input" id="new-category-name" placeholder="e.g., Pet Friendly">
+                        </div>
+                        <button class="btn btn-secondary" onclick="createNewCategory()" style="height: 42px;">Create Category</button>
+                    </div>
                 </div>
-            </form>
+                
+                <div style="margin-top: 1.5rem; text-align: right;">
+                    <button class="btn btn-secondary" onclick="closeModal('addAmenityModal')">Close</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -2197,86 +2210,93 @@
             document.getElementById(modalId).classList.remove('active');
         }
 
+        let allAmenitiesData = [];
+        
         async function openAddAmenityModal() {
-            document.getElementById('addAmenityForm').reset();
-            document.getElementById('new-category-group').style.display = 'none';
+            // Load all amenities
+            await loadAllAmenitiesData();
             
-            // Load categories from database
-            await loadAmenityCategories();
+            // Reset form
+            document.getElementById('new-amenity-name').value = '';
+            document.getElementById('new-amenity-icon').value = '';
+            document.getElementById('new-category-name').value = '';
+            document.getElementById('category-amenities-list').style.display = 'none';
+            document.getElementById('add-amenity-section').style.display = 'none';
+            document.getElementById('amenity-category-select').value = '';
             
             openModal('addAmenityModal');
         }
         
-        async function loadAmenityCategories() {
+        async function loadAllAmenitiesData() {
             try {
                 const response = await fetch('/api/admin/amenities');
                 const data = await response.json();
                 
                 if (data.success && data.data) {
+                    allAmenitiesData = data.data;
+                    
                     // Get unique categories
                     const categories = [...new Set(data.data.map(a => a.category))].sort();
                     
                     const categoryIcons = {
-                        'essentials': '📶',
-                        'beds': '🛏️',
-                        'bathrooms': '🚿',
-                        'kitchen': '🍳',
-                        'parking': '🚗',
-                        'entertainment': '📺',
-                        'wellness': '💆',
-                        'outdoor': '🌳',
-                        'safety': '🔒',
-                        'accessibility': '♿',
-                        'services': '🛎️',
-                        'room_features': '🏠'
+                        'essentials': '📶', 'beds': '🛏️', 'bathrooms': '🚿', 'kitchen': '🍳',
+                        'parking': '🚗', 'entertainment': '📺', 'wellness': '💆', 'outdoor': '🌳',
+                        'safety': '🔒', 'accessibility': '♿', 'services': '🛎️', 'room_features': '🏠'
                     };
                     
-                    const select = document.getElementById('new-amenity-category');
-                    select.innerHTML = '<option value="">Select category...</option>';
+                    const select = document.getElementById('amenity-category-select');
+                    select.innerHTML = '<option value="">Choose a category...</option>';
                     
                     categories.forEach(cat => {
                         const icon = categoryIcons[cat] || '✨';
                         const displayName = cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        select.innerHTML += `<option value="${cat}">${icon} ${displayName}</option>`;
+                        const count = data.data.filter(a => a.category === cat).length;
+                        select.innerHTML += `<option value="${cat}">${icon} ${displayName} (${count})</option>`;
                     });
-                    
-                    select.innerHTML += '<option value="_new_">➕ Create New Category...</option>';
                 }
             } catch (error) {
-                console.error('Error loading categories:', error);
+                console.error('Error loading amenities:', error);
             }
         }
         
-        function toggleNewCategory() {
-            const select = document.getElementById('new-amenity-category');
-            const newCategoryGroup = document.getElementById('new-category-group');
-            const newCategoryInput = document.getElementById('new-category-name');
+        function loadCategoryAmenities() {
+            const category = document.getElementById('amenity-category-select').value;
+            const listContainer = document.getElementById('category-amenities-list');
+            const amenitiesContainer = document.getElementById('amenities-in-category');
+            const addSection = document.getElementById('add-amenity-section');
             
-            if (select.value === '_new_') {
-                newCategoryGroup.style.display = 'block';
-                newCategoryInput.required = true;
-            } else {
-                newCategoryGroup.style.display = 'none';
-                newCategoryInput.required = false;
+            if (!category) {
+                listContainer.style.display = 'none';
+                addSection.style.display = 'none';
+                return;
             }
-        }
-
-        async function saveNewAmenity(e) {
-            e.preventDefault();
             
+            // Filter amenities by category
+            const categoryAmenities = allAmenitiesData.filter(a => a.category === category);
+            
+            // Display amenities
+            amenitiesContainer.innerHTML = categoryAmenities.map(a => {
+                const name = typeof a.amenity_name === 'object' ? a.amenity_name.en : a.amenity_name;
+                return `
+                    <span style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--bg-card); border-radius: 6px; font-size: 0.9rem;">
+                        ${a.icon || '✓'} ${name}
+                        ${!a.is_system ? `<button onclick="deleteAmenity(${a.id})" style="background: none; border: none; color: var(--error); cursor: pointer; padding: 0; margin-left: 0.25rem;">×</button>` : ''}
+                    </span>
+                `;
+            }).join('');
+            
+            listContainer.style.display = 'block';
+            addSection.style.display = 'block';
+        }
+        
+        async function addAmenityToCategory() {
+            const category = document.getElementById('amenity-category-select').value;
             const name = document.getElementById('new-amenity-name').value.trim();
-            let category = document.getElementById('new-amenity-category').value;
             const icon = document.getElementById('new-amenity-icon').value.trim();
             
-            // Handle new category
-            if (category === '_new_') {
-                const newCategoryName = document.getElementById('new-category-name').value.trim();
-                if (!newCategoryName) {
-                    alert('Please enter a new category name');
-                    return false;
-                }
-                // Convert to code format
-                category = newCategoryName.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+            if (!category || !name) {
+                alert('Please select a category and enter an amenity name');
+                return;
             }
             
             try {
@@ -2288,9 +2308,11 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    alert('Amenity added successfully!');
-                    closeModal('addAmenityModal');
-                    loadAmenities();
+                    document.getElementById('new-amenity-name').value = '';
+                    document.getElementById('new-amenity-icon').value = '';
+                    await loadAllAmenitiesData();
+                    loadCategoryAmenities();
+                    loadAmenities(); // Refresh main amenities view
                 } else {
                     alert('Error: ' + result.error);
                 }
@@ -2298,8 +2320,46 @@
                 console.error('Error adding amenity:', error);
                 alert('Error adding amenity');
             }
+        }
+        
+        async function createNewCategory() {
+            const categoryName = document.getElementById('new-category-name').value.trim();
             
-            return false;
+            if (!categoryName) {
+                alert('Please enter a category name');
+                return;
+            }
+            
+            // Convert to code format
+            const categoryCode = categoryName.toLowerCase().replace(/[^a-z0-9]/g, '_').replace(/_+/g, '_');
+            
+            // Add a placeholder amenity to create the category
+            try {
+                const response = await fetch('/api/admin/amenities', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        name: categoryName + ' (default)', 
+                        category: categoryCode, 
+                        icon: '✨' 
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('new-category-name').value = '';
+                    await loadAllAmenitiesData();
+                    document.getElementById('amenity-category-select').value = categoryCode;
+                    loadCategoryAmenities();
+                    loadAmenities();
+                    alert('Category created! You can now add amenities to it.');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error creating category:', error);
+                alert('Error creating category');
+            }
         }
 
         async function editProperty(id) {
