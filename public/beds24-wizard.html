@@ -479,12 +479,12 @@
 
                 <div class="alert alert-success show">
                     <strong>✓ What's Next?</strong><br>
-                    Your property is now live in the GAS system. You can:
+                    Your property and rooms are now in GAS. Complete your setup:
                     <ul style="margin-top: 10px; margin-left: 20px;">
-                        <li>View and manage your property details</li>
-                        <li>Configure rate plans and pricing</li>
-                        <li>Add upsells and fees</li>
-                        <li>Start receiving bookings!</li>
+                        <li><strong>Select amenities</strong> for each room (beds, bathrooms, WiFi, etc.)</li>
+                        <li><strong>Upload images</strong> for your property and rooms</li>
+                        <li><strong>Review details</strong> and adjust as needed</li>
+                        <li>Then go live and start taking bookings!</li>
                     </ul>
                 </div>
 
@@ -760,16 +760,13 @@
         function displayStats() {
             const container = document.getElementById('importStats');
             const stats = [
-                { number: '1', label: 'Property' },
-                { number: importedData.images || '0', label: 'Images' },
-                { number: importedData.amenities || '0', label: 'Amenities' },
-                { number: importedData.units || '0', label: 'Units' },
-                { number: importedData.bookings || '0', label: 'Bookings' }
+                { number: '1', label: 'Property', icon: '🏨' },
+                { number: importedData.roomsAdded + importedData.roomsUpdated || '0', label: 'Rooms', icon: '🛏️' }
             ];
 
             container.innerHTML = stats.map(stat => `
                 <div class="stat-card">
-                    <div class="stat-number">${stat.number}</div>
+                    <div class="stat-number">${stat.icon} ${stat.number}</div>
                     <div class="stat-label">${stat.label}</div>
                 </div>
             `).join('');
