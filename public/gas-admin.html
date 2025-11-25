@@ -1385,11 +1385,11 @@
                     <div style="display: flex; gap: 1rem; align-items: flex-end;">
                         <div class="form-group" style="flex: 1; margin-bottom: 0;">
                             <label class="form-label">Amenity Name</label>
-                            <input type="text" class="form-input" id="new-amenity-name" placeholder="e.g., Smart TV">
+                            <input type="text" class="form-input" id="new-amenity-name" placeholder="e.g., Smart TV" oninput="autoSuggestIcon()">
                         </div>
                         <div class="form-group" style="width: 80px; margin-bottom: 0;">
                             <label class="form-label">Icon</label>
-                            <input type="text" class="form-input" id="new-amenity-icon" placeholder="📺" maxlength="4">
+                            <input type="text" class="form-input" id="new-amenity-icon" placeholder="📺" maxlength="4" style="font-size: 1.5rem; text-align: center;">
                         </div>
                         <button class="btn" onclick="addAmenityToCategory()" style="height: 42px;">Add</button>
                     </div>
@@ -2232,11 +2232,11 @@
                 const response = await fetch('/api/admin/amenities');
                 const data = await response.json();
                 
-                if (data.success && data.data) {
-                    allAmenitiesData = data.data;
+                if (data.success && data.amenities) {
+                    allAmenitiesData = data.amenities;
                     
                     // Get unique categories
-                    const categories = [...new Set(data.data.map(a => a.category))].sort();
+                    const categories = [...new Set(data.amenities.map(a => a.category))].sort();
                     
                     const categoryIcons = {
                         'essentials': '📶', 'beds': '🛏️', 'bathrooms': '🚿', 'kitchen': '🍳',
@@ -2250,7 +2250,7 @@
                     categories.forEach(cat => {
                         const icon = categoryIcons[cat] || '✨';
                         const displayName = cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-                        const count = data.data.filter(a => a.category === cat).length;
+                        const count = data.amenities.filter(a => a.category === cat).length;
                         select.innerHTML += `<option value="${cat}">${icon} ${displayName} (${count})</option>`;
                     });
                 }
@@ -2359,6 +2359,91 @@
             } catch (error) {
                 console.error('Error creating category:', error);
                 alert('Error creating category');
+            }
+        }
+        
+        function autoSuggestIcon() {
+            const name = document.getElementById('new-amenity-name').value.toLowerCase();
+            const iconInput = document.getElementById('new-amenity-icon');
+            
+            // Only suggest if icon field is empty
+            if (iconInput.value) return;
+            
+            const iconMap = {
+                // TV & Entertainment
+                'tv': '📺', 'television': '📺', 'smart tv': '📺', 'netflix': '📺', 'streaming': '📺',
+                'cable': '📺', 'satellite': '📺', 'dvd': '📀', 'blu-ray': '📀', 'gaming': '🎮',
+                'playstation': '🎮', 'xbox': '🎮', 'nintendo': '🎮', 'speaker': '🔊', 'sound': '🔊',
+                'bluetooth': '📶', 'radio': '📻', 'music': '🎵', 'stereo': '🎵',
+                
+                // Beds
+                'bed': '🛏️', 'king': '🛏️', 'queen': '🛏️', 'double': '🛏️', 'single': '🛏️',
+                'twin': '🛏️', 'bunk': '🛏️', 'sofa bed': '🛋️', 'futon': '🛋️', 'cot': '👶',
+                'crib': '👶', 'mattress': '🛏️', 'pillow': '🛏️', 'duvet': '🛏️', 'blanket': '🛏️',
+                
+                // Bathroom
+                'shower': '🚿', 'bath': '🛁', 'bathtub': '🛁', 'toilet': '🚽', 'bidet': '🚿',
+                'towel': '🧴', 'hairdryer': '💨', 'hair dryer': '💨', 'shampoo': '🧴', 'soap': '🧼',
+                'vanity': '🪞', 'mirror': '🪞', 'jacuzzi': '🛁', 'hot tub': '🛁', 'sauna': '🧖',
+                
+                // Kitchen
+                'kitchen': '🍳', 'stove': '🍳', 'oven': '🍳', 'microwave': '📻', 'fridge': '🧊',
+                'refrigerator': '🧊', 'freezer': '🧊', 'dishwasher': '🍽️', 'coffee': '☕',
+                'espresso': '☕', 'kettle': '🫖', 'tea': '🫖', 'toaster': '🍞', 'blender': '🥤',
+                'utensils': '🍴', 'cookware': '🍳', 'dishes': '🍽️', 'wine': '🍷', 'glasses': '🥃',
+                
+                // Temperature
+                'air conditioning': '❄️', 'ac': '❄️', 'cooling': '❄️', 'heating': '🔥',
+                'heater': '🔥', 'fireplace': '🔥', 'fan': '💨', 'thermostat': '🌡️',
+                
+                // Internet & Tech
+                'wifi': '📶', 'internet': '📶', 'ethernet': '🔌', 'computer': '💻',
+                'laptop': '💻', 'desk': '🖥️', 'workspace': '💼', 'printer': '🖨️', 'charger': '🔌',
+                'usb': '🔌', 'outlet': '🔌', 'phone': '📱', 'telephone': '☎️',
+                
+                // Laundry
+                'washer': '🧺', 'washing': '🧺', 'dryer': '🧺', 'laundry': '🧺', 'iron': '👔',
+                'ironing': '👔', 'hanger': '👔', 'closet': '🚪', 'wardrobe': '🚪',
+                
+                // Outdoor
+                'pool': '🏊', 'swimming': '🏊', 'garden': '🌳', 'patio': '🌳', 'balcony': '🌅',
+                'terrace': '🌅', 'deck': '🌳', 'bbq': '🍖', 'grill': '🍖', 'barbecue': '🍖',
+                'beach': '🏖️', 'lake': '🌊', 'ocean': '🌊', 'view': '🌅', 'mountain': '⛰️',
+                
+                // Parking
+                'parking': '🚗', 'garage': '🚗', 'car': '🚗', 'ev': '⚡', 'charging': '⚡',
+                'electric': '⚡', 'bike': '🚲', 'bicycle': '🚲',
+                
+                // Safety
+                'safe': '🔒', 'lock': '🔐', 'security': '🔒', 'alarm': '🚨', 'camera': '📷',
+                'smoke': '🚭', 'fire': '🧯', 'extinguisher': '🧯', 'first aid': '🏥',
+                'detector': '🚨', 'carbon': '🚨',
+                
+                // Accessibility
+                'wheelchair': '♿', 'accessible': '♿', 'elevator': '🛗', 'lift': '🛗',
+                'ramp': '♿', 'grab bar': '♿', 'step-free': '♿',
+                
+                // Pets
+                'pet': '🐕', 'dog': '🐕', 'cat': '🐈', 'animal': '🐾',
+                
+                // Kids
+                'child': '👶', 'kid': '👶', 'baby': '👶', 'high chair': '👶', 'toys': '🧸',
+                
+                // Wellness
+                'gym': '🏋️', 'fitness': '🏋️', 'yoga': '🧘', 'spa': '💆', 'massage': '💆',
+                
+                // Other
+                'key': '🔑', 'keyless': '🔑', 'luggage': '🧳', 'storage': '📦',
+                'breakfast': '🍳', 'food': '🍽️', 'dining': '🍽️', 'room service': '🛎️',
+                'concierge': '🛎️', 'reception': '🛎️', 'housekeeping': '🧹', 'cleaning': '🧹'
+            };
+            
+            // Check for matches
+            for (const [keyword, icon] of Object.entries(iconMap)) {
+                if (name.includes(keyword)) {
+                    iconInput.value = icon;
+                    return;
+                }
             }
         }
 
