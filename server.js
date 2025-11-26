@@ -2382,27 +2382,57 @@ app.get('/api/availability/:roomId', async (req, res) => {
     
     // Try to get bookings - but don't fail if table structure is different
     try {
-      // First check what columns exist
-      const columns = await pool.query(`
+      // First check what columns exist in bookings table
+      const columnsResult = await pool.query(`
         SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'bookings' AND column_name LIKE 'check%'
+        WHERE table_name = 'bookings'
       `);
       
-      const colNames = columns.rows.map(r => r.column_name);
-      let checkInCol = colNames.find(c => c.includes('check') && c.includes('in') && !c.includes('time')) || 'check_in';
-      let checkOutCol = colNames.find(c => c.includes('check') && c.includes('out') && !c.includes('time')) || 'check_out';
+      const allCols = columnsResult.rows.map(r => r.column_name);
+      console.log('Bookings table columns:', allCols.join(', '));
+      
+      // Find check-in column
+      let checkInCol = allCols.find(c => c === 'check_in') ||
+                       allCols.find(c => c === 'check_in_date') ||
+                       allCols.find(c => c === 'checkin') ||
+                       allCols.find(c => c === 'arrival_date') ||
+                       allCols.find(c => c === 'start_date');
+      
+      // Find check-out column                 
+      let checkOutCol = allCols.find(c => c === 'check_out') ||
+                        allCols.find(c => c === 'check_out_date') ||
+                        allCols.find(c => c === 'checkout') ||
+                        allCols.find(c => c === 'departure_date') ||
+                        allCols.find(c => c === 'end_date');
+      
+      // Find room ID column
+      let roomIdCol = allCols.find(c => c === 'room_id') ||
+                      allCols.find(c => c === 'bookable_unit_id') ||
+                      allCols.find(c => c === 'unit_id');
+      
+      if (!checkInCol || !checkOutCol) {
+        console.log('Could not find check-in/out columns. Available:', allCols.join(', '));
+        throw new Error('Booking columns not found');
+      }
+      
+      if (!roomIdCol) {
+        console.log('Could not find room ID column. Skipping bookings.');
+        throw new Error('Room ID column not found');
+      }
+      
+      console.log(`Using columns: ${roomIdCol}, ${checkInCol}, ${checkOutCol}`);
       
       const bookings = await pool.query(`
         SELECT 
-          ${checkInCol} as check_in,
-          ${checkOutCol} as check_out,
-          guest_first_name,
+          "${checkInCol}" as check_in,
+          "${checkOutCol}" as check_out,
+          COALESCE(guest_first_name, guest_name, '') as guest_name,
           status
         FROM bookings
-        WHERE room_id = $1 
+        WHERE "${roomIdCol}" = $1 
           AND status NOT IN ('cancelled', 'rejected')
-          AND ${checkInCol} <= $3
-          AND ${checkOutCol} >= $2
+          AND "${checkInCol}" <= $3
+          AND "${checkOutCol}" >= $2
       `, [roomId, from, to]);
       
       // Mark booked dates
@@ -2416,7 +2446,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
             availMap[dateStr] = { date: dateStr };
           }
           availMap[dateStr].is_booked = true;
-          availMap[dateStr].guest_name = b.guest_first_name;
+          availMap[dateStr].guest_name = b.guest_name;
         }
       });
     } catch (bookingErr) {
