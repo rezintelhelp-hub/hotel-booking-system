@@ -1242,6 +1242,7 @@
                             <p>View and manage room availability and pricing</p>
                         </div>
                         <div style="display: flex; gap: 1rem;">
+                            <button class="btn" onclick="syncAvailabilityFromCM()">🔄 Sync from Channel Manager</button>
                             <button class="btn btn-secondary" onclick="prevMonth()">← Prev</button>
                             <button class="btn btn-secondary" onclick="nextMonth()">Next →</button>
                         </div>
@@ -1304,11 +1305,26 @@
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Price/Night ($)</label>
+                            <label class="form-label">Pricing Type</label>
+                            <select class="form-input" id="avail-pricing-type" onchange="togglePricingInput()">
+                                <option value="none">No Change</option>
+                                <option value="fixed">Fixed Price</option>
+                                <option value="discount">% Discount</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;" id="fixed-price-group">
+                            <label class="form-label">Direct Price ($)</label>
                             <input type="number" class="form-input" id="avail-price" placeholder="150" min="0" step="0.01">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0; display: none;" id="discount-group">
+                            <label class="form-label">Discount %</label>
+                            <input type="number" class="form-input" id="avail-discount" placeholder="10" min="0" max="100">
                         </div>
                         <button class="btn" onclick="setAvailability()">Update</button>
                     </div>
+                    <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
+                        💡 <strong>CM Price</strong> = synced from Channel Manager (read-only) | <strong>Direct Price</strong> = your website price
+                    </p>
                 </div>
 
                 <!-- API Feed Info -->
@@ -3189,7 +3205,8 @@
                 const dayData = availabilityData.find(a => a.date === dateStr);
                 
                 let status = 'available';
-                let price = '';
+                let cmPrice = '';
+                let directPrice = '';
                 let bookingInfo = '';
                 
                 if (dayData) {
@@ -3199,8 +3216,25 @@
                     } else if (dayData.is_blocked) {
                         status = 'blocked';
                     }
-                    if (dayData.price) {
-                        price = `$${parseFloat(dayData.price).toFixed(0)}`;
+                    if (dayData.cm_price) {
+                        cmPrice = `$${parseFloat(dayData.cm_price).toFixed(0)}`;
+                    }
+                    if (dayData.direct_price && dayData.direct_price != dayData.cm_price) {
+                        directPrice = `$${parseFloat(dayData.direct_price).toFixed(0)}`;
+                    }
+                }
+                
+                let priceDisplay = '';
+                if (status === 'booked') {
+                    priceDisplay = `<span class="calendar-day-price">${bookingInfo}</span>`;
+                } else if (cmPrice || directPrice) {
+                    if (cmPrice && directPrice) {
+                        priceDisplay = `
+                            <span class="calendar-day-price" style="text-decoration: line-through; opacity: 0.6; font-size: 0.65rem;">${cmPrice}</span>
+                            <span class="calendar-day-price" style="color: var(--success);">${directPrice}</span>
+                        `;
+                    } else {
+                        priceDisplay = `<span class="calendar-day-price">${cmPrice || directPrice}</span>`;
                     }
                 }
                 
@@ -3209,8 +3243,7 @@
                          data-date="${dateStr}"
                          onclick="selectCalendarDate('${dateStr}')">
                         <span class="calendar-day-number">${day}</span>
-                        ${status === 'booked' ? `<span class="calendar-day-price">${bookingInfo}</span>` : ''}
-                        ${price && status !== 'booked' ? `<span class="calendar-day-price">${price}</span>` : ''}
+                        ${priceDisplay}
                     </div>
                 `;
             }
@@ -3223,27 +3256,42 @@
             document.getElementById('avail-to-date').value = dateStr;
         }
         
+        function togglePricingInput() {
+            const type = document.getElementById('avail-pricing-type').value;
+            document.getElementById('fixed-price-group').style.display = type === 'fixed' ? 'block' : 'none';
+            document.getElementById('discount-group').style.display = type === 'discount' ? 'block' : 'none';
+        }
+        
         async function setAvailability() {
             const roomId = document.getElementById('availability-room-select').value;
             const fromDate = document.getElementById('avail-from-date').value;
             const toDate = document.getElementById('avail-to-date').value;
             const status = document.getElementById('avail-status').value;
+            const pricingType = document.getElementById('avail-pricing-type').value;
             const price = document.getElementById('avail-price').value;
+            const discount = document.getElementById('avail-discount').value;
             
             if (!roomId) return alert('Please select a room');
             if (!fromDate || !toDate) return alert('Please select dates');
+            
+            const payload = {
+                room_id: roomId,
+                from_date: fromDate,
+                to_date: toDate,
+                status: status
+            };
+            
+            if (pricingType === 'fixed' && price) {
+                payload.price = price;
+            } else if (pricingType === 'discount' && discount) {
+                payload.discount_percent = discount;
+            }
             
             try {
                 const response = await fetch('/api/admin/availability', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        room_id: roomId,
-                        from_date: fromDate,
-                        to_date: toDate,
-                        status: status,
-                        price: price || null
-                    })
+                    body: JSON.stringify(payload)
                 });
                 
                 const result = await response.json();
@@ -3264,6 +3312,36 @@
             navigator.clipboard.writeText(url).then(() => {
                 alert('API URL copied to clipboard!');
             });
+        }
+        
+        async function syncAvailabilityFromCM() {
+            const roomId = document.getElementById('availability-room-select').value;
+            
+            if (!roomId) {
+                alert('Please select a room first');
+                return;
+            }
+            
+            if (!confirm('Sync availability and pricing from Channel Manager?\n\nThis will update the calendar with the latest data from Beds24.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/sync-availability/${roomId}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`Synced ${result.days_synced} days of availability and pricing!`);
+                    loadAvailabilityCalendar();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Sync error:', error);
+                alert('Error syncing from Channel Manager');
+            }
         }
 
         async function editProperty(id) {
