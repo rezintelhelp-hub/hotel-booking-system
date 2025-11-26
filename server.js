@@ -2665,7 +2665,7 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
           params: { 
             roomId: beds24RoomId, 
             arrival: arrival,
-            depart: depart,
+            departure: departDate.toISOString().split('T')[0],
             numAdult: 2
           }
         });
