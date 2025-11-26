@@ -767,21 +767,28 @@ app.post('/api/beds24/save-token', async (req, res) => {
 
 // Helper function to get Beds24 access token from refresh token
 async function getBeds24AccessToken(pool) {
-  // Try environment variable first
-  let refreshToken = process.env.BEDS24_REFRESH_TOKEN;
+  let refreshToken = null;
   
-  // If not in env, try database
+  // Try database FIRST (this is set per-user via wizard)
+  const tokenResult = await pool.query(
+    "SELECT refresh_token, account_id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') ORDER BY updated_at DESC LIMIT 1"
+  );
+  
+  if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
+    refreshToken = tokenResult.rows[0].refresh_token;
+    console.log('Using refresh token from database, account_id:', tokenResult.rows[0].account_id);
+  }
+  
+  // Fallback to environment variable
   if (!refreshToken) {
-    const tokenResult = await pool.query(
-      "SELECT api_key FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') LIMIT 1"
-    );
-    if (tokenResult.rows.length > 0) {
-      refreshToken = tokenResult.rows[0].api_key;
+    refreshToken = process.env.BEDS24_REFRESH_TOKEN;
+    if (refreshToken) {
+      console.log('Using refresh token from environment variable');
     }
   }
   
   if (!refreshToken) {
-    throw new Error('No Beds24 refresh token configured');
+    throw new Error('No Beds24 refresh token configured. Please connect via Beds24 wizard.');
   }
   
   // Exchange refresh token for access token
@@ -800,13 +807,32 @@ async function getBeds24AccessToken(pool) {
   return tokenResponse.data.token;
 }
 
+// Helper to get Beds24 connection info including account_id
+async function getBeds24Connection(pool) {
+  const result = await pool.query(
+    "SELECT refresh_token, account_id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') ORDER BY updated_at DESC LIMIT 1"
+  );
+  
+  if (result.rows.length === 0) {
+    return null;
+  }
+  
+  return {
+    refreshToken: result.rows[0].refresh_token,
+    accountId: result.rows[0].account_id
+  };
+}
+
 // Get Beds24 properties
 app.get('/api/beds24/properties', async (req, res) => {
   try {
-    const refreshToken = process.env.BEDS24_REFRESH_TOKEN;
+    // Get connection from database first, fallback to env var
+    const connection = await getBeds24Connection(pool);
+    let refreshToken = connection?.refreshToken || process.env.BEDS24_REFRESH_TOKEN;
+    const accountId = connection?.accountId;
     
     if (!refreshToken) {
-      return res.json({ success: false, error: 'No Beds24 refresh token configured' });
+      return res.json({ success: false, error: 'No Beds24 refresh token configured. Please use the Beds24 wizard to connect.' });
     }
     
     // First, get a fresh access token using the refresh token
@@ -828,8 +854,19 @@ app.get('/api/beds24/properties', async (req, res) => {
       }
     });
     
-    console.log('Found ' + (response.data.data?.length || 0) + ' properties');
-    res.json({ success: true, data: response.data.data || [] });
+    let properties = response.data.data || [];
+    console.log('Found ' + properties.length + ' total properties');
+    
+    // Filter by account ID if we have one stored
+    if (accountId) {
+      properties = properties.filter(p => {
+        const propOwnerId = p.account?.ownerId || p.ownerId;
+        return String(propOwnerId) === String(accountId);
+      });
+      console.log('After filtering by account ' + accountId + ': ' + properties.length + ' properties');
+    }
+    
+    res.json({ success: true, data: properties });
     
   } catch (error) {
     console.error('Error fetching Beds24 properties:', error.response?.data || error.message);
@@ -1097,7 +1134,7 @@ app.get('/api/beds24/check-connection', async (req, res) => {
 
 // Step 1: Setup Beds24 Connection (Save to channel_connections table)
 app.post('/api/beds24/setup-connection', async (req, res) => {
-  const { inviteCode } = req.body;
+  const { inviteCode, accountId } = req.body;
   
   if (!inviteCode) {
     return res.json({ success: false, error: 'Invite code required' });
@@ -1105,6 +1142,9 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
   
   try {
     console.log('🔗 Setting up Beds24 connection...');
+    if (accountId) {
+      console.log('   Account ID specified:', accountId);
+    }
     
     // Ensure we have at least one user (create default if needed)
     const userCheck = await pool.query('SELECT id FROM users LIMIT 1');
@@ -1177,6 +1217,11 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
     
     const { token, refreshToken } = response.data;
     
+    // Ensure account_id column exists
+    await pool.query(`
+      ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS account_id VARCHAR(50)
+    `).catch(() => {});
+    
     // Save to channel_connections table (or update if exists)
     const result = await pool.query(`
       INSERT INTO channel_connections (
@@ -1185,6 +1230,7 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
         api_key,
         refresh_token,
         access_token,
+        account_id,
         token_expires_at,
         status,
         sync_enabled,
@@ -1195,6 +1241,7 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
         $2,
         $3,
         $4,
+        $5,
         NOW() + INTERVAL '30 days',
         'active',
         true,
@@ -1205,11 +1252,12 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
         api_key = EXCLUDED.api_key,
         refresh_token = EXCLUDED.refresh_token,
         access_token = EXCLUDED.access_token,
+        account_id = EXCLUDED.account_id,
         token_expires_at = EXCLUDED.token_expires_at,
         status = 'active',
         updated_at = NOW()
       RETURNING id
-    `, [userId, inviteCode, refreshToken, token]);
+    `, [userId, inviteCode, refreshToken, token, accountId || null]);
     
     const connectionId = result.rows[0].id;
     
@@ -1234,10 +1282,13 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
 
 // Step 2: List Properties from Beds24
 app.post('/api/beds24/list-properties', async (req, res) => {
-  const { token, connectionId } = req.body;
+  const { token, connectionId, accountId } = req.body;
   
   try {
     console.log('📋 Fetching properties from Beds24...');
+    if (accountId) {
+      console.log('   Filtering by account ID:', accountId);
+    }
     
     const response = await axios.get('https://beds24.com/api/v2/properties', {
       headers: {
@@ -1251,8 +1302,17 @@ app.post('/api/beds24/list-properties', async (req, res) => {
       }
     });
     
-    const properties = response.data.data || [];
-    console.log('Found ' + properties.length + ' properties');
+    let properties = response.data.data || [];
+    console.log('Found ' + properties.length + ' total properties');
+    
+    // Filter by account ID if provided
+    if (accountId) {
+      properties = properties.filter(p => {
+        const propOwnerId = p.account?.ownerId || p.ownerId;
+        return String(propOwnerId) === String(accountId);
+      });
+      console.log('After filtering by account ' + accountId + ': ' + properties.length + ' properties');
+    }
     
     res.json({
       success: true,
