@@ -2504,6 +2504,64 @@ app.get('/api/admin/debug/beds24-rooms', async (req, res) => {
   }
 });
 
+// Debug: Test Beds24 calendar API directly
+app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
+  try {
+    const { beds24RoomId } = req.params;
+    
+    // Get API token
+    const tokenResult = await pool.query(
+      "SELECT api_key FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') LIMIT 1"
+    );
+    
+    if (tokenResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Beds24 API token configured' });
+    }
+    
+    const apiToken = tokenResult.rows[0].api_key;
+    
+    // Calculate date range
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 30); // Just 30 days for testing
+    
+    const fromDate = today.toISOString().split('T')[0];
+    const toDate = endDate.toISOString().split('T')[0];
+    
+    const calendarUrl = `https://beds24.com/api/v2/inventory/rooms/calendar?roomId=${beds24RoomId}&from=${fromDate}&to=${toDate}`;
+    
+    console.log('Testing Beds24 URL:', calendarUrl);
+    
+    const response = await fetch(calendarUrl, {
+      method: 'GET',
+      headers: {
+        'token': apiToken,
+        'Accept': 'application/json'
+      }
+    });
+    
+    const responseText = await response.text();
+    
+    let parsed;
+    try {
+      parsed = JSON.parse(responseText);
+    } catch (e) {
+      parsed = null;
+    }
+    
+    res.json({
+      success: true,
+      url: calendarUrl,
+      status: response.status,
+      headers: Object.fromEntries(response.headers.entries()),
+      raw_response: responseText.substring(0, 2000),
+      parsed: parsed
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Sync availability from Channel Manager (Beds24)
 app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
   const client = await pool.connect();
