@@ -2921,6 +2921,8 @@ app.post('/api/admin/sync-all-availability-bulk', async (req, res) => {
     let totalPricesFound = 0;
     let apiCallsMade = 0;
     
+    console.log('Beds24 room IDs to sync:', beds24RoomIds);
+    
     // Fetch ALL rooms for each day in ONE API call
     for (let i = 0; i < numDays; i++) {
       const arrivalDate = new Date(today);
@@ -2932,19 +2934,36 @@ app.post('/api/admin/sync-all-availability-bulk', async (req, res) => {
       const departure = departDate.toISOString().split('T')[0];
       
       try {
-        // Pass ALL room IDs in one call
+        // Pass ALL room IDs as array - axios will serialize properly
         const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
           headers: { 'token': accessToken },
           params: { 
-            roomId: beds24RoomIds.join(','),
+            roomId: beds24RoomIds,  // Pass as array, let axios handle it
             arrival: arrival,
             departure: departure,
             numAdults: 2
+          },
+          paramsSerializer: params => {
+            // Custom serializer to handle array params correctly for Beds24
+            const parts = [];
+            for (const key in params) {
+              const value = params[key];
+              if (Array.isArray(value)) {
+                value.forEach(v => parts.push(`${key}=${v}`));
+              } else {
+                parts.push(`${key}=${value}`);
+              }
+            }
+            return parts.join('&');
           }
         });
         
         apiCallsMade++;
         const offerData = offerResponse.data;
+        
+        if (i === 0) {
+          console.log('First API response:', JSON.stringify(offerData).substring(0, 500));
+        }
         
         // Process each room's offers
         if (offerData.data && offerData.data.length > 0) {
