@@ -3324,20 +3324,27 @@
         }
         
         async function syncAllFromCM() {
-            if (!confirm('Sync availability and pricing from Channel Manager for all rooms?')) return;
+            if (!confirm('Sync availability and pricing from Channel Manager for ALL rooms (365 days)? This may take 2-3 minutes.')) return;
             
-            let synced = 0;
-            for (const room of gridRooms) {
-                try {
-                    const response = await fetch(`/api/admin/sync-availability/${room.id}`, { method: 'POST' });
-                    const result = await response.json();
-                    if (result.success) synced++;
-                } catch (error) {
-                    console.error(`Error syncing room ${room.id}:`, error);
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '⏳ Syncing...';
+            
+            try {
+                const response = await fetch('/api/admin/sync-all-availability-bulk', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Sync complete!\n\n${result.roomsCount} rooms\n${result.daysRequested} days\n${result.apiCallsMade} API calls\n${result.totalPricesFound} prices found`);
+                } else {
+                    alert(`❌ Sync failed: ${result.error}`);
                 }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
             }
             
-            alert(`Synced ${synced} room(s) from Channel Manager`);
+            btn.disabled = false;
+            btn.textContent = '🔄 Sync from CM';
             loadGridData();
         }
 
