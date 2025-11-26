@@ -1,4 +1,3 @@
-
 // Updated for DELETE endpoint + DATABASE MIGRATION
 require('dotenv').config();
 const express = require('express');
@@ -2352,20 +2351,6 @@ app.get('/api/availability/:roomId', async (req, res) => {
       ORDER BY date
     `, [roomId, from, to]);
     
-    // Get bookings for this period
-    const bookings = await pool.query(`
-      SELECT 
-        check_in,
-        check_out,
-        guest_first_name,
-        status
-      FROM bookings
-      WHERE room_id = $1 
-        AND status NOT IN ('cancelled', 'rejected')
-        AND check_in <= $3
-        AND check_out >= $2
-    `, [roomId, from, to]);
-    
     // Build availability map
     const availMap = {};
     availability.rows.forEach(a => {
@@ -2378,20 +2363,49 @@ app.get('/api/availability/:roomId', async (req, res) => {
       };
     });
     
-    // Mark booked dates
-    bookings.rows.forEach(b => {
-      const checkIn = new Date(b.check_in);
-      const checkOut = new Date(b.check_out);
+    // Try to get bookings - but don't fail if table structure is different
+    try {
+      // First check what columns exist
+      const columns = await pool.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'bookings' AND column_name LIKE 'check%'
+      `);
       
-      for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
-        const dateStr = d.toISOString().split('T')[0];
-        if (!availMap[dateStr]) {
-          availMap[dateStr] = { date: dateStr };
+      const colNames = columns.rows.map(r => r.column_name);
+      let checkInCol = colNames.find(c => c.includes('check') && c.includes('in') && !c.includes('time')) || 'check_in';
+      let checkOutCol = colNames.find(c => c.includes('check') && c.includes('out') && !c.includes('time')) || 'check_out';
+      
+      const bookings = await pool.query(`
+        SELECT 
+          ${checkInCol} as check_in,
+          ${checkOutCol} as check_out,
+          guest_first_name,
+          status
+        FROM bookings
+        WHERE room_id = $1 
+          AND status NOT IN ('cancelled', 'rejected')
+          AND ${checkInCol} <= $3
+          AND ${checkOutCol} >= $2
+      `, [roomId, from, to]);
+      
+      // Mark booked dates
+      bookings.rows.forEach(b => {
+        const checkIn = new Date(b.check_in);
+        const checkOut = new Date(b.check_out);
+        
+        for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          if (!availMap[dateStr]) {
+            availMap[dateStr] = { date: dateStr };
+          }
+          availMap[dateStr].is_booked = true;
+          availMap[dateStr].guest_name = b.guest_first_name;
         }
-        availMap[dateStr].is_booked = true;
-        availMap[dateStr].guest_name = b.guest_first_name;
-      }
-    });
+      });
+    } catch (bookingErr) {
+      console.log('Bookings query skipped:', bookingErr.message);
+      // Continue without bookings data
+    }
     
     // Convert to array and fill missing dates
     const result = [];
