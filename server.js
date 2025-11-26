@@ -2543,6 +2543,7 @@ app.get('/api/admin/debug/beds24-rooms', async (req, res) => {
 app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
   try {
     const { beds24RoomId } = req.params;
+    const { propertyId } = req.query;
     
     // Get access token using helper function
     let accessToken;
@@ -2560,37 +2561,49 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
     const fromDate = today.toISOString().split('T')[0];
     const toDate = endDate.toISOString().split('T')[0];
     
-    const calendarUrl = `https://beds24.com/api/v2/inventory/rooms/calendar?roomId=${beds24RoomId}&from=${fromDate}&to=${toDate}`;
+    // Try multiple API variations
+    const results = {};
     
-    console.log('Testing Beds24 URL:', calendarUrl);
-    
+    // Try 1: /inventory/rooms/calendar with roomId
     try {
-      const response = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
-        headers: {
-          'token': accessToken,
-          'Accept': 'application/json'
-        },
-        params: {
-          roomId: beds24RoomId,
-          from: fromDate,
-          to: toDate
-        }
+      const resp1 = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+        headers: { 'token': accessToken },
+        params: { roomId: beds24RoomId, from: fromDate, to: toDate }
       });
-      
-      res.json({
-        success: true,
-        url: calendarUrl,
-        status: response.status,
-        data: response.data
-      });
-    } catch (apiError) {
-      res.json({
-        success: false,
-        url: calendarUrl,
-        error: apiError.response?.data || apiError.message,
-        status: apiError.response?.status
-      });
+      results.rooms_calendar = resp1.data;
+    } catch (e) {
+      results.rooms_calendar_error = e.response?.data || e.message;
     }
+    
+    // Try 2: /inventory/calendar with propertyId (16276)
+    try {
+      const resp2 = await axios.get('https://beds24.com/api/v2/inventory/calendar', {
+        headers: { 'token': accessToken },
+        params: { propertyId: propertyId || 16276, from: fromDate, to: toDate }
+      });
+      results.inventory_calendar = resp2.data;
+    } catch (e) {
+      results.inventory_calendar_error = e.response?.data || e.message;
+    }
+    
+    // Try 3: /properties with calendar info
+    try {
+      const resp3 = await axios.get('https://beds24.com/api/v2/properties', {
+        headers: { 'token': accessToken },
+        params: { id: propertyId || 16276, includeAllRooms: true }
+      });
+      results.properties = resp3.data;
+    } catch (e) {
+      results.properties_error = e.response?.data || e.message;
+    }
+    
+    res.json({
+      success: true,
+      roomId: beds24RoomId,
+      propertyId: propertyId || 16276,
+      dateRange: { from: fromDate, to: toDate },
+      results
+    });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
