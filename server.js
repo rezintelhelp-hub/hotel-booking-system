@@ -1635,6 +1635,8 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
             bedroom_count = $13,
             min_stay = $14,
             max_stay = $15,
+            beds24_room_id = $17,
+            cm_room_id = $18,
             updated_at = NOW()
           WHERE id = $16
         `, [
@@ -1653,11 +1655,13 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           bedroomCount,
           room.minStay || 1,
           room.maxStay || null,
-          unitId
+          unitId,
+          parseInt(beds24RoomId) || null,
+          beds24RoomId
         ]);
         
         roomsUpdated++;
-        console.log('   ✓ Updated: ' + (room.name || 'Room'));
+        console.log('   ✓ Updated: ' + (room.name || 'Room') + ' (Beds24 ID: ' + beds24RoomId + ')');
       } else {
         // INSERT new room
         const unitResult = await client.query(`
