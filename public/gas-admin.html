@@ -727,73 +727,23 @@
             font-weight: 600;
         }
 
-        /* Calendar Styles */
-        .calendar-day-header {
-            padding: 0.75rem;
-            text-align: center;
-            font-weight: 600;
-            color: var(--text-secondary);
-            font-size: 0.85rem;
-        }
-
-        .calendar-day {
-            aspect-ratio: 1;
-            min-height: 80px;
-            padding: 0.5rem;
-            border-radius: 8px;
-            display: flex;
-            flex-direction: column;
-            cursor: pointer;
-            transition: all 0.2s;
-            position: relative;
-        }
-
-        .calendar-day:hover {
-            transform: scale(1.02);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-        }
-
-        .calendar-day.available {
-            background: rgba(16, 185, 129, 0.2);
-            border: 1px solid var(--success);
-        }
-
-        .calendar-day.booked {
-            background: rgba(239, 68, 68, 0.2);
-            border: 1px solid var(--error);
-        }
-
-        .calendar-day.blocked {
-            background: rgba(245, 158, 11, 0.2);
-            border: 1px solid var(--warning);
-        }
-
-        .calendar-day.past {
-            opacity: 0.4;
-            cursor: not-allowed;
-        }
-
-        .calendar-day.empty {
-            background: transparent;
-            border: none;
-            cursor: default;
-        }
-
-        .calendar-day-number {
-            font-weight: 600;
-            font-size: 1rem;
-        }
-
-        .calendar-day-price {
+        /* Availability Grid Styles */
+        #availability-grid {
             font-size: 0.75rem;
-            color: var(--accent);
-            margin-top: auto;
-            font-weight: 600;
         }
-
-        .calendar-day.booked .calendar-day-price {
-            color: var(--error);
-            font-size: 0.65rem;
+        
+        #availability-grid th,
+        #availability-grid td {
+            border: 1px solid var(--border-color);
+        }
+        
+        #availability-grid th {
+            background: var(--bg-secondary);
+            font-weight: 500;
+        }
+        
+        #availability-grid td:hover {
+            filter: brightness(0.9);
         }
     </style>
 </head>
@@ -1238,106 +1188,95 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>Availability Calendar</h2>
-                            <p>View and manage room availability and pricing</p>
+                            <h2>Availability & Pricing</h2>
+                            <p>View and manage all rooms in one place</p>
                         </div>
-                        <div style="display: flex; gap: 1rem;">
-                            <button class="btn" onclick="syncAvailabilityFromCM()">🔄 Sync from Channel Manager</button>
-                            <button class="btn btn-secondary" onclick="prevMonth()">← Prev</button>
-                            <button class="btn btn-secondary" onclick="nextMonth()">Next →</button>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-bottom: 1.5rem;">
-                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
-                        <div class="form-group" style="margin-bottom: 0; flex: 1; min-width: 200px;">
-                            <label class="form-label">Select Room</label>
-                            <select class="form-input" id="availability-room-select" onchange="loadAvailabilityCalendar()">
-                                <option value="">Choose a room...</option>
-                            </select>
-                        </div>
-                        <div style="display: flex; gap: 1rem; align-items: center;">
-                            <span style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span style="width: 20px; height: 20px; background: var(--success); border-radius: 4px;"></span>
-                                Available
-                            </span>
-                            <span style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span style="width: 20px; height: 20px; background: var(--error); border-radius: 4px;"></span>
-                                Booked
-                            </span>
-                            <span style="display: flex; align-items: center; gap: 0.5rem;">
-                                <span style="width: 20px; height: 20px; background: var(--warning); border-radius: 4px;"></span>
-                                Blocked
-                            </span>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button class="btn btn-secondary" onclick="shiftGridDays(-7)">‹‹</button>
+                            <button class="btn btn-secondary" onclick="shiftGridDays(-1)">‹</button>
+                            <button class="btn btn-secondary" onclick="goToToday()">Today</button>
+                            <button class="btn btn-secondary" onclick="shiftGridDays(1)">›</button>
+                            <button class="btn btn-secondary" onclick="shiftGridDays(7)">››</button>
+                            <span style="margin-left: 1rem;" id="grid-date-range"></span>
+                            <button class="btn" style="margin-left: 1rem;" onclick="syncAllFromCM()">🔄 Sync from CM</button>
                         </div>
                     </div>
                 </div>
 
-                <div class="card">
-                    <div id="calendar-header" style="text-align: center; margin-bottom: 1rem;">
-                        <h3 id="calendar-month-year" style="font-size: 1.5rem;"></h3>
-                    </div>
-                    <div id="availability-calendar" style="display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px;">
-                        <!-- Calendar will be rendered here -->
-                    </div>
+                <!-- Legend -->
+                <div style="display: flex; gap: 1.5rem; margin-bottom: 1rem; font-size: 0.85rem;">
+                    <span style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="width: 16px; height: 16px; background: #d1fae5; border: 1px solid #10b981; border-radius: 3px;"></span>
+                        Available
+                    </span>
+                    <span style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="width: 16px; height: 16px; background: #fee2e2; border: 1px solid #ef4444; border-radius: 3px;"></span>
+                        Booked
+                    </span>
+                    <span style="display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="width: 16px; height: 16px; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 3px;"></span>
+                        Blocked
+                    </span>
                 </div>
 
-                <!-- Set Availability/Price Modal Trigger -->
-                <div class="card" style="margin-top: 1.5rem;">
+                <!-- Grid Calendar -->
+                <div class="card" style="overflow-x: auto; padding: 0;">
+                    <table id="availability-grid" style="width: 100%; border-collapse: collapse; font-size: 0.75rem;">
+                        <!-- Will be rendered by JS -->
+                    </table>
+                </div>
+
+                <!-- Quick Edit Panel -->
+                <div class="card" style="margin-top: 1rem;">
                     <div class="card-header">
-                        <h3 class="card-title">Set Availability & Pricing</h3>
+                        <h3 class="card-title">Quick Edit</h3>
                     </div>
                     <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">From Date</label>
-                            <input type="date" class="form-input" id="avail-from-date">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">To Date</label>
-                            <input type="date" class="form-input" id="avail-to-date">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Status</label>
-                            <select class="form-input" id="avail-status">
-                                <option value="available">Available</option>
-                                <option value="blocked">Blocked</option>
+                        <div class="form-group" style="margin-bottom: 0; min-width: 150px;">
+                            <label class="form-label">Room</label>
+                            <select class="form-input" id="edit-room-select">
+                                <option value="">All Rooms</option>
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Pricing Type</label>
-                            <select class="form-input" id="avail-pricing-type" onchange="togglePricingInput()">
-                                <option value="none">No Change</option>
-                                <option value="fixed">Fixed Price</option>
-                                <option value="discount">% Discount</option>
+                            <label class="form-label">From</label>
+                            <input type="date" class="form-input" id="edit-from-date">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">To</label>
+                            <input type="date" class="form-input" id="edit-to-date">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Action</label>
+                            <select class="form-input" id="edit-action" onchange="toggleEditInputs()">
+                                <option value="block">Block Dates</option>
+                                <option value="unblock">Unblock</option>
+                                <option value="price">Set Direct Price</option>
+                                <option value="discount">Set % Discount</option>
                             </select>
                         </div>
-                        <div class="form-group" style="margin-bottom: 0;" id="fixed-price-group">
-                            <label class="form-label">Direct Price ($)</label>
-                            <input type="number" class="form-input" id="avail-price" placeholder="150" min="0" step="0.01">
+                        <div class="form-group" style="margin-bottom: 0; display: none;" id="edit-price-group">
+                            <label class="form-label">Price ($)</label>
+                            <input type="number" class="form-input" id="edit-price" placeholder="150" style="width: 100px;">
                         </div>
-                        <div class="form-group" style="margin-bottom: 0; display: none;" id="discount-group">
+                        <div class="form-group" style="margin-bottom: 0; display: none;" id="edit-discount-group">
                             <label class="form-label">Discount %</label>
-                            <input type="number" class="form-input" id="avail-discount" placeholder="10" min="0" max="100">
+                            <input type="number" class="form-input" id="edit-discount" placeholder="10" style="width: 80px;">
                         </div>
-                        <button class="btn" onclick="setAvailability()">Update</button>
+                        <button class="btn" onclick="applyQuickEdit()">Apply</button>
                     </div>
-                    <p style="margin-top: 1rem; font-size: 0.85rem; color: var(--text-secondary);">
-                        💡 <strong>CM Price</strong> = synced from Channel Manager (read-only) | <strong>Direct Price</strong> = your website price
-                    </p>
                 </div>
 
-                <!-- API Feed Info -->
-                <div class="card" style="margin-top: 1.5rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">📡 API Feed</h3>
+                <!-- API Feed Info (collapsed) -->
+                <details style="margin-top: 1rem;">
+                    <summary style="cursor: pointer; color: var(--text-secondary);">📡 API Feed Info</summary>
+                    <div class="card" style="margin-top: 0.5rem;">
+                        <p style="margin-bottom: 0.5rem; color: var(--text-secondary);">Public endpoint for booking widget:</p>
+                        <code style="display: block; background: var(--bg-primary); padding: 0.75rem; border-radius: 6px; font-size: 0.8rem;">
+                            /api/availability/{room_id}?from=YYYY-MM-DD&to=YYYY-MM-DD
+                        </code>
                     </div>
-                    <p style="margin-bottom: 1rem; color: var(--text-secondary);">Use this endpoint to get availability data for your booking widget:</p>
-                    <code id="api-feed-url" style="display: block; background: var(--bg-primary); padding: 1rem; border-radius: 6px; word-break: break-all; font-family: 'JetBrains Mono', monospace;">
-                        /api/availability/{room_id}?from=YYYY-MM-DD&to=YYYY-MM-DD
-                    </code>
-                    <button class="btn btn-secondary" style="margin-top: 1rem;" onclick="copyApiUrl()">📋 Copy URL</button>
-                </div>
+                </details>
             </div>
 
             <!-- Rate Plans View -->
@@ -3084,264 +3023,274 @@
         }
 
         // ========================================
-        // AVAILABILITY CALENDAR FUNCTIONS
+        // AVAILABILITY GRID FUNCTIONS
         // ========================================
         
-        let currentCalendarDate = new Date();
-        let availabilityData = [];
+        let gridStartDate = new Date();
+        let gridRooms = [];
+        let gridData = {}; // roomId -> { date -> data }
+        const GRID_DAYS = 14; // Show 2 weeks at a time
         
         async function loadAvailabilityView() {
-            // Set default dates
-            const today = new Date();
-            document.getElementById('avail-from-date').value = today.toISOString().split('T')[0];
+            // Set start date to today
+            gridStartDate = new Date();
+            gridStartDate.setHours(0, 0, 0, 0);
             
+            // Set default edit dates
+            const today = new Date();
+            document.getElementById('edit-from-date').value = today.toISOString().split('T')[0];
             const nextWeek = new Date(today);
             nextWeek.setDate(nextWeek.getDate() + 7);
-            document.getElementById('avail-to-date').value = nextWeek.toISOString().split('T')[0];
+            document.getElementById('edit-to-date').value = nextWeek.toISOString().split('T')[0];
             
-            // Load rooms into select
+            // Load rooms
             try {
                 const response = await fetch('/api/db/bookable-units');
                 const data = await response.json();
                 
                 if (data.success && data.data) {
-                    const select = document.getElementById('availability-room-select');
-                    select.innerHTML = '<option value="">Choose a room...</option>' +
+                    gridRooms = data.data;
+                    
+                    // Populate edit room select
+                    const select = document.getElementById('edit-room-select');
+                    select.innerHTML = '<option value="">All Rooms</option>' +
                         data.data.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
                 }
             } catch (error) {
                 console.error('Error loading rooms:', error);
             }
             
-            updateCalendarHeader();
+            await loadGridData();
         }
         
-        function updateCalendarHeader() {
-            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
-                'July', 'August', 'September', 'October', 'November', 'December'];
-            document.getElementById('calendar-month-year').textContent = 
-                `${monthNames[currentCalendarDate.getMonth()]} ${currentCalendarDate.getFullYear()}`;
+        function shiftGridDays(days) {
+            gridStartDate.setDate(gridStartDate.getDate() + days);
+            loadGridData();
         }
         
-        function prevMonth() {
-            currentCalendarDate.setMonth(currentCalendarDate.getMonth() - 1);
-            updateCalendarHeader();
-            loadAvailabilityCalendar();
+        function goToToday() {
+            gridStartDate = new Date();
+            gridStartDate.setHours(0, 0, 0, 0);
+            loadGridData();
         }
         
-        function nextMonth() {
-            currentCalendarDate.setMonth(currentCalendarDate.getMonth() + 1);
-            updateCalendarHeader();
-            loadAvailabilityCalendar();
-        }
-        
-        async function loadAvailabilityCalendar() {
-            const roomId = document.getElementById('availability-room-select').value;
-            const calendar = document.getElementById('availability-calendar');
+        async function loadGridData() {
+            const fromDate = gridStartDate.toISOString().split('T')[0];
+            const endDate = new Date(gridStartDate);
+            endDate.setDate(endDate.getDate() + GRID_DAYS - 1);
+            const toDate = endDate.toISOString().split('T')[0];
             
-            if (!roomId) {
-                calendar.innerHTML = '<div style="grid-column: span 7; text-align: center; padding: 2rem; color: var(--text-secondary);">Select a room to view availability</div>';
-                return;
-            }
+            // Update date range display
+            const opts = { month: 'short', day: 'numeric' };
+            document.getElementById('grid-date-range').textContent = 
+                `${gridStartDate.toLocaleDateString('en-US', opts)} - ${endDate.toLocaleDateString('en-US', opts)}`;
             
-            // Update API URL display
-            const baseUrl = window.location.origin;
-            document.getElementById('api-feed-url').textContent = 
-                `${baseUrl}/api/availability/${roomId}?from=YYYY-MM-DD&to=YYYY-MM-DD`;
+            // Load availability for all rooms
+            gridData = {};
             
-            // Calculate date range for current month
-            const year = currentCalendarDate.getFullYear();
-            const month = currentCalendarDate.getMonth();
-            const firstDay = new Date(year, month, 1);
-            const lastDay = new Date(year, month + 1, 0);
-            
-            const fromDate = firstDay.toISOString().split('T')[0];
-            const toDate = lastDay.toISOString().split('T')[0];
-            
-            try {
-                const response = await fetch(`/api/availability/${roomId}?from=${fromDate}&to=${toDate}`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    availabilityData = data.availability || [];
-                    renderCalendar(year, month);
-                } else {
-                    // No data yet - render empty calendar
-                    availabilityData = [];
-                    renderCalendar(year, month);
+            for (const room of gridRooms) {
+                try {
+                    const response = await fetch(`/api/availability/${room.id}?from=${fromDate}&to=${toDate}`);
+                    const data = await response.json();
+                    
+                    if (data.success && data.availability) {
+                        gridData[room.id] = {};
+                        data.availability.forEach(a => {
+                            gridData[room.id][a.date] = a;
+                        });
+                    }
+                } catch (error) {
+                    console.error(`Error loading availability for room ${room.id}:`, error);
                 }
-            } catch (error) {
-                console.error('Error loading availability:', error);
-                availabilityData = [];
-                renderCalendar(year, month);
             }
+            
+            renderGrid();
         }
         
-        function renderCalendar(year, month) {
-            const calendar = document.getElementById('availability-calendar');
+        function renderGrid() {
+            const table = document.getElementById('availability-grid');
             const today = new Date();
             today.setHours(0, 0, 0, 0);
             
-            const firstDay = new Date(year, month, 1);
-            const lastDay = new Date(year, month + 1, 0);
-            const startDayOfWeek = firstDay.getDay(); // 0 = Sunday
-            
-            // Day headers
-            const dayHeaders = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-            let html = dayHeaders.map(d => `<div class="calendar-day-header">${d}</div>`).join('');
-            
-            // Empty cells before first day
-            for (let i = 0; i < startDayOfWeek; i++) {
-                html += '<div class="calendar-day empty"></div>';
+            // Generate dates array
+            const dates = [];
+            for (let i = 0; i < GRID_DAYS; i++) {
+                const d = new Date(gridStartDate);
+                d.setDate(d.getDate() + i);
+                dates.push(d);
             }
             
-            // Days of the month
-            for (let day = 1; day <= lastDay.getDate(); day++) {
-                const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-                const dayDate = new Date(year, month, day);
-                const isPast = dayDate < today;
-                
-                // Find availability data for this date
-                const dayData = availabilityData.find(a => a.date === dateStr);
-                
-                let status = 'available';
-                let cmPrice = '';
-                let directPrice = '';
-                let bookingInfo = '';
-                
-                if (dayData) {
-                    if (dayData.is_booked) {
-                        status = 'booked';
-                        bookingInfo = dayData.guest_name ? `${dayData.guest_name}` : 'Booked';
-                    } else if (dayData.is_blocked) {
-                        status = 'blocked';
-                    }
-                    if (dayData.cm_price) {
-                        cmPrice = `$${parseFloat(dayData.cm_price).toFixed(0)}`;
-                    }
-                    if (dayData.direct_price && dayData.direct_price != dayData.cm_price) {
-                        directPrice = `$${parseFloat(dayData.direct_price).toFixed(0)}`;
-                    }
-                }
-                
-                let priceDisplay = '';
-                if (status === 'booked') {
-                    priceDisplay = `<span class="calendar-day-price">${bookingInfo}</span>`;
-                } else if (cmPrice || directPrice) {
-                    if (cmPrice && directPrice) {
-                        priceDisplay = `
-                            <span class="calendar-day-price" style="text-decoration: line-through; opacity: 0.6; font-size: 0.65rem;">${cmPrice}</span>
-                            <span class="calendar-day-price" style="color: var(--success);">${directPrice}</span>
-                        `;
-                    } else {
-                        priceDisplay = `<span class="calendar-day-price">${cmPrice || directPrice}</span>`;
-                    }
-                }
-                
-                html += `
-                    <div class="calendar-day ${status} ${isPast ? 'past' : ''}" 
-                         data-date="${dateStr}"
-                         onclick="selectCalendarDate('${dateStr}')">
-                        <span class="calendar-day-number">${day}</span>
-                        ${priceDisplay}
-                    </div>
-                `;
-            }
+            // Build header row
+            let html = '<thead><tr>';
+            html += '<th style="position: sticky; left: 0; background: var(--bg-secondary); z-index: 10; padding: 8px; min-width: 120px; text-align: left;">Room</th>';
+            html += '<th style="padding: 4px; min-width: 50px; text-align: center;">Row</th>';
             
-            calendar.innerHTML = html;
-        }
-        
-        function selectCalendarDate(dateStr) {
-            document.getElementById('avail-from-date').value = dateStr;
-            document.getElementById('avail-to-date').value = dateStr;
-        }
-        
-        function togglePricingInput() {
-            const type = document.getElementById('avail-pricing-type').value;
-            document.getElementById('fixed-price-group').style.display = type === 'fixed' ? 'block' : 'none';
-            document.getElementById('discount-group').style.display = type === 'discount' ? 'block' : 'none';
-        }
-        
-        async function setAvailability() {
-            const roomId = document.getElementById('availability-room-select').value;
-            const fromDate = document.getElementById('avail-from-date').value;
-            const toDate = document.getElementById('avail-to-date').value;
-            const status = document.getElementById('avail-status').value;
-            const pricingType = document.getElementById('avail-pricing-type').value;
-            const price = document.getElementById('avail-price').value;
-            const discount = document.getElementById('avail-discount').value;
+            dates.forEach(d => {
+                const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                const dayNum = d.getDate();
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const isToday = d.getTime() === today.getTime();
+                
+                html += `<th style="padding: 4px 2px; min-width: 55px; text-align: center; font-weight: normal; 
+                    ${isWeekend ? 'background: rgba(255,255,255,0.05);' : ''}
+                    ${isToday ? 'background: rgba(59, 130, 246, 0.2); font-weight: bold;' : ''}">
+                    <div style="font-size: 0.7rem; color: var(--text-secondary);">${dayName}</div>
+                    <div>${dayNum}</div>
+                </th>`;
+            });
+            html += '</tr></thead>';
             
-            if (!roomId) return alert('Please select a room');
+            // Build body rows - one row per room per data type
+            html += '<tbody>';
+            
+            gridRooms.forEach(room => {
+                const roomData = gridData[room.id] || {};
+                
+                // Row 1: Status (Available/Blocked/Booked)
+                html += '<tr>';
+                html += `<td rowspan="2" style="position: sticky; left: 0; background: var(--bg-secondary); z-index: 5; padding: 8px; font-weight: 500; border-bottom: 2px solid var(--border-color);">${room.name}</td>`;
+                html += `<td style="padding: 4px; font-size: 0.7rem; color: var(--text-secondary);">Status</td>`;
+                
+                dates.forEach(d => {
+                    const dateStr = d.toISOString().split('T')[0];
+                    const dayData = roomData[dateStr];
+                    const isPast = d < today;
+                    
+                    let bgColor = '#d1fae5'; // green - available
+                    let text = '';
+                    let textColor = '#065f46';
+                    
+                    if (dayData) {
+                        if (dayData.is_booked) {
+                            bgColor = '#fee2e2'; // red
+                            text = dayData.guest_name ? dayData.guest_name.split(' ')[0] : '●';
+                            textColor = '#991b1b';
+                        } else if (dayData.is_blocked) {
+                            bgColor = '#fef3c7'; // yellow
+                            text = '✕';
+                            textColor = '#92400e';
+                        }
+                    }
+                    
+                    if (isPast) {
+                        bgColor = '#f3f4f6';
+                        textColor = '#9ca3af';
+                    }
+                    
+                    html += `<td style="padding: 2px; text-align: center; background: ${bgColor}; color: ${textColor}; font-size: 0.7rem; cursor: ${isPast ? 'default' : 'pointer'};"
+                        onclick="selectDateRange('${room.id}', '${dateStr}')">${text}</td>`;
+                });
+                html += '</tr>';
+                
+                // Row 2: Price
+                html += '<tr style="border-bottom: 2px solid var(--border-color);">';
+                html += `<td style="padding: 4px; font-size: 0.7rem; color: var(--text-secondary);">Price</td>`;
+                
+                dates.forEach(d => {
+                    const dateStr = d.toISOString().split('T')[0];
+                    const dayData = roomData[dateStr];
+                    const isPast = d < today;
+                    
+                    let priceText = '-';
+                    let priceStyle = 'color: var(--text-secondary);';
+                    
+                    if (dayData && !isPast) {
+                        if (dayData.direct_price && dayData.cm_price && dayData.direct_price != dayData.cm_price) {
+                            // Show direct price in green (discounted)
+                            priceText = `${Math.round(dayData.direct_price)}`;
+                            priceStyle = 'color: #10b981; font-weight: 500;';
+                        } else if (dayData.cm_price) {
+                            priceText = `${Math.round(dayData.cm_price)}`;
+                        } else if (dayData.direct_price) {
+                            priceText = `${Math.round(dayData.direct_price)}`;
+                        }
+                    }
+                    
+                    html += `<td style="padding: 2px; text-align: center; font-size: 0.7rem; ${priceStyle} ${isPast ? 'opacity: 0.4;' : ''}">${priceText}</td>`;
+                });
+                html += '</tr>';
+            });
+            
+            html += '</tbody>';
+            table.innerHTML = html;
+        }
+        
+        function selectDateRange(roomId, dateStr) {
+            document.getElementById('edit-room-select').value = roomId;
+            document.getElementById('edit-from-date').value = dateStr;
+            document.getElementById('edit-to-date').value = dateStr;
+        }
+        
+        function toggleEditInputs() {
+            const action = document.getElementById('edit-action').value;
+            document.getElementById('edit-price-group').style.display = action === 'price' ? 'block' : 'none';
+            document.getElementById('edit-discount-group').style.display = action === 'discount' ? 'block' : 'none';
+        }
+        
+        async function applyQuickEdit() {
+            const roomId = document.getElementById('edit-room-select').value;
+            const fromDate = document.getElementById('edit-from-date').value;
+            const toDate = document.getElementById('edit-to-date').value;
+            const action = document.getElementById('edit-action').value;
+            const price = document.getElementById('edit-price').value;
+            const discount = document.getElementById('edit-discount').value;
+            
             if (!fromDate || !toDate) return alert('Please select dates');
             
-            const payload = {
-                room_id: roomId,
-                from_date: fromDate,
-                to_date: toDate,
-                status: status
-            };
+            // Determine which rooms to update
+            const roomsToUpdate = roomId ? [roomId] : gridRooms.map(r => r.id);
             
-            if (pricingType === 'fixed' && price) {
-                payload.price = price;
-            } else if (pricingType === 'discount' && discount) {
-                payload.discount_percent = discount;
-            }
+            let totalUpdated = 0;
             
-            try {
-                const response = await fetch('/api/admin/availability', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
+            for (const rid of roomsToUpdate) {
+                const payload = {
+                    room_id: rid,
+                    from_date: fromDate,
+                    to_date: toDate,
+                    status: (action === 'block') ? 'blocked' : 'available'
+                };
                 
-                const result = await response.json();
-                if (result.success) {
-                    alert(`Availability updated for ${result.days_updated} day(s)`);
-                    loadAvailabilityCalendar();
-                } else {
-                    alert('Error: ' + result.error);
+                if (action === 'price' && price) {
+                    payload.price = price;
+                } else if (action === 'discount' && discount) {
+                    payload.discount_percent = discount;
                 }
-            } catch (error) {
-                console.error('Error setting availability:', error);
-                alert('Error updating availability');
+                
+                try {
+                    const response = await fetch('/api/admin/availability', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (result.success) {
+                        totalUpdated += result.days_updated;
+                    }
+                } catch (error) {
+                    console.error('Error updating:', error);
+                }
             }
+            
+            alert(`Updated ${totalUpdated} day(s) across ${roomsToUpdate.length} room(s)`);
+            loadGridData();
         }
         
-        function copyApiUrl() {
-            const url = document.getElementById('api-feed-url').textContent;
-            navigator.clipboard.writeText(url).then(() => {
-                alert('API URL copied to clipboard!');
-            });
-        }
-        
-        async function syncAvailabilityFromCM() {
-            const roomId = document.getElementById('availability-room-select').value;
+        async function syncAllFromCM() {
+            if (!confirm('Sync availability and pricing from Channel Manager for all rooms?')) return;
             
-            if (!roomId) {
-                alert('Please select a room first');
-                return;
-            }
-            
-            if (!confirm('Sync availability and pricing from Channel Manager?\n\nThis will update the calendar with the latest data from Beds24.')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/admin/sync-availability/${roomId}`, {
-                    method: 'POST'
-                });
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert(`Synced ${result.days_synced} days of availability and pricing!`);
-                    loadAvailabilityCalendar();
-                } else {
-                    alert('Error: ' + result.error);
+            let synced = 0;
+            for (const room of gridRooms) {
+                try {
+                    const response = await fetch(`/api/admin/sync-availability/${room.id}`, { method: 'POST' });
+                    const result = await response.json();
+                    if (result.success) synced++;
+                } catch (error) {
+                    console.error(`Error syncing room ${room.id}:`, error);
                 }
-            } catch (error) {
-                console.error('Sync error:', error);
-                alert('Error syncing from Channel Manager');
             }
+            
+            alert(`Synced ${synced} room(s) from Channel Manager`);
+            loadGridData();
         }
 
         async function editProperty(id) {
