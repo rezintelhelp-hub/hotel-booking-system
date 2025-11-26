@@ -416,6 +416,19 @@
                     </div>
                 </div>
 
+                <div class="form-group">
+                    <label for="accountId">Beds24 Account ID (optional)</label>
+                    <input 
+                        type="text" 
+                        id="accountId" 
+                        placeholder="e.g., 9401"
+                    >
+                    <div class="help-text">
+                        If you manage multiple accounts/sub-accounts, enter the specific Account ID here.
+                        You can find this in Beds24 under Settings → Account.
+                    </div>
+                </div>
+
                 <div class="alert" id="step1Alert"></div>
 
                 <div class="button-group">
@@ -558,6 +571,7 @@
         // Step 1: Connect to Beds24
         async function connectBeds24() {
             const inviteCode = document.getElementById('inviteCode').value.trim();
+            const accountId = document.getElementById('accountId').value.trim();
             const alert = document.getElementById('step1Alert');
             const btn = document.getElementById('connectBtn');
             
@@ -575,7 +589,7 @@
                 const response = await fetch('/api/beds24/setup-connection', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ inviteCode })
+                    body: JSON.stringify({ inviteCode, accountId })
                 });
 
                 const data = await response.json();
@@ -584,6 +598,8 @@
                     beds24Token = data.token;
                     beds24RefreshToken = data.refreshToken;
                     connectionId = data.connectionId;
+                    // Store account ID for later use
+                    window.beds24AccountId = accountId;
 
                     showAlert('step1Alert', 'success', '✓ Successfully connected to Beds24!');
                     
@@ -613,7 +629,8 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
                         token: beds24Token,
-                        connectionId: connectionId 
+                        connectionId: connectionId,
+                        accountId: window.beds24AccountId
                     })
                 });
 
