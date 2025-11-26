@@ -2635,26 +2635,51 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
       results.rooms_calendar_error = e.response?.data || e.message;
     }
     
-    // Try 2: /inventory/calendar with propertyId (16276)
+    // Try 2: /inventory/rooms/prices (fixed prices)
     try {
-      const resp2 = await axios.get('https://beds24.com/api/v2/inventory/calendar', {
+      const resp2 = await axios.get('https://beds24.com/api/v2/inventory/rooms/prices', {
         headers: { 'token': accessToken },
-        params: { propertyId: propertyId || 16276, from: fromDate, to: toDate }
+        params: { roomId: beds24RoomId }
       });
-      results.inventory_calendar = resp2.data;
+      results.rooms_prices = resp2.data;
     } catch (e) {
-      results.inventory_calendar_error = e.response?.data || e.message;
+      results.rooms_prices_error = e.response?.data || e.message;
     }
     
-    // Try 3: /properties with calendar info
+    // Try 3: /inventory/rooms/offers (calculated prices for dates)
     try {
-      const resp3 = await axios.get('https://beds24.com/api/v2/properties', {
+      const resp3 = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+        headers: { 'token': accessToken },
+        params: { 
+          roomId: beds24RoomId, 
+          checkIn: fromDate, 
+          checkOut: toDate,
+          numAdult: 2
+        }
+      });
+      results.rooms_offers = resp3.data;
+    } catch (e) {
+      results.rooms_offers_error = e.response?.data || e.message;
+    }
+    
+    // Try 4: /properties with includeAllRooms to get rackRate
+    try {
+      const resp4 = await axios.get('https://beds24.com/api/v2/properties', {
         headers: { 'token': accessToken },
         params: { id: propertyId || 16276, includeAllRooms: true }
       });
-      results.properties = resp3.data;
+      // Extract just room pricing info
+      const rooms = resp4.data.data?.[0]?.roomTypes || [];
+      results.room_rack_rates = rooms.map(r => ({
+        roomId: r.id,
+        name: r.name,
+        rackRate: r.rackRate,
+        minPrice: r.minPrice,
+        cleaningFee: r.cleaningFee,
+        taxPercentage: r.taxPercentage
+      }));
     } catch (e) {
-      results.properties_error = e.response?.data || e.message;
+      results.room_rack_rates_error = e.response?.data || e.message;
     }
     
     res.json({
