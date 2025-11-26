@@ -1,3 +1,4 @@
+
 // Updated for DELETE endpoint + DATABASE MIGRATION
 require('dotenv').config();
 const express = require('express');
@@ -2354,15 +2355,15 @@ app.get('/api/availability/:roomId', async (req, res) => {
     // Get bookings for this period
     const bookings = await pool.query(`
       SELECT 
-        check_in_date,
-        check_out_date,
+        check_in,
+        check_out,
         guest_first_name,
         status
       FROM bookings
       WHERE room_id = $1 
         AND status NOT IN ('cancelled', 'rejected')
-        AND check_in_date <= $3
-        AND check_out_date >= $2
+        AND check_in <= $3
+        AND check_out >= $2
     `, [roomId, from, to]);
     
     // Build availability map
@@ -2379,8 +2380,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
     
     // Mark booked dates
     bookings.rows.forEach(b => {
-      const checkIn = new Date(b.check_in_date);
-      const checkOut = new Date(b.check_out_date);
+      const checkIn = new Date(b.check_in);
+      const checkOut = new Date(b.check_out);
       
       for (let d = new Date(checkIn); d < checkOut; d.setDate(d.getDate() + 1)) {
         const dateStr = d.toISOString().split('T')[0];
