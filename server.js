@@ -2599,6 +2599,26 @@ app.get('/api/admin/debug/beds24-rooms', async (req, res) => {
   }
 });
 
+// Debug: Check rooms and their Beds24 links
+app.get('/api/admin/debug/rooms-beds24', async (req, res) => {
+  try {
+    const rooms = await pool.query(`
+      SELECT bu.id, bu.name, bu.beds24_room_id, bu.property_id, p.name as property_name, p.beds24_property_id
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      ORDER BY bu.id
+    `);
+    
+    res.json({
+      success: true,
+      count: rooms.rows.length,
+      rooms: rooms.rows
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Debug: Test Beds24 calendar API directly
 app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
   try {
