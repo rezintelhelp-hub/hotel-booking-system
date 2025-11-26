@@ -2876,6 +2876,153 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
   }
 });
 
+// BULK sync ALL rooms - fetches all rooms in one API call per day (much faster)
+app.post('/api/admin/sync-all-availability-bulk', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    // Get all rooms with beds24_room_id
+    const roomsResult = await client.query(`
+      SELECT bu.id, bu.name, bu.beds24_room_id 
+      FROM bookable_units bu 
+      WHERE bu.beds24_room_id IS NOT NULL
+    `);
+    
+    if (roomsResult.rows.length === 0) {
+      client.release();
+      return res.json({ success: false, error: 'No rooms linked to Beds24' });
+    }
+    
+    const rooms = roomsResult.rows;
+    const beds24RoomIds = rooms.map(r => r.beds24_room_id);
+    
+    // Create a map of beds24_room_id -> our room id
+    const roomIdMap = {};
+    rooms.forEach(r => {
+      roomIdMap[r.beds24_room_id] = r.id;
+    });
+    
+    // Get access token
+    let accessToken;
+    try {
+      accessToken = await getBeds24AccessToken(pool);
+    } catch (tokenError) {
+      client.release();
+      return res.json({ success: false, error: tokenError.message });
+    }
+    
+    const today = new Date();
+    const numDays = 365; // Full year
+    
+    console.log(`Bulk syncing ${rooms.length} rooms for ${numDays} days`);
+    
+    await client.query('BEGIN');
+    
+    let totalDaysSynced = 0;
+    let totalPricesFound = 0;
+    let apiCallsMade = 0;
+    
+    // Fetch ALL rooms for each day in ONE API call
+    for (let i = 0; i < numDays; i++) {
+      const arrivalDate = new Date(today);
+      arrivalDate.setDate(arrivalDate.getDate() + i);
+      const departDate = new Date(arrivalDate);
+      departDate.setDate(departDate.getDate() + 1);
+      
+      const arrival = arrivalDate.toISOString().split('T')[0];
+      const departure = departDate.toISOString().split('T')[0];
+      
+      try {
+        // Pass ALL room IDs in one call
+        const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+          headers: { 'token': accessToken },
+          params: { 
+            roomId: beds24RoomIds.join(','),
+            arrival: arrival,
+            departure: departure,
+            numAdults: 2
+          }
+        });
+        
+        apiCallsMade++;
+        const offerData = offerResponse.data;
+        
+        // Process each room's offers
+        if (offerData.data && offerData.data.length > 0) {
+          for (const roomData of offerData.data) {
+            const ourRoomId = roomIdMap[roomData.roomId];
+            if (!ourRoomId) continue;
+            
+            let price = null;
+            let unitsAvailable = 0;
+            
+            if (roomData.offers && roomData.offers.length > 0) {
+              const offer1 = roomData.offers.find(o => o.offerId === 1) || roomData.offers[0];
+              price = offer1.price;
+              unitsAvailable = offer1.unitsAvailable || 0;
+              totalPricesFound++;
+            }
+            
+            const isAvailable = unitsAvailable > 0;
+            const isBlocked = !isAvailable && price === null;
+            
+            await client.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source)
+              VALUES ($1, $2, $3, $4, $5, 'beds24')
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET 
+                cm_price = COALESCE($3, room_availability.cm_price),
+                is_available = $4,
+                is_blocked = $5,
+                source = 'beds24',
+                updated_at = NOW()
+            `, [ourRoomId, arrival, price, isAvailable, isBlocked]);
+            
+            totalDaysSynced++;
+          }
+        }
+        
+      } catch (apiError) {
+        if (apiError.response?.status === 429) {
+          console.log(`Rate limited on day ${i}, waiting 10 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 10000));
+          i--; // Retry this day
+          continue;
+        }
+        console.error(`Error fetching offers for ${arrival}:`, apiError.response?.data || apiError.message);
+      }
+      
+      // Progress log every 30 days
+      if (i > 0 && i % 30 === 0) {
+        console.log(`Progress: ${i}/${numDays} days, ${apiCallsMade} API calls, ${totalDaysSynced} records`);
+      }
+      
+      // Delay between calls (300ms = ~3 calls/sec)
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
+    
+    await client.query('COMMIT');
+    client.release();
+    
+    console.log(`Bulk sync complete: ${apiCallsMade} API calls, ${totalDaysSynced} day/room records, ${totalPricesFound} with prices`);
+    
+    res.json({ 
+      success: true, 
+      roomsCount: rooms.length,
+      daysRequested: numDays,
+      apiCallsMade,
+      totalDaysSynced,
+      totalPricesFound,
+      message: `Synced ${rooms.length} rooms for ${numDays} days (${apiCallsMade} API calls)`
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    client.release();
+    console.error('Bulk sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Sync ALL rooms from Beds24 (calls the single room sync for each room)
 app.post('/api/admin/sync-all-availability', async (req, res) => {
   try {
