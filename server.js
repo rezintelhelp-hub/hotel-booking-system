@@ -2647,17 +2647,37 @@ app.get('/api/admin/debug/beds24-calendar/:beds24RoomId', async (req, res) => {
     }
     
     // Try 3: /inventory/rooms/offers (calculated prices for dates)
+    // Get offers for next 30 days, one day at a time
     try {
-      const resp3 = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
-        headers: { 'token': accessToken },
-        params: { 
-          roomId: beds24RoomId, 
-          checkIn: fromDate, 
-          checkOut: toDate,
-          numAdult: 2
+      const offersData = [];
+      // Test first 7 days to see the data structure
+      for (let i = 0; i < 7; i++) {
+        const arrivalDate = new Date(today);
+        arrivalDate.setDate(arrivalDate.getDate() + i);
+        const departDate = new Date(arrivalDate);
+        departDate.setDate(departDate.getDate() + 1);
+        
+        const arrival = arrivalDate.toISOString().split('T')[0];
+        const depart = departDate.toISOString().split('T')[0];
+        
+        const resp3 = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+          headers: { 'token': accessToken },
+          params: { 
+            roomId: beds24RoomId, 
+            arrival: arrival,
+            depart: depart,
+            numAdult: 2
+          }
+        });
+        
+        if (resp3.data.data && resp3.data.data.length > 0) {
+          offersData.push({
+            date: arrival,
+            offers: resp3.data.data[0].offers
+          });
         }
-      });
-      results.rooms_offers = resp3.data;
+      }
+      results.rooms_offers = { success: true, data: offersData };
     } catch (e) {
       results.rooms_offers_error = e.response?.data || e.message;
     }
