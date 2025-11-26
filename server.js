@@ -2751,116 +2751,179 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
     
     // Calculate date range (today + 90 days)
     const today = new Date();
-    const endDate = new Date();
-    endDate.setDate(endDate.getDate() + 90);
+    const numDays = 90;
     
-    const fromDate = today.toISOString().split('T')[0];
-    const toDate = endDate.toISOString().split('T')[0];
-    
-    console.log(`Syncing Beds24 room ${beds24RoomId} from ${fromDate} to ${toDate}`);
-    
-    // Use axios to call Beds24 calendar API
-    let calendarData;
-    try {
-      const calendarResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
-        headers: {
-          'token': accessToken,
-          'Accept': 'application/json'
-        },
-        params: {
-          roomId: beds24RoomId,
-          from: fromDate,
-          to: toDate
-        }
-      });
-      calendarData = calendarResponse.data;
-      console.log('Beds24 response received, type:', typeof calendarData, Array.isArray(calendarData) ? `array with ${calendarData.length} items` : 'not array');
-    } catch (apiError) {
-      console.error('Beds24 API error:', apiError.response?.data || apiError.message);
-      client.release();
-      return res.json({ 
-        success: false, 
-        error: 'Beds24 API error: ' + (apiError.response?.data?.error || apiError.message)
-      });
-    }
+    console.log(`Syncing Beds24 room ${beds24RoomId} for ${numDays} days using offers API`);
     
     await client.query('BEGIN');
     
     let daysSynced = 0;
+    let daysWithPrice = 0;
+    let daysBlocked = 0;
     
-    // The calendar endpoint returns an array of room objects
-    if (Array.isArray(calendarData) && calendarData.length > 0) {
-      const roomCalendar = calendarData.find(r => String(r.roomId) === String(beds24RoomId));
+    // Call offers API for each day
+    for (let i = 0; i < numDays; i++) {
+      const arrivalDate = new Date(today);
+      arrivalDate.setDate(arrivalDate.getDate() + i);
+      const departDate = new Date(arrivalDate);
+      departDate.setDate(departDate.getDate() + 1);
       
-      if (roomCalendar && roomCalendar.calendar) {
-        console.log(`Found ${roomCalendar.calendar.length} calendar entries`);
+      const arrival = arrivalDate.toISOString().split('T')[0];
+      const departure = departDate.toISOString().split('T')[0];
+      
+      try {
+        const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+          headers: { 'token': accessToken },
+          params: { 
+            roomId: beds24RoomId, 
+            arrival: arrival,
+            departure: departure,
+            numAdults: 2
+          }
+        });
         
-        for (const entry of roomCalendar.calendar) {
-          const startDate = new Date(entry.from || entry.date);
-          const endDateEntry = entry.to ? new Date(entry.to) : startDate;
-          
-          const price = entry.price1 || entry.price || null;
-          const numAvail = entry.numAvail !== undefined ? entry.numAvail : 1;
-          const isAvailable = numAvail > 0;
-          
-          for (let d = new Date(startDate); d <= endDateEntry; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            
-            await client.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source)
-              VALUES ($1, $2, $3, $4, false, 'beds24')
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET 
-                cm_price = COALESCE($3, room_availability.cm_price),
-                is_available = $4,
-                source = 'beds24',
-                updated_at = NOW()
-            `, [roomId, dateStr, price, isAvailable]);
-            
-            daysSynced++;
+        const offerData = offerResponse.data;
+        
+        // Find offer 1 (Standard Price) from the response
+        let price = null;
+        let unitsAvailable = 0;
+        
+        if (offerData.data && offerData.data.length > 0) {
+          const roomOffers = offerData.data[0];
+          if (roomOffers.offers && roomOffers.offers.length > 0) {
+            // Get offer 1 (Standard Price) or first available offer
+            const offer1 = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
+            price = offer1.price;
+            unitsAvailable = offer1.unitsAvailable || 0;
+            daysWithPrice++;
           }
         }
-      } else {
-        console.log('Room not found in calendar response. Available rooms:', calendarData.map(r => r.roomId));
-      }
-    } else if (calendarData && calendarData.success === false) {
-      await client.query('ROLLBACK');
-      client.release();
-      return res.json({ success: false, error: calendarData.error || 'Beds24 API error' });
-    }
-    
-    // If no data synced, create default availability
-    if (daysSynced === 0) {
-      console.log('No Beds24 data found, creating default availability');
-      for (let i = 0; i < 90; i++) {
-        const d = new Date(today);
-        d.setDate(d.getDate() + i);
-        const dateStr = d.toISOString().split('T')[0];
+        
+        const isAvailable = unitsAvailable > 0;
+        const isBlocked = !isAvailable && price === null;
+        
+        if (isBlocked) daysBlocked++;
         
         await client.query(`
-          INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-          VALUES ($1, $2, true, false, 'manual')
-          ON CONFLICT (room_id, date) DO NOTHING
-        `, [roomId, dateStr]);
+          INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source)
+          VALUES ($1, $2, $3, $4, $5, 'beds24')
+          ON CONFLICT (room_id, date) 
+          DO UPDATE SET 
+            cm_price = COALESCE($3, room_availability.cm_price),
+            is_available = $4,
+            is_blocked = $5,
+            source = 'beds24',
+            updated_at = NOW()
+        `, [roomId, arrival, price, isAvailable, isBlocked]);
         
         daysSynced++;
+        
+      } catch (apiError) {
+        console.error(`Error fetching offers for ${arrival}:`, apiError.response?.data || apiError.message);
+        // Continue with next day even if one fails
+      }
+      
+      // Small delay to avoid rate limiting
+      if (i % 10 === 9) {
+        await new Promise(resolve => setTimeout(resolve, 100));
       }
     }
     
     await client.query('COMMIT');
     client.release();
     
+    console.log(`Sync complete: ${daysSynced} days, ${daysWithPrice} with prices, ${daysBlocked} blocked`);
+    
     res.json({ 
       success: true, 
-      days_synced: daysSynced,
-      beds24_room_id: beds24RoomId,
-      source: daysSynced > 90 ? 'beds24' : 'default'
+      roomId,
+      beds24RoomId,
+      daysSynced,
+      daysWithPrice,
+      daysBlocked,
+      message: `Synced ${daysSynced} days from Beds24 (${daysWithPrice} with prices, ${daysBlocked} blocked)`
     });
     
   } catch (error) {
-    await client.query('ROLLBACK').catch(() => {});
+    await client.query('ROLLBACK');
     client.release();
-    console.error('Sync availability error:', error);
+    console.error('Sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Sync ALL rooms from Beds24 (calls the single room sync for each room)
+app.post('/api/admin/sync-all-availability', async (req, res) => {
+  try {
+    // Get all rooms with beds24_room_id
+    const rooms = await pool.query(`
+      SELECT bu.id, bu.name, bu.beds24_room_id 
+      FROM bookable_units bu 
+      WHERE bu.beds24_room_id IS NOT NULL
+    `);
+    
+    if (rooms.rows.length === 0) {
+      return res.json({ success: false, error: 'No rooms linked to Beds24' });
+    }
+    
+    console.log(`Starting sync for ${rooms.rows.length} rooms`);
+    
+    const results = [];
+    
+    for (const room of rooms.rows) {
+      try {
+        // Call the single room sync endpoint internally
+        const syncResult = await new Promise(async (resolve) => {
+          const mockReq = { params: { roomId: room.id } };
+          const mockRes = {
+            json: (data) => resolve(data)
+          };
+          
+          // We need to call the sync logic directly, not the endpoint
+          // For simplicity, we'll make an internal HTTP call
+          const axios = require('axios');
+          const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 3000}`;
+          
+          try {
+            const response = await axios.post(`${baseUrl}/api/admin/sync-availability/${room.id}`);
+            resolve(response.data);
+          } catch (err) {
+            resolve({ success: false, error: err.message });
+          }
+        });
+        
+        results.push({
+          roomId: room.id,
+          roomName: room.name,
+          beds24RoomId: room.beds24_room_id,
+          ...syncResult
+        });
+        
+        // Small delay between rooms
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (err) {
+        results.push({
+          roomId: room.id,
+          roomName: room.name,
+          success: false,
+          error: err.message
+        });
+      }
+    }
+    
+    const successCount = results.filter(r => r.success).length;
+    
+    res.json({
+      success: true,
+      totalRooms: rooms.rows.length,
+      successfulSyncs: successCount,
+      failedSyncs: rooms.rows.length - successCount,
+      results
+    });
+    
+  } catch (error) {
+    console.error('Sync all error:', error);
     res.json({ success: false, error: error.message });
   }
 });
