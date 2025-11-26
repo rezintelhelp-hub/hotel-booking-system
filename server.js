@@ -2339,10 +2339,13 @@ app.get('/api/availability/:roomId', async (req, res) => {
     const availability = await pool.query(`
       SELECT 
         date,
-        price,
+        cm_price,
+        direct_price,
+        direct_discount_percent,
         is_available,
         is_blocked,
         min_stay,
+        source,
         notes
       FROM room_availability
       WHERE room_id = $1 
@@ -2354,12 +2357,22 @@ app.get('/api/availability/:roomId', async (req, res) => {
     // Build availability map
     const availMap = {};
     availability.rows.forEach(a => {
-      availMap[a.date.toISOString().split('T')[0]] = {
-        date: a.date.toISOString().split('T')[0],
-        price: a.price,
+      const dateStr = a.date.toISOString().split('T')[0];
+      // Calculate effective direct price
+      let effectiveDirectPrice = a.direct_price;
+      if (!effectiveDirectPrice && a.cm_price && a.direct_discount_percent) {
+        effectiveDirectPrice = a.cm_price * (1 - a.direct_discount_percent / 100);
+      }
+      
+      availMap[dateStr] = {
+        date: dateStr,
+        cm_price: a.cm_price,
+        direct_price: effectiveDirectPrice || a.cm_price,
+        direct_discount_percent: a.direct_discount_percent,
         is_available: a.is_available,
         is_blocked: a.is_blocked,
-        min_stay: a.min_stay
+        min_stay: a.min_stay,
+        source: a.source
       };
     });
     
@@ -2429,11 +2442,142 @@ app.get('/api/availability/:roomId', async (req, res) => {
   }
 });
 
+// Sync availability from Channel Manager (Beds24)
+app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { roomId } = req.params;
+    
+    // Get the room's Beds24 ID
+    const room = await client.query(`
+      SELECT bu.id, bu.beds24_room_id, bu.property_id, p.beds24_property_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (room.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    const beds24RoomId = room.rows[0].beds24_room_id;
+    const beds24PropertyId = room.rows[0].beds24_property_id;
+    
+    if (!beds24RoomId || !beds24PropertyId) {
+      return res.json({ success: false, error: 'Room not linked to Beds24' });
+    }
+    
+    // Get API token
+    const tokenResult = await client.query(
+      "SELECT api_key FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') LIMIT 1"
+    );
+    
+    if (tokenResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Beds24 API token configured' });
+    }
+    
+    const apiToken = tokenResult.rows[0].api_key;
+    
+    // Calculate date range (today + 365 days)
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 365);
+    
+    const fromDate = today.toISOString().split('T')[0];
+    const toDate = endDate.toISOString().split('T')[0];
+    
+    // Fetch availability from Beds24
+    const beds24Response = await fetch('https://beds24.com/api/v2/inventory/rooms/availability', {
+      method: 'GET',
+      headers: {
+        'token': apiToken,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    // Also fetch pricing
+    const pricingResponse = await fetch('https://beds24.com/api/v2/inventory/rooms/prices', {
+      method: 'GET', 
+      headers: {
+        'token': apiToken,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    let availData = [];
+    let priceData = [];
+    
+    try {
+      availData = await beds24Response.json();
+      priceData = await pricingResponse.json();
+    } catch (e) {
+      console.log('Beds24 API parse error:', e.message);
+    }
+    
+    // Find data for our room
+    const roomAvail = Array.isArray(availData) ? availData.find(r => r.roomId == beds24RoomId) : null;
+    const roomPrices = Array.isArray(priceData) ? priceData.find(r => r.roomId == beds24RoomId) : null;
+    
+    await client.query('BEGIN');
+    
+    let daysSynced = 0;
+    
+    // If we have data from Beds24, sync it
+    if (roomAvail && roomAvail.dates) {
+      for (const [dateStr, avail] of Object.entries(roomAvail.dates)) {
+        const price = roomPrices?.dates?.[dateStr]?.price || null;
+        const isAvailable = avail.available > 0;
+        
+        await client.query(`
+          INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source)
+          VALUES ($1, $2, $3, $4, false, 'beds24')
+          ON CONFLICT (room_id, date) 
+          DO UPDATE SET 
+            cm_price = COALESCE($3, room_availability.cm_price),
+            is_available = $4,
+            source = 'beds24',
+            updated_at = NOW()
+        `, [roomId, dateStr, price, isAvailable]);
+        
+        daysSynced++;
+      }
+    } else {
+      // No Beds24 data - create default availability for next 90 days
+      for (let d = new Date(today); d <= endDate && daysSynced < 90; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        
+        await client.query(`
+          INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+          VALUES ($1, $2, true, false, 'manual')
+          ON CONFLICT (room_id, date) DO NOTHING
+        `, [roomId, dateStr]);
+        
+        daysSynced++;
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ 
+      success: true, 
+      days_synced: daysSynced,
+      source: roomAvail ? 'beds24' : 'manual'
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Sync availability error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Set availability for date range (ADMIN)
 app.post('/api/admin/availability', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { room_id, from_date, to_date, status, price } = req.body;
+    const { room_id, from_date, to_date, status, price, discount_percent } = req.body;
     
     await client.query('BEGIN');
     
@@ -2444,22 +2588,33 @@ app.post('/api/admin/availability', async (req, res) => {
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
       
-      await client.query(`
-        INSERT INTO room_availability (room_id, date, price, is_available, is_blocked)
-        VALUES ($1, $2, $3, $4, $5)
-        ON CONFLICT (room_id, date) 
-        DO UPDATE SET 
-          price = COALESCE($3, room_availability.price),
-          is_available = $4,
-          is_blocked = $5,
-          updated_at = NOW()
-      `, [
-        room_id,
-        dateStr,
-        price || null,
-        status === 'available',
-        status === 'blocked'
-      ]);
+      if (discount_percent) {
+        // Apply percentage discount
+        await client.query(`
+          INSERT INTO room_availability (room_id, date, direct_discount_percent, is_available, is_blocked)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (room_id, date) 
+          DO UPDATE SET 
+            direct_discount_percent = $3,
+            direct_price = NULL,
+            is_available = $4,
+            is_blocked = $5,
+            updated_at = NOW()
+        `, [room_id, dateStr, discount_percent, status === 'available', status === 'blocked']);
+      } else {
+        // Set fixed direct price
+        await client.query(`
+          INSERT INTO room_availability (room_id, date, direct_price, is_available, is_blocked)
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (room_id, date) 
+          DO UPDATE SET 
+            direct_price = COALESCE($3, room_availability.direct_price),
+            direct_discount_percent = NULL,
+            is_available = $4,
+            is_blocked = $5,
+            updated_at = NOW()
+        `, [room_id, dateStr, price || null, status === 'available', status === 'blocked']);
+      }
       
       daysUpdated++;
     }
@@ -2487,10 +2642,13 @@ app.post('/api/admin/migrate-availability', async (req, res) => {
         id SERIAL PRIMARY KEY,
         room_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
         date DATE NOT NULL,
-        price DECIMAL(10,2),
+        cm_price DECIMAL(10,2),
+        direct_price DECIMAL(10,2),
+        direct_discount_percent INTEGER,
         is_available BOOLEAN DEFAULT true,
         is_blocked BOOLEAN DEFAULT false,
         min_stay INTEGER DEFAULT 1,
+        source VARCHAR(20) DEFAULT 'manual',
         notes TEXT,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW(),
@@ -2502,9 +2660,21 @@ app.post('/api/admin/migrate-availability', async (req, res) => {
     await client.query('CREATE INDEX IF NOT EXISTS idx_room_avail_date ON room_availability(date)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_room_avail_room_date ON room_availability(room_id, date)');
     
+    // Add new columns if table already exists
+    try {
+      await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS cm_price DECIMAL(10,2)');
+      await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS direct_price DECIMAL(10,2)');
+      await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS direct_discount_percent INTEGER');
+      await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT \'manual\'');
+      // Migrate old price column to cm_price
+      await client.query('UPDATE room_availability SET cm_price = price WHERE cm_price IS NULL AND price IS NOT NULL');
+    } catch (e) {
+      console.log('Column migration note:', e.message);
+    }
+    
     await client.query('COMMIT');
     
-    res.json({ success: true, message: 'room_availability table created' });
+    res.json({ success: true, message: 'room_availability table updated with cm_price and direct_price' });
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Migration error:', error);
