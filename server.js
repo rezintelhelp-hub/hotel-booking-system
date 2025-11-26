@@ -2769,9 +2769,9 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
       return res.json({ success: false, error: tokenError.message });
     }
     
-    // Calculate date range (today + 90 days)
+    // Calculate date range (today + 30 days to reduce API calls)
     const today = new Date();
-    const numDays = 90;
+    const numDays = 30;
     
     console.log(`Syncing Beds24 room ${beds24RoomId} for ${numDays} days using offers API`);
     
@@ -2839,14 +2839,18 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
         daysSynced++;
         
       } catch (apiError) {
+        // If rate limited, wait longer and retry once
+        if (apiError.response?.status === 429) {
+          console.log('Rate limited, waiting 5 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          // Don't retry, just skip this day
+        }
         console.error(`Error fetching offers for ${arrival}:`, apiError.response?.data || apiError.message);
         // Continue with next day even if one fails
       }
       
-      // Small delay to avoid rate limiting
-      if (i % 10 === 9) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-      }
+      // Delay between EVERY call to avoid rate limiting (500ms = ~2 calls/sec)
+      await new Promise(resolve => setTimeout(resolve, 500));
     }
     
     await client.query('COMMIT');
