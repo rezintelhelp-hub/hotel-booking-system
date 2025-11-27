@@ -823,6 +823,21 @@ app.get('/api/db/bookings', async (req, res) => {
   }
 });
 
+// Debug: Check bookings table schema
+app.get('/api/admin/debug/bookings-schema', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'bookings'
+      ORDER BY ordinal_position
+    `);
+    res.json({ success: true, columns: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/properties', async (req, res) => {
   const result = await beds24Request('/properties');
   res.json(result);
