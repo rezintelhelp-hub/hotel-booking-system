@@ -3402,8 +3402,15 @@
         const GRID_DAYS = 14; // Show 2 weeks at a time
         
         let allRooms = []; // Store all rooms for filtering
+        let availabilityViewLoaded = false;
         
         async function loadAvailabilityView() {
+            // Only do full load on first visit
+            if (availabilityViewLoaded) {
+                return;
+            }
+            availabilityViewLoaded = true;
+            
             // Set start date to today
             gridStartDate = new Date();
             gridStartDate.setHours(0, 0, 0, 0);
