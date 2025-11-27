@@ -508,6 +508,12 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_booking_id VARCHAR(50)`);
     // Add bookable_unit_id column for linking to bookable_units table
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER`);
+    // Add hostaway columns
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
+    // Add access_token column to channel_connections
+    await pool.query(`ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS access_token TEXT`);
     res.json({ success: true, message: 'Database tables created!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -2035,6 +2041,451 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
   } finally {
     client.release();
   }
+});
+
+// =====================================================
+// HOSTAWAY CHANNEL MANAGER INTEGRATION
+// =====================================================
+
+// Helper function to get Hostaway access token
+async function getHostawayAccessToken(accountId, clientSecret) {
+  const response = await axios.post('https://api.hostaway.com/v1/accessTokens', 
+    `grant_type=client_credentials&client_id=${accountId}&client_secret=${clientSecret}&scope=general`,
+    {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'Cache-control': 'no-cache'
+      }
+    }
+  );
+  
+  return response.data.access_token;
+}
+
+// Helper to get stored Hostaway token from database
+async function getStoredHostawayToken(pool) {
+  const result = await pool.query(`
+    SELECT access_token, account_id FROM channel_connections 
+    WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'hostaway') 
+    AND status = 'active'
+    ORDER BY updated_at DESC LIMIT 1
+  `);
+  
+  if (result.rows.length === 0) {
+    return null;
+  }
+  
+  return {
+    accessToken: result.rows[0].access_token,
+    accountId: result.rows[0].account_id
+  };
+}
+
+// Setup Hostaway connection
+app.post('/api/hostaway/setup-connection', async (req, res) => {
+  try {
+    const { accountId, clientSecret } = req.body;
+    
+    if (!accountId || !clientSecret) {
+      return res.json({ success: false, error: 'Account ID and Client Secret are required' });
+    }
+    
+    console.log('Setting up Hostaway connection for account:', accountId);
+    
+    // Get access token from Hostaway
+    const accessToken = await getHostawayAccessToken(accountId, clientSecret);
+    
+    if (!accessToken) {
+      return res.json({ success: false, error: 'Failed to get access token from Hostaway' });
+    }
+    
+    console.log('Got Hostaway access token');
+    
+    // Ensure hostaway exists in channel_managers
+    await pool.query(`
+      INSERT INTO channel_managers (cm_code, cm_name, api_base_url)
+      VALUES ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1')
+      ON CONFLICT (cm_code) DO NOTHING
+    `);
+    
+    const cmResult = await pool.query("SELECT id FROM channel_managers WHERE cm_code = 'hostaway'");
+    const cmId = cmResult.rows[0].id;
+    
+    // Store the connection
+    const connectionResult = await pool.query(`
+      INSERT INTO channel_connections (cm_id, access_token, account_id, status, created_at, updated_at)
+      VALUES ($1, $2, $3, 'active', NOW(), NOW())
+      ON CONFLICT (cm_id, account_id) 
+      DO UPDATE SET access_token = $2, status = 'active', updated_at = NOW()
+      RETURNING id
+    `, [cmId, accessToken, accountId]);
+    
+    // Also store client_secret encrypted (for token refresh if needed)
+    await pool.query(`
+      UPDATE channel_connections SET api_key = $1 WHERE id = $2
+    `, [clientSecret, connectionResult.rows[0].id]);
+    
+    res.json({
+      success: true,
+      accessToken,
+      connectionId: connectionResult.rows[0].id,
+      message: 'Hostaway connected successfully'
+    });
+    
+  } catch (error) {
+    console.error('Hostaway setup error:', error.response?.data || error.message);
+    res.json({ 
+      success: false, 
+      error: error.response?.data?.message || error.message 
+    });
+  }
+});
+
+// List Hostaway properties (listings)
+app.post('/api/hostaway/list-properties', async (req, res) => {
+  try {
+    const { token, connectionId } = req.body;
+    
+    if (!token) {
+      return res.json({ success: false, error: 'Access token required' });
+    }
+    
+    console.log('Fetching Hostaway listings...');
+    
+    const response = await axios.get('https://api.hostaway.com/v1/listings', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Cache-control': 'no-cache'
+      },
+      params: {
+        limit: 100
+      }
+    });
+    
+    if (response.data.status === 'success') {
+      console.log('Found ' + (response.data.result?.length || 0) + ' Hostaway listings');
+      res.json({ success: true, data: response.data.result || [] });
+    } else {
+      res.json({ success: false, error: response.data.result || 'Failed to fetch listings' });
+    }
+    
+  } catch (error) {
+    console.error('Hostaway list error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.message || error.message });
+  }
+});
+
+// Import Hostaway property (listing)
+app.post('/api/hostaway/import-property', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { property, token, connectionId } = req.body;
+    
+    if (!property || !property.id) {
+      return res.json({ success: false, error: 'Property data required' });
+    }
+    
+    console.log('Importing Hostaway listing:', property.name);
+    
+    await client.query('BEGIN');
+    
+    // Check if property already exists
+    const existingProp = await client.query(
+      'SELECT id FROM properties WHERE hostaway_listing_id = $1',
+      [property.id]
+    );
+    
+    let propertyId;
+    
+    if (existingProp.rows.length > 0) {
+      // Update existing
+      propertyId = existingProp.rows[0].id;
+      await client.query(`
+        UPDATE properties SET
+          name = $1,
+          property_type = $2,
+          address = $3,
+          city = $4,
+          state = $5,
+          postcode = $6,
+          country = $7,
+          latitude = $8,
+          longitude = $9,
+          check_in_from = $10,
+          check_out_by = $11,
+          currency = $12,
+          cm_source = 'hostaway',
+          updated_at = NOW()
+        WHERE id = $13
+      `, [
+        property.name,
+        property.roomType || 'entire_home',
+        property.address || property.street || '',
+        property.city || '',
+        property.state || '',
+        property.zipcode || '',
+        property.country || '',
+        property.lat || null,
+        property.lng || null,
+        property.checkInTimeStart ? `${property.checkInTimeStart}:00` : '15:00',
+        property.checkOutTime ? `${property.checkOutTime}:00` : '11:00',
+        property.currencyCode || 'USD',
+        propertyId
+      ]);
+      
+      console.log('   Updated existing property, GAS ID:', propertyId);
+    } else {
+      // Insert new property
+      const result = await client.query(`
+        INSERT INTO properties (
+          name, property_type, address, city, state, postcode, country,
+          latitude, longitude, check_in_from, check_out_by, currency,
+          hostaway_listing_id, cm_source, active, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'hostaway', true, NOW(), NOW())
+        RETURNING id
+      `, [
+        property.name,
+        property.roomType || 'entire_home',
+        property.address || property.street || '',
+        property.city || '',
+        property.state || '',
+        property.zipcode || '',
+        property.country || '',
+        property.lat || null,
+        property.lng || null,
+        property.checkInTimeStart ? `${property.checkInTimeStart}:00` : '15:00',
+        property.checkOutTime ? `${property.checkOutTime}:00` : '11:00',
+        property.currencyCode || 'USD',
+        property.id
+      ]);
+      
+      propertyId = result.rows[0].id;
+      console.log('   Created new property, GAS ID:', propertyId);
+    }
+    
+    // For Hostaway, each listing IS the bookable unit (not like Beds24 with rooms)
+    // Create/update the bookable unit
+    const existingUnit = await client.query(
+      'SELECT id FROM bookable_units WHERE hostaway_listing_id = $1',
+      [property.id]
+    );
+    
+    if (existingUnit.rows.length > 0) {
+      await client.query(`
+        UPDATE bookable_units SET
+          name = $1,
+          unit_type = $2,
+          max_guests = $3,
+          max_adults = $4,
+          bedroom_count = $5,
+          bathroom_count = $6,
+          base_price = $7,
+          min_stay = $8,
+          max_stay = $9,
+          property_id = $10,
+          updated_at = NOW()
+        WHERE id = $11
+      `, [
+        property.name,
+        property.roomType || 'entire_home',
+        property.personCapacity || 2,
+        property.personCapacity || 2,
+        property.bedroomsNumber || 1,
+        property.bathroomsNumber || 1,
+        property.price || 100,
+        property.minNights || 1,
+        property.maxNights || 365,
+        propertyId,
+        existingUnit.rows[0].id
+      ]);
+      console.log('   Updated existing bookable unit');
+    } else {
+      await client.query(`
+        INSERT INTO bookable_units (
+          property_id, name, unit_type, max_guests, max_adults,
+          bedroom_count, bathroom_count, base_price, min_stay, max_stay,
+          hostaway_listing_id, active, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW(), NOW())
+      `, [
+        propertyId,
+        property.name,
+        property.roomType || 'entire_home',
+        property.personCapacity || 2,
+        property.personCapacity || 2,
+        property.bedroomsNumber || 1,
+        property.bathroomsNumber || 1,
+        property.price || 100,
+        property.minNights || 1,
+        property.maxNights || 365,
+        property.id
+      ]);
+      console.log('   Created new bookable unit');
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      propertyId,
+      hostawayListingId: property.id,
+      message: 'Property imported successfully'
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Hostaway import error:', error.message);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Get Hostaway calendar/availability
+app.get('/api/hostaway/calendar/:listingId', async (req, res) => {
+  try {
+    const { listingId } = req.params;
+    const { from, to } = req.query;
+    
+    const stored = await getStoredHostawayToken(pool);
+    if (!stored) {
+      return res.json({ success: false, error: 'No Hostaway connection found' });
+    }
+    
+    const response = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}/calendar`, {
+      headers: {
+        'Authorization': `Bearer ${stored.accessToken}`,
+        'Cache-control': 'no-cache'
+      },
+      params: {
+        startDate: from,
+        endDate: to
+      }
+    });
+    
+    res.json({ success: true, data: response.data.result || [] });
+    
+  } catch (error) {
+    console.error('Hostaway calendar error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create booking in Hostaway
+app.post('/api/hostaway/create-booking', async (req, res) => {
+  try {
+    const { listingId, booking } = req.body;
+    
+    const stored = await getStoredHostawayToken(pool);
+    if (!stored) {
+      return res.json({ success: false, error: 'No Hostaway connection found' });
+    }
+    
+    const hostawayBooking = {
+      listingMapId: listingId,
+      channelId: 2000,  // Direct booking channel
+      arrivalDate: booking.arrival_date,
+      departureDate: booking.departure_date,
+      guestFirstName: booking.guest_first_name,
+      guestLastName: booking.guest_last_name,
+      guestEmail: booking.guest_email,
+      guestPhone: booking.guest_phone || '',
+      numberOfGuests: booking.num_adults + (booking.num_children || 0),
+      totalPrice: booking.grand_total,
+      currency: booking.currency || 'USD',
+      status: 'new'
+    };
+    
+    console.log('Creating Hostaway reservation:', JSON.stringify(hostawayBooking));
+    
+    const response = await axios.post('https://api.hostaway.com/v1/reservations', hostawayBooking, {
+      headers: {
+        'Authorization': `Bearer ${stored.accessToken}`,
+        'Content-Type': 'application/json',
+        'Cache-control': 'no-cache'
+      }
+    });
+    
+    if (response.data.status === 'success') {
+      res.json({ 
+        success: true, 
+        reservationId: response.data.result?.id,
+        data: response.data.result 
+      });
+    } else {
+      res.json({ success: false, error: response.data.result || 'Failed to create reservation' });
+    }
+    
+  } catch (error) {
+    console.error('Hostaway booking error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.response?.data?.message || error.message });
+  }
+});
+
+// Hostaway webhook handler
+app.post('/api/webhooks/hostaway', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const webhookData = req.body;
+    console.log('Hostaway webhook received:', JSON.stringify(webhookData).substring(0, 500));
+    
+    const eventType = webhookData.event || webhookData.type || 'unknown';
+    const reservation = webhookData.data || webhookData.reservation;
+    
+    console.log('Hostaway webhook event:', eventType);
+    
+    if (eventType.includes('reservation') && reservation) {
+      const listingId = reservation.listingMapId || reservation.listingId;
+      const arrival = reservation.arrivalDate;
+      const departure = reservation.departureDate;
+      const status = reservation.status;
+      
+      // Find our room by hostaway_listing_id
+      const roomResult = await client.query(`
+        SELECT id FROM bookable_units WHERE hostaway_listing_id = $1
+      `, [listingId]);
+      
+      if (roomResult.rows.length > 0) {
+        const ourRoomId = roomResult.rows[0].id;
+        
+        if (arrival && departure) {
+          await client.query('BEGIN');
+          
+          const startDate = new Date(arrival);
+          const endDate = new Date(departure);
+          const isAvailable = status === 'cancelled';
+          
+          for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            await client.query(`
+              INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+              VALUES ($1, $2, $3, false, 'hostaway_webhook')
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET is_available = $3, source = 'hostaway_webhook', updated_at = NOW()
+            `, [ourRoomId, dateStr, isAvailable]);
+          }
+          
+          await client.query('COMMIT');
+          console.log(`Updated availability for room ${ourRoomId}: ${arrival} to ${departure}, available: ${isAvailable}`);
+        }
+      }
+    }
+    
+    res.status(200).json({ success: true, received: true });
+    
+  } catch (error) {
+    console.error('Hostaway webhook error:', error);
+    res.status(200).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+app.get('/api/webhooks/hostaway', (req, res) => {
+  res.status(200).json({ 
+    status: 'active',
+    message: 'Hostaway webhook endpoint is ready',
+    url: '/api/webhooks/hostaway'
+  });
 });
 
 // =====================================================
