@@ -3819,7 +3819,7 @@
                 
                 dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
-                    const dayData = data.data?.find(dd => dd.date === dateStr) || {};
+                    const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const refPrice = dayData.cm_price || dayData.reference_price || '-';
                     html += `<td style="padding: 0.5rem; text-align: center; background: #f9fafb; color: #6b7280;">
                         ${refPrice !== '-' ? '$' + parseFloat(refPrice).toFixed(0) : '-'}
@@ -3836,7 +3836,7 @@
                 
                 dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
-                    const dayData = data.data?.find(dd => dd.date === dateStr) || {};
+                    const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const stdPrice = dayData.standard_price || dayData.cm_price || dayData.direct_price || '';
                     html += `<td style="padding: 0.25rem; text-align: center; background: #f0f9ff;">
                         <input type="number" value="${stdPrice ? parseFloat(stdPrice).toFixed(0) : ''}" 
@@ -3856,7 +3856,7 @@
                 
                 dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
-                    const dayData = data.data?.find(dd => dd.date === dateStr) || {};
+                    const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price || dayData.direct_price || 0);
                     
                     // Apply best offer
@@ -3890,7 +3890,7 @@
                     
                     dates.forEach(d => {
                         const dateStr = d.toISOString().split('T')[0];
-                        const dayData = data.data?.find(dd => dd.date === dateStr) || {};
+                        const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                         const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price || dayData.direct_price || 0);
                         
                         let discount = 0;
