@@ -1390,6 +1390,10 @@
 
                 <!-- Pricing Grid -->
                 <div class="card" style="margin-bottom: 1rem; overflow-x: auto;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <span style="font-size: 0.85rem; color: var(--text-secondary);">💡 Tip: Edit Standard Price values, then click Save All to update</span>
+                        <button class="btn" onclick="saveAllPrices()" id="save-prices-btn">💾 Save All Prices</button>
+                    </div>
                     <div id="offers-pricing-grid">
                         <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
                             Select a property and room to view pricing
@@ -1565,7 +1569,7 @@
 
     <!-- Add Offer Modal -->
     <div id="addOfferModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
             <div class="modal-header">
                 <h3 class="modal-title">Create New Offer</h3>
                 <button class="modal-close" onclick="closeModal('addOfferModal')">&times;</button>
@@ -3963,43 +3967,77 @@
         }
         
         async function updateStandardPrice(roomId, date, price, inputEl) {
-            try {
-                // Visual feedback - show saving
-                if (inputEl) {
-                    inputEl.style.background = '#fef3c7';
-                }
-                
-                const response = await fetch('/api/admin/availability', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        room_id: roomId,
-                        from_date: date,
-                        to_date: date,
-                        standard_price: parseFloat(price) || null
-                    })
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Visual feedback - show saved
-                    if (inputEl) {
-                        inputEl.style.background = '#dcfce7';
-                        setTimeout(() => {
-                            inputEl.style.background = '';
-                        }, 1000);
+            // Store the change but don't save immediately
+            if (!window.pendingPriceChanges) {
+                window.pendingPriceChanges = {};
+            }
+            window.pendingPriceChanges[`${roomId}-${date}`] = { roomId, date, price };
+            
+            // Visual indicator that there are unsaved changes
+            if (inputEl) {
+                inputEl.style.background = '#fef3c7'; // Yellow for pending
+            }
+            document.getElementById('save-prices-btn').style.background = '#f59e0b';
+            document.getElementById('save-prices-btn').textContent = '💾 Save All Prices *';
+        }
+        
+        async function saveAllPrices() {
+            const btn = document.getElementById('save-prices-btn');
+            const changes = window.pendingPriceChanges || {};
+            const entries = Object.values(changes);
+            
+            if (entries.length === 0) {
+                alert('No price changes to save');
+                return;
+            }
+            
+            btn.disabled = true;
+            btn.textContent = '⏳ Saving...';
+            
+            let saved = 0;
+            let errors = 0;
+            
+            for (const change of entries) {
+                try {
+                    const response = await fetch('/api/admin/availability', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            room_id: change.roomId,
+                            from_date: change.date,
+                            to_date: change.date,
+                            standard_price: parseFloat(change.price) || null
+                        })
+                    });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        saved++;
+                    } else {
+                        errors++;
+                        console.error('Error saving price:', data.error);
                     }
-                } else {
-                    alert('Error updating price: ' + data.error);
-                    if (inputEl) {
-                        inputEl.style.background = '#fee2e2';
-                    }
+                } catch (error) {
+                    errors++;
+                    console.error('Error saving price:', error);
                 }
-            } catch (error) {
-                alert('Error updating price: ' + error.message);
-                if (inputEl) {
-                    inputEl.style.background = '#fee2e2';
-                }
+            }
+            
+            // Clear pending changes
+            window.pendingPriceChanges = {};
+            
+            // Reset button
+            btn.disabled = false;
+            btn.style.background = '';
+            btn.textContent = '💾 Save All Prices';
+            
+            // Refresh grid to show saved state
+            loadOffersPricingGrid();
+            
+            if (errors > 0) {
+                alert(`Saved ${saved} prices, ${errors} errors`);
+            } else {
+                alert(`✅ Saved ${saved} price${saved !== 1 ? 's' : ''} successfully!`);
             }
         }
         
