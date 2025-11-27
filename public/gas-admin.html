@@ -3463,12 +3463,15 @@
         
         function filterGridByProperty() {
             const propertyId = document.getElementById('grid-property-filter').value;
+            console.log('Filtering by property:', propertyId, 'allRooms:', allRooms.length);
             
             if (propertyId) {
                 gridRooms = allRooms.filter(r => r.property_id == propertyId);
             } else {
-                gridRooms = allRooms;
+                gridRooms = [...allRooms]; // Create a copy
             }
+            
+            console.log('Filtered gridRooms:', gridRooms.length);
             
             // Update edit room select with filtered rooms
             const select = document.getElementById('edit-room-select');
