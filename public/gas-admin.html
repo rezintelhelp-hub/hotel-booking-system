@@ -1187,12 +1187,11 @@
                                     <h4 style="margin: 0; font-weight: 600;">AI Content Generator</h4>
                                 </div>
                                 <div class="form-group" style="margin-bottom: 0.75rem;">
-                                    <textarea id="property-ai-prompt" rows="2" placeholder="Describe your property style, vibe, target guests... e.g. 'Romantic Victorian B&B, dog-friendly, known for amazing breakfasts, popular with walkers'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
+                                    <textarea id="property-ai-prompt" rows="2" placeholder="Describe your property style, vibe, target guests... e.g. 'Romantic Victorian B&B, dog-friendly, known for amazing breakfasts'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
                                 </div>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button onclick="generatePropertyContent()" style="background: white; color: #667eea; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate All</button>
-                                    <button onclick="generatePropertyDescription()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">Description Only</button>
-                                    <button onclick="generatePropertyLocation()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">Location Only</button>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <button onclick="generatePropertyContent('property_description')" style="background: white; color: #667eea; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate Description</button>
+                                    <button onclick="generatePropertyContent('property_location')" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">📍 Generate Location</button>
                                 </div>
                             </div>
                             
@@ -1238,12 +1237,11 @@
                                     <h4 style="margin: 0; font-weight: 600;">AI Room Description Generator</h4>
                                 </div>
                                 <div class="form-group" style="margin-bottom: 0.75rem;">
-                                    <textarea id="room-ai-prompt" rows="2" placeholder="Describe this room's special features... e.g. 'Garden view, four-poster bed, original fireplace, ensuite with roll-top bath, popular with honeymooners'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
+                                    <textarea id="room-ai-prompt" rows="2" placeholder="Describe this room's special features... e.g. 'Garden view, four-poster bed, ensuite with roll-top bath'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
                                 </div>
-                                <div style="display: flex; gap: 0.5rem;">
-                                    <button onclick="generateRoomContent()" style="background: white; color: #11998e; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate Both</button>
-                                    <button onclick="generateRoomShort()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">Short Only</button>
-                                    <button onclick="generateRoomFull()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">Full Only</button>
+                                <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                    <button onclick="generateRoomContent('room_short')" style="background: white; color: #11998e; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate Short</button>
+                                    <button onclick="generateRoomContent('room_full')" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">📝 Generate Full</button>
                                 </div>
                             </div>
                             
@@ -4342,22 +4340,12 @@
             }
         }
         
-        // =====================================================
-        // AI CONTENT GENERATION FUNCTIONS
-        // =====================================================
-        
-        async function generatePropertyContent() {
-            await generatePropertyDescription();
-            await generatePropertyLocation();
-        }
-        
-        async function generatePropertyDescription() {
+        // AI Content Generation
+        async function generatePropertyContent(type) {
             const propertyId = document.getElementById('content-property-select').value;
             if (!propertyId) return alert('Please select a property');
             
             const prompt = document.getElementById('property-ai-prompt').value;
-            const propertyName = document.getElementById('content-property-select').selectedOptions[0].text;
-            
             const btn = event.target;
             const originalText = btn.innerHTML;
             btn.innerHTML = '⏳ Generating...';
@@ -4367,22 +4355,21 @@
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'property_description',
-                        property_id: propertyId,
-                        property_name: propertyName,
-                        prompt: prompt
-                    })
+                    body: JSON.stringify({ type, property_id: propertyId, prompt })
                 });
                 
                 const result = await response.json();
                 if (result.success) {
-                    document.getElementById('property-description').value = result.content;
+                    if (type === 'property_description') {
+                        document.getElementById('property-description').value = result.content;
+                    } else if (type === 'property_location') {
+                        document.getElementById('property-location').value = result.content;
+                    }
                 } else {
                     alert('Error: ' + result.error);
                 }
             } catch (error) {
-                console.error('Error generating content:', error);
+                console.error('AI generation error:', error);
                 alert('Error generating content');
             } finally {
                 btn.innerHTML = originalText;
@@ -4390,57 +4377,11 @@
             }
         }
         
-        async function generatePropertyLocation() {
-            const propertyId = document.getElementById('content-property-select').value;
-            if (!propertyId) return alert('Please select a property');
-            
-            const prompt = document.getElementById('property-ai-prompt').value;
-            const propertyName = document.getElementById('content-property-select').selectedOptions[0].text;
-            
-            const btn = event.target;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳ Generating...';
-            btn.disabled = true;
-            
-            try {
-                const response = await fetch('/api/ai/generate-content', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'property_location',
-                        property_id: propertyId,
-                        property_name: propertyName,
-                        prompt: prompt
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    document.getElementById('property-location').value = result.content;
-                } else {
-                    alert('Error: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Error generating content:', error);
-                alert('Error generating content');
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }
-        
-        async function generateRoomContent() {
-            await generateRoomShort();
-            await generateRoomFull();
-        }
-        
-        async function generateRoomShort() {
+        async function generateRoomContent(type) {
             const roomId = document.getElementById('content-room-select').value;
             if (!roomId) return alert('Please select a room');
             
             const prompt = document.getElementById('room-ai-prompt').value;
-            const roomName = document.getElementById('content-room-select').selectedOptions[0].text;
-            
             const btn = event.target;
             const originalText = btn.innerHTML;
             btn.innerHTML = '⏳ Generating...';
@@ -4450,61 +4391,21 @@
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'room_short',
-                        room_id: roomId,
-                        room_name: roomName,
-                        prompt: prompt
-                    })
+                    body: JSON.stringify({ type, room_id: roomId, prompt })
                 });
                 
                 const result = await response.json();
                 if (result.success) {
-                    document.getElementById('room-short-description').value = result.content;
+                    if (type === 'room_short') {
+                        document.getElementById('room-short-description').value = result.content;
+                    } else if (type === 'room_full') {
+                        document.getElementById('room-full-description').value = result.content;
+                    }
                 } else {
                     alert('Error: ' + result.error);
                 }
             } catch (error) {
-                console.error('Error generating content:', error);
-                alert('Error generating content');
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
-            }
-        }
-        
-        async function generateRoomFull() {
-            const roomId = document.getElementById('content-room-select').value;
-            if (!roomId) return alert('Please select a room');
-            
-            const prompt = document.getElementById('room-ai-prompt').value;
-            const roomName = document.getElementById('content-room-select').selectedOptions[0].text;
-            
-            const btn = event.target;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳ Generating...';
-            btn.disabled = true;
-            
-            try {
-                const response = await fetch('/api/ai/generate-content', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        type: 'room_full',
-                        room_id: roomId,
-                        room_name: roomName,
-                        prompt: prompt
-                    })
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    document.getElementById('room-full-description').value = result.content;
-                } else {
-                    alert('Error: ' + result.error);
-                }
-            } catch (error) {
-                console.error('Error generating content:', error);
+                console.error('AI generation error:', error);
                 alert('Error generating content');
             } finally {
                 btn.innerHTML = originalText;
