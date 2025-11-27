@@ -2131,8 +2131,8 @@ app.post('/api/hostaway/setup-connection', async (req, res) => {
       connectionId = existingConn.rows[0].id;
     } else {
       const newConn = await pool.query(`
-        INSERT INTO channel_connections (cm_id, access_token, api_key, account_id, status, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
+        INSERT INTO channel_connections (cm_id, user_id, access_token, api_key, account_id, status, created_at, updated_at)
+        VALUES ($1, 1, $2, $3, $4, 'active', NOW(), NOW())
         RETURNING id
       `, [cmId, accessToken, clientSecret, accountId]);
       connectionId = newConn.rows[0].id;
