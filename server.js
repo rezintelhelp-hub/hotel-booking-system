@@ -599,6 +599,7 @@ app.get('/api/setup-database', async (req, res) => {
         user_id INTEGER DEFAULT 1,
         property_id INTEGER,
         room_id INTEGER,
+        room_ids TEXT,
         name VARCHAR(255) NOT NULL,
         description TEXT,
         price DECIMAL(10,2) NOT NULL,
@@ -609,6 +610,9 @@ app.get('/api/setup-database', async (req, res) => {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    // Add room_ids column if it doesn't exist
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS room_ids TEXT`);
     
     // Create fees table
     await pool.query(`
@@ -3031,7 +3035,15 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
 
 app.get('/api/admin/upsells', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM upsells ORDER BY name');
+    const result = await pool.query(`
+      SELECT u.*, 
+             p.name as property_name,
+             r.name as room_name
+      FROM upsells u
+      LEFT JOIN properties p ON u.property_id = p.id
+      LEFT JOIN rooms r ON u.room_id = r.id
+      ORDER BY u.name
+    `);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -3040,13 +3052,13 @@ app.get('/api/admin/upsells', async (req, res) => {
 
 app.post('/api/admin/upsells', async (req, res) => {
   try {
-    const { name, description, price, charge_type, max_quantity, property_id, room_id, active } = req.body;
+    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active } = req.body;
     
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, price, charge_type, max_quantity, property_id, room_id, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO upsells (name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
       RETURNING *
-    `, [name, description, price, charge_type || 'per_booking', max_quantity, property_id, room_id, active !== false]);
+    `, [name, description, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -3056,7 +3068,7 @@ app.post('/api/admin/upsells', async (req, res) => {
 
 app.put('/api/admin/upsells/:id', async (req, res) => {
   try {
-    const { name, description, price, charge_type, max_quantity, property_id, room_id, active } = req.body;
+    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active } = req.body;
     
     const result = await pool.query(`
       UPDATE upsells SET
@@ -3067,11 +3079,12 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         max_quantity = $5,
         property_id = $6,
         room_id = $7,
-        active = COALESCE($8, active),
+        room_ids = $8,
+        active = COALESCE($9, active),
         updated_at = NOW()
-      WHERE id = $9
+      WHERE id = $10
       RETURNING *
-    `, [name, description, price, charge_type, max_quantity, property_id, room_id, active, req.params.id]);
+    `, [name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
