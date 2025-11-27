@@ -1454,18 +1454,221 @@
                     <div class="header-top">
                         <div>
                             <h2>Vouchers</h2>
-                            <p>Create promo codes for guests to use at checkout</p>
+                            <p>Gift cards, promo codes and discount vouchers</p>
                         </div>
                         <button class="btn" onclick="openAddVoucherModal()">
                             <span>+</span>
-                            <span>Create Voucher</span>
+                            <span>Custom Voucher</span>
                         </button>
                     </div>
                 </div>
 
+                <!-- Quick Add Presets -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">🎟️ Quick Add Voucher Templates</h3>
+                        <button class="btn btn-secondary" onclick="toggleVoucherPresets()" id="toggle-voucher-presets-btn" style="font-size: 0.85rem;">
+                            Show All Categories ▼
+                        </button>
+                    </div>
+                    
+                    <!-- Popular (always visible) -->
+                    <div style="margin-bottom: 1rem;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <button class="preset-btn" onclick="quickAddVoucher('£25 Gift Voucher', 'monetary', 25)">💷 £25 Gift Voucher</button>
+                            <button class="preset-btn" onclick="quickAddVoucher('£50 Gift Voucher', 'monetary', 50)">💷 £50 Gift Voucher</button>
+                            <button class="preset-btn" onclick="quickAddVoucher('£100 Gift Voucher', 'monetary', 100)">💷 £100 Gift Voucher</button>
+                            <button class="preset-btn" onclick="quickAddVoucher('10% Off', 'percentage', 10)">🏷️ 10% Off</button>
+                            <button class="preset-btn" onclick="quickAddVoucher('15% Off', 'percentage', 15)">🏷️ 15% Off</button>
+                            <button class="preset-btn" onclick="quickAddVoucher('1-Night Stay', 'stay', 1)">🌙 1-Night Stay</button>
+                            <button class="preset-btn" onclick="quickAddVoucher('Weekend Stay', 'stay', 2)">🌙 Weekend Stay</button>
+                            <button class="preset-btn" onclick="quickAddVoucher('Free Breakfast', 'addon', 0)">🍳 Free Breakfast</button>
+                            <button class="preset-btn" onclick="quickAddVoucher('Referral £20', 'monetary', 20)">👥 Referral £20</button>
+                        </div>
+                    </div>
+                    
+                    <!-- All Categories (hidden by default) -->
+                    <div id="all-voucher-presets" style="display: none;">
+                        
+                        <!-- Monetary Value -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #10b981; margin-bottom: 0.5rem; font-size: 0.9rem;">💷 Monetary Value Vouchers</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('£25 Hotel Credit', 'monetary', 25)">£25 Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£50 Hotel Credit', 'monetary', 50)">£50 Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£75 Hotel Credit', 'monetary', 75)">£75 Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£100 Hotel Credit', 'monetary', 100)">£100 Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£150 Hotel Credit', 'monetary', 150)">£150 Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£200 Hotel Credit', 'monetary', 200)">£200 Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£250 Hotel Credit', 'monetary', 250)">£250 Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£500 Hotel Credit', 'monetary', 500)">£500 Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Flexible Stay Voucher', 'monetary', 100)">Flexible Stay</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Stay Vouchers -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #6366f1; margin-bottom: 0.5rem; font-size: 0.9rem;">🌙 Stay Vouchers</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('1-Night Stay Voucher', 'stay', 1)">1-Night Stay</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('2-Night Stay Voucher', 'stay', 2)">2-Night Stay</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Weekend Stay Voucher', 'stay', 2)">Weekend Stay</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Midweek Escape', 'stay', 2)">Midweek Escape</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('3-Night Break', 'stay', 3)">3-Night Break</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Week Stay Voucher', 'stay', 7)">Week Stay</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Romantic Escape', 'stay', 2)">Romantic Escape</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Anniversary Stay', 'stay', 2)">Anniversary Stay</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Honeymoon Package', 'stay', 3)">Honeymoon Package</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Stay + Breakfast', 'stay', 1)">Stay + Breakfast</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Discount Vouchers -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #f59e0b; margin-bottom: 0.5rem; font-size: 0.9rem;">🏷️ Discount Vouchers</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('5% Off Stay', 'percentage', 5)">5% Off</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('10% Off Stay', 'percentage', 10)">10% Off</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('15% Off Stay', 'percentage', 15)">15% Off</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('20% Off Stay', 'percentage', 20)">20% Off</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('25% Off Stay', 'percentage', 25)">25% Off</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£20 Off Booking', 'fixed', 20)">£20 Off</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£30 Off Booking', 'fixed', 30)">£30 Off</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('£50 Off Booking', 'fixed', 50)">£50 Off</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('New Guest Discount', 'percentage', 10)">New Guest</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Returning Guest', 'percentage', 15)">Returning Guest</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Dining Vouchers -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #ef4444; margin-bottom: 0.5rem; font-size: 0.9rem;">🍽️ Dining Vouchers</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Breakfast Voucher', 'addon', 15)">Breakfast</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Dinner Voucher', 'addon', 40)">Dinner</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Afternoon Tea', 'addon', 30)">Afternoon Tea</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Sunday Roast', 'addon', 25)">Sunday Roast</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Wine & Dine', 'addon', 75)">Wine & Dine</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Dining for Two', 'addon', 80)">Dining for Two</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Spa & Wellness -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #ec4899; margin-bottom: 0.5rem; font-size: 0.9rem;">🧖 Spa & Wellness Vouchers</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Massage Session', 'addon', 60)">Massage</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Spa Day Pass', 'addon', 80)">Spa Day</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Couples Treatment', 'addon', 120)">Couples Treatment</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Facial Voucher', 'addon', 50)">Facial</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Yoga Retreat', 'addon', 45)">Yoga Retreat</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Sauna & Steam', 'addon', 30)">Sauna & Steam</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Experience Vouchers -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #3b82f6; margin-bottom: 0.5rem; font-size: 0.9rem;">🎯 Experience Vouchers</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Wine Tasting', 'addon', 40)">Wine Tasting</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Cooking Class', 'addon', 75)">Cooking Class</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('City Tour', 'addon', 35)">City Tour</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Boat Trip', 'addon', 50)">Boat Trip</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Golf Experience', 'addon', 100)">Golf Experience</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Ski Package', 'addon', 120)">Ski Package</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Celebration Vouchers -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #8b5cf6; margin-bottom: 0.5rem; font-size: 0.9rem;">🎁 Celebration Vouchers</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Birthday Voucher', 'monetary', 50)">Birthday</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Anniversary Voucher', 'monetary', 75)">Anniversary</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Valentine\\'s Stay', 'stay', 1)">Valentine's</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Mother\\'s Day', 'monetary', 50)">Mother's Day</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Father\\'s Day', 'monetary', 50)">Father's Day</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Christmas Gift', 'monetary', 100)">Christmas</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Graduation Gift', 'monetary', 75)">Graduation</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Loyalty Vouchers -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #14b8a6; margin-bottom: 0.5rem; font-size: 0.9rem;">⭐ Loyalty & Rewards</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Thank You Voucher', 'monetary', 25)">Thank You</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('VIP Guest Voucher', 'percentage', 20)">VIP Guest</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Repeat Stay Credit', 'monetary', 30)">Repeat Stay</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Referral Reward', 'monetary', 20)">Referral Reward</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Review Incentive', 'percentage', 10)">Review Incentive</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Welcome Back', 'percentage', 15)">Welcome Back</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Corporate Vouchers -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #64748b; margin-bottom: 0.5rem; font-size: 0.9rem;">💼 Corporate & Group</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Staff Reward', 'monetary', 100)">Staff Reward</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Client Gift', 'monetary', 150)">Client Gift</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Team Retreat', 'percentage', 15)">Team Retreat</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Conference Credit', 'monetary', 200)">Conference Credit</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Compensation Vouchers -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #dc2626; margin-bottom: 0.5rem; font-size: 0.9rem;">🔄 Compensation & Recovery</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Refund Credit', 'monetary', 0)">Refund Credit</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Apology Voucher', 'percentage', 20)">Apology Voucher</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Disruption Compensation', 'monetary', 50)">Disruption Comp</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Future Stay Credit', 'monetary', 0)">Future Stay</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Promotional -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #f97316; margin-bottom: 0.5rem; font-size: 0.9rem;">📢 Promotional</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Book Direct Discount', 'percentage', 10)">Book Direct</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Black Friday', 'percentage', 25)">Black Friday</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Flash Sale', 'percentage', 30)">Flash Sale</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('New Launch', 'percentage', 20)">New Launch</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Early Bird', 'percentage', 15)">Early Bird</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Last Minute', 'percentage', 20)">Last Minute</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Service-Specific -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #06b6d4; margin-bottom: 0.5rem; font-size: 0.9rem;">🎫 Service Add-ons</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddVoucher('Late Check-out', 'addon', 0)">Late Check-out</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Room Upgrade', 'addon', 0)">Room Upgrade</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Free Breakfast', 'addon', 0)">Free Breakfast</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Free Parking', 'addon', 0)">Free Parking</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Free Spa Access', 'addon', 0)">Free Spa Access</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Airport Transfer', 'addon', 0)">Airport Transfer</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Welcome Wine', 'addon', 0)">Welcome Wine</button>
+                                <button class="preset-btn" onclick="quickAddVoucher('Kids Eat Free', 'addon', 0)">Kids Eat Free</button>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+
+                <!-- Active Vouchers List -->
                 <div class="card">
+                    <h3 style="margin-bottom: 1rem;">Your Vouchers</h3>
                     <div id="vouchers-list">
-                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading vouchers...</p>
+                        <div class="empty-state">
+                            <div class="empty-icon">🎟️</div>
+                            <h3>No Vouchers Created</h3>
+                            <p>Click any template above or create a custom voucher</p>
+                            <button class="btn" onclick="openAddVoucherModal()">Create Custom Voucher</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2022,93 +2225,114 @@
 
     <!-- Add Voucher Modal -->
     <div id="addVoucherModal" class="modal">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3 class="modal-title">Create New Voucher</h3>
-                <button class="modal-close" onclick="closeModal('addVoucherModal')">&times;</button>
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">🎟️ Create New Voucher</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Gift cards, promo codes & discounts</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('addVoucherModal')" style="color: white;">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="padding: 1.5rem;">
                 <form id="voucher-form">
                     <input type="hidden" id="voucher-id">
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
                         <div class="form-group">
-                            <label>Voucher Code *</label>
-                            <input type="text" id="voucher-code" placeholder="e.g., WINTER20" required style="text-transform: uppercase;">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                                Voucher Code <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="text" id="voucher-code" class="form-input" placeholder="e.g., WINTER20" required 
+                                style="text-transform: uppercase; padding: 0.75rem; border-radius: 8px;">
                         </div>
                         <div class="form-group">
-                            <label>Display Name *</label>
-                            <input type="text" id="voucher-name" placeholder="e.g., Winter Sale 20%" required>
-                        </div>
-                    </div>
-                    
-                    <div class="form-group">
-                        <label>Description</label>
-                        <textarea id="voucher-description" placeholder="Get 20% off your winter stay"></textarea>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label>Discount Type *</label>
-                            <select id="voucher-discount-type">
-                                <option value="percentage">Percentage (%)</option>
-                                <option value="fixed_amount">Fixed Amount ($)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label>Discount Value *</label>
-                            <input type="number" id="voucher-discount-value" placeholder="e.g., 20" required min="0" step="0.01">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                                Display Name <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="text" id="voucher-name" class="form-input" placeholder="e.g., Winter Sale 20%" required
+                                style="padding: 0.75rem; border-radius: 8px;">
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group">
-                            <label>Valid From</label>
-                            <input type="date" id="voucher-valid-from">
-                        </div>
-                        <div class="form-group">
-                            <label>Valid Until</label>
-                            <input type="date" id="voucher-valid-until">
-                        </div>
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">Description</label>
+                        <textarea id="voucher-description" class="form-input" placeholder="Get 20% off your winter stay" rows="2"
+                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
                     
-                    <details style="margin-bottom: 1rem;">
-                        <summary style="cursor: pointer; font-weight: 500; color: var(--primary);">Usage Limits</summary>
-                        <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 8px; margin-top: 0.5rem;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                                <div class="form-group">
-                                    <label>Max Total Uses</label>
-                                    <input type="number" id="voucher-max-uses" placeholder="Unlimited">
-                                </div>
-                                <div class="form-group">
-                                    <label>Min Nights Required</label>
-                                    <input type="number" id="voucher-min-nights" placeholder="1" min="1">
-                                </div>
+                    <!-- Voucher Type & Value -->
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #166534; margin-bottom: 0.75rem; display: block;">
+                            💰 Voucher Value
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Type</label>
+                                <select id="voucher-discount-type" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                    <option value="percentage">Percentage Off (%)</option>
+                                    <option value="fixed">Fixed Amount Off (£)</option>
+                                    <option value="monetary">Gift Card / Credit (£)</option>
+                                    <option value="free_nights">Free Night(s)</option>
+                                    <option value="addon">Free Add-on</option>
+                                </select>
                             </div>
                             <div class="form-group">
-                                <label>Min Booking Total ($)</label>
-                                <input type="number" id="voucher-min-total" placeholder="No minimum" step="0.01">
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Value <span style="color: #ef4444;">*</span></label>
+                                <input type="number" id="voucher-discount-value" class="form-input" placeholder="e.g., 20" required min="0" step="0.01"
+                                    style="padding: 0.6rem; border-radius: 8px;">
                             </div>
-                            <div class="form-group">
-                                <label style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="voucher-single-use">
-                                    Single use per guest email
-                                </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Validity Period -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">Valid From</label>
+                            <input type="date" id="voucher-valid-from" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">Valid Until</label>
+                            <input type="date" id="voucher-valid-until" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                        </div>
+                    </div>
+                    
+                    <details style="margin-bottom: 1.25rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #475569; padding: 1rem; list-style: none;">
+                            ⚙️ Usage Limits & Restrictions
+                        </summary>
+                        <div style="padding: 0 1rem 1rem 1rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <div class="form-group">
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Max Total Uses</label>
+                                    <input type="number" id="voucher-max-uses" class="form-input" placeholder="Unlimited" style="padding: 0.5rem; border-radius: 6px;">
+                                </div>
+                                <div class="form-group">
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Min Nights Required</label>
+                                    <input type="number" id="voucher-min-nights" class="form-input" placeholder="1" min="1" style="padding: 0.5rem; border-radius: 6px;">
+                                </div>
                             </div>
+                            <div class="form-group" style="margin-bottom: 0.75rem;">
+                                <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Min Booking Total (£)</label>
+                                <input type="number" id="voucher-min-total" class="form-input" placeholder="No minimum" step="0.01" style="padding: 0.5rem; border-radius: 6px;">
+                            </div>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; color: #475569; cursor: pointer;">
+                                <input type="checkbox" id="voucher-single-use" style="width: 16px; height: 16px;">
+                                Single use per guest email
+                            </label>
                         </div>
                     </details>
                     
-                    <div class="form-group">
-                        <label style="display: flex; align-items: center; gap: 0.5rem;">
-                            <input type="checkbox" id="voucher-active" checked>
-                            Active
-                        </label>
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                        <input type="checkbox" id="voucher-active" checked style="width: 18px; height: 18px;">
+                        <span style="font-weight: 500; color: #374151;">Active</span>
                     </div>
                 </form>
             </div>
-            <div class="modal-footer">
-                <button class="btn btn-secondary" onclick="closeModal('addVoucherModal')">Cancel</button>
-                <button class="btn" onclick="saveVoucher()">Save Voucher</button>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f9fafb; border-radius: 0 0 16px 16px;">
+                <button class="btn btn-secondary" onclick="closeModal('addVoucherModal')" style="border-radius: 8px;">Cancel</button>
+                <button class="btn" onclick="saveVoucher()" style="border-radius: 8px; background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);">
+                    💾 Save Voucher
+                </button>
             </div>
         </div>
     </div>
@@ -5033,9 +5257,11 @@
             
             if (!vouchers || vouchers.length === 0) {
                 container.innerHTML = `
-                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                        <p style="font-size: 3rem; margin-bottom: 1rem;">🎟️</p>
-                        <p>No vouchers yet. Create promo codes for your guests!</p>
+                    <div class="empty-state">
+                        <div class="empty-icon">🎟️</div>
+                        <h3>No Vouchers Created</h3>
+                        <p>Click any template above or create a custom voucher</p>
+                        <button class="btn" onclick="openAddVoucherModal()">Create Custom Voucher</button>
                     </div>
                 `;
                 return;
@@ -5047,7 +5273,7 @@
                         <tr style="border-bottom: 2px solid var(--border);">
                             <th style="text-align: left; padding: 0.75rem;">Code</th>
                             <th style="text-align: left; padding: 0.75rem;">Name</th>
-                            <th style="text-align: left; padding: 0.75rem;">Discount</th>
+                            <th style="text-align: left; padding: 0.75rem;">Value</th>
                             <th style="text-align: left; padding: 0.75rem;">Usage</th>
                             <th style="text-align: left; padding: 0.75rem;">Valid</th>
                             <th style="text-align: center; padding: 0.75rem;">Status</th>
@@ -5058,9 +5284,42 @@
             `;
             
             for (const voucher of vouchers) {
-                const discountText = voucher.discount_type === 'percentage' 
-                    ? `${voucher.discount_value}%` 
-                    : `$${voucher.discount_value}`;
+                // Format discount based on type
+                let discountText = '';
+                let discountColor = '#92400e';
+                let discountBg = '#fef3c7';
+                
+                switch (voucher.discount_type) {
+                    case 'percentage':
+                        discountText = `${voucher.discount_value}% Off`;
+                        discountColor = '#166534';
+                        discountBg = '#dcfce7';
+                        break;
+                    case 'fixed':
+                        discountText = `£${voucher.discount_value} Off`;
+                        discountColor = '#166534';
+                        discountBg = '#dcfce7';
+                        break;
+                    case 'monetary':
+                        discountText = `£${voucher.discount_value} Credit`;
+                        discountColor = '#7c3aed';
+                        discountBg = '#ede9fe';
+                        break;
+                    case 'free_nights':
+                        discountText = `${voucher.discount_value} Free Night${voucher.discount_value > 1 ? 's' : ''}`;
+                        discountColor = '#0369a1';
+                        discountBg = '#e0f2fe';
+                        break;
+                    case 'addon':
+                        discountText = 'Free Add-on';
+                        discountColor = '#c2410c';
+                        discountBg = '#ffedd5';
+                        break;
+                    default:
+                        discountText = voucher.discount_type === 'fixed_amount' 
+                            ? `£${voucher.discount_value}` 
+                            : `${voucher.discount_value}%`;
+                }
                 
                 const usageText = voucher.max_uses 
                     ? `${voucher.uses_count || 0} / ${voucher.max_uses}`
@@ -5079,8 +5338,8 @@
                         </td>
                         <td style="padding: 0.75rem;">${voucher.name}</td>
                         <td style="padding: 0.75rem;">
-                            <span style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 500;">
-                                -${discountText}
+                            <span style="background: ${discountBg}; color: ${discountColor}; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 500;">
+                                ${discountText}
                             </span>
                         </td>
                         <td style="padding: 0.75rem; font-size: 0.85rem;">${usageText}</td>
@@ -5102,10 +5361,58 @@
             container.innerHTML = html;
         }
         
+        // Toggle voucher presets visibility
+        function toggleVoucherPresets() {
+            const presets = document.getElementById('all-voucher-presets');
+            const btn = document.getElementById('toggle-voucher-presets-btn');
+            
+            if (presets.style.display === 'none') {
+                presets.style.display = 'block';
+                btn.textContent = 'Hide Categories ▲';
+            } else {
+                presets.style.display = 'none';
+                btn.textContent = 'Show All Categories ▼';
+            }
+        }
+        
+        // Quick add voucher from preset - opens modal pre-filled
+        function quickAddVoucher(name, voucherType, value) {
+            document.getElementById('voucher-form').reset();
+            document.getElementById('voucher-id').value = '';
+            
+            // Pre-fill with preset values
+            document.getElementById('voucher-name').value = name;
+            
+            // Set discount type based on voucher type
+            if (voucherType === 'percentage') {
+                document.getElementById('voucher-discount-type').value = 'percentage';
+                document.getElementById('voucher-discount-value').value = value;
+            } else if (voucherType === 'fixed' || voucherType === 'monetary') {
+                document.getElementById('voucher-discount-type').value = 'fixed';
+                document.getElementById('voucher-discount-value').value = value;
+            } else if (voucherType === 'stay') {
+                document.getElementById('voucher-discount-type').value = 'free_nights';
+                document.getElementById('voucher-discount-value').value = value;
+            } else if (voucherType === 'addon') {
+                document.getElementById('voucher-discount-type').value = 'addon';
+                document.getElementById('voucher-discount-value').value = value;
+            }
+            
+            // Generate a random code
+            const code = name.replace(/[^a-zA-Z0-9]/g, '').toUpperCase().substring(0, 8) + Math.floor(Math.random() * 1000);
+            document.getElementById('voucher-code').value = code;
+            
+            document.getElementById('voucher-active').checked = true;
+            
+            document.querySelector('#addVoucherModal .modal-title').textContent = '🎟️ Create: ' + name;
+            openModal('addVoucherModal');
+        }
+        
         function openAddVoucherModal() {
             document.getElementById('voucher-form').reset();
             document.getElementById('voucher-id').value = '';
-            document.querySelector('#addVoucherModal .modal-title').textContent = 'Create New Voucher';
+            document.getElementById('voucher-active').checked = true;
+            document.querySelector('#addVoucherModal .modal-title').textContent = '🎟️ Create New Voucher';
             openModal('addVoucherModal');
         }
         
@@ -5338,23 +5645,29 @@
             if (!propertyId) return;
             
             try {
-                const response = await fetch(`/api/db/rooms?propertyId=${propertyId}`);
+                // Use smart units endpoint that handles property types
+                const response = await fetch(`/api/db/units?propertyId=${propertyId}`);
                 const data = await response.json();
                 
-                if (data.success && data.data) {
-                    data.data.forEach(room => {
+                if (data.success && data.data && data.data.length > 0) {
+                    data.data.forEach(unit => {
                         // Add to dropdown
-                        roomSelect.innerHTML += `<option value="${room.id}">${room.name}</option>`;
+                        roomSelect.innerHTML += `<option value="${unit.id}">${unit.name}</option>`;
                         
                         // Add checkbox
                         roomCheckboxes.innerHTML += `
                             <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem; cursor: pointer; border-radius: 4px; transition: background 0.2s;"
                                 onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''">
-                                <input type="checkbox" name="upsell-room-check" value="${room.id}" style="width: 16px; height: 16px;">
-                                <span style="font-size: 0.9rem;">${room.name}</span>
+                                <input type="checkbox" name="upsell-room-check" value="${unit.id}" style="width: 16px; height: 16px;">
+                                <span style="font-size: 0.9rem;">${unit.name}</span>
                             </label>
                         `;
                     });
+                    
+                    // If single unit property, auto-select it
+                    if (data.isSingleUnit && data.data.length === 1) {
+                        roomSelect.value = data.data[0].id;
+                    }
                 }
             } catch (error) {
                 console.error('Error loading units:', error);
