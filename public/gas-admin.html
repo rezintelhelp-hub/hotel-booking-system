@@ -847,6 +847,14 @@
                         <span class="nav-icon">📅</span>
                         <span>Bookings</span>
                     </a>
+                    <a class="nav-item" data-view="offers">
+                        <span class="nav-icon">🏷️</span>
+                        <span>Offers</span>
+                    </a>
+                    <a class="nav-item" data-view="vouchers">
+                        <span class="nav-icon">🎟️</span>
+                        <span>Vouchers</span>
+                    </a>
                     <a class="nav-item" data-view="rateplans">
                         <span class="nav-icon">💰</span>
                         <span>Rate Plans</span>
@@ -1337,6 +1345,61 @@
                 </details>
             </div>
 
+            <!-- Offers View -->
+            <div id="offers" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Offers</h2>
+                            <p>Create discounts and special offers for direct bookings</p>
+                        </div>
+                        <button class="btn" onclick="openAddOfferModal()">
+                            <span>+</span>
+                            <span>Add New Offer</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="offers-list">
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading offers...</p>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0;">
+                    <h3 style="color: #166534; margin-bottom: 0.5rem;">💡 Offer Types</h3>
+                    <ul style="color: #15803d; padding-left: 1.5rem; line-height: 1.8;">
+                        <li><strong>Early Bird</strong> - Book X days in advance for a discount</li>
+                        <li><strong>Last Minute</strong> - Discount for bookings within X days</li>
+                        <li><strong>Long Stay</strong> - Discount for stays of X+ nights</li>
+                        <li><strong>Weekday Special</strong> - Discount for specific days</li>
+                        <li><strong>Seasonal</strong> - Discount for specific date ranges</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- Vouchers View -->
+            <div id="vouchers" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Vouchers</h2>
+                            <p>Create promo codes for guests to use at checkout</p>
+                        </div>
+                        <button class="btn" onclick="openAddVoucherModal()">
+                            <span>+</span>
+                            <span>Create Voucher</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="vouchers-list">
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading vouchers...</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Rate Plans View -->
             <div id="rateplans" class="view">
                 <div class="header">
@@ -1457,6 +1520,204 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Add Offer Modal -->
+    <div id="addOfferModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Create New Offer</h3>
+                <button class="modal-close" onclick="closeModal('addOfferModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="offer-form">
+                    <input type="hidden" id="offer-id">
+                    
+                    <div class="form-group">
+                        <label>Offer Name *</label>
+                        <input type="text" id="offer-name" placeholder="e.g., Early Bird 15% Off" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="offer-description" placeholder="Book 30 days in advance and save 15%"></textarea>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Discount Type *</label>
+                            <select id="offer-discount-type">
+                                <option value="percentage">Percentage (%)</option>
+                                <option value="fixed_amount">Fixed Amount ($)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Discount Value *</label>
+                            <input type="number" id="offer-discount-value" placeholder="e.g., 15" required min="0" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Property (optional)</label>
+                            <select id="offer-property">
+                                <option value="">All Properties</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Room (optional)</label>
+                            <select id="offer-room">
+                                <option value="">All Rooms</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <details style="margin-bottom: 1rem;">
+                        <summary style="cursor: pointer; font-weight: 500; color: var(--primary);">Advanced Conditions</summary>
+                        <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 8px; margin-top: 0.5rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label>Min Nights</label>
+                                    <input type="number" id="offer-min-nights" placeholder="1" min="1">
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Nights</label>
+                                    <input type="number" id="offer-max-nights" placeholder="Any">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label>Min Days in Advance</label>
+                                    <input type="number" id="offer-min-advance" placeholder="e.g., 30 for early bird">
+                                </div>
+                                <div class="form-group">
+                                    <label>Max Days in Advance</label>
+                                    <input type="number" id="offer-max-advance" placeholder="e.g., 7 for last minute">
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label>Valid From</label>
+                                    <input type="date" id="offer-valid-from">
+                                </div>
+                                <div class="form-group">
+                                    <label>Valid Until</label>
+                                    <input type="date" id="offer-valid-until">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Priority (higher = applied first)</label>
+                                <input type="number" id="offer-priority" placeholder="0" value="0">
+                            </div>
+                        </div>
+                    </details>
+                    
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" id="offer-active" checked>
+                            Active
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('addOfferModal')">Cancel</button>
+                <button class="btn" onclick="saveOffer()">Save Offer</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Voucher Modal -->
+    <div id="addVoucherModal" class="modal">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3 class="modal-title">Create New Voucher</h3>
+                <button class="modal-close" onclick="closeModal('addVoucherModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="voucher-form">
+                    <input type="hidden" id="voucher-id">
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Voucher Code *</label>
+                            <input type="text" id="voucher-code" placeholder="e.g., WINTER20" required style="text-transform: uppercase;">
+                        </div>
+                        <div class="form-group">
+                            <label>Display Name *</label>
+                            <input type="text" id="voucher-name" placeholder="e.g., Winter Sale 20%" required>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea id="voucher-description" placeholder="Get 20% off your winter stay"></textarea>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Discount Type *</label>
+                            <select id="voucher-discount-type">
+                                <option value="percentage">Percentage (%)</option>
+                                <option value="fixed_amount">Fixed Amount ($)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>Discount Value *</label>
+                            <input type="number" id="voucher-discount-value" placeholder="e.g., 20" required min="0" step="0.01">
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label>Valid From</label>
+                            <input type="date" id="voucher-valid-from">
+                        </div>
+                        <div class="form-group">
+                            <label>Valid Until</label>
+                            <input type="date" id="voucher-valid-until">
+                        </div>
+                    </div>
+                    
+                    <details style="margin-bottom: 1rem;">
+                        <summary style="cursor: pointer; font-weight: 500; color: var(--primary);">Usage Limits</summary>
+                        <div style="padding: 1rem; background: var(--bg-secondary); border-radius: 8px; margin-top: 0.5rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label>Max Total Uses</label>
+                                    <input type="number" id="voucher-max-uses" placeholder="Unlimited">
+                                </div>
+                                <div class="form-group">
+                                    <label>Min Nights Required</label>
+                                    <input type="number" id="voucher-min-nights" placeholder="1" min="1">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label>Min Booking Total ($)</label>
+                                <input type="number" id="voucher-min-total" placeholder="No minimum" step="0.01">
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="voucher-single-use">
+                                    Single use per guest email
+                                </label>
+                            </div>
+                        </div>
+                    </details>
+                    
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" id="voucher-active" checked>
+                            Active
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal('addVoucherModal')">Cancel</button>
+                <button class="btn" onclick="saveVoucher()">Save Voucher</button>
+            </div>
+        </div>
     </div>
 
     <!-- Image Upload Modal -->
@@ -1759,6 +2020,8 @@
             if (viewName === 'content') loadContentView();
             if (viewName === 'availability') loadAvailabilityView();
             if (viewName === 'integrations') loadIntegrations();
+            if (viewName === 'offers') loadOffers();
+            if (viewName === 'vouchers') loadVouchers();
         }
 
         // Data Loading
@@ -3389,6 +3652,402 @@
             btn.disabled = false;
             btn.textContent = '🔄 Hostaway';
             loadGridData();
+        }
+
+        // =====================================================
+        // OFFERS FUNCTIONS
+        // =====================================================
+        
+        async function loadOffers() {
+            try {
+                const response = await fetch('/api/admin/offers');
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderOffers(data.data);
+                }
+            } catch (error) {
+                console.error('Error loading offers:', error);
+            }
+        }
+        
+        function renderOffers(offers) {
+            const container = document.getElementById('offers-list');
+            
+            if (!offers || offers.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <p style="font-size: 3rem; margin-bottom: 1rem;">🏷️</p>
+                        <p>No offers yet. Create your first offer to attract direct bookings!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border);">
+                            <th style="text-align: left; padding: 0.75rem;">Name</th>
+                            <th style="text-align: left; padding: 0.75rem;">Discount</th>
+                            <th style="text-align: left; padding: 0.75rem;">Conditions</th>
+                            <th style="text-align: left; padding: 0.75rem;">Valid</th>
+                            <th style="text-align: center; padding: 0.75rem;">Status</th>
+                            <th style="text-align: right; padding: 0.75rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const offer of offers) {
+                const discountText = offer.discount_type === 'percentage' 
+                    ? `${offer.discount_value}%` 
+                    : `$${offer.discount_value}`;
+                
+                let conditions = [];
+                if (offer.min_nights > 1) conditions.push(`${offer.min_nights}+ nights`);
+                if (offer.min_advance_days) conditions.push(`${offer.min_advance_days}+ days advance`);
+                if (offer.max_advance_days) conditions.push(`Within ${offer.max_advance_days} days`);
+                if (offer.property_name) conditions.push(offer.property_name);
+                if (offer.room_name) conditions.push(offer.room_name);
+                
+                const validText = offer.valid_from || offer.valid_until 
+                    ? `${offer.valid_from || 'Start'} - ${offer.valid_until || 'End'}`
+                    : 'Always';
+                
+                html += `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;">
+                            <strong>${offer.name}</strong>
+                            ${offer.description ? `<br><small style="color: var(--text-secondary);">${offer.description}</small>` : ''}
+                        </td>
+                        <td style="padding: 0.75rem;">
+                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 500;">
+                                -${discountText}
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">
+                            ${conditions.length > 0 ? conditions.join(', ') : 'No conditions'}
+                        </td>
+                        <td style="padding: 0.75rem; font-size: 0.85rem;">${validText}</td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <span style="background: ${offer.active ? '#dcfce7' : '#fee2e2'}; color: ${offer.active ? '#166534' : '#991b1b'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
+                                ${offer.active ? 'Active' : 'Inactive'}
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem; text-align: right;">
+                            <button onclick="editOffer(${offer.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">✏️</button>
+                            <button onclick="deleteOffer(${offer.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function openAddOfferModal() {
+            document.getElementById('offer-form').reset();
+            document.getElementById('offer-id').value = '';
+            document.querySelector('#addOfferModal .modal-title').textContent = 'Create New Offer';
+            loadPropertiesForOfferDropdown();
+            openModal('addOfferModal');
+        }
+        
+        async function loadPropertiesForOfferDropdown() {
+            try {
+                const response = await fetch('/api/db/properties');
+                const data = await response.json();
+                
+                const propSelect = document.getElementById('offer-property');
+                propSelect.innerHTML = '<option value="">All Properties</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        propSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+        }
+        
+        async function editOffer(id) {
+            try {
+                const response = await fetch(`/api/admin/offers/${id}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const offer = data.data;
+                    document.getElementById('offer-id').value = offer.id;
+                    document.getElementById('offer-name').value = offer.name || '';
+                    document.getElementById('offer-description').value = offer.description || '';
+                    document.getElementById('offer-discount-type').value = offer.discount_type || 'percentage';
+                    document.getElementById('offer-discount-value').value = offer.discount_value || '';
+                    document.getElementById('offer-min-nights').value = offer.min_nights || '';
+                    document.getElementById('offer-max-nights').value = offer.max_nights || '';
+                    document.getElementById('offer-min-advance').value = offer.min_advance_days || '';
+                    document.getElementById('offer-max-advance').value = offer.max_advance_days || '';
+                    document.getElementById('offer-valid-from').value = offer.valid_from || '';
+                    document.getElementById('offer-valid-until').value = offer.valid_until || '';
+                    document.getElementById('offer-priority').value = offer.priority || 0;
+                    document.getElementById('offer-active').checked = offer.active;
+                    
+                    document.querySelector('#addOfferModal .modal-title').textContent = 'Edit Offer';
+                    await loadPropertiesForOfferDropdown();
+                    document.getElementById('offer-property').value = offer.property_id || '';
+                    
+                    openModal('addOfferModal');
+                }
+            } catch (error) {
+                alert('Error loading offer: ' + error.message);
+            }
+        }
+        
+        async function saveOffer() {
+            const id = document.getElementById('offer-id').value;
+            const offerData = {
+                name: document.getElementById('offer-name').value,
+                description: document.getElementById('offer-description').value,
+                discount_type: document.getElementById('offer-discount-type').value,
+                discount_value: parseFloat(document.getElementById('offer-discount-value').value),
+                property_id: document.getElementById('offer-property').value || null,
+                room_id: document.getElementById('offer-room').value || null,
+                min_nights: parseInt(document.getElementById('offer-min-nights').value) || 1,
+                max_nights: parseInt(document.getElementById('offer-max-nights').value) || null,
+                min_advance_days: parseInt(document.getElementById('offer-min-advance').value) || null,
+                max_advance_days: parseInt(document.getElementById('offer-max-advance').value) || null,
+                valid_from: document.getElementById('offer-valid-from').value || null,
+                valid_until: document.getElementById('offer-valid-until').value || null,
+                priority: parseInt(document.getElementById('offer-priority').value) || 0,
+                active: document.getElementById('offer-active').checked
+            };
+            
+            try {
+                const url = id ? `/api/admin/offers/${id}` : '/api/admin/offers';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(offerData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeModal('addOfferModal');
+                    loadOffers();
+                    alert('✅ Offer saved successfully!');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error saving offer: ' + error.message);
+            }
+        }
+        
+        async function deleteOffer(id) {
+            if (!confirm('Delete this offer?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/offers/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadOffers();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error deleting offer: ' + error.message);
+            }
+        }
+
+        // =====================================================
+        // VOUCHERS FUNCTIONS
+        // =====================================================
+        
+        async function loadVouchers() {
+            try {
+                const response = await fetch('/api/admin/vouchers');
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderVouchers(data.data);
+                }
+            } catch (error) {
+                console.error('Error loading vouchers:', error);
+            }
+        }
+        
+        function renderVouchers(vouchers) {
+            const container = document.getElementById('vouchers-list');
+            
+            if (!vouchers || vouchers.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <p style="font-size: 3rem; margin-bottom: 1rem;">🎟️</p>
+                        <p>No vouchers yet. Create promo codes for your guests!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border);">
+                            <th style="text-align: left; padding: 0.75rem;">Code</th>
+                            <th style="text-align: left; padding: 0.75rem;">Name</th>
+                            <th style="text-align: left; padding: 0.75rem;">Discount</th>
+                            <th style="text-align: left; padding: 0.75rem;">Usage</th>
+                            <th style="text-align: left; padding: 0.75rem;">Valid</th>
+                            <th style="text-align: center; padding: 0.75rem;">Status</th>
+                            <th style="text-align: right; padding: 0.75rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const voucher of vouchers) {
+                const discountText = voucher.discount_type === 'percentage' 
+                    ? `${voucher.discount_value}%` 
+                    : `$${voucher.discount_value}`;
+                
+                const usageText = voucher.max_uses 
+                    ? `${voucher.uses_count || 0} / ${voucher.max_uses}`
+                    : `${voucher.uses_count || 0} uses`;
+                
+                const validText = voucher.valid_from || voucher.valid_until 
+                    ? `${voucher.valid_from || 'Start'} - ${voucher.valid_until || 'End'}`
+                    : 'Always';
+                
+                html += `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;">
+                            <code style="background: var(--bg-secondary); padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: bold;">
+                                ${voucher.code}
+                            </code>
+                        </td>
+                        <td style="padding: 0.75rem;">${voucher.name}</td>
+                        <td style="padding: 0.75rem;">
+                            <span style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 500;">
+                                -${discountText}
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem; font-size: 0.85rem;">${usageText}</td>
+                        <td style="padding: 0.75rem; font-size: 0.85rem;">${validText}</td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <span style="background: ${voucher.active ? '#dcfce7' : '#fee2e2'}; color: ${voucher.active ? '#166534' : '#991b1b'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
+                                ${voucher.active ? 'Active' : 'Inactive'}
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem; text-align: right;">
+                            <button onclick="editVoucher(${voucher.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">✏️</button>
+                            <button onclick="deleteVoucher(${voucher.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function openAddVoucherModal() {
+            document.getElementById('voucher-form').reset();
+            document.getElementById('voucher-id').value = '';
+            document.querySelector('#addVoucherModal .modal-title').textContent = 'Create New Voucher';
+            openModal('addVoucherModal');
+        }
+        
+        async function editVoucher(id) {
+            try {
+                const response = await fetch(`/api/admin/vouchers/${id}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const voucher = data.data;
+                    document.getElementById('voucher-id').value = voucher.id;
+                    document.getElementById('voucher-code').value = voucher.code || '';
+                    document.getElementById('voucher-name').value = voucher.name || '';
+                    document.getElementById('voucher-description').value = voucher.description || '';
+                    document.getElementById('voucher-discount-type').value = voucher.discount_type || 'percentage';
+                    document.getElementById('voucher-discount-value').value = voucher.discount_value || '';
+                    document.getElementById('voucher-valid-from').value = voucher.valid_from || '';
+                    document.getElementById('voucher-valid-until').value = voucher.valid_until || '';
+                    document.getElementById('voucher-max-uses').value = voucher.max_uses || '';
+                    document.getElementById('voucher-min-nights').value = voucher.min_nights || '';
+                    document.getElementById('voucher-min-total').value = voucher.min_total || '';
+                    document.getElementById('voucher-single-use').checked = voucher.single_use_per_guest || false;
+                    document.getElementById('voucher-active').checked = voucher.active;
+                    
+                    document.querySelector('#addVoucherModal .modal-title').textContent = 'Edit Voucher';
+                    openModal('addVoucherModal');
+                }
+            } catch (error) {
+                alert('Error loading voucher: ' + error.message);
+            }
+        }
+        
+        async function saveVoucher() {
+            const id = document.getElementById('voucher-id').value;
+            const voucherData = {
+                code: document.getElementById('voucher-code').value,
+                name: document.getElementById('voucher-name').value,
+                description: document.getElementById('voucher-description').value,
+                discount_type: document.getElementById('voucher-discount-type').value,
+                discount_value: parseFloat(document.getElementById('voucher-discount-value').value),
+                valid_from: document.getElementById('voucher-valid-from').value || null,
+                valid_until: document.getElementById('voucher-valid-until').value || null,
+                max_uses: parseInt(document.getElementById('voucher-max-uses').value) || null,
+                min_nights: parseInt(document.getElementById('voucher-min-nights').value) || 1,
+                min_total: parseFloat(document.getElementById('voucher-min-total').value) || null,
+                single_use_per_guest: document.getElementById('voucher-single-use').checked,
+                active: document.getElementById('voucher-active').checked
+            };
+            
+            try {
+                const url = id ? `/api/admin/vouchers/${id}` : '/api/admin/vouchers';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(voucherData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeModal('addVoucherModal');
+                    loadVouchers();
+                    alert('✅ Voucher saved successfully!');
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error saving voucher: ' + error.message);
+            }
+        }
+        
+        async function deleteVoucher(id) {
+            if (!confirm('Delete this voucher?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/vouchers/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadVouchers();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error deleting voucher: ' + error.message);
+            }
         }
 
         async function editProperty(id) {
