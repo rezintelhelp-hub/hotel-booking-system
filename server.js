@@ -542,11 +542,17 @@ app.get('/api/setup-database', async (req, res) => {
         valid_days_of_week VARCHAR(20),
         stackable BOOLEAN DEFAULT false,
         priority INTEGER DEFAULT 0,
+        available_website BOOLEAN DEFAULT true,
+        available_agents BOOLEAN DEFAULT false,
         active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    // Add distribution columns if they don't exist
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS available_website BOOLEAN DEFAULT true`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS available_agents BOOLEAN DEFAULT false`);
     
     // Create vouchers table
     await pool.query(`
