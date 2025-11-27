@@ -732,15 +732,18 @@ app.post('/api/db/book', async (req, res) => {
     
     const booking = result.rows[0];
     
-    // 2. Get the Beds24 room ID for this room
+    // 2. Get CM IDs for this room
     const roomResult = await client.query(`
-      SELECT beds24_room_id FROM bookable_units WHERE id = $1
+      SELECT beds24_room_id, hostaway_listing_id FROM bookable_units WHERE id = $1
     `, [room_id]);
     
     const beds24RoomId = roomResult.rows[0]?.beds24_room_id;
+    const hostawayListingId = roomResult.rows[0]?.hostaway_listing_id;
     
-    // 3. If room is linked to Beds24, push the booking
     let beds24BookingId = null;
+    let hostawayReservationId = null;
+    
+    // 3a. If room is linked to Beds24, push the booking
     if (beds24RoomId) {
       try {
         const accessToken = await getBeds24AccessToken(pool);
@@ -775,11 +778,9 @@ app.post('/api/db/book', async (req, res) => {
         
         console.log('Beds24 booking response:', JSON.stringify(beds24Response.data));
         
-        // Extract the new booking ID from Beds24 response
         if (beds24Response.data && beds24Response.data[0]?.success) {
           beds24BookingId = beds24Response.data[0]?.new?.id;
           
-          // Update our booking with Beds24 booking ID
           if (beds24BookingId) {
             await client.query(`
               UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2
@@ -790,8 +791,64 @@ app.post('/api/db/book', async (req, res) => {
         
       } catch (beds24Error) {
         console.error('Error pushing to Beds24:', beds24Error.response?.data || beds24Error.message);
-        // Don't fail the booking - just log the error
-        // The booking is still valid in our system
+      }
+    }
+    
+    // 3b. If room is linked to Hostaway, push the booking
+    if (hostawayListingId) {
+      try {
+        const stored = await getStoredHostawayToken(pool);
+        
+        if (stored && stored.accessToken) {
+          const hostawayBooking = {
+            listingMapId: hostawayListingId,
+            channelId: 2000,  // Direct booking
+            source: 'manual',
+            arrivalDate: check_in,
+            departureDate: check_out,
+            guestFirstName: guest_first_name,
+            guestLastName: guest_last_name,
+            guestEmail: guest_email,
+            guestPhone: guest_phone || '',
+            guestAddress: guest_address || '',
+            guestCity: guest_city || '',
+            guestCountry: guest_country || '',
+            guestZipCode: guest_postcode || '',
+            numberOfGuests: num_adults + (num_children || 0),
+            adults: num_adults,
+            children: num_children || 0,
+            totalPrice: total_price,
+            isPaid: 0,
+            status: 'new',
+            comment: `GAS Booking ID: ${booking.id}`
+          };
+          
+          console.log('Pushing booking to Hostaway:', JSON.stringify(hostawayBooking));
+          
+          const hostawayResponse = await axios.post('https://api.hostaway.com/v1/reservations', hostawayBooking, {
+            headers: {
+              'Authorization': `Bearer ${stored.accessToken}`,
+              'Content-Type': 'application/json',
+              'Cache-control': 'no-cache'
+            }
+          });
+          
+          console.log('Hostaway booking response:', JSON.stringify(hostawayResponse.data));
+          
+          if (hostawayResponse.data.status === 'success' && hostawayResponse.data.result) {
+            hostawayReservationId = hostawayResponse.data.result.id;
+            
+            if (hostawayReservationId) {
+              await client.query(`
+                UPDATE bookings SET hostaway_reservation_id = $1 WHERE id = $2
+              `, [hostawayReservationId, booking.id]);
+              booking.hostaway_reservation_id = hostawayReservationId;
+            }
+          }
+        }
+        
+      } catch (hostawayError) {
+        console.error('Error pushing to Hostaway:', hostawayError.response?.data || hostawayError.message);
       }
     }
     
@@ -814,7 +871,9 @@ app.post('/api/db/book', async (req, res) => {
       success: true, 
       data: booking,
       beds24Synced: !!beds24BookingId,
-      beds24BookingId
+      beds24BookingId,
+      hostawaySynced: !!hostawayReservationId,
+      hostawayReservationId
     });
     
   } catch (error) {
