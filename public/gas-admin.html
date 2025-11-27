@@ -881,10 +881,16 @@
                             <h2>Dashboard Overview</h2>
                             <p>Welcome back! Here's what's happening with your properties.</p>
                         </div>
-                        <a href="/beds24-wizard.html" class="btn">
-                            <span>+</span>
-                            <span>Import from Beds24</span>
-                        </a>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a href="/beds24-wizard.html" class="btn">
+                                <span>+</span>
+                                <span>Import from Beds24</span>
+                            </a>
+                            <a href="/hostaway-wizard.html" class="btn" style="background: #1e3a5f;">
+                                <span>+</span>
+                                <span>Import from Hostaway</span>
+                            </a>
+                        </div>
                     </div>
                 </div>
 
@@ -1245,7 +1251,8 @@
                             <button class="btn btn-secondary" onclick="goToToday()">Today</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(1)">›</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(7)">››</button>
-                            <span style="margin-left: 1rem;" id="grid-date-range"></span>
+                            <input type="date" id="grid-date-picker" style="margin-left: 1rem; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer;" onchange="jumpToDate(this.value)">
+                            <span style="margin-left: 0.5rem; color: #6b7280;" id="grid-date-range"></span>
                             <button class="btn" style="margin-left: 1rem;" onclick="syncAllFromCM()">🔄 Sync from CM</button>
                         </div>
                     </div>
@@ -3116,6 +3123,13 @@
             loadGridData();
         }
         
+        function jumpToDate(dateStr) {
+            if (dateStr) {
+                gridStartDate = new Date(dateStr);
+                loadGridData();
+            }
+        }
+        
         function goToToday() {
             gridStartDate = new Date();
             gridStartDate.setHours(0, 0, 0, 0);
@@ -3128,10 +3142,11 @@
             endDate.setDate(endDate.getDate() + GRID_DAYS - 1);
             const toDate = endDate.toISOString().split('T')[0];
             
-            // Update date range display
+            // Update date range display and date picker
             const opts = { month: 'short', day: 'numeric' };
             document.getElementById('grid-date-range').textContent = 
                 `${gridStartDate.toLocaleDateString('en-US', opts)} - ${endDate.toLocaleDateString('en-US', opts)}`;
+            document.getElementById('grid-date-picker').value = fromDate;
             
             // Load availability for all rooms
             gridData = {};
