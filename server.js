@@ -932,26 +932,9 @@ app.get('/api/db/units', async (req, res) => {
     if (roomsResult.rows.length > 0) {
       // Has rooms/units defined - return them
       res.json({ success: true, data: roomsResult.rows, propertyType: propertyType, rawType: rawType, isMultiUnit: isMultiUnit });
-    } else if (isMultiUnit) {
-      // Multi-unit property with no rooms defined yet
-      res.json({ success: true, data: [], propertyType: propertyType, rawType: rawType, isMultiUnit: true, message: 'No units configured for this property yet. Add rooms/units in the Rooms section.' });
-    } else if (isSingleUnit) {
-      // Single-unit property with no rooms - return property as the unit
-      res.json({ 
-        success: true, 
-        data: [{
-          id: property.id,
-          property_id: property.id,
-          name: property.name,
-          description: property.description,
-          is_property_unit: true
-        }],
-        propertyType: propertyType,
-        rawType: rawType,
-        isSingleUnit: true
-      });
     } else {
-      // Unknown type - check if it looks like multi-unit, otherwise default to single
+      // No rooms in database - return property itself as the bookable unit
+      // This works for both single-unit AND multi-unit properties that haven't had rooms added yet
       res.json({ 
         success: true, 
         data: [{
@@ -963,8 +946,9 @@ app.get('/api/db/units', async (req, res) => {
         }],
         propertyType: propertyType,
         rawType: rawType,
-        isSingleUnit: true,
-        message: 'Unknown property type - defaulting to single unit'
+        isMultiUnit: isMultiUnit,
+        isSingleUnit: !isMultiUnit,
+        message: isMultiUnit ? 'No rooms configured yet - showing property as unit. Add rooms in the Rooms section.' : 'Single unit property'
       });
     }
   } catch (error) {
