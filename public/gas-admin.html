@@ -1254,7 +1254,7 @@
                             <p>View and manage all rooms in one place</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                            <select id="grid-property-filter" class="form-input" style="min-width: 200px;" onchange="filterGridByProperty()">
+                            <select id="grid-property-filter" class="form-input" style="min-width: 200px;" onchange="filterGridByProperty()" onclick="event.stopPropagation()">
                                 <option value="">All Properties</option>
                             </select>
                             <button class="btn btn-secondary" onclick="shiftGridDays(-7)">‹‹</button>
@@ -3462,21 +3462,31 @@
         }
         
         function filterGridByProperty() {
-            const propertyId = document.getElementById('grid-property-filter').value;
-            console.log('Filtering by property:', propertyId, 'allRooms:', allRooms.length);
+            const propFilter = document.getElementById('grid-property-filter');
+            const propertyId = propFilter.value;
+            
+            console.log('=== FILTER DEBUG ===');
+            console.log('Selected property ID:', propertyId);
+            console.log('allRooms count:', allRooms.length);
             
             if (propertyId) {
-                gridRooms = allRooms.filter(r => r.property_id == propertyId);
+                gridRooms = allRooms.filter(r => {
+                    const match = String(r.property_id) === String(propertyId);
+                    return match;
+                });
+                console.log('Filtered to', gridRooms.length, 'rooms for property', propertyId);
             } else {
-                gridRooms = [...allRooms]; // Create a copy
+                gridRooms = [...allRooms];
+                console.log('Showing all', gridRooms.length, 'rooms');
             }
-            
-            console.log('Filtered gridRooms:', gridRooms.length);
             
             // Update edit room select with filtered rooms
             const select = document.getElementById('edit-room-select');
             select.innerHTML = '<option value="">All Rooms</option>' +
                 gridRooms.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+            
+            // Make sure we preserve the dropdown selection
+            propFilter.value = propertyId;
             
             loadGridData();
         }
