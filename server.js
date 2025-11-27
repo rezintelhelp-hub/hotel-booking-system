@@ -832,6 +832,72 @@ app.get('/api/db/rooms', async (req, res) => {
   }
 });
 
+// Smart units endpoint - returns units based on property type
+// For hotels/B&Bs/apart hotels: returns rooms
+// For houses/apartments/villas: returns the property itself as a unit
+app.get('/api/db/units', async (req, res) => {
+  const { propertyId } = req.query;
+  try {
+    if (!propertyId) {
+      // Return all units across all properties
+      const result = await pool.query(`
+        SELECT r.*, p.name as property_name, p.property_type
+        FROM rooms r
+        JOIN properties p ON r.property_id = p.id
+        WHERE r.active = true
+        ORDER BY p.name, r.name
+      `);
+      res.json({ success: true, data: result.rows });
+      return;
+    }
+    
+    // Get property type first
+    const propResult = await pool.query('SELECT * FROM properties WHERE id = $1', [propertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const property = propResult.rows[0];
+    const propertyType = (property.property_type || '').toLowerCase();
+    
+    // Multi-unit property types (treat like hotels - have multiple bookable units)
+    const multiUnitTypes = ['hotel', 'motel', 'b&b', 'bed and breakfast', 'bed & breakfast', 'hostel', 'inn', 'guest house', 'guesthouse', 'apart hotel', 'aparthotel', 'apart-hotel', 'serviced apartments', 'resort', 'lodge', 'boutique hotel'];
+    const isMultiUnit = multiUnitTypes.some(t => propertyType.includes(t));
+    
+    // Single-unit property types (property itself is the bookable unit)
+    const singleUnitTypes = ['house', 'apartment', 'villa', 'cottage', 'cabin', 'chalet', 'bungalow', 'studio', 'flat', 'condo', 'townhouse', 'farmhouse', 'barn', 'treehouse', 'houseboat', 'camper', 'rv', 'tent', 'yurt', 'dome', 'tiny house'];
+    const isSingleUnit = singleUnitTypes.some(t => propertyType.includes(t)) && !isMultiUnit;
+    
+    // First try to get rooms from the rooms table
+    const roomsResult = await pool.query('SELECT * FROM rooms WHERE property_id = $1 AND active = true', [propertyId]);
+    
+    if (roomsResult.rows.length > 0) {
+      // Has rooms/units defined - return them
+      res.json({ success: true, data: roomsResult.rows, propertyType: propertyType, isMultiUnit: isMultiUnit });
+    } else if (isSingleUnit) {
+      // Single-unit property with no rooms - return property as the unit
+      res.json({ 
+        success: true, 
+        data: [{
+          id: property.id,
+          property_id: property.id,
+          name: property.name,
+          description: property.description,
+          is_property_unit: true // Flag to indicate this is the property itself
+        }],
+        propertyType: propertyType,
+        isSingleUnit: true
+      });
+    } else {
+      // Multi-unit property (hotel/apart hotel/B&B) with no rooms defined yet
+      res.json({ success: true, data: [], propertyType: propertyType, isMultiUnit: true, message: 'No units configured for this property yet' });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/db/rooms', async (req, res) => {
   const { property_id, name, description, max_occupancy, max_adults, max_children, base_price, quantity } = req.body;
   try {
