@@ -2359,6 +2359,115 @@ app.post('/api/hostaway/import-property', async (req, res) => {
   }
 });
 
+// Sync availability from Hostaway for all listings
+app.post('/api/admin/sync-hostaway-availability', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const stored = await getStoredHostawayToken(pool);
+    if (!stored) {
+      return res.json({ success: false, error: 'No Hostaway connection found' });
+    }
+    
+    // Get all Hostaway-linked rooms
+    const roomsResult = await client.query(`
+      SELECT bu.id as room_id, bu.hostaway_listing_id, bu.name
+      FROM bookable_units bu
+      WHERE bu.hostaway_listing_id IS NOT NULL
+    `);
+    
+    if (roomsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Hostaway-linked rooms found' });
+    }
+    
+    console.log(`Syncing availability for ${roomsResult.rows.length} Hostaway listings...`);
+    
+    // Calculate date range (today + 90 days)
+    const today = new Date();
+    const endDate = new Date();
+    endDate.setDate(endDate.getDate() + 90);
+    
+    const startDateStr = today.toISOString().split('T')[0];
+    const endDateStr = endDate.toISOString().split('T')[0];
+    
+    let totalPricesUpdated = 0;
+    let roomsSynced = 0;
+    
+    for (const room of roomsResult.rows) {
+      try {
+        console.log(`  Fetching calendar for ${room.name} (Hostaway ID: ${room.hostaway_listing_id})`);
+        
+        // Add delay to respect rate limits (15 requests per 10 seconds)
+        await new Promise(resolve => setTimeout(resolve, 700));
+        
+        const response = await axios.get(`https://api.hostaway.com/v1/listings/${room.hostaway_listing_id}/calendar`, {
+          headers: {
+            'Authorization': `Bearer ${stored.accessToken}`,
+            'Cache-control': 'no-cache'
+          },
+          params: {
+            startDate: startDateStr,
+            endDate: endDateStr
+          }
+        });
+        
+        if (response.data.status === 'success' && response.data.result) {
+          const calendarDays = response.data.result;
+          
+          for (const day of calendarDays) {
+            // day typically has: date, price, isAvailable, minimumStay, etc.
+            const dateStr = day.date;
+            const price = day.price || null;
+            const isAvailable = day.isAvailable === 1 || day.isAvailable === true;
+            const isBlocked = day.status === 'blocked' || day.isBlocked === 1;
+            const minStay = day.minimumStay || 1;
+            
+            await client.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, 'hostaway', NOW())
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET 
+                cm_price = $3, 
+                direct_price = COALESCE(room_availability.direct_price, $3),
+                is_available = $4, 
+                is_blocked = $5, 
+                min_stay = $6,
+                source = 'hostaway',
+                updated_at = NOW()
+            `, [room.room_id, dateStr, price, isAvailable, isBlocked, minStay]);
+            
+            totalPricesUpdated++;
+          }
+          
+          roomsSynced++;
+          console.log(`    ✓ Synced ${calendarDays.length} days for ${room.name}`);
+        }
+        
+      } catch (roomError) {
+        console.error(`    ✗ Error syncing ${room.name}:`, roomError.response?.data || roomError.message);
+        
+        // If rate limited, wait longer
+        if (roomError.response?.status === 429) {
+          console.log('    Rate limited, waiting 10 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+      }
+    }
+    
+    res.json({
+      success: true,
+      roomsSynced,
+      totalPricesUpdated,
+      message: `Synced ${roomsSynced} Hostaway listings with ${totalPricesUpdated} price/availability records`
+    });
+    
+  } catch (error) {
+    console.error('Hostaway sync error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Get Hostaway calendar/availability
 app.get('/api/hostaway/calendar/:listingId', async (req, res) => {
   try {
