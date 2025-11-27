@@ -1253,7 +1253,10 @@
                             <h2>Availability & Pricing</h2>
                             <p>View and manage all rooms in one place</p>
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
+                            <select id="grid-property-filter" class="form-input" style="min-width: 200px;" onchange="filterGridByProperty()">
+                                <option value="">All Properties</option>
+                            </select>
                             <button class="btn btn-secondary" onclick="shiftGridDays(-7)">‹‹</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(-1)">‹</button>
                             <button class="btn btn-secondary" onclick="goToToday()">Today</button>
@@ -3398,6 +3401,8 @@
         let gridData = {}; // roomId -> { date -> data }
         const GRID_DAYS = 14; // Show 2 weeks at a time
         
+        let allRooms = []; // Store all rooms for filtering
+        
         async function loadAvailabilityView() {
             // Set start date to today
             gridStartDate = new Date();
@@ -3410,12 +3415,27 @@
             nextWeek.setDate(nextWeek.getDate() + 7);
             document.getElementById('edit-to-date').value = nextWeek.toISOString().split('T')[0];
             
+            // Load properties for filter
+            try {
+                const propsResponse = await fetch('/api/db/properties');
+                const propsData = await propsResponse.json();
+                
+                const propFilter = document.getElementById('grid-property-filter');
+                if (propFilter && propsData.success) {
+                    propFilter.innerHTML = '<option value="">All Properties</option>' +
+                        propsData.data.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+            
             // Load rooms
             try {
                 const response = await fetch('/api/db/bookable-units');
                 const data = await response.json();
                 
                 if (data.success && data.data) {
+                    allRooms = data.data;
                     gridRooms = data.data;
                     
                     // Populate edit room select
@@ -3428,6 +3448,23 @@
             }
             
             await loadGridData();
+        }
+        
+        function filterGridByProperty() {
+            const propertyId = document.getElementById('grid-property-filter').value;
+            
+            if (propertyId) {
+                gridRooms = allRooms.filter(r => r.property_id == propertyId);
+            } else {
+                gridRooms = allRooms;
+            }
+            
+            // Update edit room select with filtered rooms
+            const select = document.getElementById('edit-room-select');
+            select.innerHTML = '<option value="">All Rooms</option>' +
+                gridRooms.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+            
+            loadGridData();
         }
         
         function shiftGridDays(days) {
