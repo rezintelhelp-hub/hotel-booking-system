@@ -4688,9 +4688,39 @@ app.post('/api/webhooks/beds24', async (req, res) => {
         }
       }
     } else if (eventType === 'cancel' || eventType === 'delete') {
-      // A booking was cancelled - we might need to re-open availability
-      // For safety, trigger a full sync for this room instead
-      console.log('Booking cancelled - consider re-syncing room availability');
+      // A booking was cancelled - re-open the dates
+      console.log('Booking cancelled, re-opening availability');
+      
+      if (roomId) {
+        const roomResult = await client.query(`
+          SELECT id FROM bookable_units WHERE beds24_room_id = $1
+        `, [roomId]);
+        
+        if (roomResult.rows.length > 0) {
+          const ourRoomId = roomResult.rows[0].id;
+          const arrival = webhookData.arrival || webhookData.firstNight;
+          const departure = webhookData.departure || webhookData.lastNight;
+          
+          if (arrival && departure) {
+            const startDate = new Date(arrival);
+            const endDate = new Date(departure);
+            
+            await client.query('BEGIN');
+            
+            for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().split('T')[0];
+              await client.query(`
+                UPDATE room_availability 
+                SET is_available = true, source = 'beds24_webhook_cancel', updated_at = NOW()
+                WHERE room_id = $1 AND date = $2
+              `, [ourRoomId, dateStr]);
+            }
+            
+            await client.query('COMMIT');
+            console.log(`Re-opened availability for room ${ourRoomId}: ${arrival} to ${departure}`);
+          }
+        }
+      }
     }
     
     // Always respond with 200 to acknowledge receipt
