@@ -3209,9 +3209,9 @@
                     let textColor = '#065f46';
                     
                     if (dayData) {
-                        if (dayData.is_booked) {
-                            bgColor = '#fee2e2'; // red
-                            text = dayData.guest_name ? dayData.guest_name.split(' ')[0] : '●';
+                        if (dayData.is_booked || (!dayData.is_available && !dayData.is_blocked)) {
+                            bgColor = '#fee2e2'; // red - booked
+                            text = dayData.guest_name ? dayData.guest_name.split(' ')[0] : '×';
                             textColor = '#991b1b';
                         } else if (dayData.is_blocked) {
                             bgColor = '#fef3c7'; // yellow
@@ -3324,14 +3324,14 @@
         }
         
         async function syncAllFromCM() {
-            if (!confirm('Sync availability and pricing from Channel Manager for ALL rooms (365 days)? This may take 2-3 minutes.')) return;
+            if (!confirm('Sync availability and pricing from Channel Manager for ALL rooms (30 days)?')) return;
             
             const btn = event.target;
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
             
             try {
-                const response = await fetch('/api/admin/sync-all-availability-bulk', { method: 'POST' });
+                const response = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
                 const result = await response.json();
                 
                 if (result.success) {
