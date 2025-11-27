@@ -1196,16 +1196,16 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Property Description</label>
-                                <textarea class="form-input" id="property-description" rows="6" placeholder="Describe your property... its history, character, what makes it special"></textarea>
+                                <label class="form-label">Property Description <button onclick="copyToClipboard('property-description')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
+                                <textarea class="form-input" id="property-description" rows="10" placeholder="Describe your property... its history, character, what makes it special"></textarea>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
                                     This is the main description shown to guests
                                 </div>
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Location Description</label>
-                                <textarea class="form-input" id="property-location" rows="4" placeholder="Describe the area, nearby attractions, transport links, directions..."></textarea>
+                                <label class="form-label">Location Description <button onclick="copyToClipboard('property-location')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
+                                <textarea class="form-input" id="property-location" rows="8" placeholder="Describe the area, nearby attractions, transport links, directions..."></textarea>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
                                     Help guests understand where you are and what's nearby
                                 </div>
@@ -1246,7 +1246,7 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Short Description</label>
+                                <label class="form-label">Short Description <button onclick="copyToClipboard('room-short-description')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
                                 <textarea class="form-input" id="room-short-description" rows="3" placeholder="Brief, punchy description of the room (1-2 sentences)"></textarea>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
                                     Shown in listings and search results
@@ -1254,8 +1254,8 @@
                             </div>
                             
                             <div class="form-group">
-                                <label class="form-label">Full Description</label>
-                                <textarea class="form-input" id="room-full-description" rows="6" placeholder="Detailed description of the room, its features, views, atmosphere..."></textarea>
+                                <label class="form-label">Full Description <button onclick="copyToClipboard('room-full-description')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
+                                <textarea class="form-input" id="room-full-description" rows="12" placeholder="Detailed description of the room, its features, views, atmosphere..."></textarea>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
                                     Extended information shown on room detail page
                                 </div>
@@ -4341,6 +4341,16 @@
         }
         
         // AI Content Generation
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).value;
+            navigator.clipboard.writeText(text).then(() => {
+                const btn = event.target;
+                const original = btn.innerHTML;
+                btn.innerHTML = '✅';
+                setTimeout(() => btn.innerHTML = original, 1500);
+            });
+        }
+        
         async function generatePropertyContent(type) {
             const propertyId = document.getElementById('content-property-select').value;
             if (!propertyId) return alert('Please select a property');
