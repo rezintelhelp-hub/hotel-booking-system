@@ -2103,8 +2103,8 @@ app.post('/api/hostaway/setup-connection', async (req, res) => {
     
     // Ensure hostaway exists in channel_managers
     await pool.query(`
-      INSERT INTO channel_managers (cm_code, cm_name, api_base_url)
-      VALUES ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1')
+      INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type)
+      VALUES ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1', 'oauth2')
       ON CONFLICT (cm_code) DO NOTHING
     `);
     
