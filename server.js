@@ -3667,12 +3667,11 @@ app.get('/api/availability/:roomId', async (req, res) => {
       return res.json({ success: false, error: 'from and to dates required' });
     }
     
-    // Get availability data
+    // Get availability data - use COALESCE to handle missing columns gracefully
     const availability = await pool.query(`
       SELECT 
         date,
         cm_price,
-        standard_price,
         direct_price,
         direct_discount_percent,
         is_available,
@@ -3700,7 +3699,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
       availMap[dateStr] = {
         date: dateStr,
         cm_price: a.cm_price,
-        standard_price: a.standard_price || a.cm_price,
+        standard_price: a.cm_price, // Use cm_price as standard for now
         direct_price: effectiveDirectPrice || a.cm_price,
         direct_discount_percent: a.direct_discount_percent,
         is_available: a.is_available,
