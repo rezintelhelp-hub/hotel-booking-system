@@ -1253,21 +1253,30 @@
                             <h2>Availability & Pricing</h2>
                             <p>View and manage all rooms in one place</p>
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
-                            <select id="grid-property-filter" class="form-input" style="min-width: 200px;" onchange="filterGridByProperty()" onclick="event.stopPropagation()">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button class="btn" onclick="syncBeds24()" id="sync-beds24-btn" style="background: #f59e0b;">🔄 Beds24</button>
+                            <button class="btn" onclick="syncHostaway()" id="sync-hostaway-btn" style="background: #1e3a5f;">🔄 Hostaway</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Property Filter Bar -->
+                <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label style="font-weight: 600; white-space: nowrap;">Filter by Property:</label>
+                            <select id="grid-property-filter" class="form-input" style="min-width: 250px; padding: 0.5rem;" onchange="filterGridByProperty()">
                                 <option value="">All Properties</option>
                             </select>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
                             <button class="btn btn-secondary" onclick="shiftGridDays(-7)">‹‹</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(-1)">‹</button>
                             <button class="btn btn-secondary" onclick="goToToday()">Today</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(1)">›</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(7)">››</button>
-                            <input type="date" id="grid-date-picker" style="margin-left: 1rem; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer;" onchange="jumpToDate(this.value)">
-                            <span style="margin-left: 0.5rem; color: #6b7280;" id="grid-date-range"></span>
-                            <div style="margin-left: 1rem; display: inline-flex; gap: 0.5rem;">
-                                <button class="btn" onclick="syncBeds24()" id="sync-beds24-btn" style="background: #f59e0b;">🔄 Beds24</button>
-                                <button class="btn" onclick="syncHostaway()" id="sync-hostaway-btn" style="background: #1e3a5f;">🔄 Hostaway</button>
-                            </div>
+                            <input type="date" id="grid-date-picker" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" onchange="jumpToDate(this.value)">
+                            <span style="color: #6b7280;" id="grid-date-range"></span>
                         </div>
                     </div>
                 </div>
