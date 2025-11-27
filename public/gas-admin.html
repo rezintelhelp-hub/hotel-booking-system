@@ -1253,7 +1253,10 @@
                             <button class="btn btn-secondary" onclick="shiftGridDays(7)">››</button>
                             <input type="date" id="grid-date-picker" style="margin-left: 1rem; padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px; cursor: pointer;" onchange="jumpToDate(this.value)">
                             <span style="margin-left: 0.5rem; color: #6b7280;" id="grid-date-range"></span>
-                            <button class="btn" style="margin-left: 1rem;" onclick="syncAllFromCM()">🔄 Sync from CM</button>
+                            <div style="margin-left: 1rem; display: inline-flex; gap: 0.5rem;">
+                                <button class="btn" onclick="syncBeds24()" id="sync-beds24-btn" style="background: #f59e0b;">🔄 Beds24</button>
+                                <button class="btn" onclick="syncHostaway()" id="sync-hostaway-btn" style="background: #1e3a5f;">🔄 Hostaway</button>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3338,39 +3341,53 @@
             loadGridData();
         }
         
-        async function syncAllFromCM() {
-            if (!confirm('Sync availability and pricing from ALL Channel Managers (Beds24 + Hostaway)?')) return;
+        async function syncBeds24() {
+            if (!confirm('Sync availability and pricing from Beds24?')) return;
             
-            const btn = event.target;
+            const btn = document.getElementById('sync-beds24-btn');
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
             
-            let results = [];
-            
             try {
-                // Sync Beds24
-                btn.textContent = '⏳ Syncing Beds24...';
-                const beds24Response = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
-                const beds24Result = await beds24Response.json();
-                if (beds24Result.success) {
-                    results.push(`Beds24: ${beds24Result.totalPricesFound || 0} prices`);
-                }
+                const response = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
+                const result = await response.json();
                 
-                // Sync Hostaway
-                btn.textContent = '⏳ Syncing Hostaway...';
-                const hostawayResponse = await fetch('/api/admin/sync-hostaway-availability', { method: 'POST' });
-                const hostawayResult = await hostawayResponse.json();
-                if (hostawayResult.success) {
-                    results.push(`Hostaway: ${hostawayResult.totalPricesUpdated || 0} prices`);
+                if (result.success) {
+                    alert(`✅ Beds24 Sync complete!\n\n${result.roomsCount} rooms\n${result.totalPricesFound} prices`);
+                } else {
+                    alert(`❌ Beds24 Sync failed: ${result.error}`);
                 }
-                
-                alert(`✅ Sync complete!\n\n${results.join('\n')}`);
             } catch (error) {
                 alert(`❌ Error: ${error.message}`);
             }
             
             btn.disabled = false;
-            btn.textContent = '🔄 Sync from CM';
+            btn.textContent = '🔄 Beds24';
+            loadGridData();
+        }
+        
+        async function syncHostaway() {
+            if (!confirm('Sync availability and pricing from Hostaway?')) return;
+            
+            const btn = document.getElementById('sync-hostaway-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Syncing...';
+            
+            try {
+                const response = await fetch('/api/admin/sync-hostaway-availability', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Hostaway Sync complete!\n\n${result.roomsSynced} listings\n${result.totalPricesUpdated} prices`);
+                } else {
+                    alert(`❌ Hostaway Sync failed: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '🔄 Hostaway';
             loadGridData();
         }
 
