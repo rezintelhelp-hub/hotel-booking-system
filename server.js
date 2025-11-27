@@ -587,6 +587,22 @@ app.get('/api/db/rooms', async (req, res) => {
   }
 });
 
+// Admin units endpoint (for dashboard)
+app.get('/api/admin/units', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT bu.*, p.name as property_name 
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      ORDER BY p.name, bu.name
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Error fetching units:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/db/rooms', async (req, res) => {
   const { property_id, name, description, max_occupancy, max_adults, max_children, base_price, quantity } = req.body;
   try {
@@ -1372,6 +1388,504 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     });
   } finally {
     client.release();
+  }
+});
+
+// =====================================================
+// ADMIN DASHBOARD ENDPOINTS
+// =====================================================
+
+// Dashboard stats
+app.get('/api/admin/stats', async (req, res) => {
+  try {
+    const properties = await pool.query('SELECT COUNT(*) FROM properties');
+    const rooms = await pool.query('SELECT COUNT(*) FROM bookable_units');
+    const bookings = await pool.query('SELECT COUNT(*) FROM bookings');
+    
+    res.json({
+      success: true,
+      data: {
+        properties: parseInt(properties.rows[0].count),
+        rooms: parseInt(rooms.rows[0].count),
+        bookings: parseInt(bookings.rows[0].count)
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Properties
+app.get('/api/admin/properties', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM properties ORDER BY name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/admin/properties/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM properties WHERE id = $1', [req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/properties/:id', async (req, res) => {
+  try {
+    const { name, status } = req.body;
+    const result = await pool.query(
+      'UPDATE properties SET name = COALESCE($1, name), status = COALESCE($2, status), updated_at = NOW() WHERE id = $3 RETURNING *',
+      [name, status, req.params.id]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/properties/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM properties WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Rooms/Units  
+app.get('/api/admin/rooms/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/rooms/:id', async (req, res) => {
+  try {
+    const { name, status, max_guests } = req.body;
+    const result = await pool.query(
+      'UPDATE bookable_units SET name = COALESCE($1, name), status = COALESCE($2, status), max_guests = COALESCE($3, max_guests), updated_at = NOW() WHERE id = $4 RETURNING *',
+      [name, status, max_guests, req.params.id]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/rooms/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM bookable_units WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Property Images
+app.get('/api/admin/properties/:id/images', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM property_images WHERE property_id = $1 ORDER BY sort_order', [req.params.id]);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Room Images
+app.get('/api/admin/rooms/:id/images', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM bookable_unit_images WHERE unit_id = $1 ORDER BY sort_order', [req.params.id]);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Amenities
+app.get('/api/admin/amenities', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT pa.*, p.name as property_name 
+      FROM property_amenities pa
+      LEFT JOIN properties p ON pa.property_id = p.id
+      ORDER BY pa.category, pa.name
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/amenities', async (req, res) => {
+  try {
+    const { property_id, name, category, icon } = req.body;
+    const result = await pool.query(
+      'INSERT INTO property_amenities (property_id, name, category, icon) VALUES ($1, $2, $3, $4) RETURNING *',
+      [property_id, name, category || 'General', icon || '✓']
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/amenities/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM property_amenities WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/amenities/delete-all', async (req, res) => {
+  try {
+    const { property_id, category } = req.query;
+    if (category) {
+      await pool.query('DELETE FROM property_amenities WHERE property_id = $1 AND category = $2', [property_id, category]);
+    } else {
+      await pool.query('DELETE FROM property_amenities WHERE property_id = $1', [property_id]);
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Content Management
+app.get('/api/admin/content/property/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT content FROM properties WHERE id = $1', [req.params.id]);
+    res.json({ success: true, content: result.rows[0]?.content || {} });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/content/property/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'UPDATE properties SET content = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [JSON.stringify(req.body), req.params.id]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/admin/content/room/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT content FROM bookable_units WHERE id = $1', [req.params.id]);
+    res.json({ success: true, content: result.rows[0]?.content || {} });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/content/room/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'UPDATE bookable_units SET content = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [JSON.stringify(req.body), req.params.id]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.get('/api/admin/content/policies/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT policies FROM properties WHERE id = $1', [req.params.id]);
+    res.json({ success: true, content: result.rows[0]?.policies || {} });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/content/policies/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'UPDATE properties SET policies = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+      [JSON.stringify(req.body), req.params.id]
+    );
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Availability
+app.get('/api/admin/availability', async (req, res) => {
+  try {
+    const { from, to } = req.query;
+    const result = await pool.query(`
+      SELECT ra.*, bu.name as room_name, p.name as property_name
+      FROM room_availability ra
+      LEFT JOIN bookable_units bu ON ra.room_id = bu.id
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE ra.date >= $1 AND ra.date <= $2
+      ORDER BY ra.date
+    `, [from, to]);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/availability', async (req, res) => {
+  try {
+    const { room_id, date, status, standard_price } = req.body;
+    const result = await pool.query(`
+      INSERT INTO room_availability (room_id, date, status, standard_price)
+      VALUES ($1, $2, $3, $4)
+      ON CONFLICT (room_id, date) DO UPDATE SET status = $3, standard_price = $4
+      RETURNING *
+    `, [room_id, date, status, standard_price]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Offers
+app.get('/api/admin/offers', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM offers ORDER BY priority DESC, created_at DESC');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/offers', async (req, res) => {
+  try {
+    const { name, description, discount_type, discount_value, property_id, room_id, min_nights, valid_from, valid_until, active } = req.body;
+    const result = await pool.query(`
+      INSERT INTO offers (name, description, discount_type, discount_value, property_id, room_id, min_nights, valid_from, valid_until, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+    `, [name, description, discount_type || 'percentage', discount_value, property_id || null, room_id || null, min_nights || 1, valid_from || null, valid_until || null, active !== false]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/offers/:id', async (req, res) => {
+  try {
+    const { name, description, discount_type, discount_value, property_id, room_id, min_nights, valid_from, valid_until, active } = req.body;
+    const result = await pool.query(`
+      UPDATE offers SET name=$1, description=$2, discount_type=$3, discount_value=$4, property_id=$5, room_id=$6, min_nights=$7, valid_from=$8, valid_until=$9, active=$10, updated_at=NOW()
+      WHERE id=$11 RETURNING *
+    `, [name, description, discount_type, discount_value, property_id || null, room_id || null, min_nights, valid_from || null, valid_until || null, active, req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/offers/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM offers WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Vouchers
+app.get('/api/admin/vouchers', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM vouchers ORDER BY created_at DESC');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/vouchers', async (req, res) => {
+  try {
+    const { code, name, description, discount_type, discount_value, property_id, unit_id, min_nights, max_uses, valid_from, valid_until, active } = req.body;
+    const result = await pool.query(`
+      INSERT INTO vouchers (code, name, description, discount_type, discount_value, property_id, unit_id, min_nights, max_uses, valid_from, valid_until, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *
+    `, [code.toUpperCase(), name, description, discount_type || 'percentage', discount_value, property_id || null, unit_id || null, min_nights || 1, max_uses || null, valid_from || null, valid_until || null, active !== false]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    if (error.code === '23505') {
+      res.json({ success: false, error: 'Voucher code already exists' });
+    } else {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
+app.put('/api/admin/vouchers/:id', async (req, res) => {
+  try {
+    const { code, name, description, discount_type, discount_value, property_id, unit_id, min_nights, max_uses, valid_from, valid_until, active } = req.body;
+    const result = await pool.query(`
+      UPDATE vouchers SET code=$1, name=$2, description=$3, discount_type=$4, discount_value=$5, property_id=$6, unit_id=$7, min_nights=$8, max_uses=$9, valid_from=$10, valid_until=$11, active=$12, updated_at=NOW()
+      WHERE id=$13 RETURNING *
+    `, [code.toUpperCase(), name, description, discount_type, discount_value, property_id || null, unit_id || null, min_nights, max_uses || null, valid_from || null, valid_until || null, active, req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/vouchers/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM vouchers WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Upsells
+app.get('/api/admin/upsells', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM upsells ORDER BY category, name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/upsells', async (req, res) => {
+  try {
+    const { name, description, category, price, price_type, property_id, unit_id, active } = req.body;
+    const result = await pool.query(`
+      INSERT INTO upsells (name, description, category, price, price_type, property_id, unit_id, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+    `, [name, description, category || 'General', price, price_type || 'fixed', property_id || null, unit_id || null, active !== false]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/upsells/:id', async (req, res) => {
+  try {
+    const { name, description, category, price, price_type, property_id, unit_id, active } = req.body;
+    const result = await pool.query(`
+      UPDATE upsells SET name=$1, description=$2, category=$3, price=$4, price_type=$5, property_id=$6, unit_id=$7, active=$8, updated_at=NOW()
+      WHERE id=$9 RETURNING *
+    `, [name, description, category, price, price_type, property_id || null, unit_id || null, active, req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/upsells/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM upsells WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Taxes
+app.get('/api/admin/taxes', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM taxes ORDER BY name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/taxes', async (req, res) => {
+  try {
+    const { name, description, rate, tax_type, property_id, unit_id, active } = req.body;
+    const result = await pool.query(`
+      INSERT INTO taxes (name, description, rate, tax_type, property_id, unit_id, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [name, description, rate, tax_type || 'percentage', property_id || null, unit_id || null, active !== false]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/taxes/:id', async (req, res) => {
+  try {
+    const { name, description, rate, tax_type, property_id, unit_id, active } = req.body;
+    const result = await pool.query(`
+      UPDATE taxes SET name=$1, description=$2, rate=$3, tax_type=$4, property_id=$5, unit_id=$6, active=$7, updated_at=NOW()
+      WHERE id=$8 RETURNING *
+    `, [name, description, rate, tax_type, property_id || null, unit_id || null, active, req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/taxes/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM taxes WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fees
+app.get('/api/admin/fees', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM fees ORDER BY name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/fees', async (req, res) => {
+  try {
+    const { name, description, amount, fee_type, property_id, unit_id, active } = req.body;
+    const result = await pool.query(`
+      INSERT INTO fees (name, description, amount, fee_type, property_id, unit_id, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+    `, [name, description, amount, fee_type || 'fixed', property_id || null, unit_id || null, active !== false]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/fees/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM fees WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Cleanup duplicates
+app.post('/api/admin/cleanup-duplicates', async (req, res) => {
+  try {
+    await pool.query(`
+      DELETE FROM bookable_units a USING bookable_units b 
+      WHERE a.id > b.id AND a.cm_room_id = b.cm_room_id AND a.cm_room_id IS NOT NULL
+    `);
+    await pool.query(`
+      DELETE FROM properties a USING properties b 
+      WHERE a.id > b.id AND a.cm_property_id = b.cm_property_id AND a.cm_property_id IS NOT NULL
+    `);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
