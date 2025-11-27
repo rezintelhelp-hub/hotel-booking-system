@@ -2493,6 +2493,25 @@
                             style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
                     
+                    <!-- Apply To Section -->
+                    <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #0369a1; margin-bottom: 0.75rem; display: block;">
+                            🏠 Apply To
+                        </label>
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Property</label>
+                            <select id="fee-property" class="form-input" style="padding: 0.6rem; border-radius: 8px;" onchange="loadFeeUnits()">
+                                <option value="">All Properties</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Unit(s)</label>
+                            <select id="fee-unit" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                <option value="">All Units</option>
+                            </select>
+                        </div>
+                    </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
                         <div class="form-group">
                             <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
@@ -2599,6 +2618,25 @@
                             <option value="ID">🇮🇩 Indonesia (Bali)</option>
                             <option value="OTHER">Other</option>
                         </select>
+                    </div>
+                    
+                    <!-- Apply To Section -->
+                    <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #0369a1; margin-bottom: 0.75rem; display: block;">
+                            🏠 Apply To
+                        </label>
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Property</label>
+                            <select id="tax-property" class="form-input" style="padding: 0.6rem; border-radius: 8px;" onchange="loadTaxUnits()">
+                                <option value="">All Properties</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Unit(s)</label>
+                            <select id="tax-unit" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                <option value="">All Units</option>
+                            </select>
+                        </div>
                     </div>
                     
                     <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
@@ -5958,13 +5996,57 @@
             container.innerHTML = html;
         }
         
-        function openAddFeeModal() {
+        async function openAddFeeModal() {
             document.getElementById('fee-form').reset();
             document.getElementById('fee-id').value = '';
             document.getElementById('fee-modal-title').innerHTML = '💵 Add Fee';
             document.getElementById('fee-active').checked = true;
             document.getElementById('fee-amount-prefix').textContent = '$';
+            await loadFeeProperties();
             openModal('addFeeModal');
+        }
+        
+        async function loadFeeProperties() {
+            try {
+                const response = await fetch('/api/db/properties');
+                const data = await response.json();
+                
+                const select = document.getElementById('fee-property');
+                select.innerHTML = '<option value="">All Properties</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+                
+                document.getElementById('fee-unit').innerHTML = '<option value="">All Units</option>';
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+        }
+        
+        async function loadFeeUnits() {
+            const propertyId = document.getElementById('fee-property').value;
+            const unitSelect = document.getElementById('fee-unit');
+            
+            unitSelect.innerHTML = '<option value="">All Units</option>';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch('/api/db/bookable-units');
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const units = data.data.filter(r => r.property_id == propertyId);
+                    units.forEach(unit => {
+                        unitSelect.innerHTML += `<option value="${unit.id}">${unit.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading units:', error);
+            }
         }
         
         function toggleFeeAmountInput() {
@@ -6130,12 +6212,56 @@
             container.innerHTML = html;
         }
         
-        function openAddTaxModal() {
+        async function openAddTaxModal() {
             document.getElementById('tax-form').reset();
             document.getElementById('tax-id').value = '';
             document.getElementById('tax-modal-title').innerHTML = '🏛️ Add Tourist Tax';
             document.getElementById('tax-active').checked = true;
+            await loadTaxProperties();
             openModal('addTaxModal');
+        }
+        
+        async function loadTaxProperties() {
+            try {
+                const response = await fetch('/api/db/properties');
+                const data = await response.json();
+                
+                const select = document.getElementById('tax-property');
+                select.innerHTML = '<option value="">All Properties</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+                
+                document.getElementById('tax-unit').innerHTML = '<option value="">All Units</option>';
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+        }
+        
+        async function loadTaxUnits() {
+            const propertyId = document.getElementById('tax-property').value;
+            const unitSelect = document.getElementById('tax-unit');
+            
+            unitSelect.innerHTML = '<option value="">All Units</option>';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch('/api/db/bookable-units');
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const units = data.data.filter(r => r.property_id == propertyId);
+                    units.forEach(unit => {
+                        unitSelect.innerHTML += `<option value="${unit.id}">${unit.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading units:', error);
+            }
         }
         
         function toggleTaxAmountInput() {
