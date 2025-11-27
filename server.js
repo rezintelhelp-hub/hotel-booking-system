@@ -629,6 +629,30 @@ app.get('/api/setup-database', async (req, res) => {
       )
     `);
     
+    // Create taxes table (Tourist/City Taxes with complex rules)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS taxes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER DEFAULT 1,
+        property_id INTEGER,
+        room_id INTEGER,
+        name VARCHAR(255) NOT NULL,
+        country VARCHAR(10),
+        amount_type VARCHAR(20) DEFAULT 'fixed',
+        currency VARCHAR(10) DEFAULT 'EUR',
+        amount DECIMAL(10,2) NOT NULL,
+        charge_per VARCHAR(30) DEFAULT 'per_person_per_night',
+        max_nights INTEGER,
+        min_age INTEGER,
+        star_tier VARCHAR(20),
+        season_start DATE,
+        season_end DATE,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
     res.json({ success: true, message: 'Database tables created!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -3122,6 +3146,75 @@ app.put('/api/admin/fees/:id', async (req, res) => {
 app.delete('/api/admin/fees/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM fees WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// TAXES API (Tourist/City Taxes)
+// =====================================================
+
+app.get('/api/admin/taxes', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM taxes ORDER BY name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/taxes', async (req, res) => {
+  try {
+    const { name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO taxes (name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      RETURNING *
+    `, [name, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active !== false]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/taxes/:id', async (req, res) => {
+  try {
+    const { name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE taxes SET
+        name = COALESCE($1, name),
+        country = $2,
+        amount_type = COALESCE($3, amount_type),
+        currency = COALESCE($4, currency),
+        amount = COALESCE($5, amount),
+        charge_per = COALESCE($6, charge_per),
+        max_nights = $7,
+        min_age = $8,
+        star_tier = $9,
+        season_start = $10,
+        season_end = $11,
+        property_id = $12,
+        room_id = $13,
+        active = COALESCE($14, active),
+        updated_at = NOW()
+      WHERE id = $15
+      RETURNING *
+    `, [name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, req.params.id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/taxes/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM taxes WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false, error: error.message });
