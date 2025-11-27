@@ -2257,10 +2257,10 @@ app.post('/api/hostaway/import-property', async (req, res) => {
       
       const result = await client.query(`
         INSERT INTO properties (
-          name, property_type, address, city, state, postcode, country,
+          user_id, name, property_type, address, city, state, postcode, country,
           latitude, longitude, check_in_from, check_out_by, currency,
           hostaway_listing_id, cm_source, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'hostaway', NOW(), NOW())
+        ) VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'hostaway', NOW(), NOW())
         RETURNING id
       `, [
         propertyName,
