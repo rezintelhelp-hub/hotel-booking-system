@@ -3889,26 +3889,16 @@
                 html += `</tr>`;
                 
                 // ══════════════════════════════════════════════════════════════
-                // OFFERS SECTION
+                // ROW 2: Standard Price - YOUR BASE WEBSITE PRICE, EDITABLE
                 // ══════════════════════════════════════════════════════════════
                 html += `
-                    <tr>
-                        <td colspan="${dates.length + 1}" style="padding: 0.5rem 0.75rem; background: #e0f2fe; font-weight: 600; color: #0369a1;">
-                            📋 OFFERS
-                        </td>
-                    </tr>`;
-                
-                // ══════════════════════════════════════════════════════════════
-                // ROW 2: Standard Price - ALWAYS FIRST, EDITABLE
-                // ══════════════════════════════════════════════════════════════
-                html += `
-                    <tr style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0;">
+                    <tr style="background: #f0fdf4; border-bottom: 2px solid #86efac;">
                         <td style="padding: 0.75rem; position: sticky; left: 0; background: #f0fdf4; z-index: 1;">
                             <div style="display: flex; align-items: center; gap: 0.5rem;">
                                 <span style="font-size: 1.2rem;">⭐</span>
                                 <div>
                                     <strong style="color: #166534;">Standard Price</strong>
-                                    <div style="font-size: 0.75rem; color: #15803d;">Your base selling price - editable</div>
+                                    <div style="font-size: 0.75rem; color: #15803d;">Displayed on your website - editable</div>
                                 </div>
                             </div>
                         </td>`;
@@ -3933,44 +3923,55 @@
                 html += `</tr>`;
                 
                 // ══════════════════════════════════════════════════════════════
-                // OTHER OFFERS - Calculated from Reference
+                // OFFERS SECTION - Calculated from STANDARD PRICE
                 // ══════════════════════════════════════════════════════════════
-                for (const offer of otherOffers) {
-                    const discountLabel = offer.discount_type === 'percentage' 
-                        ? `${offer.discount_value > 0 ? '-' : '+'}${Math.abs(offer.discount_value)}%` 
-                        : `${offer.discount_value > 0 ? '-' : '+'}$${Math.abs(offer.discount_value)}`;
-                    
+                if (otherOffers.length > 0) {
                     html += `
-                        <tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.75rem; position: sticky; left: 0; background: white; z-index: 1;">
-                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <span style="font-size: 1.2rem;">🏷️</span>
-                                    <div>
-                                        <strong>${offer.name}</strong>
-                                        <div style="font-size: 0.75rem; color: #dc2626;">${discountLabel} off Reference</div>
+                        <tr>
+                            <td colspan="${dates.length + 1}" style="padding: 0.5rem 0.75rem; background: #fef3c7; font-weight: 600; color: #92400e;">
+                                🏷️ OFFERS (discounts/increases from Standard Price)
+                            </td>
+                        </tr>`;
+                    
+                    for (const offer of otherOffers) {
+                        const isDiscount = offer.discount_value > 0;
+                        const discountLabel = offer.discount_type === 'percentage' 
+                            ? `${isDiscount ? '-' : '+'}${Math.abs(offer.discount_value)}%` 
+                            : `${isDiscount ? '-' : '+'}$${Math.abs(offer.discount_value)}`;
+                        
+                        html += `
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <td style="padding: 0.75rem; position: sticky; left: 0; background: #fffbeb; z-index: 1;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                        <span style="font-size: 1.2rem;">🏷️</span>
+                                        <div>
+                                            <strong>${offer.name}</strong>
+                                            <div style="font-size: 0.75rem; color: ${isDiscount ? '#dc2626' : '#16a34a'};">${discountLabel} from Standard</div>
+                                        </div>
                                     </div>
-                                </div>
+                                </td>`;
+                        
+                        dates.forEach(d => {
+                            const dateStr = d.toISOString().split('T')[0];
+                            const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
+                            // Calculate from STANDARD PRICE, not Reference
+                            const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price) || 0;
+                            
+                            let offerPrice = stdPrice;
+                            if (offer.discount_type === 'percentage') {
+                                offerPrice = stdPrice * (1 - offer.discount_value / 100);
+                            } else {
+                                offerPrice = stdPrice - offer.discount_value;
+                            }
+                            
+                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                            html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9c3' : '#fffbeb'}; color: #b45309; font-weight: 500;">
+                                ${stdPrice > 0 ? '$' + offerPrice.toFixed(0) : '-'}
                             </td>`;
-                    
-                    dates.forEach(d => {
-                        const dateStr = d.toISOString().split('T')[0];
-                        const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
-                        const refPrice = parseFloat(dayData.cm_price) || 0;
+                        });
                         
-                        let offerPrice = refPrice;
-                        if (offer.discount_type === 'percentage') {
-                            offerPrice = refPrice * (1 - offer.discount_value / 100);
-                        } else {
-                            offerPrice = refPrice - offer.discount_value;
-                        }
-                        
-                        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                        html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fffbeb' : 'white'}; color: #b45309;">
-                            ${refPrice > 0 ? '$' + offerPrice.toFixed(0) : '-'}
-                        </td>`;
-                    });
-                    
-                    html += `</tr>`;
+                        html += `</tr>`;
+                    }
                 }
                 
                 // Add new offer row
