@@ -863,6 +863,10 @@
                         <span class="nav-icon">💵</span>
                         <span>Fees</span>
                     </a>
+                    <a class="nav-item" data-view="taxes">
+                        <span class="nav-icon">🏛️</span>
+                        <span>Taxes</span>
+                    </a>
                 </div>
 
                 <div class="nav-section">
@@ -1518,6 +1522,60 @@
                 </div>
             </div>
 
+            <!-- Taxes View -->
+            <div id="taxes" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Tourist Taxes</h2>
+                            <p>Government-mandated taxes that vary by location</p>
+                        </div>
+                        <button class="btn" onclick="openAddTaxModal()">
+                            <span>+</span>
+                            <span>Add Tax</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #dbeafe 0%, #ede9fe 100%); border: 1px solid #c7d2fe;">
+                    <h3 style="color: #4338ca; margin-bottom: 0.75rem;">🌍 Tourist Tax Guide</h3>
+                    <p style="color: #5b21b6; margin-bottom: 1rem; font-size: 0.9rem;">
+                        Tourist taxes vary significantly by country and city. Configure them based on your property location.
+                    </p>
+                    <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; color: #4338ca;">
+                            🇫🇷 France: €2-€11 PPPN
+                        </span>
+                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; color: #4338ca;">
+                            🇮🇹 Italy: €1-€10 PPPN
+                        </span>
+                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; color: #4338ca;">
+                            🇳🇱 Amsterdam: 12.5%
+                        </span>
+                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; color: #4338ca;">
+                            🇺🇸 USA: 10-16%
+                        </span>
+                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; color: #4338ca;">
+                            🇪🇸 Spain: €1-€7 PPPN
+                        </span>
+                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; color: #4338ca;">
+                            🇦🇪 Dubai: 7-20 AED PPPN
+                        </span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="taxes-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">🏛️</div>
+                            <h3>No Taxes Configured</h3>
+                            <p>Add tourist taxes based on your property's location requirements</p>
+                            <button class="btn" onclick="openAddTaxModal()">Add Your First Tax</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Integrations View -->
             <div id="integrations" class="view">
                 <div class="header">
@@ -1989,6 +2047,157 @@
             </div>
         </div>
     </div>
+
+    <!-- Add Tax Modal -->
+    <div id="addTaxModal" class="modal">
+        <div class="modal-content" style="max-width: 550px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="tax-modal-title" style="margin: 0;">🏛️ Add Tourist Tax</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Government-mandated tax for your location</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('addTaxModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="tax-form">
+                    <input type="hidden" id="tax-id">
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                            Tax Name <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="text" id="tax-name" class="form-input" placeholder="e.g., City Tourist Tax, Taxe de Séjour" required
+                            style="padding: 0.75rem; border-radius: 8px;">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                            Country/Region
+                        </label>
+                        <select id="tax-country" class="form-input" style="padding: 0.75rem; border-radius: 8px;" onchange="updateTaxPresets()">
+                            <option value="">Select country...</option>
+                            <option value="FR">🇫🇷 France</option>
+                            <option value="IT">🇮🇹 Italy</option>
+                            <option value="ES">🇪🇸 Spain</option>
+                            <option value="NL">🇳🇱 Netherlands</option>
+                            <option value="DE">🇩🇪 Germany</option>
+                            <option value="AT">🇦🇹 Austria</option>
+                            <option value="PT">🇵🇹 Portugal</option>
+                            <option value="GR">🇬🇷 Greece</option>
+                            <option value="CH">🇨🇭 Switzerland</option>
+                            <option value="BE">🇧🇪 Belgium</option>
+                            <option value="CZ">🇨🇿 Czech Republic</option>
+                            <option value="HU">🇭🇺 Hungary</option>
+                            <option value="US">🇺🇸 United States</option>
+                            <option value="AE">🇦🇪 UAE (Dubai)</option>
+                            <option value="JP">🇯🇵 Japan</option>
+                            <option value="TH">🇹🇭 Thailand</option>
+                            <option value="ID">🇮🇩 Indonesia (Bali)</option>
+                            <option value="OTHER">Other</option>
+                        </select>
+                    </div>
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #166534; margin-bottom: 0.75rem; display: block;">
+                            💰 Tax Amount
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Type</label>
+                                <select id="tax-amount-type" class="form-input" style="padding: 0.6rem; border-radius: 8px;" onchange="toggleTaxAmountInput()">
+                                    <option value="fixed">Fixed Amount</option>
+                                    <option value="percentage">Percentage of Booking</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Amount <span style="color: #ef4444;">*</span></label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <select id="tax-currency" class="form-input" style="padding: 0.6rem; border-radius: 8px; width: 80px;">
+                                        <option value="EUR">€</option>
+                                        <option value="USD">$</option>
+                                        <option value="GBP">£</option>
+                                        <option value="CHF">CHF</option>
+                                        <option value="AED">AED</option>
+                                        <option value="JPY">¥</option>
+                                    </select>
+                                    <input type="number" id="tax-amount" class="form-input" placeholder="4.00" required min="0" step="0.01"
+                                        style="padding: 0.6rem; border-radius: 8px; flex: 1;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
+                            📋 How is it charged?
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Charge Per</label>
+                                <select id="tax-charge-per" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                    <option value="per_person_per_night">Per Person Per Night (PPPN)</option>
+                                    <option value="per_room_per_night">Per Room Per Night (PRPN)</option>
+                                    <option value="per_booking">Per Booking (one-time)</option>
+                                    <option value="percentage">% of Room Rate</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Max Nights <span style="color: #9ca3af;">(if capped)</span></label>
+                                <input type="number" id="tax-max-nights" class="form-input" placeholder="e.g., 7" min="1"
+                                    style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <details style="margin-bottom: 1.25rem; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px;">
+                        <summary style="cursor: pointer; font-weight: 600; color: #475569; padding: 1rem; list-style: none;">
+                            ⚙️ Advanced Options
+                        </summary>
+                        <div style="padding: 0 1rem 1rem 1rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Min Age (exempt below)</label>
+                                    <input type="number" id="tax-min-age" class="form-input" placeholder="e.g., 12" min="0" style="padding: 0.5rem; border-radius: 6px;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Star Rating Tier</label>
+                                    <select id="tax-star-tier" class="form-input" style="padding: 0.5rem; border-radius: 6px;">
+                                        <option value="">All ratings</option>
+                                        <option value="1-2">1-2 Star</option>
+                                        <option value="3">3 Star</option>
+                                        <option value="4">4 Star</option>
+                                        <option value="5">5 Star / Luxury</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Season Start</label>
+                                    <input type="date" id="tax-season-start" class="form-input" style="padding: 0.5rem; border-radius: 6px;">
+                                </div>
+                                <div>
+                                    <label style="font-size: 0.8rem; color: #374151; display: block; margin-bottom: 0.25rem;">Season End</label>
+                                    <input type="date" id="tax-season-end" class="form-input" style="padding: 0.5rem; border-radius: 6px;">
+                                </div>
+                            </div>
+                        </div>
+                    </details>
+                    
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                        <input type="checkbox" id="tax-active" checked style="width: 18px; height: 18px;">
+                        <span style="font-weight: 500; color: #374151;">Active</span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f9fafb; border-radius: 0 0 16px 16px;">
+                <button class="btn btn-secondary" onclick="closeModal('addTaxModal')" style="border-radius: 8px;">Cancel</button>
+                <button class="btn" onclick="saveTax()" style="border-radius: 8px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
+                    💾 Save Tax
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div id="imageUploadModal" class="modal">
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
@@ -2300,6 +2509,7 @@
             if (viewName === 'vouchers') loadVouchers();
             if (viewName === 'upsells') loadUpsells();
             if (viewName === 'fees') loadFees();
+            if (viewName === 'taxes') loadTaxes();
         }
 
         // Data Loading
@@ -5051,6 +5261,217 @@
                 alert('Error deleting fee: ' + error.message);
             }
         }
+
+        // =====================================================
+        // TAXES FUNCTIONS
+        // =====================================================
+        
+        let taxesData = [];
+        
+        async function loadTaxes() {
+            try {
+                const response = await fetch('/api/admin/taxes');
+                const data = await response.json();
+                
+                if (data.success) {
+                    taxesData = data.data || [];
+                    renderTaxes(taxesData);
+                }
+            } catch (error) {
+                console.error('Error loading taxes:', error);
+            }
+        }
+        
+        function renderTaxes(taxes) {
+            const container = document.getElementById('taxes-list');
+            
+            if (!taxes || taxes.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🏛️</div>
+                        <h3>No Taxes Configured</h3>
+                        <p>Add tourist taxes based on your property's location requirements</p>
+                        <button class="btn" onclick="openAddTaxModal()">Add Your First Tax</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            const chargePerLabels = {
+                'per_person_per_night': 'Per Person/Night',
+                'per_room_per_night': 'Per Room/Night',
+                'per_booking': 'Per Booking',
+                'percentage': '% of Booking'
+            };
+            
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border);">
+                            <th style="text-align: left; padding: 0.75rem;">Name</th>
+                            <th style="text-align: left; padding: 0.75rem;">Country</th>
+                            <th style="text-align: left; padding: 0.75rem;">Amount</th>
+                            <th style="text-align: left; padding: 0.75rem;">Charged</th>
+                            <th style="text-align: center; padding: 0.75rem;">Status</th>
+                            <th style="text-align: right; padding: 0.75rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const tax of taxes) {
+                const currencySymbols = { EUR: '€', USD: '$', GBP: '£', CHF: 'CHF', AED: 'AED', JPY: '¥' };
+                const symbol = currencySymbols[tax.currency] || tax.currency || '€';
+                const amountDisplay = tax.amount_type === 'percentage' 
+                    ? `${tax.amount}%` 
+                    : `${symbol}${parseFloat(tax.amount).toFixed(2)}`;
+                    
+                html += `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;">
+                            <strong>${tax.name}</strong>
+                            ${tax.max_nights ? `<br><small style="color: var(--text-secondary);">Max ${tax.max_nights} nights</small>` : ''}
+                        </td>
+                        <td style="padding: 0.75rem;">${tax.country || '-'}</td>
+                        <td style="padding: 0.75rem; font-weight: 600; color: #4f46e5;">${amountDisplay}</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary);">${chargePerLabels[tax.charge_per] || tax.charge_per}</td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <span class="badge ${tax.active ? 'badge-success' : 'badge-secondary'}">${tax.active ? 'Active' : 'Inactive'}</span>
+                        </td>
+                        <td style="padding: 0.75rem; text-align: right;">
+                            <button onclick="editTax(${tax.id})" style="background: none; border: none; cursor: pointer;">✏️</button>
+                            <button onclick="deleteTax(${tax.id})" style="background: none; border: none; cursor: pointer;">🗑️</button>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function openAddTaxModal() {
+            document.getElementById('tax-form').reset();
+            document.getElementById('tax-id').value = '';
+            document.getElementById('tax-modal-title').innerHTML = '🏛️ Add Tourist Tax';
+            document.getElementById('tax-active').checked = true;
+            openModal('addTaxModal');
+        }
+        
+        function toggleTaxAmountInput() {
+            const type = document.getElementById('tax-amount-type').value;
+            const currencySelect = document.getElementById('tax-currency');
+            if (type === 'percentage') {
+                currencySelect.style.display = 'none';
+            } else {
+                currencySelect.style.display = 'block';
+            }
+        }
+        
+        function updateTaxPresets() {
+            const country = document.getElementById('tax-country').value;
+            const presets = {
+                'FR': { name: 'Taxe de Séjour', currency: 'EUR', chargePer: 'per_person_per_night' },
+                'IT': { name: 'Imposta di Soggiorno', currency: 'EUR', chargePer: 'per_person_per_night' },
+                'ES': { name: 'Tasa Turística', currency: 'EUR', chargePer: 'per_person_per_night' },
+                'NL': { name: 'Toeristenbelasting', currency: 'EUR', chargePer: 'percentage' },
+                'DE': { name: 'City Tax', currency: 'EUR', chargePer: 'per_person_per_night' },
+                'AT': { name: 'Ortstaxe', currency: 'EUR', chargePer: 'per_person_per_night' },
+                'PT': { name: 'Taxa Turística', currency: 'EUR', chargePer: 'per_person_per_night' },
+                'CH': { name: 'Kurtaxe', currency: 'CHF', chargePer: 'per_person_per_night' },
+                'US': { name: 'Occupancy Tax', currency: 'USD', chargePer: 'percentage' },
+                'AE': { name: 'Tourism Dirham', currency: 'AED', chargePer: 'per_room_per_night' },
+                'JP': { name: 'Accommodation Tax', currency: 'JPY', chargePer: 'per_person_per_night' }
+            };
+            
+            if (presets[country]) {
+                document.getElementById('tax-name').value = presets[country].name;
+                document.getElementById('tax-currency').value = presets[country].currency;
+                document.getElementById('tax-charge-per').value = presets[country].chargePer;
+            }
+        }
+        
+        async function editTax(id) {
+            const tax = taxesData.find(t => t.id === id);
+            if (!tax) return;
+            
+            document.getElementById('tax-id').value = tax.id;
+            document.getElementById('tax-name').value = tax.name || '';
+            document.getElementById('tax-country').value = tax.country || '';
+            document.getElementById('tax-amount-type').value = tax.amount_type || 'fixed';
+            document.getElementById('tax-currency').value = tax.currency || 'EUR';
+            document.getElementById('tax-amount').value = tax.amount || '';
+            document.getElementById('tax-charge-per').value = tax.charge_per || 'per_person_per_night';
+            document.getElementById('tax-max-nights').value = tax.max_nights || '';
+            document.getElementById('tax-min-age').value = tax.min_age || '';
+            document.getElementById('tax-star-tier').value = tax.star_tier || '';
+            document.getElementById('tax-season-start').value = tax.season_start || '';
+            document.getElementById('tax-season-end').value = tax.season_end || '';
+            document.getElementById('tax-active').checked = tax.active;
+            
+            toggleTaxAmountInput();
+            document.getElementById('tax-modal-title').innerHTML = '✏️ Edit Tax';
+            openModal('addTaxModal');
+        }
+        
+        async function saveTax() {
+            const id = document.getElementById('tax-id').value;
+            const taxData = {
+                name: document.getElementById('tax-name').value,
+                country: document.getElementById('tax-country').value || null,
+                amount_type: document.getElementById('tax-amount-type').value,
+                currency: document.getElementById('tax-currency').value,
+                amount: parseFloat(document.getElementById('tax-amount').value),
+                charge_per: document.getElementById('tax-charge-per').value,
+                max_nights: parseInt(document.getElementById('tax-max-nights').value) || null,
+                min_age: parseInt(document.getElementById('tax-min-age').value) || null,
+                star_tier: document.getElementById('tax-star-tier').value || null,
+                season_start: document.getElementById('tax-season-start').value || null,
+                season_end: document.getElementById('tax-season-end').value || null,
+                active: document.getElementById('tax-active').checked
+            };
+            
+            try {
+                const url = id ? `/api/admin/taxes/${id}` : '/api/admin/taxes';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(taxData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeModal('addTaxModal');
+                    loadTaxes();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error saving tax: ' + error.message);
+            }
+        }
+        
+        async function deleteTax(id) {
+            if (!confirm('Delete this tax?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/taxes/${id}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadTaxes();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error deleting tax: ' + error.message);
+            }
+        }
+
+        async function editProperty(id) {
             try {
                 const response = await fetch(`/api/db/properties/${id}`);
                 const data = await response.json();
