@@ -2253,8 +2253,8 @@ app.post('/api/hostaway/import-property', async (req, res) => {
         INSERT INTO properties (
           name, property_type, address, city, state, postcode, country,
           latitude, longitude, check_in_from, check_out_by, currency,
-          hostaway_listing_id, cm_source, active, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'hostaway', true, NOW(), NOW())
+          hostaway_listing_id, cm_source, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'hostaway', NOW(), NOW())
         RETURNING id
       `, [
         property.name,
@@ -2317,8 +2317,8 @@ app.post('/api/hostaway/import-property', async (req, res) => {
         INSERT INTO bookable_units (
           property_id, name, unit_type, max_guests, max_adults,
           bedroom_count, bathroom_count, base_price, min_stay, max_stay,
-          hostaway_listing_id, active, created_at, updated_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, true, NOW(), NOW())
+          hostaway_listing_id, created_at, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
       `, [
         propertyId,
         property.name,
