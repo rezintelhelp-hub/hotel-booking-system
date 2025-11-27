@@ -2155,18 +2155,18 @@
                             </select>
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
-                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Room/Unit(s)</label>
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Unit(s)</label>
                             <div id="upsell-rooms-container">
                                 <select id="upsell-room" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
-                                    <option value="">All Rooms</option>
+                                    <option value="">All Units</option>
                                 </select>
                             </div>
                             <div id="upsell-rooms-checkboxes" style="display: none; max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem; margin-top: 0.5rem; background: white;">
-                                <!-- Room checkboxes populated by JS -->
+                                <!-- Unit checkboxes populated by JS -->
                             </div>
                             <label style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem; color: #475569; cursor: pointer;">
                                 <input type="checkbox" id="upsell-multi-room" onchange="toggleUpsellMultiRoom()">
-                                Select multiple rooms
+                                Select multiple units
                             </label>
                         </div>
                     </div>
@@ -5262,10 +5262,10 @@
                     if (upsell.room_name) {
                         appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">${upsell.room_name}</small>`;
                     } else if (upsell.room_ids) {
-                        const roomCount = upsell.room_ids.split(',').length;
-                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">${roomCount} rooms</small>`;
+                        const unitCount = upsell.room_ids.split(',').length;
+                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">${unitCount} units</small>`;
                     } else {
-                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">All rooms</small>`;
+                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">All units</small>`;
                     }
                 }
                 
@@ -5319,8 +5319,8 @@
                     });
                 }
                 
-                // Reset room select
-                document.getElementById('upsell-room').innerHTML = '<option value="">All Rooms</option>';
+                // Reset unit select
+                document.getElementById('upsell-room').innerHTML = '<option value="">All Units</option>';
                 document.getElementById('upsell-rooms-checkboxes').innerHTML = '';
             } catch (error) {
                 console.error('Error loading properties:', error);
@@ -5332,13 +5332,13 @@
             const roomSelect = document.getElementById('upsell-room');
             const roomCheckboxes = document.getElementById('upsell-rooms-checkboxes');
             
-            roomSelect.innerHTML = '<option value="">All Rooms</option>';
+            roomSelect.innerHTML = '<option value="">All Units</option>';
             roomCheckboxes.innerHTML = '';
             
             if (!propertyId) return;
             
             try {
-                const response = await fetch(`/api/db/rooms?property_id=${propertyId}`);
+                const response = await fetch(`/api/db/rooms?propertyId=${propertyId}`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
@@ -5357,7 +5357,7 @@
                     });
                 }
             } catch (error) {
-                console.error('Error loading rooms:', error);
+                console.error('Error loading units:', error);
             }
         }
         
