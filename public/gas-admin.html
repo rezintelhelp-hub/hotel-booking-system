@@ -1350,8 +1350,8 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>Offers</h2>
-                            <p>Create discounts and special offers for direct bookings</p>
+                            <h2>Pricing & Offers</h2>
+                            <p>Manage pricing and create special offers for direct bookings</p>
                         </div>
                         <button class="btn" onclick="openAddOfferModal()">
                             <span>+</span>
@@ -1360,7 +1360,45 @@
                     </div>
                 </div>
 
+                <!-- Property/Room Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="offers-property-select" class="form-input" onchange="loadOffersRooms()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                            <select id="offers-room-select" class="form-input" onchange="loadOffersPricingGrid()">
+                                <option value="">Select Room...</option>
+                            </select>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(-7)">‹‹</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(-1)">‹</button>
+                            <button class="btn btn-secondary" onclick="offersGoToToday()">Today</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(1)">›</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(7)">››</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Pricing Grid -->
+                <div class="card" style="margin-bottom: 1rem; overflow-x: auto;">
+                    <div id="offers-pricing-grid">
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Select a property and room to view pricing
+                        </p>
+                    </div>
+                </div>
+
+                <!-- Active Offers List -->
                 <div class="card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">Active Offers</h3>
+                    </div>
                     <div id="offers-list">
                         <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading offers...</p>
                     </div>
@@ -2074,7 +2112,7 @@
                                             <td><strong>${prop.name || 'Unnamed Property'}</strong></td>
                                             <td>${prop.property_type || 'N/A'}</td>
                                             <td>${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
-                                            <td><span class="badge badge-success">${prop.status || 'active'}</span></td>
+                                            <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
                                             <td><button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button></td>
                                         </tr>
                                     `).join('')}
@@ -3666,7 +3704,29 @@
         // OFFERS FUNCTIONS
         // =====================================================
         
+        let offersStartDate = new Date();
+        offersStartDate.setHours(0, 0, 0, 0);
+        
         async function loadOffers() {
+            // Load properties dropdown
+            try {
+                const propsResponse = await fetch('/api/db/properties');
+                const propsData = await propsResponse.json();
+                
+                const propSelect = document.getElementById('offers-property-select');
+                if (propSelect) {
+                    propSelect.innerHTML = '<option value="">Select Property...</option>';
+                    if (propsData.success && propsData.data) {
+                        propsData.data.forEach(p => {
+                            propSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+            
+            // Load offers list
             try {
                 const response = await fetch('/api/admin/offers');
                 const data = await response.json();
@@ -3677,6 +3737,217 @@
             } catch (error) {
                 console.error('Error loading offers:', error);
             }
+        }
+        
+        async function loadOffersRooms() {
+            const propertyId = document.getElementById('offers-property-select').value;
+            const roomSelect = document.getElementById('offers-room-select');
+            
+            roomSelect.innerHTML = '<option value="">Select Room...</option>';
+            document.getElementById('offers-pricing-grid').innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Select a room to view pricing</p>';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch('/api/db/bookable-units');
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const rooms = data.data.filter(r => r.property_id == propertyId);
+                    rooms.forEach(r => {
+                        roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        async function loadOffersPricingGrid() {
+            const roomId = document.getElementById('offers-room-select').value;
+            const container = document.getElementById('offers-pricing-grid');
+            
+            if (!roomId) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Select a room to view pricing</p>';
+                return;
+            }
+            
+            // Calculate date range (14 days)
+            const dates = [];
+            for (let i = 0; i < 14; i++) {
+                const d = new Date(offersStartDate);
+                d.setDate(d.getDate() + i);
+                dates.push(d);
+            }
+            
+            const fromDate = dates[0].toISOString().split('T')[0];
+            const toDate = dates[dates.length - 1].toISOString().split('T')[0];
+            
+            try {
+                const response = await fetch(`/api/availability/${roomId}?from=${fromDate}&to=${toDate}`);
+                const data = await response.json();
+                
+                // Get active offers for this room
+                const offersResponse = await fetch('/api/admin/offers');
+                const offersData = await offersResponse.json();
+                const activeOffers = (offersData.data || []).filter(o => o.active && (!o.room_id || o.room_id == roomId));
+                
+                // Build pricing grid
+                let html = `
+                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                        <thead>
+                            <tr style="background: var(--bg-secondary);">
+                                <th style="padding: 0.5rem; text-align: left; position: sticky; left: 0; background: var(--bg-secondary); min-width: 140px;">Price Type</th>
+                `;
+                
+                // Date headers
+                dates.forEach(d => {
+                    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                    const dayNum = d.getDate();
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<th style="padding: 0.5rem; text-align: center; min-width: 70px; ${isWeekend ? 'background: #fef3c7;' : ''}">${dayName}<br>${dayNum}</th>`;
+                });
+                
+                html += '</tr></thead><tbody>';
+                
+                // Reference Price row (read-only from CM)
+                html += `<tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 0.5rem; font-weight: 500; background: #f3f4f6; position: sticky; left: 0;">
+                        📥 Reference (CM)
+                        <div style="font-size: 0.7rem; color: #6b7280;">Read-only</div>
+                    </td>`;
+                
+                dates.forEach(d => {
+                    const dateStr = d.toISOString().split('T')[0];
+                    const dayData = data.data?.find(dd => dd.date === dateStr) || {};
+                    const refPrice = dayData.cm_price || dayData.reference_price || '-';
+                    html += `<td style="padding: 0.5rem; text-align: center; background: #f9fafb; color: #6b7280;">
+                        ${refPrice !== '-' ? '$' + parseFloat(refPrice).toFixed(0) : '-'}
+                    </td>`;
+                });
+                html += '</tr>';
+                
+                // Standard Price row (editable)
+                html += `<tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 0.5rem; font-weight: 500; background: #e0f2fe; position: sticky; left: 0;">
+                        ✏️ Standard Price
+                        <div style="font-size: 0.7rem; color: #0369a1;">Editable</div>
+                    </td>`;
+                
+                dates.forEach(d => {
+                    const dateStr = d.toISOString().split('T')[0];
+                    const dayData = data.data?.find(dd => dd.date === dateStr) || {};
+                    const stdPrice = dayData.standard_price || dayData.cm_price || dayData.direct_price || '';
+                    html += `<td style="padding: 0.25rem; text-align: center; background: #f0f9ff;">
+                        <input type="number" value="${stdPrice ? parseFloat(stdPrice).toFixed(0) : ''}" 
+                            style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #bae6fd; border-radius: 4px;"
+                            onchange="updateStandardPrice(${roomId}, '${dateStr}', this.value)"
+                            placeholder="-">
+                    </td>`;
+                });
+                html += '</tr>';
+                
+                // Direct Price row (calculated with offers)
+                html += `<tr style="border-bottom: 1px solid var(--border);">
+                    <td style="padding: 0.5rem; font-weight: 500; background: #dcfce7; position: sticky; left: 0;">
+                        🏷️ Direct Price
+                        <div style="font-size: 0.7rem; color: #166534;">With offers</div>
+                    </td>`;
+                
+                dates.forEach(d => {
+                    const dateStr = d.toISOString().split('T')[0];
+                    const dayData = data.data?.find(dd => dd.date === dateStr) || {};
+                    const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price || dayData.direct_price || 0);
+                    
+                    // Apply best offer
+                    let bestDiscount = 0;
+                    activeOffers.forEach(offer => {
+                        if (offer.discount_type === 'percentage') {
+                            bestDiscount = Math.max(bestDiscount, stdPrice * (offer.discount_value / 100));
+                        } else {
+                            bestDiscount = Math.max(bestDiscount, offer.discount_value);
+                        }
+                    });
+                    
+                    const directPrice = stdPrice - bestDiscount;
+                    const hasDiscount = bestDiscount > 0;
+                    
+                    html += `<td style="padding: 0.5rem; text-align: center; background: #f0fdf4; ${hasDiscount ? 'color: #166534; font-weight: bold;' : ''}">
+                        ${stdPrice > 0 ? '$' + directPrice.toFixed(0) : '-'}
+                        ${hasDiscount ? '<br><span style="font-size: 0.7rem; color: #dc2626;">-$' + bestDiscount.toFixed(0) + '</span>' : ''}
+                    </td>`;
+                });
+                html += '</tr>';
+                
+                // Offer rows (showing what each offer would give)
+                activeOffers.forEach(offer => {
+                    const discountLabel = offer.discount_type === 'percentage' ? `${offer.discount_value}%` : `$${offer.discount_value}`;
+                    html += `<tr style="border-bottom: 1px solid var(--border); background: #fefce8;">
+                        <td style="padding: 0.5rem; position: sticky; left: 0; background: #fefce8;">
+                            <span style="color: #854d0e;">🏷️ ${offer.name}</span>
+                            <div style="font-size: 0.7rem; color: #a16207;">-${discountLabel}</div>
+                        </td>`;
+                    
+                    dates.forEach(d => {
+                        const dateStr = d.toISOString().split('T')[0];
+                        const dayData = data.data?.find(dd => dd.date === dateStr) || {};
+                        const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price || dayData.direct_price || 0);
+                        
+                        let discount = 0;
+                        if (offer.discount_type === 'percentage') {
+                            discount = stdPrice * (offer.discount_value / 100);
+                        } else {
+                            discount = offer.discount_value;
+                        }
+                        
+                        const offerPrice = stdPrice - discount;
+                        
+                        html += `<td style="padding: 0.5rem; text-align: center; background: #fefce8;">
+                            ${stdPrice > 0 ? '$' + offerPrice.toFixed(0) : '-'}
+                        </td>`;
+                    });
+                    html += '</tr>';
+                });
+                
+                html += '</tbody></table>';
+                container.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading pricing grid:', error);
+                container.innerHTML = '<p style="color: var(--error); text-align: center; padding: 2rem;">Error loading pricing data</p>';
+            }
+        }
+        
+        async function updateStandardPrice(roomId, date, price) {
+            try {
+                const response = await fetch('/api/admin/availability', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        room_id: roomId,
+                        from_date: date,
+                        to_date: date,
+                        standard_price: parseFloat(price) || null
+                    })
+                });
+                const data = await response.json();
+                if (!data.success) {
+                    alert('Error updating price: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error updating price: ' + error.message);
+            }
+        }
+        
+        function shiftOffersDays(days) {
+            offersStartDate.setDate(offersStartDate.getDate() + days);
+            loadOffersPricingGrid();
+        }
+        
+        function offersGoToToday() {
+            offersStartDate = new Date();
+            offersStartDate.setHours(0, 0, 0, 0);
+            loadOffersPricingGrid();
         }
         
         function renderOffers(offers) {
