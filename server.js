@@ -592,6 +592,43 @@ app.get('/api/setup-database', async (req, res) => {
       )
     `);
     
+    // Create upsells table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS upsells (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER DEFAULT 1,
+        property_id INTEGER,
+        room_id INTEGER,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        price DECIMAL(10,2) NOT NULL,
+        charge_type VARCHAR(30) DEFAULT 'per_booking',
+        max_quantity INTEGER,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Create fees table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS fees (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER DEFAULT 1,
+        property_id INTEGER,
+        room_id INTEGER,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        amount_type VARCHAR(20) DEFAULT 'fixed',
+        amount DECIMAL(10,2) NOT NULL,
+        apply_per VARCHAR(30) DEFAULT 'per_booking',
+        is_tax BOOLEAN DEFAULT false,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
     res.json({ success: true, message: 'Database tables created!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -2958,6 +2995,133 @@ app.put('/api/admin/vouchers/:id', async (req, res) => {
 app.delete('/api/admin/vouchers/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM vouchers WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// UPSELLS API
+// =====================================================
+
+app.get('/api/admin/upsells', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM upsells ORDER BY name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/upsells', async (req, res) => {
+  try {
+    const { name, description, price, charge_type, max_quantity, property_id, room_id, active } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO upsells (name, description, price, charge_type, max_quantity, property_id, room_id, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [name, description, price, charge_type || 'per_booking', max_quantity, property_id, room_id, active !== false]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/upsells/:id', async (req, res) => {
+  try {
+    const { name, description, price, charge_type, max_quantity, property_id, room_id, active } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE upsells SET
+        name = COALESCE($1, name),
+        description = COALESCE($2, description),
+        price = COALESCE($3, price),
+        charge_type = COALESCE($4, charge_type),
+        max_quantity = $5,
+        property_id = $6,
+        room_id = $7,
+        active = COALESCE($8, active),
+        updated_at = NOW()
+      WHERE id = $9
+      RETURNING *
+    `, [name, description, price, charge_type, max_quantity, property_id, room_id, active, req.params.id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/upsells/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM upsells WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// FEES API
+// =====================================================
+
+app.get('/api/admin/fees', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM fees ORDER BY name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.post('/api/admin/fees', async (req, res) => {
+  try {
+    const { name, description, amount_type, amount, apply_per, is_tax, property_id, room_id, active } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO fees (name, description, amount_type, amount, apply_per, is_tax, property_id, room_id, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [name, description, amount_type || 'fixed', amount, apply_per || 'per_booking', is_tax || false, property_id, room_id, active !== false]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.put('/api/admin/fees/:id', async (req, res) => {
+  try {
+    const { name, description, amount_type, amount, apply_per, is_tax, property_id, room_id, active } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE fees SET
+        name = COALESCE($1, name),
+        description = COALESCE($2, description),
+        amount_type = COALESCE($3, amount_type),
+        amount = COALESCE($4, amount),
+        apply_per = COALESCE($5, apply_per),
+        is_tax = COALESCE($6, is_tax),
+        property_id = $7,
+        room_id = $8,
+        active = COALESCE($9, active),
+        updated_at = NOW()
+      WHERE id = $10
+      RETURNING *
+    `, [name, description, amount_type, amount, apply_per, is_tax, property_id, room_id, active, req.params.id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+app.delete('/api/admin/fees/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM fees WHERE id = $1', [req.params.id]);
     res.json({ success: true });
   } catch (error) {
     res.json({ success: false, error: error.message });
