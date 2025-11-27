@@ -707,9 +707,8 @@ app.post('/api/db/book', async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    // Get property owner ID
-    const propResult = await client.query(`SELECT owner_id FROM properties WHERE id = $1`, [property_id]);
-    const propertyOwnerId = propResult.rows[0]?.owner_id || 1; // Default to 1 if not found
+    // Property owner ID - hardcode to 1 for now (will need to be dynamic later)
+    const propertyOwnerId = 1;
     
     // 1. Create booking in our database (using correct column names)
     const result = await client.query(`
