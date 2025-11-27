@@ -514,6 +514,78 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
     // Add access_token column to channel_connections
     await pool.query(`ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS access_token TEXT`);
+    
+    // Add pricing columns to room_availability
+    await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS reference_price DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS standard_price DECIMAL(10,2)`);
+    
+    // Create offers table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS offers (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER DEFAULT 1,
+        property_id INTEGER,
+        room_id INTEGER,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        discount_type VARCHAR(20) NOT NULL DEFAULT 'percentage',
+        discount_value DECIMAL(10,2) NOT NULL,
+        applies_to VARCHAR(20) DEFAULT 'standard_price',
+        min_nights INTEGER DEFAULT 1,
+        max_nights INTEGER,
+        min_guests INTEGER,
+        max_guests INTEGER,
+        min_advance_days INTEGER,
+        max_advance_days INTEGER,
+        valid_from DATE,
+        valid_until DATE,
+        valid_days_of_week VARCHAR(20),
+        stackable BOOLEAN DEFAULT false,
+        priority INTEGER DEFAULT 0,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Create vouchers table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS vouchers (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER DEFAULT 1,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        description TEXT,
+        discount_type VARCHAR(20) NOT NULL DEFAULT 'percentage',
+        discount_value DECIMAL(10,2) NOT NULL,
+        applies_to VARCHAR(20) DEFAULT 'total',
+        min_nights INTEGER DEFAULT 1,
+        min_total DECIMAL(10,2),
+        max_uses INTEGER,
+        uses_count INTEGER DEFAULT 0,
+        single_use_per_guest BOOLEAN DEFAULT false,
+        property_ids INTEGER[],
+        room_ids INTEGER[],
+        valid_from DATE,
+        valid_until DATE,
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Create voucher_uses table to track usage
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS voucher_uses (
+        id SERIAL PRIMARY KEY,
+        voucher_id INTEGER REFERENCES vouchers(id),
+        booking_id INTEGER,
+        guest_email VARCHAR(255),
+        discount_applied DECIMAL(10,2),
+        used_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
     res.json({ success: true, message: 'Database tables created!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -2673,6 +2745,407 @@ app.get('/api/webhooks/hostaway', (req, res) => {
     message: 'Hostaway webhook endpoint is ready',
     url: '/api/webhooks/hostaway'
   });
+});
+
+// =====================================================
+// OFFERS & VOUCHERS API ENDPOINTS
+// =====================================================
+
+// Get all offers
+app.get('/api/admin/offers', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT o.*, p.name as property_name, bu.name as room_name
+      FROM offers o
+      LEFT JOIN properties p ON o.property_id = p.id
+      LEFT JOIN bookable_units bu ON o.room_id = bu.id
+      ORDER BY o.priority DESC, o.created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single offer
+app.get('/api/admin/offers/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM offers WHERE id = $1', [req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create offer
+app.post('/api/admin/offers', async (req, res) => {
+  try {
+    const {
+      name, description, property_id, room_id,
+      discount_type, discount_value, applies_to,
+      min_nights, max_nights, min_guests, max_guests,
+      min_advance_days, max_advance_days,
+      valid_from, valid_until, valid_days_of_week,
+      stackable, priority, active
+    } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO offers (
+        name, description, property_id, room_id,
+        discount_type, discount_value, applies_to,
+        min_nights, max_nights, min_guests, max_guests,
+        min_advance_days, max_advance_days,
+        valid_from, valid_until, valid_days_of_week,
+        stackable, priority, active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      RETURNING *
+    `, [
+      name, description, property_id || null, room_id || null,
+      discount_type || 'percentage', discount_value, applies_to || 'standard_price',
+      min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
+      min_advance_days || null, max_advance_days || null,
+      valid_from || null, valid_until || null, valid_days_of_week || null,
+      stackable || false, priority || 0, active !== false
+    ]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update offer
+app.put('/api/admin/offers/:id', async (req, res) => {
+  try {
+    const {
+      name, description, property_id, room_id,
+      discount_type, discount_value, applies_to,
+      min_nights, max_nights, min_guests, max_guests,
+      min_advance_days, max_advance_days,
+      valid_from, valid_until, valid_days_of_week,
+      stackable, priority, active
+    } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE offers SET
+        name = $1, description = $2, property_id = $3, room_id = $4,
+        discount_type = $5, discount_value = $6, applies_to = $7,
+        min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
+        min_advance_days = $12, max_advance_days = $13,
+        valid_from = $14, valid_until = $15, valid_days_of_week = $16,
+        stackable = $17, priority = $18, active = $19, updated_at = NOW()
+      WHERE id = $20
+      RETURNING *
+    `, [
+      name, description, property_id || null, room_id || null,
+      discount_type, discount_value, applies_to,
+      min_nights, max_nights || null, min_guests || null, max_guests || null,
+      min_advance_days || null, max_advance_days || null,
+      valid_from || null, valid_until || null, valid_days_of_week || null,
+      stackable, priority, active, req.params.id
+    ]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete offer
+app.delete('/api/admin/offers/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM offers WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all vouchers
+app.get('/api/admin/vouchers', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM vouchers ORDER BY created_at DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single voucher
+app.get('/api/admin/vouchers/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM vouchers WHERE id = $1', [req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create voucher
+app.post('/api/admin/vouchers', async (req, res) => {
+  try {
+    const {
+      code, name, description,
+      discount_type, discount_value, applies_to,
+      min_nights, min_total, max_uses, single_use_per_guest,
+      property_ids, room_ids,
+      valid_from, valid_until, active
+    } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO vouchers (
+        code, name, description,
+        discount_type, discount_value, applies_to,
+        min_nights, min_total, max_uses, single_use_per_guest,
+        property_ids, room_ids,
+        valid_from, valid_until, active
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+      RETURNING *
+    `, [
+      code.toUpperCase(), name, description,
+      discount_type || 'percentage', discount_value, applies_to || 'total',
+      min_nights || 1, min_total || null, max_uses || null, single_use_per_guest || false,
+      property_ids || null, room_ids || null,
+      valid_from || null, valid_until || null, active !== false
+    ]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    if (error.code === '23505') {
+      res.json({ success: false, error: 'Voucher code already exists' });
+    } else {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Update voucher
+app.put('/api/admin/vouchers/:id', async (req, res) => {
+  try {
+    const {
+      code, name, description,
+      discount_type, discount_value, applies_to,
+      min_nights, min_total, max_uses, single_use_per_guest,
+      property_ids, room_ids,
+      valid_from, valid_until, active
+    } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE vouchers SET
+        code = $1, name = $2, description = $3,
+        discount_type = $4, discount_value = $5, applies_to = $6,
+        min_nights = $7, min_total = $8, max_uses = $9, single_use_per_guest = $10,
+        property_ids = $11, room_ids = $12,
+        valid_from = $13, valid_until = $14, active = $15, updated_at = NOW()
+      WHERE id = $16
+      RETURNING *
+    `, [
+      code.toUpperCase(), name, description,
+      discount_type, discount_value, applies_to,
+      min_nights, min_total || null, max_uses || null, single_use_per_guest,
+      property_ids || null, room_ids || null,
+      valid_from || null, valid_until || null, active, req.params.id
+    ]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete voucher
+app.delete('/api/admin/vouchers/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM vouchers WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Validate voucher code (for booking widget)
+app.post('/api/vouchers/validate', async (req, res) => {
+  try {
+    const { code, property_id, room_id, nights, total, guest_email } = req.body;
+    
+    const result = await pool.query(`
+      SELECT * FROM vouchers 
+      WHERE code = $1 AND active = true
+      AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+      AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+      AND (max_uses IS NULL OR uses_count < max_uses)
+    `, [code.toUpperCase()]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired voucher code' });
+    }
+    
+    const voucher = result.rows[0];
+    
+    // Check min nights
+    if (voucher.min_nights && nights < voucher.min_nights) {
+      return res.json({ success: false, error: `Minimum ${voucher.min_nights} nights required` });
+    }
+    
+    // Check min total
+    if (voucher.min_total && total < voucher.min_total) {
+      return res.json({ success: false, error: `Minimum total of $${voucher.min_total} required` });
+    }
+    
+    // Check property/room restrictions
+    if (voucher.property_ids && property_id && !voucher.property_ids.includes(property_id)) {
+      return res.json({ success: false, error: 'Voucher not valid for this property' });
+    }
+    if (voucher.room_ids && room_id && !voucher.room_ids.includes(room_id)) {
+      return res.json({ success: false, error: 'Voucher not valid for this room' });
+    }
+    
+    // Check single use per guest
+    if (voucher.single_use_per_guest && guest_email) {
+      const used = await pool.query(
+        'SELECT id FROM voucher_uses WHERE voucher_id = $1 AND guest_email = $2',
+        [voucher.id, guest_email]
+      );
+      if (used.rows.length > 0) {
+        return res.json({ success: false, error: 'You have already used this voucher' });
+      }
+    }
+    
+    // Calculate discount
+    let discount = 0;
+    if (voucher.discount_type === 'percentage') {
+      discount = total * (voucher.discount_value / 100);
+    } else {
+      discount = voucher.discount_value;
+    }
+    
+    res.json({
+      success: true,
+      voucher: {
+        id: voucher.id,
+        code: voucher.code,
+        name: voucher.name,
+        discount_type: voucher.discount_type,
+        discount_value: voucher.discount_value,
+        discount_amount: Math.min(discount, total)
+      }
+    });
+    
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Calculate price with offers (for booking widget)
+app.post('/api/pricing/calculate', async (req, res) => {
+  try {
+    const { room_id, check_in, check_out, guests, voucher_code } = req.body;
+    
+    // Get room availability and base prices
+    const availResult = await pool.query(`
+      SELECT date, cm_price, standard_price, direct_price
+      FROM room_availability
+      WHERE room_id = $1 AND date >= $2 AND date < $3
+      ORDER BY date
+    `, [room_id, check_in, check_out]);
+    
+    const nights = availResult.rows.length;
+    
+    // Get applicable offers
+    const offersResult = await pool.query(`
+      SELECT * FROM offers
+      WHERE active = true
+      AND (room_id IS NULL OR room_id = $1)
+      AND (min_nights IS NULL OR min_nights <= $2)
+      AND (max_nights IS NULL OR max_nights >= $2)
+      AND (min_guests IS NULL OR min_guests <= $3)
+      AND (max_guests IS NULL OR max_guests >= $3)
+      AND (valid_from IS NULL OR valid_from <= $4)
+      AND (valid_until IS NULL OR valid_until >= $5)
+      ORDER BY priority DESC
+    `, [room_id, nights, guests, check_in, check_out]);
+    
+    // Calculate pricing
+    let baseTotal = 0;
+    let standardTotal = 0;
+    const dailyPrices = [];
+    
+    for (const day of availResult.rows) {
+      const refPrice = parseFloat(day.cm_price) || 0;
+      const stdPrice = parseFloat(day.standard_price) || refPrice;
+      baseTotal += refPrice;
+      standardTotal += stdPrice;
+      dailyPrices.push({
+        date: day.date,
+        reference_price: refPrice,
+        standard_price: stdPrice
+      });
+    }
+    
+    // Apply best offer
+    let offerDiscount = 0;
+    let appliedOffer = null;
+    
+    for (const offer of offersResult.rows) {
+      let discount = 0;
+      if (offer.discount_type === 'percentage') {
+        discount = standardTotal * (offer.discount_value / 100);
+      } else {
+        discount = offer.discount_value;
+      }
+      
+      if (discount > offerDiscount) {
+        offerDiscount = discount;
+        appliedOffer = offer;
+      }
+    }
+    
+    let finalTotal = standardTotal - offerDiscount;
+    
+    // Apply voucher if provided
+    let voucherDiscount = 0;
+    let appliedVoucher = null;
+    
+    if (voucher_code) {
+      const voucherResult = await pool.query(`
+        SELECT * FROM vouchers 
+        WHERE code = $1 AND active = true
+        AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+        AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
+      `, [voucher_code.toUpperCase()]);
+      
+      if (voucherResult.rows.length > 0) {
+        const voucher = voucherResult.rows[0];
+        if (voucher.discount_type === 'percentage') {
+          voucherDiscount = finalTotal * (voucher.discount_value / 100);
+        } else {
+          voucherDiscount = voucher.discount_value;
+        }
+        appliedVoucher = voucher;
+        finalTotal -= voucherDiscount;
+      }
+    }
+    
+    res.json({
+      success: true,
+      pricing: {
+        nights,
+        reference_total: baseTotal,
+        standard_total: standardTotal,
+        offer_discount: offerDiscount,
+        applied_offer: appliedOffer ? { id: appliedOffer.id, name: appliedOffer.name } : null,
+        voucher_discount: voucherDiscount,
+        applied_voucher: appliedVoucher ? { id: appliedVoucher.id, code: appliedVoucher.code } : null,
+        final_total: Math.max(0, finalTotal),
+        daily_prices: dailyPrices
+      }
+    });
+    
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
 });
 
 // =====================================================
