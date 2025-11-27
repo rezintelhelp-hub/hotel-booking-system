@@ -707,13 +707,9 @@ app.post('/api/db/book', async (req, res) => {
   try {
     await client.query('BEGIN');
     
-    // Ensure bookable_unit_id column exists
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER`);
-    await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_booking_id VARCHAR(50)`);
-    
-    // 1. Create booking in our database (use bookable_unit_id)
+    // 1. Create booking in our database (using correct column names)
     const result = await client.query(`
-      INSERT INTO bookings (property_id, bookable_unit_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, status) 
+      INSERT INTO bookings (property_id, bookable_unit_id, arrival_date, departure_date, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, grand_total, status) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'confirmed') 
       RETURNING *
     `, [property_id, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price]);
