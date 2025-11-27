@@ -717,10 +717,10 @@ app.post('/api/db/book', async (req, res) => {
         arrival_date, departure_date, 
         num_adults, num_children, 
         guest_first_name, guest_last_name, guest_email, guest_phone,
-        accommodation_price, grand_total, 
+        accommodation_price, subtotal, grand_total, 
         status, booking_source, currency
       ) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, 'confirmed', 'direct', 'USD') 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', 'USD') 
       RETURNING *
     `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price]);
     
