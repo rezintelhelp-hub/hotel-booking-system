@@ -3672,6 +3672,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
       SELECT 
         date,
         cm_price,
+        standard_price,
         direct_price,
         direct_discount_percent,
         is_available,
@@ -3699,6 +3700,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
       availMap[dateStr] = {
         date: dateStr,
         cm_price: a.cm_price,
+        standard_price: a.standard_price || a.cm_price,
         direct_price: effectiveDirectPrice || a.cm_price,
         direct_discount_percent: a.direct_discount_percent,
         is_available: a.is_available,
