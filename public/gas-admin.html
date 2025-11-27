@@ -1363,7 +1363,7 @@
                     <div class="header-top">
                         <div>
                             <h2>Pricing & Offers</h2>
-                            <p>Manage pricing and create special offers for direct bookings</p>
+                            <p>Set your standard prices and create special offers</p>
                         </div>
                         <button class="btn" onclick="openAddOfferModal()">
                             <span>+</span>
@@ -1398,11 +1398,7 @@
                 </div>
 
                 <!-- Pricing Grid -->
-                <div class="card" style="margin-bottom: 1rem; overflow-x: auto;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <span style="font-size: 0.85rem; color: var(--text-secondary);">💡 Tip: Edit Standard Price values, then click Save All to update</span>
-                        <button class="btn" onclick="saveAllPrices()" id="save-prices-btn">💾 Save All Prices</button>
-                    </div>
+                <div class="card" style="margin-bottom: 1rem;">
                     <div id="offers-pricing-grid">
                         <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
                             Select a property and room to view pricing
@@ -1410,25 +1406,15 @@
                     </div>
                 </div>
 
-                <!-- Active Offers List -->
-                <div class="card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h3 style="margin: 0;">Active Offers</h3>
+                <!-- Offer Distribution Settings -->
+                <div class="card" id="offer-distribution-card" style="display: none;">
+                    <h3 style="margin-bottom: 1rem;">📢 Offer Distribution</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.9rem;">
+                        Choose where each offer is available
+                    </p>
+                    <div id="offer-distribution-list">
+                        <!-- Populated by JS -->
                     </div>
-                    <div id="offers-list">
-                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Loading offers...</p>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0;">
-                    <h3 style="color: #166534; margin-bottom: 0.5rem;">💡 Offer Types</h3>
-                    <ul style="color: #15803d; padding-left: 1.5rem; line-height: 1.8;">
-                        <li><strong>Early Bird</strong> - Book X days in advance for a discount</li>
-                        <li><strong>Last Minute</strong> - Discount for bookings within X days</li>
-                        <li><strong>Long Stay</strong> - Discount for stays of X+ nights</li>
-                        <li><strong>Weekday Special</strong> - Discount for specific days</li>
-                        <li><strong>Seasonal</strong> - Discount for specific date ranges</li>
-                    </ul>
                 </div>
             </div>
 
@@ -3795,18 +3781,6 @@
             } catch (error) {
                 console.error('Error loading properties:', error);
             }
-            
-            // Load offers list
-            try {
-                const response = await fetch('/api/admin/offers');
-                const data = await response.json();
-                
-                if (data.success) {
-                    renderOffers(data.data);
-                }
-            } catch (error) {
-                console.error('Error loading offers:', error);
-            }
         }
         
         async function loadOffersRooms() {
@@ -3836,9 +3810,11 @@
         async function loadOffersPricingGrid() {
             const roomId = document.getElementById('offers-room-select').value;
             const container = document.getElementById('offers-pricing-grid');
+            const distributionCard = document.getElementById('offer-distribution-card');
             
             if (!roomId) {
                 container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Select a room to view pricing</p>';
+                distributionCard.style.display = 'none';
                 return;
             }
             
@@ -3854,133 +3830,175 @@
             const toDate = dates[dates.length - 1].toISOString().split('T')[0];
             
             try {
+                // Get availability data
                 const response = await fetch(`/api/availability/${roomId}?from=${fromDate}&to=${toDate}`);
                 const data = await response.json();
                 
-                // Get active offers for this room
+                // Get offers for this room
                 const offersResponse = await fetch('/api/admin/offers');
                 const offersData = await offersResponse.json();
-                const activeOffers = (offersData.data || []).filter(o => o.active && (!o.room_id || o.room_id == roomId));
+                const roomOffers = (offersData.data || []).filter(o => !o.room_id || o.room_id == roomId);
                 
-                // Build pricing grid
+                // Ensure "Standard Price" offer exists (create virtually if not in DB)
+                let standardOffer = roomOffers.find(o => o.name === 'Standard Price');
+                const otherOffers = roomOffers.filter(o => o.name !== 'Standard Price' && o.active);
+                
+                // Build the new grid
                 let html = `
-                    <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-                        <thead>
-                            <tr style="background: var(--bg-secondary);">
-                                <th style="padding: 0.5rem; text-align: left; position: sticky; left: 0; background: var(--bg-secondary); min-width: 140px;">Price Type</th>
+                    <div style="overflow-x: auto;">
+                        <table style="width: 100%; border-collapse: collapse; font-size: 0.85rem; min-width: 900px;">
+                            <thead>
+                                <tr style="background: var(--bg-secondary);">
+                                    <th style="padding: 0.75rem; text-align: left; position: sticky; left: 0; background: var(--bg-secondary); min-width: 180px; z-index: 2;">PRICE TYPE</th>
                 `;
                 
                 // Date headers
                 dates.forEach(d => {
-                    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
+                    const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
                     const dayNum = d.getDate();
                     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    html += `<th style="padding: 0.5rem; text-align: center; min-width: 70px; ${isWeekend ? 'background: #fef3c7;' : ''}">${dayName}<br>${dayNum}</th>`;
+                    html += `<th style="padding: 0.5rem; text-align: center; min-width: 75px; ${isWeekend ? 'background: #fef3c7;' : ''}">${dayName}<br><span style="font-size: 1.1rem;">${dayNum}</span></th>`;
                 });
                 
-                html += '</tr></thead><tbody>';
+                html += `</tr></thead><tbody>`;
                 
-                // Reference Price row (read-only from CM)
-                html += `<tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 0.5rem; font-weight: 500; background: #f3f4f6; position: sticky; left: 0;">
-                        📥 Reference (CM)
-                        <div style="font-size: 0.7rem; color: #6b7280;">Read-only</div>
-                    </td>`;
+                // ══════════════════════════════════════════════════════════════
+                // ROW 1: Reference (CM) - LOCKED
+                // ══════════════════════════════════════════════════════════════
+                html += `
+                    <tr style="background: #f1f5f9; border-bottom: 2px solid #cbd5e1;">
+                        <td style="padding: 0.75rem; position: sticky; left: 0; background: #f1f5f9; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.2rem;">🔒</span>
+                                <div>
+                                    <strong>Reference (CM)</strong>
+                                    <div style="font-size: 0.75rem; color: #64748b;">Locked - from Channel Manager</div>
+                                </div>
+                            </div>
+                        </td>`;
                 
                 dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
-                    const refPrice = dayData.cm_price || dayData.reference_price || '-';
-                    html += `<td style="padding: 0.5rem; text-align: center; background: #f9fafb; color: #6b7280;">
+                    const refPrice = dayData.cm_price || '-';
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f1f5f9'}; color: #475569; font-weight: 600;">
                         ${refPrice !== '-' ? '$' + parseFloat(refPrice).toFixed(0) : '-'}
                     </td>`;
                 });
-                html += '</tr>';
+                html += `</tr>`;
                 
-                // Standard Price row (editable)
-                html += `<tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 0.5rem; font-weight: 500; background: #e0f2fe; position: sticky; left: 0;">
-                        ✏️ Standard Price
-                        <div style="font-size: 0.7rem; color: #0369a1;">Editable</div>
-                    </td>`;
+                // ══════════════════════════════════════════════════════════════
+                // OFFERS SECTION
+                // ══════════════════════════════════════════════════════════════
+                html += `
+                    <tr>
+                        <td colspan="${dates.length + 1}" style="padding: 0.5rem 0.75rem; background: #e0f2fe; font-weight: 600; color: #0369a1;">
+                            📋 OFFERS
+                        </td>
+                    </tr>`;
+                
+                // ══════════════════════════════════════════════════════════════
+                // ROW 2: Standard Price - ALWAYS FIRST, EDITABLE
+                // ══════════════════════════════════════════════════════════════
+                html += `
+                    <tr style="background: #f0fdf4; border-bottom: 1px solid #bbf7d0;">
+                        <td style="padding: 0.75rem; position: sticky; left: 0; background: #f0fdf4; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.2rem;">⭐</span>
+                                <div>
+                                    <strong style="color: #166534;">Standard Price</strong>
+                                    <div style="font-size: 0.75rem; color: #15803d;">Your base selling price - editable</div>
+                                </div>
+                            </div>
+                        </td>`;
                 
                 dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
-                    const stdPrice = dayData.standard_price || dayData.cm_price || dayData.direct_price || '';
-                    html += `<td style="padding: 0.25rem; text-align: center; background: #f0f9ff;">
-                        <input type="number" value="${stdPrice ? parseFloat(stdPrice).toFixed(0) : ''}" 
-                            style="width: 60px; padding: 0.25rem; text-align: center; border: 1px solid #bae6fd; border-radius: 4px;"
-                            onchange="updateStandardPrice(${roomId}, '${dateStr}', this.value, this)"
+                    const stdPrice = dayData.standard_price || dayData.cm_price || '';
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<td style="padding: 0.25rem; text-align: center; background: ${isWeekend ? '#ecfdf5' : '#f0fdf4'};">
+                        <input type="number" 
+                            value="${stdPrice ? parseFloat(stdPrice).toFixed(0) : ''}" 
+                            data-room="${roomId}" 
+                            data-date="${dateStr}"
+                            data-original="${stdPrice ? parseFloat(stdPrice).toFixed(0) : ''}"
+                            class="standard-price-input"
+                            style="width: 65px; padding: 0.4rem; text-align: center; border: 1px solid #86efac; border-radius: 4px; font-weight: 500;"
+                            onchange="markPriceChanged(this)"
                             placeholder="-">
                     </td>`;
                 });
-                html += '</tr>';
+                html += `</tr>`;
                 
-                // Direct Price row (calculated with offers)
-                html += `<tr style="border-bottom: 1px solid var(--border);">
-                    <td style="padding: 0.5rem; font-weight: 500; background: #dcfce7; position: sticky; left: 0;">
-                        🏷️ Direct Price
-                        <div style="font-size: 0.7rem; color: #166534;">With offers</div>
-                    </td>`;
-                
-                dates.forEach(d => {
-                    const dateStr = d.toISOString().split('T')[0];
-                    const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
-                    const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price || dayData.direct_price || 0);
+                // ══════════════════════════════════════════════════════════════
+                // OTHER OFFERS - Calculated from Reference
+                // ══════════════════════════════════════════════════════════════
+                for (const offer of otherOffers) {
+                    const discountLabel = offer.discount_type === 'percentage' 
+                        ? `${offer.discount_value > 0 ? '-' : '+'}${Math.abs(offer.discount_value)}%` 
+                        : `${offer.discount_value > 0 ? '-' : '+'}$${Math.abs(offer.discount_value)}`;
                     
-                    // Apply best offer
-                    let bestDiscount = 0;
-                    activeOffers.forEach(offer => {
-                        if (offer.discount_type === 'percentage') {
-                            bestDiscount = Math.max(bestDiscount, stdPrice * (offer.discount_value / 100));
-                        } else {
-                            bestDiscount = Math.max(bestDiscount, offer.discount_value);
-                        }
-                    });
-                    
-                    const directPrice = stdPrice - bestDiscount;
-                    const hasDiscount = bestDiscount > 0;
-                    
-                    html += `<td style="padding: 0.5rem; text-align: center; background: #f0fdf4; ${hasDiscount ? 'color: #166534; font-weight: bold;' : ''}">
-                        ${stdPrice > 0 ? '$' + directPrice.toFixed(0) : '-'}
-                        ${hasDiscount ? '<br><span style="font-size: 0.7rem; color: #dc2626;">-$' + bestDiscount.toFixed(0) + '</span>' : ''}
-                    </td>`;
-                });
-                html += '</tr>';
-                
-                // Offer rows (showing what each offer would give)
-                activeOffers.forEach(offer => {
-                    const discountLabel = offer.discount_type === 'percentage' ? `${offer.discount_value}%` : `$${offer.discount_value}`;
-                    html += `<tr style="border-bottom: 1px solid var(--border); background: #fefce8;">
-                        <td style="padding: 0.5rem; position: sticky; left: 0; background: #fefce8;">
-                            <span style="color: #854d0e;">🏷️ ${offer.name}</span>
-                            <div style="font-size: 0.7rem; color: #a16207;">-${discountLabel}</div>
-                        </td>`;
+                    html += `
+                        <tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.75rem; position: sticky; left: 0; background: white; z-index: 1;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-size: 1.2rem;">🏷️</span>
+                                    <div>
+                                        <strong>${offer.name}</strong>
+                                        <div style="font-size: 0.75rem; color: #dc2626;">${discountLabel} off Reference</div>
+                                    </div>
+                                </div>
+                            </td>`;
                     
                     dates.forEach(d => {
                         const dateStr = d.toISOString().split('T')[0];
                         const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
-                        const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price || dayData.direct_price || 0);
+                        const refPrice = parseFloat(dayData.cm_price) || 0;
                         
-                        let discount = 0;
+                        let offerPrice = refPrice;
                         if (offer.discount_type === 'percentage') {
-                            discount = stdPrice * (offer.discount_value / 100);
+                            offerPrice = refPrice * (1 - offer.discount_value / 100);
                         } else {
-                            discount = offer.discount_value;
+                            offerPrice = refPrice - offer.discount_value;
                         }
                         
-                        const offerPrice = stdPrice - discount;
-                        
-                        html += `<td style="padding: 0.5rem; text-align: center; background: #fefce8;">
-                            ${stdPrice > 0 ? '$' + offerPrice.toFixed(0) : '-'}
+                        const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                        html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fffbeb' : 'white'}; color: #b45309;">
+                            ${refPrice > 0 ? '$' + offerPrice.toFixed(0) : '-'}
                         </td>`;
                     });
-                    html += '</tr>';
-                });
+                    
+                    html += `</tr>`;
+                }
                 
-                html += '</tbody></table>';
+                // Add new offer row
+                html += `
+                    <tr>
+                        <td colspan="${dates.length + 1}" style="padding: 1rem; text-align: center; background: #fafafa;">
+                            <button class="btn btn-secondary" onclick="openAddOfferModal()" style="border-style: dashed;">
+                                + Add Another Offer
+                            </button>
+                        </td>
+                    </tr>`;
+                
+                html += `</tbody></table></div>`;
+                
+                // Save button
+                html += `
+                    <div style="margin-top: 1rem; display: flex; justify-content: flex-end; gap: 1rem; align-items: center;">
+                        <span id="unsaved-indicator" style="color: #f59e0b; display: none;">⚠️ Unsaved changes</span>
+                        <button class="btn" onclick="saveAllStandardPrices()" id="save-standard-prices-btn">
+                            💾 Save Standard Prices
+                        </button>
+                    </div>`;
+                
                 container.innerHTML = html;
+                
+                // Show distribution settings
+                distributionCard.style.display = 'block';
+                renderOfferDistribution([{ id: 'standard', name: 'Standard Price', active: true }, ...otherOffers]);
                 
             } catch (error) {
                 console.error('Error loading pricing grid:', error);
@@ -3988,28 +4006,39 @@
             }
         }
         
-        async function updateStandardPrice(roomId, date, price, inputEl) {
-            // Store the change but don't save immediately
-            if (!window.pendingPriceChanges) {
-                window.pendingPriceChanges = {};
-            }
-            window.pendingPriceChanges[`${roomId}-${date}`] = { roomId, date, price };
+        function markPriceChanged(input) {
+            const original = input.dataset.original;
+            const current = input.value;
             
-            // Visual indicator that there are unsaved changes
-            if (inputEl) {
-                inputEl.style.background = '#fef3c7'; // Yellow for pending
+            if (original !== current) {
+                input.style.background = '#fef3c7';
+                input.style.borderColor = '#f59e0b';
+                document.getElementById('unsaved-indicator').style.display = 'inline';
+                document.getElementById('save-standard-prices-btn').style.background = '#f59e0b';
+            } else {
+                input.style.background = '';
+                input.style.borderColor = '#86efac';
             }
-            document.getElementById('save-prices-btn').style.background = '#f59e0b';
-            document.getElementById('save-prices-btn').textContent = '💾 Save All Prices *';
         }
         
-        async function saveAllPrices() {
-            const btn = document.getElementById('save-prices-btn');
-            const changes = window.pendingPriceChanges || {};
-            const entries = Object.values(changes);
+        async function saveAllStandardPrices() {
+            const inputs = document.querySelectorAll('.standard-price-input');
+            const btn = document.getElementById('save-standard-prices-btn');
             
-            if (entries.length === 0) {
-                alert('No price changes to save');
+            // Find changed inputs
+            const changes = [];
+            inputs.forEach(input => {
+                if (input.value !== input.dataset.original) {
+                    changes.push({
+                        roomId: input.dataset.room,
+                        date: input.dataset.date,
+                        price: input.value
+                    });
+                }
+            });
+            
+            if (changes.length === 0) {
+                alert('No changes to save');
                 return;
             }
             
@@ -4019,7 +4048,7 @@
             let saved = 0;
             let errors = 0;
             
-            for (const change of entries) {
+            for (const change of changes) {
                 try {
                     const response = await fetch('/api/admin/availability', {
                         method: 'POST',
@@ -4037,29 +4066,96 @@
                         saved++;
                     } else {
                         errors++;
-                        console.error('Error saving price:', data.error);
                     }
                 } catch (error) {
                     errors++;
-                    console.error('Error saving price:', error);
                 }
             }
             
-            // Clear pending changes
-            window.pendingPriceChanges = {};
-            
-            // Reset button
             btn.disabled = false;
             btn.style.background = '';
-            btn.textContent = '💾 Save All Prices';
+            btn.textContent = '💾 Save Standard Prices';
+            document.getElementById('unsaved-indicator').style.display = 'none';
             
-            // Refresh grid to show saved state
-            loadOffersPricingGrid();
+            // Update original values and reset styles
+            inputs.forEach(input => {
+                input.dataset.original = input.value;
+                input.style.background = '';
+                input.style.borderColor = '#86efac';
+            });
             
             if (errors > 0) {
                 alert(`Saved ${saved} prices, ${errors} errors`);
             } else {
                 alert(`✅ Saved ${saved} price${saved !== 1 ? 's' : ''} successfully!`);
+            }
+        }
+        
+        function renderOfferDistribution(offers) {
+            const container = document.getElementById('offer-distribution-list');
+            
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border);">
+                            <th style="text-align: left; padding: 0.5rem;">Offer</th>
+                            <th style="text-align: center; padding: 0.5rem;">Own Website</th>
+                            <th style="text-align: center; padding: 0.5rem;">Travel Agents</th>
+                            <th style="text-align: center; padding: 0.5rem;">Status</th>
+                            <th style="text-align: right; padding: 0.5rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            for (const offer of offers) {
+                const isStandard = offer.id === 'standard' || offer.name === 'Standard Price';
+                html += `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;">
+                            <strong>${isStandard ? '⭐ ' : '🏷️ '}${offer.name}</strong>
+                        </td>
+                        <td style="text-align: center; padding: 0.75rem;">
+                            <input type="checkbox" ${isStandard || offer.available_website !== false ? 'checked' : ''} 
+                                onchange="updateOfferDistribution(${offer.id}, 'website', this.checked)"
+                                ${isStandard ? 'disabled' : ''}>
+                        </td>
+                        <td style="text-align: center; padding: 0.75rem;">
+                            <input type="checkbox" ${offer.available_agents ? 'checked' : ''} 
+                                onchange="updateOfferDistribution(${offer.id}, 'agents', this.checked)"
+                                ${isStandard ? 'disabled' : ''}>
+                        </td>
+                        <td style="text-align: center; padding: 0.75rem;">
+                            <span class="badge ${offer.active !== false ? 'badge-success' : 'badge-secondary'}">
+                                ${offer.active !== false ? 'Active' : 'Inactive'}
+                            </span>
+                        </td>
+                        <td style="text-align: right; padding: 0.75rem;">
+                            ${!isStandard ? `
+                                <button onclick="editOffer(${offer.id})" style="background: none; border: none; cursor: pointer;">✏️</button>
+                                <button onclick="deleteOffer(${offer.id})" style="background: none; border: none; cursor: pointer;">🗑️</button>
+                            ` : '<span style="color: #9ca3af; font-size: 0.8rem;">Default</span>'}
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += `</tbody></table>`;
+            container.innerHTML = html;
+        }
+        
+        async function updateOfferDistribution(offerId, channel, enabled) {
+            if (offerId === 'standard') return;
+            
+            try {
+                const field = channel === 'website' ? 'available_website' : 'available_agents';
+                await fetch(`/api/admin/offers/${offerId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ [field]: enabled })
+                });
+            } catch (error) {
+                console.error('Error updating offer distribution:', error);
             }
         }
         
@@ -4072,82 +4168,6 @@
             offersStartDate = new Date();
             offersStartDate.setHours(0, 0, 0, 0);
             loadOffersPricingGrid();
-        }
-        
-        function renderOffers(offers) {
-            const container = document.getElementById('offers-list');
-            
-            if (!offers || offers.length === 0) {
-                container.innerHTML = `
-                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                        <p style="font-size: 3rem; margin-bottom: 1rem;">🏷️</p>
-                        <p>No offers yet. Create your first offer to attract direct bookings!</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            let html = `
-                <table style="width: 100%; border-collapse: collapse;">
-                    <thead>
-                        <tr style="border-bottom: 2px solid var(--border);">
-                            <th style="text-align: left; padding: 0.75rem;">Name</th>
-                            <th style="text-align: left; padding: 0.75rem;">Discount</th>
-                            <th style="text-align: left; padding: 0.75rem;">Conditions</th>
-                            <th style="text-align: left; padding: 0.75rem;">Valid</th>
-                            <th style="text-align: center; padding: 0.75rem;">Status</th>
-                            <th style="text-align: right; padding: 0.75rem;">Actions</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-            `;
-            
-            for (const offer of offers) {
-                const discountText = offer.discount_type === 'percentage' 
-                    ? `${offer.discount_value}%` 
-                    : `$${offer.discount_value}`;
-                
-                let conditions = [];
-                if (offer.min_nights > 1) conditions.push(`${offer.min_nights}+ nights`);
-                if (offer.min_advance_days) conditions.push(`${offer.min_advance_days}+ days advance`);
-                if (offer.max_advance_days) conditions.push(`Within ${offer.max_advance_days} days`);
-                if (offer.property_name) conditions.push(offer.property_name);
-                if (offer.room_name) conditions.push(offer.room_name);
-                
-                const validText = offer.valid_from || offer.valid_until 
-                    ? `${offer.valid_from || 'Start'} - ${offer.valid_until || 'End'}`
-                    : 'Always';
-                
-                html += `
-                    <tr style="border-bottom: 1px solid var(--border);">
-                        <td style="padding: 0.75rem;">
-                            <strong>${offer.name}</strong>
-                            ${offer.description ? `<br><small style="color: var(--text-secondary);">${offer.description}</small>` : ''}
-                        </td>
-                        <td style="padding: 0.75rem;">
-                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-weight: 500;">
-                                -${discountText}
-                            </span>
-                        </td>
-                        <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">
-                            ${conditions.length > 0 ? conditions.join(', ') : 'No conditions'}
-                        </td>
-                        <td style="padding: 0.75rem; font-size: 0.85rem;">${validText}</td>
-                        <td style="padding: 0.75rem; text-align: center;">
-                            <span style="background: ${offer.active ? '#dcfce7' : '#fee2e2'}; color: ${offer.active ? '#166534' : '#991b1b'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
-                                ${offer.active ? 'Active' : 'Inactive'}
-                            </span>
-                        </td>
-                        <td style="padding: 0.75rem; text-align: right;">
-                            <button onclick="editOffer(${offer.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">✏️</button>
-                            <button onclick="deleteOffer(${offer.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">🗑️</button>
-                        </td>
-                    </tr>
-                `;
-            }
-            
-            html += '</tbody></table>';
-            container.innerHTML = html;
         }
         
         function openAddOfferModal() {
