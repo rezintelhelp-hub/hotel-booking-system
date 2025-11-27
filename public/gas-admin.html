@@ -2143,6 +2143,34 @@
                             style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
                     
+                    <!-- Apply To Section -->
+                    <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #0369a1; margin-bottom: 0.75rem; display: block;">
+                            🏠 Apply To
+                        </label>
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Property</label>
+                            <select id="upsell-property" class="form-input" style="padding: 0.6rem; border-radius: 8px;" onchange="loadUpsellRooms()">
+                                <option value="">All Properties</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Room/Unit(s)</label>
+                            <div id="upsell-rooms-container">
+                                <select id="upsell-room" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                    <option value="">All Rooms</option>
+                                </select>
+                            </div>
+                            <div id="upsell-rooms-checkboxes" style="display: none; max-height: 150px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; padding: 0.5rem; margin-top: 0.5rem; background: white;">
+                                <!-- Room checkboxes populated by JS -->
+                            </div>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; margin-top: 0.5rem; font-size: 0.85rem; color: #475569; cursor: pointer;">
+                                <input type="checkbox" id="upsell-multi-room" onchange="toggleUpsellMultiRoom()">
+                                Select multiple rooms
+                            </label>
+                        </div>
+                    </div>
+                    
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
                         <div class="form-group">
                             <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
@@ -2159,10 +2187,12 @@
                                 Charge Type
                             </label>
                             <select id="upsell-charge-type" class="form-input" style="padding: 0.75rem; border-radius: 8px;">
-                                <option value="per_booking">Per Booking</option>
+                                <option value="per_booking">Per Booking (one-time)</option>
                                 <option value="per_night">Per Night</option>
+                                <option value="per_day">Per Day</option>
                                 <option value="per_guest">Per Guest</option>
                                 <option value="per_guest_per_night">Per Guest/Night</option>
+                                <option value="per_hour">Per Hour</option>
                             </select>
                         </div>
                     </div>
@@ -5194,8 +5224,8 @@
                     <div class="empty-state">
                         <div class="empty-icon">🎁</div>
                         <h3>No Upsells Configured</h3>
-                        <p>Add extra services to increase revenue per booking</p>
-                        <button class="btn" onclick="openAddUpsellModal()">Add Your First Upsell</button>
+                        <p>Click any preset above or create a custom upsell</p>
+                        <button class="btn" onclick="openAddUpsellModal()">Create Custom Upsell</button>
                     </div>
                 `;
                 return;
@@ -5206,6 +5236,7 @@
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border);">
                             <th style="text-align: left; padding: 0.75rem;">Name</th>
+                            <th style="text-align: left; padding: 0.75rem;">Applies To</th>
                             <th style="text-align: left; padding: 0.75rem;">Price</th>
                             <th style="text-align: left; padding: 0.75rem;">Charge Type</th>
                             <th style="text-align: center; padding: 0.75rem;">Status</th>
@@ -5218,19 +5249,35 @@
             const chargeTypeLabels = {
                 'per_booking': 'Per Booking',
                 'per_night': 'Per Night',
+                'per_day': 'Per Day',
                 'per_guest': 'Per Guest',
-                'per_guest_per_night': 'Per Guest/Night'
+                'per_guest_per_night': 'Per Guest/Night',
+                'per_hour': 'Per Hour'
             };
             
             for (const upsell of upsells) {
+                // Determine "Applies To" text
+                let appliesTo = '<span style="color: #10b981;">All Properties</span>';
+                if (upsell.property_name) {
+                    if (upsell.room_name) {
+                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">${upsell.room_name}</small>`;
+                    } else if (upsell.room_ids) {
+                        const roomCount = upsell.room_ids.split(',').length;
+                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">${roomCount} rooms</small>`;
+                    } else {
+                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">All rooms</small>`;
+                    }
+                }
+                
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
                             <strong>${upsell.name}</strong>
                             ${upsell.description ? `<br><small style="color: var(--text-secondary);">${upsell.description}</small>` : ''}
                         </td>
+                        <td style="padding: 0.75rem; font-size: 0.9rem;">${appliesTo}</td>
                         <td style="padding: 0.75rem; font-weight: 600; color: #059669;">$${parseFloat(upsell.price).toFixed(2)}</td>
-                        <td style="padding: 0.75rem; color: var(--text-secondary);">${chargeTypeLabels[upsell.charge_type] || upsell.charge_type}</td>
+                        <td style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.9rem;">${chargeTypeLabels[upsell.charge_type] || upsell.charge_type}</td>
                         <td style="padding: 0.75rem; text-align: center;">
                             <span class="badge ${upsell.active ? 'badge-success' : 'badge-secondary'}">${upsell.active ? 'Active' : 'Inactive'}</span>
                         </td>
@@ -5251,7 +5298,81 @@
             document.getElementById('upsell-id').value = '';
             document.getElementById('upsell-modal-title').innerHTML = '🎁 Add Upsell';
             document.getElementById('upsell-active').checked = true;
+            document.getElementById('upsell-multi-room').checked = false;
+            document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
+            document.getElementById('upsell-room').style.display = 'block';
+            loadUpsellProperties();
             openModal('addUpsellModal');
+        }
+        
+        async function loadUpsellProperties() {
+            try {
+                const response = await fetch('/api/db/properties');
+                const data = await response.json();
+                
+                const select = document.getElementById('upsell-property');
+                select.innerHTML = '<option value="">All Properties</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+                
+                // Reset room select
+                document.getElementById('upsell-room').innerHTML = '<option value="">All Rooms</option>';
+                document.getElementById('upsell-rooms-checkboxes').innerHTML = '';
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+        }
+        
+        async function loadUpsellRooms() {
+            const propertyId = document.getElementById('upsell-property').value;
+            const roomSelect = document.getElementById('upsell-room');
+            const roomCheckboxes = document.getElementById('upsell-rooms-checkboxes');
+            
+            roomSelect.innerHTML = '<option value="">All Rooms</option>';
+            roomCheckboxes.innerHTML = '';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch(`/api/db/rooms?property_id=${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    data.data.forEach(room => {
+                        // Add to dropdown
+                        roomSelect.innerHTML += `<option value="${room.id}">${room.name}</option>`;
+                        
+                        // Add checkbox
+                        roomCheckboxes.innerHTML += `
+                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.4rem; cursor: pointer; border-radius: 4px; transition: background 0.2s;"
+                                onmouseover="this.style.background='#f0f9ff'" onmouseout="this.style.background=''">
+                                <input type="checkbox" name="upsell-room-check" value="${room.id}" style="width: 16px; height: 16px;">
+                                <span style="font-size: 0.9rem;">${room.name}</span>
+                            </label>
+                        `;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        function toggleUpsellMultiRoom() {
+            const multiRoom = document.getElementById('upsell-multi-room').checked;
+            const roomSelect = document.getElementById('upsell-room');
+            const roomCheckboxes = document.getElementById('upsell-rooms-checkboxes');
+            
+            if (multiRoom) {
+                roomSelect.style.display = 'none';
+                roomCheckboxes.style.display = 'block';
+            } else {
+                roomSelect.style.display = 'block';
+                roomCheckboxes.style.display = 'none';
+            }
         }
         
         async function editUpsell(id) {
@@ -5265,6 +5386,35 @@
             document.getElementById('upsell-charge-type').value = upsell.charge_type || 'per_booking';
             document.getElementById('upsell-max-qty').value = upsell.max_quantity || '';
             document.getElementById('upsell-active').checked = upsell.active;
+            document.getElementById('upsell-multi-room').checked = false;
+            document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
+            document.getElementById('upsell-room').style.display = 'block';
+            
+            // Load properties first
+            await loadUpsellProperties();
+            
+            // Set property and load rooms
+            if (upsell.property_id) {
+                document.getElementById('upsell-property').value = upsell.property_id;
+                await loadUpsellRooms();
+                
+                // Set room if single room
+                if (upsell.room_id) {
+                    document.getElementById('upsell-room').value = upsell.room_id;
+                }
+                // Handle room_ids (multiple rooms)
+                if (upsell.room_ids) {
+                    const roomIds = upsell.room_ids.split(',');
+                    if (roomIds.length > 1) {
+                        document.getElementById('upsell-multi-room').checked = true;
+                        toggleUpsellMultiRoom();
+                        roomIds.forEach(rid => {
+                            const checkbox = document.querySelector(`input[name="upsell-room-check"][value="${rid}"]`);
+                            if (checkbox) checkbox.checked = true;
+                        });
+                    }
+                }
+            }
             
             document.getElementById('upsell-modal-title').innerHTML = '✏️ Edit Upsell';
             openModal('addUpsellModal');
@@ -5272,12 +5422,30 @@
         
         async function saveUpsell() {
             const id = document.getElementById('upsell-id').value;
+            const multiRoom = document.getElementById('upsell-multi-room').checked;
+            
+            // Get room IDs
+            let roomId = null;
+            let roomIds = null;
+            
+            if (multiRoom) {
+                const checkedBoxes = document.querySelectorAll('input[name="upsell-room-check"]:checked');
+                if (checkedBoxes.length > 0) {
+                    roomIds = Array.from(checkedBoxes).map(cb => cb.value).join(',');
+                }
+            } else {
+                roomId = document.getElementById('upsell-room').value || null;
+            }
+            
             const upsellData = {
                 name: document.getElementById('upsell-name').value,
                 description: document.getElementById('upsell-description').value,
                 price: parseFloat(document.getElementById('upsell-price').value),
                 charge_type: document.getElementById('upsell-charge-type').value,
                 max_quantity: parseInt(document.getElementById('upsell-max-qty').value) || null,
+                property_id: document.getElementById('upsell-property').value || null,
+                room_id: roomId,
+                room_ids: roomIds,
                 active: document.getElementById('upsell-active').checked
             };
             
@@ -6033,51 +6201,28 @@
             }
         }
         
-        // Quick add upsell from preset
+        // Quick add upsell from preset - opens modal pre-filled
         async function quickAddUpsell(name, price, chargeType) {
-            const btn = event.target;
-            btn.disabled = true;
-            btn.textContent = '...';
+            // Reset form first
+            document.getElementById('upsell-form').reset();
+            document.getElementById('upsell-id').value = '';
+            document.getElementById('upsell-multi-room').checked = false;
+            document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
+            document.getElementById('upsell-room').style.display = 'block';
             
-            try {
-                const response = await fetch('/api/admin/upsells', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        name: name,
-                        price: price,
-                        charge_type: chargeType,
-                        active: true
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    btn.classList.add('added');
-                    btn.textContent = '✓ Added';
-                    loadUpsells();
-                    
-                    // Reset button after delay
-                    setTimeout(() => {
-                        btn.classList.remove('added');
-                        btn.textContent = name.split(' ').slice(-2).join(' '); // Last 2 words
-                        btn.disabled = false;
-                    }, 2000);
-                } else {
-                    btn.textContent = 'Error';
-                    setTimeout(() => {
-                        btn.textContent = name;
-                        btn.disabled = false;
-                    }, 2000);
-                }
-            } catch (error) {
-                btn.textContent = 'Error';
-                setTimeout(() => {
-                    btn.textContent = name;
-                    btn.disabled = false;
-                }, 2000);
-            }
+            // Pre-fill with preset values
+            document.getElementById('upsell-name').value = name;
+            document.getElementById('upsell-price').value = price;
+            document.getElementById('upsell-charge-type').value = chargeType;
+            document.getElementById('upsell-active').checked = true;
+            
+            // Load properties
+            await loadUpsellProperties();
+            
+            // Update modal title to show it's from preset
+            document.getElementById('upsell-modal-title').innerHTML = '🎁 Add: ' + name;
+            
+            openModal('addUpsellModal');
         }
 
         // Cleanup duplicates
