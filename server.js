@@ -2102,33 +2102,46 @@ app.post('/api/hostaway/setup-connection', async (req, res) => {
     console.log('Got Hostaway access token');
     
     // Ensure hostaway exists in channel_managers
-    await pool.query(`
-      INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type)
-      VALUES ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1', 'oauth2')
-      ON CONFLICT (cm_code) DO NOTHING
-    `);
+    const existingCM = await pool.query("SELECT id FROM channel_managers WHERE cm_code = 'hostaway'");
+    let cmId;
     
-    const cmResult = await pool.query("SELECT id FROM channel_managers WHERE cm_code = 'hostaway'");
-    const cmId = cmResult.rows[0].id;
+    if (existingCM.rows.length === 0) {
+      const newCM = await pool.query(`
+        INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type)
+        VALUES ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1', 'oauth2')
+        RETURNING id
+      `);
+      cmId = newCM.rows[0].id;
+    } else {
+      cmId = existingCM.rows[0].id;
+    }
     
-    // Store the connection
-    const connectionResult = await pool.query(`
-      INSERT INTO channel_connections (cm_id, access_token, account_id, status, created_at, updated_at)
-      VALUES ($1, $2, $3, 'active', NOW(), NOW())
-      ON CONFLICT (cm_id, account_id) 
-      DO UPDATE SET access_token = $2, status = 'active', updated_at = NOW()
-      RETURNING id
-    `, [cmId, accessToken, accountId]);
+    // Store the connection - check if exists first
+    const existingConn = await pool.query(
+      'SELECT id FROM channel_connections WHERE cm_id = $1 AND account_id = $2',
+      [cmId, accountId]
+    );
     
-    // Also store client_secret encrypted (for token refresh if needed)
-    await pool.query(`
-      UPDATE channel_connections SET api_key = $1 WHERE id = $2
-    `, [clientSecret, connectionResult.rows[0].id]);
+    let connectionId;
+    if (existingConn.rows.length > 0) {
+      await pool.query(
+        'UPDATE channel_connections SET access_token = $1, api_key = $2, status = $3, updated_at = NOW() WHERE id = $4',
+        [accessToken, clientSecret, 'active', existingConn.rows[0].id]
+      );
+      connectionId = existingConn.rows[0].id;
+    } else {
+      const newConn = await pool.query(`
+        INSERT INTO channel_connections (cm_id, access_token, api_key, account_id, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
+        RETURNING id
+      `, [cmId, accessToken, clientSecret, accountId]);
+      connectionId = newConn.rows[0].id;
+    }
     
     res.json({
       success: true,
       accessToken,
-      connectionId: connectionResult.rows[0].id,
+      connectionId,
       message: 'Hostaway connected successfully'
     });
     
