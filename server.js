@@ -503,7 +503,9 @@ app.get('/api/setup-database', async (req, res) => {
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS properties (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, address TEXT, city VARCHAR(100), country VARCHAR(100), property_type VARCHAR(50), star_rating INTEGER, hero_image_url TEXT, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS rooms (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, description TEXT, max_occupancy INTEGER, max_adults INTEGER, max_children INTEGER, base_price DECIMAL(10, 2), currency VARCHAR(3) DEFAULT 'USD', quantity INTEGER DEFAULT 1, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
-    await pool.query(`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id), room_id INTEGER REFERENCES rooms(id), check_in DATE NOT NULL, check_out DATE NOT NULL, num_adults INTEGER NOT NULL, num_children INTEGER DEFAULT 0, guest_first_name VARCHAR(100) NOT NULL, guest_last_name VARCHAR(100) NOT NULL, guest_email VARCHAR(255) NOT NULL, guest_phone VARCHAR(50), total_price DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'confirmed', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    await pool.query(`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id), room_id INTEGER REFERENCES rooms(id), check_in DATE NOT NULL, check_out DATE NOT NULL, num_adults INTEGER NOT NULL, num_children INTEGER DEFAULT 0, guest_first_name VARCHAR(100) NOT NULL, guest_last_name VARCHAR(100) NOT NULL, guest_email VARCHAR(255) NOT NULL, guest_phone VARCHAR(50), total_price DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'confirmed', beds24_booking_id VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
+    // Add beds24_booking_id column if it doesn't exist
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_booking_id VARCHAR(50)`);
     res.json({ success: true, message: 'Database tables created!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -697,12 +699,112 @@ app.post('/api/db/rooms', async (req, res) => {
 });
 
 app.post('/api/db/book', async (req, res) => {
-  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price } = req.body;
+  const { property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, guest_address, guest_city, guest_country, guest_postcode } = req.body;
+  
+  const client = await pool.connect();
   try {
-    const result = await pool.query(`INSERT INTO bookings (property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, status) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'confirmed') RETURNING *`, [property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price]);
-    res.json({ success: true, data: result.rows[0] });
+    await client.query('BEGIN');
+    
+    // 1. Create booking in our database
+    const result = await client.query(`
+      INSERT INTO bookings (property_id, room_id, check_in, check_out, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, total_price, status) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'confirmed') 
+      RETURNING *
+    `, [property_id, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price]);
+    
+    const booking = result.rows[0];
+    
+    // 2. Get the Beds24 room ID for this room
+    const roomResult = await client.query(`
+      SELECT beds24_room_id FROM bookable_units WHERE id = $1
+    `, [room_id]);
+    
+    const beds24RoomId = roomResult.rows[0]?.beds24_room_id;
+    
+    // 3. If room is linked to Beds24, push the booking
+    let beds24BookingId = null;
+    if (beds24RoomId) {
+      try {
+        const accessToken = await getBeds24AccessToken(pool);
+        
+        const beds24Booking = [{
+          roomId: beds24RoomId,
+          status: 'confirmed',
+          arrival: check_in,
+          departure: check_out,
+          numAdult: num_adults,
+          numChild: num_children || 0,
+          firstName: guest_first_name,
+          lastName: guest_last_name,
+          email: guest_email,
+          mobile: guest_phone || '',
+          address: guest_address || '',
+          city: guest_city || '',
+          country: guest_country || '',
+          postcode: guest_postcode || '',
+          referer: 'GAS Direct Booking',
+          notes: `GAS Booking ID: ${booking.id}`
+        }];
+        
+        console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
+        
+        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+          headers: {
+            'token': accessToken,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log('Beds24 booking response:', JSON.stringify(beds24Response.data));
+        
+        // Extract the new booking ID from Beds24 response
+        if (beds24Response.data && beds24Response.data[0]?.success) {
+          beds24BookingId = beds24Response.data[0]?.new?.id;
+          
+          // Update our booking with Beds24 booking ID
+          if (beds24BookingId) {
+            await client.query(`
+              UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2
+            `, [beds24BookingId, booking.id]);
+            booking.beds24_booking_id = beds24BookingId;
+          }
+        }
+        
+      } catch (beds24Error) {
+        console.error('Error pushing to Beds24:', beds24Error.response?.data || beds24Error.message);
+        // Don't fail the booking - just log the error
+        // The booking is still valid in our system
+      }
+    }
+    
+    // 4. Update room availability for these dates
+    const startDate = new Date(check_in);
+    const endDate = new Date(check_out);
+    for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      await client.query(`
+        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+        VALUES ($1, $2, false, false, 'booking')
+        ON CONFLICT (room_id, date) 
+        DO UPDATE SET is_available = false, source = 'booking', updated_at = NOW()
+      `, [room_id, dateStr]);
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ 
+      success: true, 
+      data: booking,
+      beds24Synced: !!beds24BookingId,
+      beds24BookingId
+    });
+    
   } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Booking error:', error);
     res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -2876,6 +2978,160 @@ app.post('/api/admin/sync-availability/:roomId', async (req, res) => {
   }
 });
 
+// QUICK sync ALL rooms - 30 days only (faster, won't timeout)
+app.post('/api/admin/sync-all-availability-quick', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    // Get all rooms with beds24_room_id
+    const roomsResult = await client.query(`
+      SELECT bu.id, bu.name, bu.beds24_room_id 
+      FROM bookable_units bu 
+      WHERE bu.beds24_room_id IS NOT NULL
+    `);
+    
+    if (roomsResult.rows.length === 0) {
+      client.release();
+      return res.json({ success: false, error: 'No rooms linked to Beds24' });
+    }
+    
+    const rooms = roomsResult.rows;
+    const beds24RoomIds = rooms.map(r => r.beds24_room_id);
+    
+    // Create a map of beds24_room_id -> our room id
+    const roomIdMap = {};
+    rooms.forEach(r => {
+      roomIdMap[r.beds24_room_id] = r.id;
+    });
+    
+    // Get access token
+    let accessToken;
+    try {
+      accessToken = await getBeds24AccessToken(pool);
+    } catch (tokenError) {
+      client.release();
+      return res.json({ success: false, error: tokenError.message });
+    }
+    
+    const today = new Date();
+    const numDays = 30; // Just 30 days for quick sync
+    
+    console.log(`Quick sync: ${rooms.length} rooms for ${numDays} days`);
+    console.log('Beds24 room IDs:', beds24RoomIds);
+    
+    await client.query('BEGIN');
+    
+    let totalDaysSynced = 0;
+    let totalPricesFound = 0;
+    let apiCallsMade = 0;
+    
+    // Fetch ALL rooms for each day in ONE API call
+    for (let i = 0; i < numDays; i++) {
+      const arrivalDate = new Date(today);
+      arrivalDate.setDate(arrivalDate.getDate() + i);
+      const departDate = new Date(arrivalDate);
+      departDate.setDate(departDate.getDate() + 1);
+      
+      const arrival = arrivalDate.toISOString().split('T')[0];
+      const departure = departDate.toISOString().split('T')[0];
+      
+      try {
+        const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+          headers: { 'token': accessToken },
+          params: { 
+            roomId: beds24RoomIds,
+            arrival: arrival,
+            departure: departure,
+            numAdults: 2
+          },
+          paramsSerializer: params => {
+            const parts = [];
+            for (const key in params) {
+              const value = params[key];
+              if (Array.isArray(value)) {
+                value.forEach(v => parts.push(`${key}=${v}`));
+              } else {
+                parts.push(`${key}=${value}`);
+              }
+            }
+            return parts.join('&');
+          }
+        });
+        
+        apiCallsMade++;
+        const offerData = offerResponse.data;
+        
+        // Process each room's offers
+        if (offerData.data && offerData.data.length > 0) {
+          for (const roomData of offerData.data) {
+            const ourRoomId = roomIdMap[roomData.roomId];
+            if (!ourRoomId) continue;
+            
+            let price = null;
+            let unitsAvailable = 0;
+            
+            if (roomData.offers && roomData.offers.length > 0) {
+              const offer1 = roomData.offers.find(o => o.offerId === 1) || roomData.offers[0];
+              price = offer1.price;
+              unitsAvailable = offer1.unitsAvailable || 0;
+              totalPricesFound++;
+            }
+            
+            const isAvailable = unitsAvailable > 0;
+            const isBlocked = !isAvailable && price === null;
+            
+            await client.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source)
+              VALUES ($1, $2, $3, $4, $5, 'beds24')
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET 
+                cm_price = COALESCE($3, room_availability.cm_price),
+                is_available = $4,
+                is_blocked = $5,
+                source = 'beds24',
+                updated_at = NOW()
+            `, [ourRoomId, arrival, price, isAvailable, isBlocked]);
+            
+            totalDaysSynced++;
+          }
+        }
+        
+      } catch (apiError) {
+        if (apiError.response?.status === 429) {
+          console.log(`Rate limited on day ${i}, waiting 5 seconds...`);
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          i--; // Retry this day
+          continue;
+        }
+        console.error(`Error fetching offers for ${arrival}:`, apiError.response?.data || apiError.message);
+      }
+      
+      // Small delay between calls
+      await new Promise(resolve => setTimeout(resolve, 200));
+    }
+    
+    await client.query('COMMIT');
+    client.release();
+    
+    console.log(`Quick sync complete: ${apiCallsMade} API calls, ${totalDaysSynced} records, ${totalPricesFound} prices`);
+    
+    res.json({ 
+      success: true, 
+      roomsCount: rooms.length,
+      daysRequested: numDays,
+      apiCallsMade,
+      totalDaysSynced,
+      totalPricesFound,
+      message: `Synced ${rooms.length} rooms for ${numDays} days`
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    client.release();
+    console.error('Quick sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // BULK sync ALL rooms - fetches all rooms in one API call per day (much faster)
 app.post('/api/admin/sync-all-availability-bulk', async (req, res) => {
   const client = await pool.connect();
@@ -4341,6 +4597,175 @@ app.put('/api/admin/rooms/:roomId/images/reorder', async (req, res) => {
     res.json({ success: false, error: error.message });
   } finally {
     client.release();
+  }
+});
+
+// =========================================================
+// BEDS24 WEBHOOK - Receive real-time updates
+// =========================================================
+// Configure this URL in Beds24: Settings > Account > Webhooks
+// URL: https://your-domain.railway.app/api/webhooks/beds24
+
+app.post('/api/webhooks/beds24', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const webhookData = req.body;
+    console.log('Beds24 webhook received:', JSON.stringify(webhookData).substring(0, 500));
+    
+    // Beds24 sends different event types
+    // Common events: booking created, booking modified, booking cancelled, availability changed
+    
+    const eventType = webhookData.action || webhookData.type || 'unknown';
+    const bookingId = webhookData.bookingId || webhookData.id;
+    const roomId = webhookData.roomId;
+    const propertyId = webhookData.propertyId;
+    
+    console.log(`Webhook event: ${eventType}, bookingId: ${bookingId}, roomId: ${roomId}`);
+    
+    // Handle different event types
+    if (eventType === 'new' || eventType === 'modify' || eventType === 'booking') {
+      // A booking was created or modified in Beds24
+      // We need to update our availability
+      
+      if (roomId) {
+        // Find our room by beds24_room_id
+        const roomResult = await client.query(`
+          SELECT id FROM bookable_units WHERE beds24_room_id = $1
+        `, [roomId]);
+        
+        if (roomResult.rows.length > 0) {
+          const ourRoomId = roomResult.rows[0].id;
+          const arrival = webhookData.arrival || webhookData.firstNight;
+          const departure = webhookData.departure || webhookData.lastNight;
+          
+          if (arrival && departure) {
+            // Block these dates in our system
+            const startDate = new Date(arrival);
+            const endDate = new Date(departure);
+            
+            await client.query('BEGIN');
+            
+            for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().split('T')[0];
+              await client.query(`
+                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                VALUES ($1, $2, false, false, 'beds24_webhook')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET is_available = false, source = 'beds24_webhook', updated_at = NOW()
+              `, [ourRoomId, dateStr]);
+            }
+            
+            await client.query('COMMIT');
+            console.log(`Updated availability for room ${ourRoomId}: ${arrival} to ${departure}`);
+          }
+        }
+      }
+    } else if (eventType === 'cancel' || eventType === 'delete') {
+      // A booking was cancelled - we might need to re-open availability
+      // For safety, trigger a full sync for this room instead
+      console.log('Booking cancelled - consider re-syncing room availability');
+    }
+    
+    // Always respond with 200 to acknowledge receipt
+    res.status(200).json({ success: true, received: true });
+    
+  } catch (error) {
+    console.error('Webhook processing error:', error);
+    // Still return 200 to prevent Beds24 from retrying
+    res.status(200).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Webhook verification endpoint (some systems send a GET to verify)
+app.get('/api/webhooks/beds24', (req, res) => {
+  res.status(200).json({ 
+    status: 'active',
+    message: 'Beds24 webhook endpoint is ready',
+    url: '/api/webhooks/beds24'
+  });
+});
+
+// =========================================================
+// MANUAL SYNC TRIGGER - Pull changes from Beds24
+// =========================================================
+app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
+  try {
+    // Get access token
+    const accessToken = await getBeds24AccessToken(pool);
+    
+    // Fetch recent bookings from Beds24 (last 30 days arrivals)
+    const today = new Date();
+    const fromDate = new Date(today);
+    fromDate.setDate(fromDate.getDate() - 7); // Include bookings from last week
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + 90); // Up to 90 days out
+    
+    const response = await axios.get('https://beds24.com/api/v2/bookings', {
+      headers: { 'token': accessToken },
+      params: {
+        arrivalFrom: fromDate.toISOString().split('T')[0],
+        arrivalTo: toDate.toISOString().split('T')[0]
+      }
+    });
+    
+    const bookings = response.data.data || [];
+    console.log(`Found ${bookings.length} bookings from Beds24`);
+    
+    // Update availability based on bookings
+    const client = await pool.connect();
+    let updatedDates = 0;
+    
+    try {
+      await client.query('BEGIN');
+      
+      for (const booking of bookings) {
+        if (booking.status === 'cancelled') continue;
+        
+        // Find our room
+        const roomResult = await client.query(`
+          SELECT id FROM bookable_units WHERE beds24_room_id = $1
+        `, [booking.roomId]);
+        
+        if (roomResult.rows.length === 0) continue;
+        
+        const ourRoomId = roomResult.rows[0].id;
+        const arrival = booking.arrival || booking.firstNight;
+        const departure = booking.departure || booking.lastNight;
+        
+        if (!arrival || !departure) continue;
+        
+        // Block these dates
+        const startDate = new Date(arrival);
+        const endDate = new Date(departure);
+        
+        for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          await client.query(`
+            INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+            VALUES ($1, $2, false, false, 'beds24_sync')
+            ON CONFLICT (room_id, date) 
+            DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
+          `, [ourRoomId, dateStr]);
+          updatedDates++;
+        }
+      }
+      
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    
+    res.json({
+      success: true,
+      bookingsFound: bookings.length,
+      datesUpdated: updatedDates
+    });
+    
+  } catch (error) {
+    console.error('Sync bookings error:', error);
+    res.json({ success: false, error: error.message });
   }
 });
 
