@@ -4509,7 +4509,7 @@ app.post('/api/admin/sync-all-availability', async (req, res) => {
 app.post('/api/admin/availability', async (req, res) => {
   const client = await pool.connect();
   try {
-    const { room_id, from_date, to_date, status, price, discount_percent } = req.body;
+    const { room_id, from_date, to_date, status, price, discount_percent, standard_price } = req.body;
     
     await client.query('BEGIN');
     
@@ -4520,7 +4520,17 @@ app.post('/api/admin/availability', async (req, res) => {
     for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
       const dateStr = d.toISOString().split('T')[0];
       
-      if (discount_percent) {
+      if (standard_price !== undefined) {
+        // Update standard price
+        await client.query(`
+          INSERT INTO room_availability (room_id, date, standard_price, is_available, is_blocked)
+          VALUES ($1, $2, $3, true, false)
+          ON CONFLICT (room_id, date) 
+          DO UPDATE SET 
+            standard_price = $3,
+            updated_at = NOW()
+        `, [room_id, dateStr, standard_price || null]);
+      } else if (discount_percent) {
         // Apply percentage discount
         await client.query(`
           INSERT INTO room_availability (room_id, date, direct_discount_percent, is_available, is_blocked)
