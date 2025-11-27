@@ -298,6 +298,32 @@
             color: var(--accent);
         }
 
+        /* Preset Buttons */
+        .preset-btn {
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            padding: 0.4rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: #475569;
+        }
+        .preset-btn:hover {
+            background: #e0f2fe;
+            border-color: #3b82f6;
+            color: #1d4ed8;
+            transform: translateY(-1px);
+        }
+        .preset-btn:active {
+            transform: translateY(0);
+        }
+        .preset-btn.added {
+            background: #dcfce7;
+            border-color: #22c55e;
+            color: #166534;
+        }
+
         /* Button */
         .btn {
             display: inline-flex;
@@ -1454,30 +1480,235 @@
                         </div>
                         <button class="btn" onclick="openAddUpsellModal()">
                             <span>+</span>
-                            <span>Add Upsell</span>
+                            <span>Custom Upsell</span>
                         </button>
                     </div>
                 </div>
 
-                <div class="card" style="margin-bottom: 1rem; background: #f0fdf4; border: 1px solid #bbf7d0;">
-                    <h3 style="color: #166534; margin-bottom: 0.5rem;">💡 Upsell Examples</h3>
-                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; color: #15803d;">
-                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">🍾 Champagne on arrival</span>
-                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">🚗 Airport transfer</span>
-                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">🍳 Breakfast package</span>
-                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">⏰ Early check-in</span>
-                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">⏰ Late checkout</span>
-                        <span style="background: white; padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.9rem;">🧖 Spa treatment</span>
+                <!-- Quick Add Presets -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">⚡ Quick Add Popular Upsells</h3>
+                        <button class="btn btn-secondary" onclick="toggleUpsellPresets()" id="toggle-presets-btn" style="font-size: 0.85rem;">
+                            Show All Categories ▼
+                        </button>
+                    </div>
+                    
+                    <!-- Popular/Common (always visible) -->
+                    <div style="margin-bottom: 1rem;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;" id="popular-upsells">
+                            <button class="preset-btn" onclick="quickAddUpsell('Early check-in', 25, 'per_booking')">⏰ Early check-in</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Late check-out', 25, 'per_booking')">⏰ Late check-out</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Airport transfer', 50, 'per_booking')">🚗 Airport transfer</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Breakfast', 15, 'per_guest_per_night')">🍳 Breakfast</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Parking', 15, 'per_night')">🅿️ Parking</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Pet fee', 30, 'per_booking')">🐾 Pet fee</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Champagne on arrival', 45, 'per_booking')">🍾 Champagne on arrival</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Welcome hamper', 35, 'per_booking')">🧺 Welcome hamper</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Mid-stay cleaning', 50, 'per_booking')">🧹 Mid-stay cleaning</button>
+                            <button class="preset-btn" onclick="quickAddUpsell('Extra bed', 25, 'per_night')">🛏️ Extra bed</button>
+                        </div>
+                    </div>
+                    
+                    <!-- All Categories (hidden by default) -->
+                    <div id="all-upsell-presets" style="display: none;">
+                        
+                        <!-- Accommodation Upgrades -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #6366f1; margin-bottom: 0.5rem; font-size: 0.9rem;">🏨 Accommodation Upgrades</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Room upgrade', 50, 'per_night')">Room upgrade</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('High-floor room', 20, 'per_night')">High-floor room</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Sea view room', 30, 'per_night')">Sea view</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Balcony upgrade', 25, 'per_night')">Balcony upgrade</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Executive floor access', 40, 'per_night')">Executive floor</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Connecting rooms', 30, 'per_night')">Connecting rooms</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Premium Wi-Fi', 10, 'per_night')">Premium Wi-Fi</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Pillow menu upgrade', 15, 'per_booking')">Pillow menu</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Gaming console rental', 20, 'per_night')">Gaming console</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Guest Comfort -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #10b981; margin-bottom: 0.5rem; font-size: 0.9rem;">🛏️ Guest Comfort & Convenience</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Extra bed / rollaway', 25, 'per_night')">Extra bed</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Baby cot / crib', 15, 'per_night')">Baby cot</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('High chair', 10, 'per_booking')">High chair</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Extra towels', 10, 'per_booking')">Extra towels</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Bathrobe & slippers', 20, 'per_booking')">Bathrobe & slippers</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Luxury toiletries', 25, 'per_booking')">Luxury toiletries</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Laundry service', 30, 'per_booking')">Laundry service</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Dry cleaning', 25, 'per_booking')">Dry cleaning</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Turndown service', 15, 'per_night')">Turndown service</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Express housekeeping', 20, 'per_booking')">Express housekeeping</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Food & Beverage -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #f59e0b; margin-bottom: 0.5rem; font-size: 0.9rem;">🍳 Food & Beverage</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Continental breakfast', 12, 'per_guest_per_night')">Continental breakfast</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Full English breakfast', 18, 'per_guest_per_night')">Full English breakfast</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Breakfast in room', 25, 'per_guest_per_night')">Breakfast in room</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Welcome drinks', 20, 'per_booking')">Welcome drinks</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Welcome hamper', 35, 'per_booking')">Welcome hamper</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Champagne on arrival', 45, 'per_booking')">Champagne on arrival</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Wine on arrival', 30, 'per_booking')">Wine on arrival</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Local produce basket', 40, 'per_booking')">Local produce basket</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Minibar package', 50, 'per_booking')">Minibar package</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Fridge pre-stocking', 40, 'per_booking')">Fridge pre-stocking</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Private chef', 200, 'per_booking')">Private chef</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('BBQ pack', 35, 'per_booking')">BBQ pack</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Romantic dinner setup', 75, 'per_booking')">Romantic dinner</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Celebrations -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #ec4899; margin-bottom: 0.5rem; font-size: 0.9rem;">💐 Celebrations & Occasions</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Birthday package', 50, 'per_booking')">Birthday package</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Anniversary package', 60, 'per_booking')">Anniversary package</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Honeymoon package', 80, 'per_booking')">Honeymoon package</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Flowers', 40, 'per_booking')">Flowers</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Chocolates', 25, 'per_booking')">Chocolates</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Balloons & decorations', 35, 'per_booking')">Balloons</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Celebration cake', 45, 'per_booking')">Celebration cake</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Rose petal decorations', 50, 'per_booking')">Rose petals</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Proposal setup', 150, 'per_booking')">Proposal setup</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Transport -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #3b82f6; margin-bottom: 0.5rem; font-size: 0.9rem;">🚗 Transport & Parking</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Airport transfer', 50, 'per_booking')">Airport transfer</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Private driver', 100, 'per_booking')">Private driver</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Shuttle service', 20, 'per_guest')">Shuttle service</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Parking', 15, 'per_night')">Parking</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Valet parking', 25, 'per_night')">Valet parking</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('EV charging', 15, 'per_night')">EV charging</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Bicycle rental', 15, 'per_day')">Bicycle rental</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('E-bike rental', 30, 'per_day')">E-bike rental</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Scooter rental', 40, 'per_day')">Scooter rental</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Cleaning (Airbnb style) -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #14b8a6; margin-bottom: 0.5rem; font-size: 0.9rem;">🧹 Cleaning & Property Services</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Mid-stay cleaning', 50, 'per_booking')">Mid-stay cleaning</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Deep clean upgrade', 75, 'per_booking')">Deep clean</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Daily housekeeping', 30, 'per_night')">Daily housekeeping</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Linen swap', 25, 'per_booking')">Linen swap</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Pool cleaning', 50, 'per_booking')">Pool cleaning</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Hot tub servicing', 40, 'per_booking')">Hot tub servicing</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Firewood bundle', 20, 'per_booking')">Firewood bundle</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('BBQ cleaning', 25, 'per_booking')">BBQ cleaning</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Pets -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #8b5cf6; margin-bottom: 0.5rem; font-size: 0.9rem;">🐾 Pet Services</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Pet fee', 30, 'per_booking')">Pet fee</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Pet welcome pack', 25, 'per_booking')">Pet welcome pack</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Dog bed', 15, 'per_booking')">Dog bed</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Pet food bowls', 10, 'per_booking')">Food bowls</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Pet sitting', 40, 'per_day')">Pet sitting</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Dog walking', 25, 'per_day')">Dog walking</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Pet cleaning fee', 50, 'per_booking')">Pet cleaning fee</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Business -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #64748b; margin-bottom: 0.5rem; font-size: 0.9rem;">💻 Business & Work</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Dedicated workspace', 20, 'per_night')">Dedicated workspace</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Printer access', 15, 'per_booking')">Printer access</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Meeting room hire', 75, 'per_booking')">Meeting room</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Business lounge', 30, 'per_night')">Business lounge</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Video conference setup', 25, 'per_booking')">Video conference</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Projector hire', 40, 'per_booking')">Projector hire</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Co-working pass', 25, 'per_day')">Co-working pass</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Wellness -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #06b6d4; margin-bottom: 0.5rem; font-size: 0.9rem;">🏊 Leisure & Wellness</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Gym access', 15, 'per_night')">Gym access</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Spa access', 40, 'per_guest')">Spa access</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Sauna / steam room', 25, 'per_guest')">Sauna / steam</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Hot tub access', 30, 'per_night')">Hot tub access</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Massage', 80, 'per_guest')">Massage</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Yoga class', 25, 'per_guest')">Yoga class</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Personal trainer', 60, 'per_booking')">Personal trainer</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Pool cabana', 50, 'per_day')">Pool cabana</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Tennis court', 30, 'per_booking')">Tennis court</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Golf booking', 100, 'per_guest')">Golf booking</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Wine tasting', 50, 'per_guest')">Wine tasting</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Cooking class', 75, 'per_guest')">Cooking class</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Family -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #f472b6; margin-bottom: 0.5rem; font-size: 0.9rem;">🧒 Family & Children</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Babysitting', 20, 'per_hour')">Babysitting</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Nanny service', 150, 'per_day')">Nanny service</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Kids activity pack', 20, 'per_booking')">Kids activity pack</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Children\'s meals', 12, 'per_guest_per_night')">Children's meals</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Baby proofing', 25, 'per_booking')">Baby proofing</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Toy rental', 15, 'per_booking')">Toy rental</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Pushchair hire', 20, 'per_booking')">Pushchair hire</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Protection -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="color: #ef4444; margin-bottom: 0.5rem; font-size: 0.9rem;">🚨 Protection & Flexibility</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Flexible cancellation', 25, 'per_booking')">Flexible cancellation</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Date change protection', 20, 'per_booking')">Date change protection</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Damage waiver', 30, 'per_booking')">Damage waiver</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Travel insurance', 40, 'per_booking')">Travel insurance</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Concierge -->
+                        <div style="margin-bottom: 0;">
+                            <h4 style="color: #a855f7; margin-bottom: 0.5rem; font-size: 0.9rem;">🛎️ Concierge Services</h4>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                                <button class="preset-btn" onclick="quickAddUpsell('Local guide', 50, 'per_booking')">Local guide</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Tour booking', 30, 'per_booking')">Tour booking</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Event tickets', 25, 'per_booking')">Event tickets</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Restaurant reservations', 15, 'per_booking')">Restaurant reservations</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('Personal itinerary', 75, 'per_booking')">Personal itinerary</button>
+                                <button class="preset-btn" onclick="quickAddUpsell('VIP entry service', 100, 'per_booking')">VIP entry</button>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
+                <!-- Active Upsells List -->
                 <div class="card">
+                    <h3 style="margin-bottom: 1rem;">Your Upsells</h3>
                     <div id="upsells-list">
                         <div class="empty-state">
                             <div class="empty-icon">🎁</div>
                             <h3>No Upsells Configured</h3>
-                            <p>Add extra services to increase revenue per booking</p>
-                            <button class="btn" onclick="openAddUpsellModal()">Add Your First Upsell</button>
+                            <p>Click any preset above or create a custom upsell</p>
+                            <button class="btn" onclick="openAddUpsellModal()">Create Custom Upsell</button>
                         </div>
                     </div>
                 </div>
@@ -5788,12 +6019,65 @@
             openImageUploadModal();
         }
 
-        function openAddRatePlanModal() {
-            alert('Rate Plan creation feature coming soon!');
+        // Toggle upsell presets visibility
+        function toggleUpsellPresets() {
+            const presets = document.getElementById('all-upsell-presets');
+            const btn = document.getElementById('toggle-presets-btn');
+            
+            if (presets.style.display === 'none') {
+                presets.style.display = 'block';
+                btn.textContent = 'Hide Categories ▲';
+            } else {
+                presets.style.display = 'none';
+                btn.textContent = 'Show All Categories ▼';
+            }
         }
-
-        function openAddUpsellModal() {
-            alert('Upsell creation feature coming soon!');
+        
+        // Quick add upsell from preset
+        async function quickAddUpsell(name, price, chargeType) {
+            const btn = event.target;
+            btn.disabled = true;
+            btn.textContent = '...';
+            
+            try {
+                const response = await fetch('/api/admin/upsells', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: name,
+                        price: price,
+                        charge_type: chargeType,
+                        active: true
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    btn.classList.add('added');
+                    btn.textContent = '✓ Added';
+                    loadUpsells();
+                    
+                    // Reset button after delay
+                    setTimeout(() => {
+                        btn.classList.remove('added');
+                        btn.textContent = name.split(' ').slice(-2).join(' '); // Last 2 words
+                        btn.disabled = false;
+                    }, 2000);
+                } else {
+                    btn.textContent = 'Error';
+                    setTimeout(() => {
+                        btn.textContent = name;
+                        btn.disabled = false;
+                    }, 2000);
+                }
+            } catch (error) {
+                btn.textContent = 'Error';
+                setTimeout(() => {
+                    btn.textContent = name;
+                    btn.disabled = false;
+                }, 2000);
+            }
         }
 
         // Cleanup duplicates
