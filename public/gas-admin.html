@@ -3339,21 +3339,32 @@
         }
         
         async function syncAllFromCM() {
-            if (!confirm('Sync availability and pricing from Channel Manager for ALL rooms (30 days)?')) return;
+            if (!confirm('Sync availability and pricing from ALL Channel Managers (Beds24 + Hostaway)?')) return;
             
             const btn = event.target;
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
             
+            let results = [];
+            
             try {
-                const response = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
-                const result = await response.json();
-                
-                if (result.success) {
-                    alert(`✅ Sync complete!\n\n${result.roomsCount} rooms\n${result.daysRequested} days\n${result.apiCallsMade} API calls\n${result.totalPricesFound} prices found`);
-                } else {
-                    alert(`❌ Sync failed: ${result.error}`);
+                // Sync Beds24
+                btn.textContent = '⏳ Syncing Beds24...';
+                const beds24Response = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
+                const beds24Result = await beds24Response.json();
+                if (beds24Result.success) {
+                    results.push(`Beds24: ${beds24Result.totalPricesFound || 0} prices`);
                 }
+                
+                // Sync Hostaway
+                btn.textContent = '⏳ Syncing Hostaway...';
+                const hostawayResponse = await fetch('/api/admin/sync-hostaway-availability', { method: 'POST' });
+                const hostawayResult = await hostawayResponse.json();
+                if (hostawayResult.success) {
+                    results.push(`Hostaway: ${hostawayResult.totalPricesUpdated || 0} prices`);
+                }
+                
+                alert(`✅ Sync complete!\n\n${results.join('\n')}`);
             } catch (error) {
                 alert(`❌ Error: ${error.message}`);
             }
