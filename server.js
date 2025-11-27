@@ -859,40 +859,47 @@ app.get('/api/db/units', async (req, res) => {
     }
     
     const property = propResult.rows[0];
-    const propertyType = (property.property_type || '').toLowerCase();
+    // Normalize property type: lowercase, remove camelCase, remove special chars
+    const rawType = property.property_type || '';
+    const propertyType = rawType
+      .replace(/([a-z])([A-Z])/g, '$1 $2')  // Convert camelCase to spaces
+      .replace(/[_-]/g, ' ')                 // Convert underscores/hyphens to spaces
+      .toLowerCase()
+      .trim();
     
     // =====================================================
     // MULTI-UNIT PROPERTY TYPES (show individual rooms/units)
     // =====================================================
-    const multiUnitTypes = [
+    const multiUnitKeywords = [
       // Hotels & Lodging
       'hotel', 'boutique hotel', 'lifestyle hotel', 'luxury hotel', 'budget hotel',
-      'capsule hotel', 'micro-hotel', 'city hotel', 'airport hotel', 'resort hotel',
-      'spa hotel', 'conference hotel', 'eco-hotel', 'heritage hotel', 'historic hotel',
+      'capsule hotel', 'micro hotel', 'city hotel', 'airport hotel', 'resort hotel',
+      'spa hotel', 'conference hotel', 'eco hotel', 'heritage hotel', 'historic hotel',
       'themed hotel', 'smart hotel', 'tech hotel',
       // Inns, Guesthouses & Lodges
       'inn', 'country inn', 'coaching inn', 'guest house', 'guesthouse',
-      'bed and breakfast', 'bed & breakfast', 'b&b', 'boutique b&b', 'heritage b&b', 'farm stay b&b',
-      'lodge', 'safari lodge', 'game lodge', 'mountain lodge', 'ski lodge', 'beach lodge', 'eco-lodge',
+      'bed and breakfast', 'bed & breakfast', 'b&b', 'b and b', 'bnb', 'bandb',
+      'boutique b&b', 'heritage b&b', 'farm stay b&b',
+      'lodge', 'safari lodge', 'game lodge', 'mountain lodge', 'ski lodge', 'beach lodge', 'eco lodge',
       // Hostels & Shared
-      'hostel', 'hostel-hotel', 'youth hostel', 'backpackers', 'co-living', 'pod hostel', 'dormitory',
+      'hostel', 'hostel hotel', 'youth hostel', 'backpackers', 'co living', 'coliving', 'pod hostel', 'dormitory',
       // Apartment-Style Multi-Unit
-      'aparthotel', 'apart-hotel', 'apartment hotel', 'serviced apartments', 'managed apartments',
-      'corporate apartments', 'executive apartments', 'extended-stay', 'residence hotel', 'condo hotel',
+      'aparthotel', 'apart hotel', 'apartment hotel', 'serviced apartments', 'managed apartments',
+      'corporate apartments', 'executive apartments', 'extended stay', 'residence hotel', 'condo hotel',
       // Resorts & Complexes
-      'resort', 'holiday resort', 'golf resort', 'all-inclusive', 'wellness resort',
+      'resort', 'holiday resort', 'golf resort', 'all inclusive', 'wellness resort',
       'island resort', 'water park resort', 'marina resort',
       // Traditional Multi-Unit
       'motel', 'motor lodge', 'roadside inn', 'ryokan', 'riad', 'pension', 'posada',
-      'gîte complex', 'gite complex', 'gasthaus', 'hacienda', 'palazzo'
+      'gite complex', 'gasthaus', 'hacienda', 'palazzo'
     ];
     
     // =====================================================
     // SINGLE-UNIT PROPERTY TYPES (property = bookable unit)
     // =====================================================
-    const singleUnitTypes = [
+    const singleUnitKeywords = [
       // Residential & Urban
-      'house', 'apartment', 'flat', 'loft', 'condo', 'condominium', 'duplex', 'penthouse',
+      'house', 'entire home', 'apartment', 'flat', 'loft', 'condo', 'condominium', 'duplex', 'penthouse',
       'studio apartment', 'studio flat', 'studio', 'maisonette', 'townhouse', 'brownstone',
       'bungalow', 'terrace house',
       // Luxury & Leisure
@@ -900,7 +907,7 @@ app.get('/api/db/units', async (req, res) => {
       'manor', 'estate', 'private island', 'chalet', 'ski chalet', 'lodge cabin',
       // Rural & Traditional
       'cottage', 'farmhouse', 'rural retreat', 'barn conversion', 'barn', 'converted mill',
-      'shepherd\'s hut', 'shepherds hut', 'stone cottage', 'alpine chalet',
+      'shepherds hut', 'stone cottage', 'alpine chalet',
       'wine estate', 'finca', 'trullo', 'cortijo', 'mas', 'quinta',
       // Compact Living
       'tiny house', 'modular home', 'eco home', 'smart home', 'cube house',
@@ -908,42 +915,28 @@ app.get('/api/db/units', async (req, res) => {
       'houseboat', 'floating villa', 'overwater bungalow', 'boathouse', 'boat house',
       'treehouse', 'tree house', 'canopy lodge', 'cliffside cabin',
       // Glamping & Adventure
-      'yurt', 'dome', 'geodesic dome', 'safari tent', 'bell tent', 'a-frame', 'a-frame cabin',
+      'yurt', 'dome', 'geodesic dome', 'safari tent', 'bell tent', 'a frame', 'a frame cabin',
       'pod cabin', 'pod', 'tipi', 'teepee', 'luxury tent', 'glamping', 'jungle lodge',
       // Cultural & Specialty
-      'castle', 'château', 'chateau', 'palace', 'tower house', 'hanok', 'machiya',
+      'castle', 'chateau', 'palace', 'tower house', 'hanok', 'machiya',
       'cave house', 'cave', 'ice hotel', 'hobbit house', 'igloo'
     ];
     
     // Check property type - multi-unit takes priority
-    const isMultiUnit = multiUnitTypes.some(t => propertyType.includes(t));
-    const isSingleUnit = singleUnitTypes.some(t => propertyType.includes(t)) && !isMultiUnit;
+    const isMultiUnit = multiUnitKeywords.some(keyword => propertyType.includes(keyword));
+    const isSingleUnit = singleUnitKeywords.some(keyword => propertyType.includes(keyword)) && !isMultiUnit;
     
     // First try to get rooms from the rooms table
     const roomsResult = await pool.query('SELECT * FROM rooms WHERE property_id = $1 AND active = true', [propertyId]);
     
     if (roomsResult.rows.length > 0) {
       // Has rooms/units defined - return them
-      res.json({ success: true, data: roomsResult.rows, propertyType: propertyType, isMultiUnit: isMultiUnit });
-    } else if (isSingleUnit) {
-      // Single-unit property with no rooms - return property as the unit
-      res.json({ 
-        success: true, 
-        data: [{
-          id: property.id,
-          property_id: property.id,
-          name: property.name,
-          description: property.description,
-          is_property_unit: true // Flag to indicate this is the property itself
-        }],
-        propertyType: propertyType,
-        isSingleUnit: true
-      });
+      res.json({ success: true, data: roomsResult.rows, propertyType: propertyType, rawType: rawType, isMultiUnit: isMultiUnit });
     } else if (isMultiUnit) {
       // Multi-unit property with no rooms defined yet
-      res.json({ success: true, data: [], propertyType: propertyType, isMultiUnit: true, message: 'No units configured for this property yet' });
-    } else {
-      // Unknown type - default to checking if rooms exist, otherwise treat as single unit
+      res.json({ success: true, data: [], propertyType: propertyType, rawType: rawType, isMultiUnit: true, message: 'No units configured for this property yet. Add rooms/units in the Rooms section.' });
+    } else if (isSingleUnit) {
+      // Single-unit property with no rooms - return property as the unit
       res.json({ 
         success: true, 
         data: [{
@@ -954,6 +947,22 @@ app.get('/api/db/units', async (req, res) => {
           is_property_unit: true
         }],
         propertyType: propertyType,
+        rawType: rawType,
+        isSingleUnit: true
+      });
+    } else {
+      // Unknown type - check if it looks like multi-unit, otherwise default to single
+      res.json({ 
+        success: true, 
+        data: [{
+          id: property.id,
+          property_id: property.id,
+          name: property.name,
+          description: property.description,
+          is_property_unit: true
+        }],
+        propertyType: propertyType,
+        rawType: rawType,
         isSingleUnit: true,
         message: 'Unknown property type - defaulting to single unit'
       });
