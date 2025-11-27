@@ -2248,7 +2248,13 @@ app.post('/api/hostaway/import-property', async (req, res) => {
       
       console.log('   Updated existing property, GAS ID:', propertyId);
     } else {
-      // Insert new property
+      // Insert new property - truncate fields to fit column constraints
+      const propertyName = property.name || `Property ${property.id}`;
+      const stateValue = (property.state || '').substring(0, 50);
+      const currencyValue = (property.currencyCode || 'USD').substring(0, 3);
+      // Use countryCode if available, otherwise truncate country to 2 chars
+      const countryValue = (property.countryCode || property.country || '').substring(0, 2);
+      
       const result = await client.query(`
         INSERT INTO properties (
           name, property_type, address, city, state, postcode, country,
@@ -2257,18 +2263,18 @@ app.post('/api/hostaway/import-property', async (req, res) => {
         ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'hostaway', NOW(), NOW())
         RETURNING id
       `, [
-        property.name,
+        propertyName,
         property.roomType || 'entire_home',
         property.address || property.street || '',
         property.city || '',
-        property.state || '',
+        stateValue,
         property.zipcode || '',
-        property.country || '',
+        countryValue,
         property.lat || null,
         property.lng || null,
         property.checkInTimeStart ? `${property.checkInTimeStart}:00` : '15:00',
         property.checkOutTime ? `${property.checkOutTime}:00` : '11:00',
-        property.currencyCode || 'USD',
+        currencyValue,
         property.id
       ]);
       
