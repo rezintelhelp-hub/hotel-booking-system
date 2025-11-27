@@ -707,12 +707,16 @@ app.post('/api/db/book', async (req, res) => {
   try {
     await client.query('BEGIN');
     
+    // Get property owner ID
+    const propResult = await client.query(`SELECT owner_id FROM properties WHERE id = $1`, [property_id]);
+    const propertyOwnerId = propResult.rows[0]?.owner_id || 1; // Default to 1 if not found
+    
     // 1. Create booking in our database (using correct column names)
     const result = await client.query(`
-      INSERT INTO bookings (property_id, bookable_unit_id, arrival_date, departure_date, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, grand_total, status) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'confirmed') 
+      INSERT INTO bookings (property_id, property_owner_id, bookable_unit_id, arrival_date, departure_date, num_adults, num_children, guest_first_name, guest_last_name, guest_email, guest_phone, grand_total, status) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'confirmed') 
       RETURNING *
-    `, [property_id, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price]);
+    `, [property_id, propertyOwnerId, room_id, check_in, check_out, num_adults, num_children || 0, guest_first_name, guest_last_name, guest_email, guest_phone, total_price]);
     
     const booking = result.rows[0];
     
