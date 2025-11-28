@@ -2473,7 +2473,14 @@
                     <!-- Settings -->
                     <div style="margin-bottom: 1.5rem;">
                         <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Settings</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label>Client Type</label>
+                                <select id="client-type" class="form-input">
+                                    <option value="owner">Property Owner</option>
+                                    <option value="agent">Travel Agent</option>
+                                </select>
+                            </div>
                             <div class="form-group">
                                 <label>Currency</label>
                                 <select id="client-currency" class="form-input">
@@ -3593,6 +3600,7 @@
                                 <thead>
                                     <tr>
                                         <th>Client</th>
+                                        <th>Type</th>
                                         <th>Properties</th>
                                         <th>Rooms</th>
                                         <th>Plan</th>
@@ -3607,6 +3615,11 @@
                                             <td>
                                                 <strong>${client.name}</strong>
                                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">${client.email}</div>
+                                            </td>
+                                            <td>
+                                                <span class="badge ${client.client_type === 'agent' ? 'badge-warning' : 'badge-success'}">
+                                                    ${client.client_type === 'agent' ? '🛫 Agent' : '🏠 Owner'}
+                                                </span>
                                             </td>
                                             <td><span class="badge">${client.property_count || 0}</span></td>
                                             <td><span class="badge">${client.room_count || 0}</span></td>
@@ -3672,6 +3685,7 @@
                     document.getElementById('client-region').value = c.region || '';
                     document.getElementById('client-postcode').value = c.postcode || '';
                     document.getElementById('client-country').value = c.country || 'United Kingdom';
+                    document.getElementById('client-type').value = c.client_type || 'owner';
                     document.getElementById('client-currency').value = c.currency || 'GBP';
                     document.getElementById('client-plan').value = c.plan || 'free';
                     document.getElementById('client-status').value = c.status || 'active';
@@ -3699,6 +3713,7 @@
                 region: document.getElementById('client-region').value,
                 postcode: document.getElementById('client-postcode').value,
                 country: document.getElementById('client-country').value,
+                client_type: document.getElementById('client-type').value,
                 currency: document.getElementById('client-currency').value,
                 plan: document.getElementById('client-plan').value,
                 status: document.getElementById('client-status').value,
@@ -4193,6 +4208,7 @@
                                         <th>Property Name</th>
                                         <th>Type</th>
                                         <th>Location</th>
+                                        <th>Agent Access</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -4203,12 +4219,25 @@
                                             <td><strong>${prop.name || 'Unnamed Property'}</strong></td>
                                             <td>${prop.property_type || 'N/A'}</td>
                                             <td>${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
+                                            <td>
+                                                <select onchange="updateAgentAccess(${prop.id}, this.value)" class="form-input" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto;">
+                                                    <option value="none" ${prop.agent_availability === 'none' || !prop.agent_availability ? 'selected' : ''}>🚫 None</option>
+                                                    <option value="open" ${prop.agent_availability === 'open' ? 'selected' : ''}>🌍 Open</option>
+                                                    <option value="request" ${prop.agent_availability === 'request' ? 'selected' : ''}>📩 Request</option>
+                                                </select>
+                                            </td>
                                             <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
                                             <td><button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button></td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
                             </table>
+                        </div>
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary);">
+                            <strong>Agent Access Legend:</strong>
+                            🚫 <strong>None</strong> - Not available to travel agents |
+                            🌍 <strong>Open</strong> - Any agent can list (auto-approved) |
+                            📩 <strong>Request</strong> - Agents must request access
                         </div>
                     `;
                     container.innerHTML = html;
@@ -7566,6 +7595,27 @@
                 }
             } catch (error) {
                 alert('Error deleting tax: ' + error.message);
+            }
+        }
+
+        // Update property agent access setting
+        async function updateAgentAccess(propertyId, availability) {
+            try {
+                const response = await fetch(`/api/admin/properties/${propertyId}/agent-settings`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agent_availability: availability })
+                });
+                
+                const result = await response.json();
+                
+                if (!result.success) {
+                    alert('Error: ' + result.error);
+                    loadProperties(); // Reload to reset
+                }
+            } catch (error) {
+                alert('Error updating agent access: ' + error.message);
+                loadProperties();
             }
         }
 
