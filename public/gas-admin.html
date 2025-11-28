@@ -2288,119 +2288,99 @@
                     </div>
                 </div>
 
-                <!-- Plugin Download & Settings -->
-                <div class="card" style="margin-bottom: 1.5rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
-                        <div>
-                            <h3 class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
-                                <svg width="24" height="24" viewBox="0 0 122.5 122.5" fill="#21759b"><path d="M8.7 61.3c0 20.8 12.1 38.8 29.6 47.3L13 40.3c-2.8 6.5-4.3 13.7-4.3 21zm88.6-2.7c0-6.5-2.3-11-4.3-14.5-2.7-4.3-5.2-8-5.2-12.3 0-4.8 3.7-9.3 8.9-9.3h.7c-9.4-8.6-21.9-13.9-35.7-13.9-18.5 0-34.7 9.5-44.2 23.8h3.4c5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.8.3-6 .5l19.1 57 11.5-34.5-8.2-22.5c-2.8-.2-5.5-.5-5.5-.5-2.8-.2-2.5-4.5.3-4.3 0 0 8.7.7 13.9.7 5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.9.3-6 .5l19 56.5 5.2-17.5c2.3-7.3 4-12.5 4-17zm-36.3 7.6l-15.8 45.8c4.7 1.4 9.7 2.2 14.8 2.2 6.1 0 12-1.1 17.4-3-.1-.2-.3-.5-.4-.7l-16-43.3zm45.1-29.8c.5 3.4.7 7 .7 10.9 0 10.8-2 22.9-8 38l-21.8 63.1c21.2-12.4 35.5-35.5 35.5-62.1 0-17.9-6.2-34.3-16.4-47.9zM61.3 0C27.5 0 0 27.5 0 61.3c0 33.8 27.5 61.3 61.3 61.3 33.8 0 61.3-27.5 61.3-61.3C122.5 27.5 95 0 61.3 0zm0 119.7c-32.2 0-58.5-26.2-58.5-58.5 0-32.2 26.2-58.5 58.5-58.5 32.2 0 58.5 26.2 58.5 58.5-.1 32.3-26.3 58.5-58.5 58.5z"/></svg>
-                                Your Settings
-                            </h3>
-                        </div>
-                        <a href="/gas-widgets-preview.html" target="_blank" class="btn btn-secondary" style="text-decoration: none;">
-                            Preview Widgets →
-                        </a>
-                    </div>
+                <!-- Simple Setup Guide -->
+                <div class="card" style="margin-bottom: 1.5rem; border: 2px solid var(--accent); border-radius: 12px;">
+                    <h3 class="card-title" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+                        🚀 Quick Setup (3 Steps)
+                    </h3>
                     
-                    <div style="background: var(--accent-light); border-radius: 8px; padding: 1rem;">
-                        <div style="display: grid; grid-template-columns: 140px 1fr auto; gap: 0.75rem; align-items: center; font-size: 0.9rem;">
-                            <span style="color: var(--text-secondary); font-weight: 500;">API URL:</span>
-                            <code style="background: white; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem;" id="wp-api-url"></code>
-                            <button onclick="copyShortcode(document.getElementById('wp-api-url').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">Copy</button>
-                            
-                            <span style="color: var(--text-secondary); font-weight: 500;">Property ID:</span>
-                            <code style="background: white; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem;" id="wp-property-id">1</code>
-                            <button onclick="copyShortcode(document.getElementById('wp-property-id').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">Copy</button>
+                    <!-- Step 1 -->
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
+                        <div style="background: var(--accent); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; font-size: 1.1rem;">1</div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.75rem 0; font-size: 1.1rem;">Install Plugin in WordPress</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0;">
+                                Download the GAS Booking Plugin ZIP → In WordPress go to <strong>Plugins → Add New → Upload</strong> → Activate
+                            </p>
+                        </div>
+                    </div>
+
+                    <!-- Step 2 -->
+                    <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
+                        <div style="background: var(--accent); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; font-size: 1.1rem;">2</div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.75rem 0; font-size: 1.1rem;">Enter Your API Key</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 1rem 0;">
+                                In WordPress, click <strong>GAS Booking</strong> in the sidebar and paste your API key:
+                            </p>
+                            <div style="background: #f0fdf4; border: 2px solid #22c55e; border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <span style="font-weight: 600; color: #166534;">Your API Key:</span>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <code id="wp-client-api-key" style="background: white; padding: 0.5rem 0.75rem; border-radius: 4px; font-size: 0.9rem; flex: 1; border: 1px solid #d1d5db; word-break: break-all;">Loading...</code>
+                                    <button onclick="copyShortcode(document.getElementById('wp-client-api-key').textContent)" style="background: #22c55e; border: none; color: white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 500; white-space: nowrap;">Copy</button>
+                                </div>
+                                <p style="margin: 0.75rem 0 0 0; font-size: 0.8rem; color: #166534;">
+                                    ⚠️ Don't have an API key? Go to <strong>Clients</strong> → View your client → Copy the API Key
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Step 3 -->
+                    <div style="display: flex; gap: 1rem;">
+                        <div style="background: var(--accent); color: white; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0; font-size: 1.1rem;">3</div>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.75rem 0; font-size: 1.1rem;">Add Shortcode to Any Page</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin: 0 0 1rem 0;">
+                                Edit any page → Add a <strong>Shortcode</strong> block → Paste this:
+                            </p>
+                            <div style="background: #1e293b; border-radius: 8px; padding: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                                <code style="color: #e2e8f0; font-size: 1.1rem;">[gas_properties]</code>
+                                <button onclick="copyShortcode('[gas_properties]')" style="background: #3b82f6; border: none; color: white; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 500;">Copy</button>
+                            </div>
+                            <p style="margin: 0.75rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">
+                                ✅ This will display all properties linked to your API key
+                            </p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Shortcodes Reference -->
-                <div class="card" style="margin-bottom: 1.5rem;">
-                    <h3 class="card-title" style="margin-bottom: 1rem;">📝 Shortcode Reference</h3>
-                    
-                    <!-- Search Bar -->
-                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
-                        <div style="background: #dbeafe; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🔍</div>
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-                                <h4 style="margin: 0; font-size: 0.95rem;">Search Bar</h4>
-                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Homepage</span>
-                            </div>
-                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <code>[gas_search]</code>
-                                <button onclick="copyShortcode('[gas_search]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
-                            </div>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
-                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">style="vertical"</code>
-                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">button_text="Search"</code>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Room Listing -->
-                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
-                        <div style="background: #dcfce7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🏠</div>
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-                                <h4 style="margin: 0; font-size: 0.95rem;">Room Listing</h4>
-                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Book Now page</span>
-                            </div>
-                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <code>[gas_rooms property_id="<span id="shortcode-property-id">1</span>"]</code>
-                                <button onclick="copyShortcode('[gas_rooms property_id=&quot;' + (window.currentPropertyId || 1) + '&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
-                            </div>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
-                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">columns="2"</code>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Room Detail -->
-                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
-                        <div style="background: #fef3c7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🛏️</div>
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-                                <h4 style="margin: 0; font-size: 0.95rem;">Room Detail Page</h4>
-                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Room page</span>
-                            </div>
-                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <code>[gas_room]</code>
-                                <button onclick="copyShortcode('[gas_room]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
-                            </div>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
-                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">unit_id="190"</code>
-                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">months="3"</code>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Compact Booking -->
-                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
-                        <div style="background: #fce7f3; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">📅</div>
-                        <div style="flex: 1; min-width: 0;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
-                                <h4 style="margin: 0; font-size: 0.95rem;">Compact Booking Widget</h4>
-                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Sidebar / Embed</span>
-                            </div>
-                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                                <code>[gas_booking unit_id="190"]</code>
-                                <button onclick="copyShortcode('[gas_booking unit_id=&quot;190&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
-                            </div>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
-                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">months="2"</code>
-                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">show_prices="no"</code>
-                            </div>
-                        </div>
+                <!-- That's It! -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #22c55e;">
+                    <div style="text-align: center; padding: 1rem;">
+                        <div style="font-size: 3rem; margin-bottom: 0.5rem;">🎉</div>
+                        <h3 style="margin: 0 0 0.5rem 0; color: #166534;">That's it!</h3>
+                        <p style="color: #166534; margin: 0; font-size: 0.95rem;">
+                            Your properties will automatically appear on your WordPress site.
+                        </p>
                     </div>
                 </div>
 
-                <!-- Room IDs Reference -->
+                <!-- Optional: Other Shortcodes -->
                 <div class="card">
-                    <h3 class="card-title" style="margin-bottom: 0.5rem;">Your Room IDs</h3>
-                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">Reference these IDs when using shortcodes for specific rooms:</p>
-                    <div id="wp-room-ids" style="background: var(--bg-primary); border-radius: 8px; padding: 1rem;">
-                        <p style="color: var(--text-secondary); font-size: 0.85rem;">Loading rooms...</p>
+                    <h3 class="card-title" style="margin-bottom: 1rem;">📝 Other Shortcodes (Optional)</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                        You can also use these shortcodes for more specific layouts:
+                    </p>
+                    
+                    <div style="display: grid; gap: 0.75rem;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-primary); border-radius: 6px;">
+                            <div>
+                                <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px;">[gas_search]</code>
+                                <span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 0.75rem;">Search form with date picker</span>
+                            </div>
+                            <button onclick="copyShortcode('[gas_search]')" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Copy</button>
+                        </div>
+                        
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: var(--bg-primary); border-radius: 6px;">
+                            <div>
+                                <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px;">[gas_property id="X"]</code>
+                                <span style="color: var(--text-secondary); font-size: 0.85rem; margin-left: 0.75rem;">Single property (replace X with property ID)</span>
+                            </div>
+                            <button onclick="copyShortcode('[gas_property id=&quot;&quot;]')" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.8rem;">Copy</button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4104,49 +4084,42 @@
 
         // Load WordPress view data
         async function loadWordPressView() {
-            // Set API URL in all locations
+            // Set API URL
             const apiUrl = window.location.origin;
-            document.getElementById('wp-api-url').textContent = apiUrl;
-            document.getElementById('wp-api-url-guide').textContent = apiUrl;
+            const apiUrlGuide = document.getElementById('wp-api-url-guide');
+            if (apiUrlGuide) apiUrlGuide.textContent = apiUrl;
             
-            // Load rooms for reference
+            // Load the first client's API key to display
             try {
-                const response = await fetch('/api/admin/units');
+                const response = await fetch('/api/admin/clients');
                 const data = await response.json();
                 
-                if (data.success && data.data && data.data.length > 0) {
-                    // Set first property ID in all locations
-                    const firstPropertyId = data.data[0].property_id;
-                    window.currentPropertyId = firstPropertyId;
-                    document.getElementById('shortcode-property-id').textContent = firstPropertyId;
-                    document.getElementById('wp-property-id').textContent = firstPropertyId;
-                    document.getElementById('wp-property-id-guide').textContent = firstPropertyId;
-                    document.getElementById('wp-rooms-shortcode').textContent = `[gas_rooms property_id="${firstPropertyId}"]`;
-                    
-                    // Build rooms table
-                    let html = '<table style="width: 100%; font-size: 0.85rem;">';
-                    html += '<thead><tr style="text-align: left; border-bottom: 1px solid var(--border);"><th style="padding: 0.5rem;">Room Name</th><th style="padding: 0.5rem;">ID</th><th style="padding: 0.5rem;">Shortcode</th></tr></thead>';
-                    html += '<tbody>';
-                    
-                    data.data.forEach(room => {
-                        html += `<tr style="border-bottom: 1px solid var(--border);">
-                            <td style="padding: 0.5rem;">${room.name}</td>
-                            <td style="padding: 0.5rem;"><code style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 3px;">${room.id}</code></td>
-                            <td style="padding: 0.5rem;">
-                                <code style="background: #1e293b; color: #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">[gas_booking unit_id="${room.id}"]</code>
-                                <button onclick="copyShortcode('[gas_booking unit_id=&quot;${room.id}&quot;]')" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
-                            </td>
-                        </tr>`;
-                    });
-                    
-                    html += '</tbody></table>';
-                    document.getElementById('wp-room-ids').innerHTML = html;
+                if (data.success && data.clients && data.clients.length > 0) {
+                    // Get the first client with an API key
+                    const clientWithKey = data.clients.find(c => c.api_key);
+                    if (clientWithKey) {
+                        const apiKeyEl = document.getElementById('wp-client-api-key');
+                        if (apiKeyEl) {
+                            apiKeyEl.textContent = clientWithKey.api_key;
+                        }
+                    } else {
+                        const apiKeyEl = document.getElementById('wp-client-api-key');
+                        if (apiKeyEl) {
+                            apiKeyEl.textContent = 'No API key found - create a client first';
+                        }
+                    }
                 } else {
-                    document.getElementById('wp-room-ids').innerHTML = '<p style="color: var(--text-secondary);">No rooms found. Add rooms first.</p>';
+                    const apiKeyEl = document.getElementById('wp-client-api-key');
+                    if (apiKeyEl) {
+                        apiKeyEl.textContent = 'No clients found - create a client first';
+                    }
                 }
             } catch (error) {
-                console.error('Error loading rooms for WordPress view:', error);
-                document.getElementById('wp-room-ids').innerHTML = '<p style="color: var(--error);">Error loading rooms</p>';
+                console.error('Error loading WordPress view:', error);
+                const apiKeyEl = document.getElementById('wp-client-api-key');
+                if (apiKeyEl) {
+                    apiKeyEl.textContent = 'Error loading - check console';
+                }
             }
         }
 
