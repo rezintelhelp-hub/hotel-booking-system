@@ -574,6 +574,93 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', database: !!process.env.DATABASE_URL, beds24: !!BEDS24_TOKEN });
 });
 
+// Run clients migration manually
+app.get('/api/setup-clients', async (req, res) => {
+  try {
+    // 1. Create clients table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS clients (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        phone VARCHAR(50),
+        address_line1 VARCHAR(255),
+        address_line2 VARCHAR(255),
+        city VARCHAR(100),
+        region VARCHAR(100),
+        postcode VARCHAR(20),
+        country VARCHAR(100) DEFAULT 'United Kingdom',
+        currency VARCHAR(3) DEFAULT 'GBP',
+        timezone VARCHAR(50) DEFAULT 'Europe/London',
+        date_format VARCHAR(20) DEFAULT 'DD/MM/YYYY',
+        language VARCHAR(10) DEFAULT 'en',
+        plan VARCHAR(20) DEFAULT 'free',
+        plan_started_at TIMESTAMP,
+        plan_expires_at TIMESTAMP,
+        stripe_customer_id VARCHAR(100),
+        api_key VARCHAR(64) UNIQUE,
+        api_key_created_at TIMESTAMP,
+        api_requests_today INTEGER DEFAULT 0,
+        api_requests_reset_at DATE,
+        status VARCHAR(20) DEFAULT 'active',
+        email_verified BOOLEAN DEFAULT FALSE,
+        email_verified_at TIMESTAMP,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Created clients table');
+
+    // 2. Create client_users table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS client_users (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        email VARCHAR(255) NOT NULL,
+        password_hash VARCHAR(255),
+        first_name VARCHAR(100),
+        last_name VARCHAR(100),
+        phone VARCHAR(50),
+        avatar_url TEXT,
+        role VARCHAR(20) DEFAULT 'staff',
+        status VARCHAR(20) DEFAULT 'active',
+        invite_token VARCHAR(64),
+        invite_expires_at TIMESTAMP,
+        last_login_at TIMESTAMP,
+        last_login_ip VARCHAR(45),
+        login_count INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(client_id, email)
+      )
+    `);
+    console.log('✅ Created client_users table');
+
+    // 3. Add client_id to properties
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL`);
+    console.log('✅ Added client_id to properties');
+
+    // 4. Add client_id to channel_manager_connections
+    await pool.query(`ALTER TABLE channel_manager_connections ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL`);
+    console.log('✅ Added client_id to channel_manager_connections');
+
+    // 5. Create indexes
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_clients_api_key ON clients(api_key)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_client_id ON properties(client_id)`);
+    console.log('✅ Created indexes');
+
+    res.json({ 
+      success: true, 
+      message: 'Clients tables created successfully! Now go to GAS Admin → Clients to add your first client.' 
+    });
+  } catch (error) {
+    console.error('Setup clients error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/setup-database', async (req, res) => {
   try {
     await pool.query(`CREATE TABLE IF NOT EXISTS properties (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, address TEXT, city VARCHAR(100), country VARCHAR(100), property_type VARCHAR(50), star_rating INTEGER, hero_image_url TEXT, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
