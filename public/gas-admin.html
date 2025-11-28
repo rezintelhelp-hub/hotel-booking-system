@@ -2182,7 +2182,7 @@
                         <div>
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Install the Plugin</h4>
                             <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8;">
-                                <li>Download the <strong>GAS Booking Plugin</strong> ZIP file</li>
+                                <li><a href="/downloads/gas-booking-plugin.zip" download style="color: var(--accent); font-weight: 600;">📥 Download the GAS Booking Plugin ZIP file</a></li>
                                 <li>In WordPress, go to <strong>Plugins → Add New → Upload Plugin</strong></li>
                                 <li>Choose the ZIP file and click <strong>Install Now</strong></li>
                                 <li>Click <strong>Activate Plugin</strong></li>
@@ -4208,7 +4208,6 @@
                                         <th>Property Name</th>
                                         <th>Type</th>
                                         <th>Location</th>
-                                        <th>Agent Access</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -4219,25 +4218,12 @@
                                             <td><strong>${prop.name || 'Unnamed Property'}</strong></td>
                                             <td>${prop.property_type || 'N/A'}</td>
                                             <td>${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
-                                            <td>
-                                                <select onchange="updateAgentAccess(${prop.id}, this.value)" class="form-input" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto;">
-                                                    <option value="none" ${prop.agent_availability === 'none' || !prop.agent_availability ? 'selected' : ''}>🚫 None</option>
-                                                    <option value="open" ${prop.agent_availability === 'open' ? 'selected' : ''}>🌍 Open</option>
-                                                    <option value="request" ${prop.agent_availability === 'request' ? 'selected' : ''}>📩 Request</option>
-                                                </select>
-                                            </td>
                                             <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
                                             <td><button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button></td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
                             </table>
-                        </div>
-                        <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary);">
-                            <strong>Agent Access Legend:</strong>
-                            🚫 <strong>None</strong> - Not available to travel agents |
-                            🌍 <strong>Open</strong> - Any agent can list (auto-approved) |
-                            📩 <strong>Request</strong> - Agents must request access
                         </div>
                     `;
                     container.innerHTML = html;
@@ -4275,6 +4261,7 @@
                                         <th>Type</th>
                                         <th>Capacity</th>
                                         <th>Qty</th>
+                                        <th>Agent Access</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -4289,6 +4276,13 @@
                                             <td>${unit.max_guests || '-'} guests</td>
                                             <td>${unit.quantity || 1}</td>
                                             <td>
+                                                <select onchange="updateUnitAgentAccess(${unit.id}, this.value)" class="form-input" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto;">
+                                                    <option value="none" ${unit.agent_availability === 'none' || !unit.agent_availability ? 'selected' : ''}>🚫 None</option>
+                                                    <option value="open" ${unit.agent_availability === 'open' ? 'selected' : ''}>🌍 Open</option>
+                                                    <option value="request" ${unit.agent_availability === 'request' ? 'selected' : ''}>📩 Request</option>
+                                                </select>
+                                            </td>
+                                            <td>
                                                 <span class="badge ${(unit.status === 'available' || unit.status === 'active') ? 'badge-success' : unit.status === 'maintenance' ? 'badge-warning' : 'badge-secondary'}">
                                                     ${(unit.status === 'available' || unit.status === 'active') ? '✅' : unit.status === 'maintenance' ? '🔧' : '❌'} ${unit.status || 'available'}
                                                 </span>
@@ -4298,6 +4292,12 @@
                                     `).join('')}
                                 </tbody>
                             </table>
+                        </div>
+                        <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary);">
+                            <strong>Agent Access Legend:</strong>
+                            🚫 <strong>None</strong> - Not available to travel agents |
+                            🌍 <strong>Open</strong> - Any agent can list this room (auto-approved) |
+                            📩 <strong>Request</strong> - Agents must request access to sell this room
                         </div>
                     `;
                     container.innerHTML = html;
@@ -7598,10 +7598,10 @@
             }
         }
 
-        // Update property agent access setting
-        async function updateAgentAccess(propertyId, availability) {
+        // Update unit agent access setting
+        async function updateUnitAgentAccess(unitId, availability) {
             try {
-                const response = await fetch(`/api/admin/properties/${propertyId}/agent-settings`, {
+                const response = await fetch(`/api/admin/units/${unitId}/agent-settings`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ agent_availability: availability })
@@ -7611,11 +7611,11 @@
                 
                 if (!result.success) {
                     alert('Error: ' + result.error);
-                    loadProperties(); // Reload to reset
+                    loadRooms(); // Reload to reset
                 }
             } catch (error) {
                 alert('Error updating agent access: ' + error.message);
-                loadProperties();
+                loadRooms();
             }
         }
 
