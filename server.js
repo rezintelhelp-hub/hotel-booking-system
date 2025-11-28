@@ -7177,7 +7177,7 @@ app.post('/api/admin/clients', async (req, res) => {
     const {
       name, email, phone,
       address_line1, address_line2, city, region, postcode, country,
-      currency, timezone, plan, notes
+      currency, timezone, plan, notes, client_type
     } = req.body;
     
     // Generate API key
@@ -7187,14 +7187,14 @@ app.post('/api/admin/clients', async (req, res) => {
       INSERT INTO clients (
         name, email, phone,
         address_line1, address_line2, city, region, postcode, country,
-        currency, timezone, plan, notes,
+        currency, timezone, plan, notes, client_type,
         api_key, api_key_created_at, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, 'active')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, 'active')
       RETURNING *
     `, [
       name, email, phone,
       address_line1, address_line2, city, region, postcode, country || 'United Kingdom',
-      currency || 'GBP', timezone || 'Europe/London', plan || 'free', notes,
+      currency || 'GBP', timezone || 'Europe/London', plan || 'free', notes, client_type || 'owner',
       apiKey
     ]);
     
@@ -7216,7 +7216,7 @@ app.put('/api/admin/clients/:id', async (req, res) => {
     const {
       name, email, phone,
       address_line1, address_line2, city, region, postcode, country,
-      currency, timezone, plan, status, notes
+      currency, timezone, plan, status, notes, client_type
     } = req.body;
     
     const result = await pool.query(`
@@ -7235,13 +7235,14 @@ app.put('/api/admin/clients/:id', async (req, res) => {
         plan = COALESCE($12, plan),
         status = COALESCE($13, status),
         notes = COALESCE($14, notes),
+        client_type = COALESCE($15, client_type),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $15
+      WHERE id = $16
       RETURNING *
     `, [
       name, email, phone,
       address_line1, address_line2, city, region, postcode, country,
-      currency, timezone, plan, status, notes,
+      currency, timezone, plan, status, notes, client_type,
       id
     ]);
     
