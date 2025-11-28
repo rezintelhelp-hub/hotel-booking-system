@@ -840,6 +840,14 @@
                 </div>
 
                 <div class="nav-section">
+                    <div class="nav-label">Accounts</div>
+                    <a class="nav-item" data-view="clients">
+                        <span class="nav-icon">👥</span>
+                        <span>Clients</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
                     <div class="nav-label">Property Management</div>
                     <a class="nav-item" data-view="properties">
                         <span class="nav-icon">🏨</span>
@@ -995,6 +1003,51 @@
                             <span>🧹</span>
                             <span>Remove Duplicates</span>
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Clients View -->
+            <div id="clients" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Clients</h2>
+                            <p>Manage client accounts and API access</p>
+                        </div>
+                        <button class="btn" onclick="openAddClientModal()">
+                            <span>+</span>
+                            <span>Add Client</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total-clients">-</div>
+                        <div class="stat-label">Total Clients</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-active-clients">-</div>
+                        <div class="stat-label">Active</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-paid-clients">-</div>
+                        <div class="stat-label">Paid Plans</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-unassigned-props">-</div>
+                        <div class="stat-label">Unassigned Properties</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="clients-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading clients...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -2142,58 +2195,64 @@
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">2</div>
                         <div>
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Configure Plugin Settings</h4>
-                            <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8;">
-                                <li>Go to <strong>Settings → GAS Booking</strong></li>
-                                <li>Enter your API URL: <code style="background: #1e293b; color: #e2e8f0; padding: 0.2rem 0.5rem; border-radius: 4px;" id="wp-api-url-guide"></code></li>
-                                <li>Enter your Property ID: <code style="background: #1e293b; color: #e2e8f0; padding: 0.2rem 0.5rem; border-radius: 4px;" id="wp-property-id-guide">1</code></li>
-                                <li>Set "Book Now Page URL" to <code style="background: #f1f5f9; padding: 0.2rem 0.5rem; border-radius: 4px;">/book-now/</code></li>
-                                <li>Set "Room Page URL Base" to <code style="background: #f1f5f9; padding: 0.2rem 0.5rem; border-radius: 4px;">/room/</code></li>
-                                <li>Click <strong>Save Changes</strong></li>
-                            </ol>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">In WordPress, go to <strong>Settings → GAS Booking</strong> and enter:</p>
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-size: 0.85rem;">
+                                <div style="display: grid; grid-template-columns: 130px 1fr; gap: 0.5rem; align-items: center;">
+                                    <strong>API URL:</strong>
+                                    <div>
+                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-api-url-guide"></code>
+                                        <button onclick="copyShortcode(document.getElementById('wp-api-url-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
+                                    </div>
+                                    <strong>Property ID:</strong>
+                                    <div>
+                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-property-id-guide">1</code>
+                                        <button onclick="copyShortcode(document.getElementById('wp-property-id-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
+                                    </div>
+                                </div>
+                                <p style="margin: 0.75rem 0 0 0; color: var(--text-secondary); font-size: 0.8rem;">Leave other settings as default, then click <strong>Save Changes</strong></p>
+                            </div>
                         </div>
                     </div>
 
                     <!-- Step 3 -->
                     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">3</div>
-                        <div>
+                        <div style="flex: 1;">
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Add Search Bar to Homepage</h4>
-                            <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8;">
-                                <li>Edit your <strong>Homepage</strong></li>
-                                <li>Add a <strong>Shortcode</strong> block (or paste into any text area)</li>
-                                <li>Enter: <code style="background: #1e293b; color: #e2e8f0; padding: 0.2rem 0.5rem; border-radius: 4px;">[gas_search]</code></li>
-                                <li>This shows a date picker where guests choose check-in/check-out dates</li>
-                            </ol>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">Edit your homepage, add a <strong>Shortcode</strong> block, and paste:</p>
+                            <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
+                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_search]</code>
+                                <button onclick="copyShortcode('[gas_search]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows check-in/check-out date picker</p>
                         </div>
                     </div>
 
                     <!-- Step 4 -->
                     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">4</div>
-                        <div>
+                        <div style="flex: 1;">
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Create "Book Now" Page</h4>
-                            <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8;">
-                                <li>Go to <strong>Pages → Add New</strong></li>
-                                <li>Title it <strong>"Book Now"</strong> (URL will be /book-now/)</li>
-                                <li>Add a Shortcode block with: <code style="background: #1e293b; color: #e2e8f0; padding: 0.2rem 0.5rem; border-radius: 4px;" id="wp-rooms-shortcode">[gas_rooms property_id="1"]</code></li>
-                                <li>Publish the page</li>
-                                <li>This shows all your rooms with availability for the selected dates</li>
-                            </ol>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;"><strong>Pages → Add New</strong> → Title: "Book Now" → Add Shortcode block:</p>
+                            <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
+                                <code style="color: #e2e8f0; font-size: 0.9rem;" id="wp-rooms-shortcode">[gas_rooms property_id="1"]</code>
+                                <button onclick="copyShortcode('[gas_rooms property_id=&quot;' + (window.currentPropertyId || 1) + '&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows grid of all rooms with availability</p>
                         </div>
                     </div>
 
                     <!-- Step 5 -->
                     <div style="display: flex; gap: 1rem;">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">5</div>
-                        <div>
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Create "Room" Page Template</h4>
-                            <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8;">
-                                <li>Go to <strong>Pages → Add New</strong></li>
-                                <li>Title it <strong>"Room"</strong> (URL will be /room/)</li>
-                                <li>Add a Shortcode block with: <code style="background: #1e293b; color: #e2e8f0; padding: 0.2rem 0.5rem; border-radius: 4px;">[gas_room]</code></li>
-                                <li>Publish the page</li>
-                                <li>This page automatically shows room details based on the URL (e.g., /room/?unit_id=190)</li>
-                            </ol>
+                        <div style="flex: 1;">
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Create "Room" Page</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;"><strong>Pages → Add New</strong> → Title: "Room" → Add Shortcode block:</p>
+                            <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
+                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_room]</code>
+                                <button onclick="copyShortcode('[gas_room]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows full room details, calendar & booking form</p>
                         </div>
                     </div>
                 </div>
@@ -2345,6 +2404,137 @@
                 </div>
             </div>
         </main>
+    </div>
+
+    <!-- Add/Edit Client Modal -->
+    <div id="clientModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="client-modal-title" style="margin: 0; font-size: 1.25rem;">👥 Add New Client</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Create a new client account</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('clientModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="client-form" onsubmit="saveClient(event)">
+                    <input type="hidden" id="client-id">
+                    
+                    <!-- Basic Info -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Basic Information</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Company / Client Name <span style="color: #ef4444;">*</span></label>
+                                <input type="text" id="client-name" class="form-input" required placeholder="e.g., Lehmann House Ltd">
+                            </div>
+                            <div class="form-group">
+                                <label>Email <span style="color: #ef4444;">*</span></label>
+                                <input type="email" id="client-email" class="form-input" required placeholder="info@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone</label>
+                                <input type="tel" id="client-phone" class="form-input" placeholder="+44 1234 567890">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Address -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Address</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Address Line 1</label>
+                                <input type="text" id="client-address1" class="form-input" placeholder="Street address">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Address Line 2</label>
+                                <input type="text" id="client-address2" class="form-input" placeholder="Apartment, suite, etc.">
+                            </div>
+                            <div class="form-group">
+                                <label>City</label>
+                                <input type="text" id="client-city" class="form-input" placeholder="City">
+                            </div>
+                            <div class="form-group">
+                                <label>Region / County</label>
+                                <input type="text" id="client-region" class="form-input" placeholder="Region">
+                            </div>
+                            <div class="form-group">
+                                <label>Postcode</label>
+                                <input type="text" id="client-postcode" class="form-input" placeholder="Postcode">
+                            </div>
+                            <div class="form-group">
+                                <label>Country</label>
+                                <input type="text" id="client-country" class="form-input" value="United Kingdom">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Settings</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label>Currency</label>
+                                <select id="client-currency" class="form-input">
+                                    <option value="GBP">£ GBP</option>
+                                    <option value="EUR">€ EUR</option>
+                                    <option value="USD">$ USD</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Plan</label>
+                                <select id="client-plan" class="form-input">
+                                    <option value="free">Free</option>
+                                    <option value="starter">Starter</option>
+                                    <option value="professional">Professional</option>
+                                    <option value="agency">Agency</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="client-status" class="form-input">
+                                    <option value="active">Active</option>
+                                    <option value="trial">Trial</option>
+                                    <option value="suspended">Suspended</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label>Internal Notes</label>
+                        <textarea id="client-notes" class="form-input" rows="2" placeholder="Any internal notes about this client..."></textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('clientModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Client</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Client Detail Modal -->
+    <div id="clientDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="client-detail-title" style="margin: 0; font-size: 1.25rem;">Client Details</h3>
+                    <p id="client-detail-subtitle" style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;"></p>
+                </div>
+                <button class="modal-close" onclick="closeModal('clientDetailModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;" id="client-detail-content">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 1rem;">Loading client details...</p>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Add Offer Modal -->
@@ -3309,6 +3499,7 @@
             
             // Load data for specific views
             if (viewName === 'dashboard') loadDashboard();
+            if (viewName === 'clients') loadClients();
             if (viewName === 'properties') loadProperties();
             if (viewName === 'rooms') loadRooms();
             if (viewName === 'images') loadImages();
@@ -3322,6 +3513,337 @@
             if (viewName === 'fees') loadFees();
             if (viewName === 'taxes') loadTaxes();
             if (viewName === 'wordpress') loadWordPressView();
+        }
+
+        // =========================================================
+        // CLIENT MANAGEMENT FUNCTIONS
+        // =========================================================
+
+        async function loadClients() {
+            const container = document.getElementById('clients-list');
+            try {
+                const response = await fetch('/api/admin/clients');
+                const data = await response.json();
+                
+                // Also get unassigned properties count
+                const unassignedRes = await fetch('/api/admin/properties/unassigned');
+                const unassignedData = await unassignedRes.json();
+                
+                if (data.success && data.clients) {
+                    // Update stats
+                    document.getElementById('stat-total-clients').textContent = data.clients.length;
+                    document.getElementById('stat-active-clients').textContent = data.clients.filter(c => c.status === 'active').length;
+                    document.getElementById('stat-paid-clients').textContent = data.clients.filter(c => c.plan !== 'free').length;
+                    document.getElementById('stat-unassigned-props').textContent = unassignedData.properties?.length || 0;
+                    
+                    if (data.clients.length === 0) {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <p style="font-size: 3rem; margin-bottom: 1rem;">👥</p>
+                                <p>No clients yet.</p>
+                                <button class="btn" onclick="openAddClientModal()" style="margin-top: 1rem;">Add Your First Client</button>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    container.innerHTML = `
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Client</th>
+                                        <th>Properties</th>
+                                        <th>Rooms</th>
+                                        <th>Plan</th>
+                                        <th>Status</th>
+                                        <th>API Key</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.clients.map(client => `
+                                        <tr>
+                                            <td>
+                                                <strong>${client.name}</strong>
+                                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${client.email}</div>
+                                            </td>
+                                            <td><span class="badge">${client.property_count || 0}</span></td>
+                                            <td><span class="badge">${client.room_count || 0}</span></td>
+                                            <td>
+                                                <span class="badge ${client.plan === 'free' ? 'badge-secondary' : client.plan === 'agency' ? 'badge-success' : 'badge-warning'}">
+                                                    ${client.plan}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge ${client.status === 'active' ? 'badge-success' : client.status === 'trial' ? 'badge-warning' : 'badge-secondary'}">
+                                                    ${client.status}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                ${client.api_key ? `
+                                                    <code style="font-size: 0.7rem; background: var(--bg-primary); padding: 0.2rem 0.4rem; border-radius: 3px;">
+                                                        ${client.api_key.substring(0, 12)}...
+                                                    </code>
+                                                    <button onclick="copyShortcode('${client.api_key}')" style="background: none; border: none; cursor: pointer; font-size: 0.75rem;" title="Copy API Key">📋</button>
+                                                ` : '<span style="color: var(--text-secondary);">-</span>'}
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="viewClient(${client.id})">View</button>
+                                                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="editClient(${client.id})">Edit</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No clients table found. Run the migration first.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading clients:', error);
+                container.innerHTML = `<p style="color: var(--error); text-align: center; padding: 2rem;">Error loading clients: ${error.message}</p>`;
+            }
+        }
+
+        function openAddClientModal() {
+            document.getElementById('client-id').value = '';
+            document.getElementById('client-form').reset();
+            document.getElementById('client-modal-title').textContent = '👥 Add New Client';
+            document.getElementById('client-country').value = 'United Kingdom';
+            openModal('clientModal');
+        }
+
+        async function editClient(clientId) {
+            try {
+                const response = await fetch(`/api/admin/clients/${clientId}`);
+                const data = await response.json();
+                
+                if (data.success && data.client) {
+                    const c = data.client;
+                    document.getElementById('client-id').value = c.id;
+                    document.getElementById('client-name').value = c.name || '';
+                    document.getElementById('client-email').value = c.email || '';
+                    document.getElementById('client-phone').value = c.phone || '';
+                    document.getElementById('client-address1').value = c.address_line1 || '';
+                    document.getElementById('client-address2').value = c.address_line2 || '';
+                    document.getElementById('client-city').value = c.city || '';
+                    document.getElementById('client-region').value = c.region || '';
+                    document.getElementById('client-postcode').value = c.postcode || '';
+                    document.getElementById('client-country').value = c.country || 'United Kingdom';
+                    document.getElementById('client-currency').value = c.currency || 'GBP';
+                    document.getElementById('client-plan').value = c.plan || 'free';
+                    document.getElementById('client-status').value = c.status || 'active';
+                    document.getElementById('client-notes').value = c.notes || '';
+                    
+                    document.getElementById('client-modal-title').textContent = '✏️ Edit Client';
+                    openModal('clientModal');
+                }
+            } catch (error) {
+                alert('Error loading client: ' + error.message);
+            }
+        }
+
+        async function saveClient(event) {
+            event.preventDefault();
+            
+            const clientId = document.getElementById('client-id').value;
+            const clientData = {
+                name: document.getElementById('client-name').value,
+                email: document.getElementById('client-email').value,
+                phone: document.getElementById('client-phone').value,
+                address_line1: document.getElementById('client-address1').value,
+                address_line2: document.getElementById('client-address2').value,
+                city: document.getElementById('client-city').value,
+                region: document.getElementById('client-region').value,
+                postcode: document.getElementById('client-postcode').value,
+                country: document.getElementById('client-country').value,
+                currency: document.getElementById('client-currency').value,
+                plan: document.getElementById('client-plan').value,
+                status: document.getElementById('client-status').value,
+                notes: document.getElementById('client-notes').value
+            };
+            
+            try {
+                const url = clientId ? `/api/admin/clients/${clientId}` : '/api/admin/clients';
+                const method = clientId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(clientData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeModal('clientModal');
+                    loadClients();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error saving client: ' + error.message);
+            }
+        }
+
+        async function viewClient(clientId) {
+            openModal('clientDetailModal');
+            document.getElementById('client-detail-content').innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p style="margin-top: 1rem;">Loading client details...</p>
+                </div>
+            `;
+            
+            try {
+                const response = await fetch(`/api/admin/clients/${clientId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const c = data.client;
+                    document.getElementById('client-detail-title').textContent = c.name;
+                    document.getElementById('client-detail-subtitle').textContent = c.email;
+                    
+                    document.getElementById('client-detail-content').innerHTML = `
+                        <!-- API Key Section -->
+                        <div style="background: linear-gradient(135deg, #1e293b 0%, #334155 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; color: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                <span style="font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.05em; opacity: 0.8;">API Key</span>
+                                <span class="badge ${c.plan === 'free' ? 'badge-secondary' : 'badge-success'}">${c.plan === 'free' ? '🔒 Requires Paid Plan' : '✓ Active'}</span>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <code style="flex: 1; background: rgba(0,0,0,0.3); padding: 0.75rem; border-radius: 6px; font-size: 0.85rem; word-break: break-all;">
+                                    ${c.api_key || 'No API key generated'}
+                                </code>
+                                <button onclick="copyShortcode('${c.api_key}')" class="btn" style="padding: 0.5rem 1rem;">Copy</button>
+                                <button onclick="regenerateApiKey(${c.id})" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Regenerate</button>
+                            </div>
+                            ${c.plan === 'free' ? '<p style="margin-top: 0.75rem; font-size: 0.8rem; opacity: 0.8;">⚠️ Upgrade to a paid plan to enable WordPress plugin API access</p>' : ''}
+                        </div>
+
+                        <!-- Properties -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                <h4 style="margin: 0;">Properties (${data.properties?.length || 0})</h4>
+                                <button onclick="assignPropertyToClient(${c.id})" class="btn btn-secondary" style="padding: 0.3rem 0.75rem; font-size: 0.8rem;">+ Assign Property</button>
+                            </div>
+                            ${data.properties && data.properties.length > 0 ? `
+                                <div style="background: var(--bg-primary); border-radius: 8px; overflow: hidden;">
+                                    ${data.properties.map(p => `
+                                        <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <strong>${p.name}</strong>
+                                                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 0.5rem;">${p.room_count || 0} rooms</span>
+                                            </div>
+                                            <code style="font-size: 0.75rem; background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 3px;">ID: ${p.id}</code>
+                                        </div>
+                                    `).join('')}
+                                </div>
+                            ` : '<p style="color: var(--text-secondary); font-size: 0.9rem;">No properties assigned</p>'}
+                        </div>
+
+                        <!-- Client Info Grid -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div>
+                                <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: var(--text-secondary);">Contact</h4>
+                                <p style="margin: 0.25rem 0;"><strong>Phone:</strong> ${c.phone || '-'}</p>
+                                <p style="margin: 0.25rem 0;"><strong>Address:</strong> ${[c.address_line1, c.city, c.postcode, c.country].filter(Boolean).join(', ') || '-'}</p>
+                            </div>
+                            <div>
+                                <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; color: var(--text-secondary);">Settings</h4>
+                                <p style="margin: 0.25rem 0;"><strong>Currency:</strong> ${c.currency || 'GBP'}</p>
+                                <p style="margin: 0.25rem 0;"><strong>Created:</strong> ${new Date(c.created_at).toLocaleDateString()}</p>
+                            </div>
+                        </div>
+
+                        ${c.notes ? `
+                            <div style="margin-top: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+                                <strong style="color: #92400e;">Notes:</strong>
+                                <p style="margin: 0.5rem 0 0 0; color: #78350f;">${c.notes}</p>
+                            </div>
+                        ` : ''}
+
+                        <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                            <button onclick="editClient(${c.id}); closeModal('clientDetailModal');" class="btn btn-secondary">Edit Client</button>
+                            <button onclick="deleteClient(${c.id})" class="btn" style="background: var(--error); border-color: var(--error);">Delete Client</button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                document.getElementById('client-detail-content').innerHTML = `<p style="color: var(--error);">Error loading client: ${error.message}</p>`;
+            }
+        }
+
+        async function regenerateApiKey(clientId) {
+            if (!confirm('Are you sure you want to regenerate the API key? The old key will stop working immediately.')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/clients/${clientId}/regenerate-api-key`, { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('API key regenerated! New key: ' + result.api_key);
+                    viewClient(clientId);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error regenerating API key: ' + error.message);
+            }
+        }
+
+        async function deleteClient(clientId) {
+            if (!confirm('Are you sure you want to delete this client? This cannot be undone.')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/clients/${clientId}`, { method: 'DELETE' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeModal('clientDetailModal');
+                    loadClients();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error deleting client: ' + error.message);
+            }
+        }
+
+        async function assignPropertyToClient(clientId) {
+            try {
+                const response = await fetch('/api/admin/properties/unassigned');
+                const data = await response.json();
+                
+                if (!data.properties || data.properties.length === 0) {
+                    alert('No unassigned properties available');
+                    return;
+                }
+                
+                const propertyId = prompt(
+                    'Enter property ID to assign:\n\nUnassigned properties:\n' + 
+                    data.properties.map(p => `ID ${p.id}: ${p.name}`).join('\n')
+                );
+                
+                if (propertyId) {
+                    const assignResponse = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ property_id: parseInt(propertyId) })
+                    });
+                    
+                    const result = await assignResponse.json();
+                    if (result.success) {
+                        viewClient(clientId);
+                    } else {
+                        alert('Error: ' + result.error);
+                    }
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
         }
 
         // Copy shortcode to clipboard
