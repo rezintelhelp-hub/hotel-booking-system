@@ -77,13 +77,13 @@
 /* Button - Minimal Modern */
 .gas-btn-primary {
     background: #1a1a1a;
-    color: white;
+    color: white !important;
     border: none;
     padding: 24px 40px;
     font-size: 14px;
     font-weight: 500;
     cursor: pointer;
-    text-decoration: none;
+    text-decoration: none !important;
     display: inline-block;
     letter-spacing: 0.5px;
     text-transform: uppercase;
@@ -95,6 +95,27 @@
     background: #333;
     transform: none;
     box-shadow: none;
+    color: white !important;
+}
+
+.gas-btn-secondary {
+    background: #f5f5f5;
+    color: #333 !important;
+    border: 1px solid #d0d0d0;
+    padding: 12px 24px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    text-decoration: none !important;
+    display: inline-block;
+    letter-spacing: 0.5px;
+    transition: all 0.3s ease;
+    border-radius: 4px;
+}
+
+.gas-btn-secondary:hover {
+    background: #e8e8e8;
+    color: #333 !important;
 }
 
 /* Properties Grid - Card Layout */
@@ -102,8 +123,16 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
     gap: 40px;
-    margin: 60px 0;
+    margin: 40px 0;
     padding: 0;
+}
+
+/* Results Title */
+.gas-results-title {
+    font-size: 24px;
+    font-weight: 300;
+    margin: 40px 0 20px;
+    color: #1a1a1a;
 }
 
 /* Property Card - Clean Minimal */
@@ -170,6 +199,12 @@
     margin-bottom: 15px;
 }
 
+.gas-property-content .gas-property-rooms {
+    font-size: 13px;
+    color: #059669;
+    font-weight: 500;
+}
+
 .gas-property-content .gas-btn-primary {
     margin-top: 20px;
     padding: 12px 24px;
@@ -180,7 +215,7 @@
 
 /* Search Results */
 #gas-search-results {
-    margin-top: 60px;
+    margin-top: 40px;
 }
 
 #gas-search-results .gas-properties-grid {
@@ -207,6 +242,202 @@
     font-weight: 300;
     margin-bottom: 10px;
     color: #666;
+}
+
+/* Error State */
+.gas-error {
+    background: #fef2f2;
+    border: 1px solid #fecaca;
+    color: #991b1b;
+    padding: 20px;
+    border-radius: 4px;
+    text-align: center;
+}
+
+/* Modal Styles */
+.gas-modal-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    z-index: 99999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.gas-modal {
+    background: white;
+    border-radius: 8px;
+    max-width: 800px;
+    max-height: 90vh;
+    overflow-y: auto;
+    position: relative;
+    width: 100%;
+}
+
+.gas-modal-close {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    background: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    font-size: 24px;
+    cursor: pointer;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    line-height: 1;
+}
+
+.gas-modal-close:hover {
+    background: rgba(0, 0, 0, 0.7);
+}
+
+.gas-modal-body {
+    padding: 0;
+}
+
+.gas-modal-property {
+}
+
+.gas-modal-image {
+    width: 100%;
+    height: 300px;
+    overflow: hidden;
+}
+
+.gas-modal-image img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gas-modal-content {
+    padding: 30px;
+}
+
+.gas-modal-content h2 {
+    font-size: 28px;
+    font-weight: 400;
+    margin: 0 0 10px;
+    color: #1a1a1a;
+}
+
+.gas-modal-location {
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 20px;
+}
+
+.gas-modal-description {
+    font-size: 15px;
+    line-height: 1.7;
+    color: #444;
+    margin-bottom: 30px;
+}
+
+.gas-modal-rooms {
+    border-top: 1px solid #e8e8e8;
+    padding-top: 20px;
+    margin-bottom: 30px;
+}
+
+.gas-modal-rooms h4 {
+    font-size: 16px;
+    font-weight: 600;
+    margin: 0 0 15px;
+    color: #1a1a1a;
+}
+
+.gas-room-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: #f9f9f9;
+    border-radius: 4px;
+    margin-bottom: 10px;
+}
+
+.gas-room-info h5 {
+    font-size: 16px;
+    font-weight: 500;
+    margin: 0 0 5px;
+    color: #1a1a1a;
+}
+
+.gas-room-info p {
+    font-size: 13px;
+    color: #666;
+    margin: 0;
+}
+
+.gas-room-price {
+    font-size: 24px;
+    font-weight: 300;
+    color: #1a1a1a;
+}
+
+.gas-room-price span {
+    font-size: 12px;
+    color: #999;
+}
+
+.gas-modal-actions {
+    display: flex;
+    gap: 15px;
+    justify-content: flex-end;
+    padding-top: 20px;
+    border-top: 1px solid #e8e8e8;
+}
+
+.gas-modal-actions .gas-btn-primary {
+    padding: 14px 30px;
+}
+
+/* Single Property Page */
+.gas-single-property {
+}
+
+.gas-property-hero {
+    width: 100%;
+    height: 400px;
+    overflow: hidden;
+    margin-bottom: 40px;
+}
+
+.gas-property-hero img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.gas-property-details h1 {
+    font-size: 36px;
+    font-weight: 300;
+    margin: 0 0 15px;
+    color: #1a1a1a;
+}
+
+.gas-property-details .gas-property-location {
+    font-size: 16px;
+    color: #666;
+    margin-bottom: 30px;
+}
+
+.gas-property-description {
+    font-size: 16px;
+    line-height: 1.8;
+    color: #444;
 }
 
 /* Responsive */
@@ -236,9 +467,28 @@
     .gas-search-form {
         padding: 40px 20px;
     }
+    
+    .gas-modal {
+        margin: 10px;
+        max-height: calc(100vh - 20px);
+    }
+    
+    .gas-modal-image {
+        height: 200px;
+    }
+    
+    .gas-modal-content {
+        padding: 20px;
+    }
+    
+    .gas-room-card {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 10px;
+    }
 }
 
-/* Price Display (for future use) */
+/* Price Display */
 .gas-property-price {
     font-size: 24px;
     font-weight: 300;
@@ -252,7 +502,7 @@
     font-weight: 400;
 }
 
-/* Amenities (for future use) */
+/* Amenities */
 .gas-amenities {
     display: flex;
     flex-wrap: wrap;
