@@ -703,6 +703,12 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER`);
     // Add hostaway columns
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
+    // Add location fields to properties
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS district VARCHAR(100)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(100)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS zip_code VARCHAR(20)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
     // Add access_token column to channel_connections
@@ -944,7 +950,7 @@ app.post('/api/db/properties', async (req, res) => {
 app.put('/api/db/properties/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, address, city, country, property_type, status } = req.body;
+    const { name, description, address, city, country, property_type, status, district, state, zip_code, latitude, longitude } = req.body;
 
     const result = await pool.query(
       `UPDATE properties SET 
@@ -955,10 +961,15 @@ app.put('/api/db/properties/:id', async (req, res) => {
         country = COALESCE($5, country), 
         property_type = COALESCE($6, property_type),
         status = COALESCE($7, status),
+        district = COALESCE($8, district),
+        state = COALESCE($9, state),
+        zip_code = COALESCE($10, zip_code),
+        latitude = COALESCE($11, latitude),
+        longitude = COALESCE($12, longitude),
         updated_at = NOW()
-      WHERE id = $8
+      WHERE id = $13
       RETURNING *`,
-      [name, description, address, city, country, property_type, status, id]
+      [name, description, address, city, country, property_type, status, district, state, zip_code, latitude, longitude, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -6703,6 +6714,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     
     let query = `
       SELECT bu.id, bu.name, bu.unit_type, bu.description, bu.max_guests, bu.base_price,
+             bu.bedroom_count, bu.bathroom_count,
              p.name as property_name, p.currency,
              (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_primary = true LIMIT 1) as image_url
       FROM bookable_units bu
