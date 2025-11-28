@@ -7114,7 +7114,7 @@ app.get('/api/admin/clients', async (req, res) => {
       SELECT 
         c.*,
         COUNT(DISTINCT p.id) as property_count,
-        (SELECT COUNT(*) FROM rooms r2 JOIN properties p2 ON r2.property_id = p2.id WHERE p2.client_id = c.id) as room_count,
+        (SELECT COUNT(*) FROM bookable_units bu JOIN properties p2 ON bu.property_id = p2.id WHERE p2.client_id = c.id) as room_count,
         0 as total_bookings
       FROM clients c
       LEFT JOIN properties p ON p.client_id = c.id
@@ -7142,9 +7142,9 @@ app.get('/api/admin/clients/:id', async (req, res) => {
     
     // Get client's properties
     const properties = await pool.query(`
-      SELECT p.*, COUNT(r.id) as room_count
+      SELECT p.*, COUNT(bu.id) as room_count
       FROM properties p
-      LEFT JOIN rooms r ON r.property_id = p.id
+      LEFT JOIN bookable_units bu ON bu.property_id = p.id
       WHERE p.client_id = $1
       GROUP BY p.id
       ORDER BY p.name
@@ -7354,9 +7354,9 @@ app.post('/api/admin/clients/:id/assign-property', async (req, res) => {
 app.get('/api/admin/properties/unassigned', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.*, COUNT(r.id) as room_count
+      SELECT p.*, COUNT(bu.id) as room_count
       FROM properties p
-      LEFT JOIN rooms r ON r.property_id = p.id
+      LEFT JOIN bookable_units bu ON bu.property_id = p.id
       WHERE p.client_id IS NULL
       GROUP BY p.id
       ORDER BY p.name
@@ -7500,9 +7500,9 @@ const validateApiKey = async (req, res, next) => {
 app.get('/api/v1/properties', validateApiKey, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.*, COUNT(r.id) as room_count
+      SELECT p.*, COUNT(bu.id) as room_count
       FROM properties p
-      LEFT JOIN rooms r ON r.property_id = p.id
+      LEFT JOIN bookable_units bu ON bu.property_id = p.id
       WHERE p.client_id = $1
       GROUP BY p.id
       ORDER BY p.name
@@ -7519,11 +7519,11 @@ app.get('/api/v1/properties', validateApiKey, async (req, res) => {
 app.get('/api/v1/units', validateApiKey, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT r.*, p.name as property_name, p.id as property_id
-      FROM rooms r
-      JOIN properties p ON r.property_id = p.id
+      SELECT bu.*, p.name as property_name, p.id as property_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
       WHERE p.client_id = $1
-      ORDER BY p.name, r.name
+      ORDER BY p.name, bu.name
     `, [req.client.id]);
     
     res.json({ success: true, units: result.rows });
@@ -7541,9 +7541,9 @@ app.get('/api/v1/availability/:unitId', validateApiKey, async (req, res) => {
     
     // Verify unit belongs to this client
     const unitCheck = await pool.query(`
-      SELECT r.id FROM rooms r
-      JOIN properties p ON r.property_id = p.id
-      WHERE r.id = $1 AND p.client_id = $2
+      SELECT bu.id FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1 AND p.client_id = $2
     `, [unitId, req.client.id]);
     
     if (unitCheck.rows.length === 0) {
