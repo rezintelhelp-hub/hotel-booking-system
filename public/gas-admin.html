@@ -7402,6 +7402,9 @@
                     // Reset map state
                     document.getElementById('property-map-preview').style.display = 'none';
                     document.getElementById('toggle-map-btn').textContent = '🗺️ Show Map';
+                    if (propertyMap) {
+                        propertyMap.remove();
+                    }
                     propertyMap = null;
                     propertyMarker = null;
                     
@@ -7504,6 +7507,22 @@
                 btn.textContent = '🗺️ Hide Map';
                 if (!propertyMap) {
                     initPropertyMap();
+                } else {
+                    // Map already exists - update to current coordinates
+                    const lat = parseFloat(document.getElementById('edit-property-latitude').value) || 51.5074;
+                    const lon = parseFloat(document.getElementById('edit-property-longitude').value) || -0.1278;
+                    propertyMap.setView([lat, lon], 15);
+                    if (propertyMarker) {
+                        propertyMarker.setLatLng([lat, lon]);
+                    } else if (document.getElementById('edit-property-latitude').value) {
+                        propertyMarker = L.marker([lat, lon], { draggable: true }).addTo(propertyMap);
+                        propertyMarker.on('dragend', function(e) {
+                            const pos = e.target.getLatLng();
+                            document.getElementById('edit-property-latitude').value = pos.lat.toFixed(7);
+                            document.getElementById('edit-property-longitude').value = pos.lng.toFixed(7);
+                        });
+                    }
+                    setTimeout(() => propertyMap.invalidateSize(), 100);
                 }
             } else {
                 mapPreview.style.display = 'none';
