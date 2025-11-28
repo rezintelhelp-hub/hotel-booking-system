@@ -3,119 +3,245 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hotel Booking System</title>
+    <title>GAS - Guest Accommodation System</title>
     <style>
-        * { margin: 0; padding: 0; box-sizing: border-box; }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            padding: 20px;
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
-        .container { max-width: 1200px; margin: 0 auto; }
-        header { text-align: center; color: white; margin-bottom: 40px; }
-        h1 { font-size: 48px; margin-bottom: 10px; }
-        .search-box {
-            background: white;
-            border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 60px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+        }
+
+        .logo {
+            font-size: 3.5rem;
+            font-weight: 700;
+            letter-spacing: -2px;
+            margin-bottom: 10px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tagline {
+            color: #8892b0;
+            font-size: 1.1rem;
+        }
+
+        .section {
             margin-bottom: 40px;
         }
-        .form-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 20px;
-            margin-bottom: 20px;
+
+        .section-title {
+            font-size: 0.8rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.15em;
+            color: #667eea;
+            margin-bottom: 15px;
+            padding-left: 5px;
         }
-        .form-group label {
+
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+        }
+
+        .card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            padding: 25px;
+            text-decoration: none;
+            color: #fff;
+            transition: all 0.3s ease;
             display: block;
+        }
+
+        .card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(102, 126, 234, 0.5);
+            transform: translateY(-4px);
+        }
+
+        .card-icon {
+            font-size: 2rem;
+            margin-bottom: 15px;
+        }
+
+        .card-title {
+            font-size: 1.25rem;
             font-weight: 600;
             margin-bottom: 8px;
-            color: #333;
         }
-        input, select {
-            width: 100%;
-            padding: 12px;
-            border: 2px solid #e0e0e0;
-            border-radius: 8px;
-            font-size: 16px;
+
+        .card-desc {
+            font-size: 0.9rem;
+            color: #8892b0;
+            line-height: 1.5;
         }
-        button {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            border: none;
-            padding: 15px 40px;
-            border-radius: 8px;
-            font-size: 18px;
+
+        .card-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            background: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            font-size: 0.7rem;
             font-weight: 600;
-            cursor: pointer;
-            width: 100%;
-            transition: transform 0.2s;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-radius: 4px;
+            margin-top: 12px;
         }
-        button:hover { transform: translateY(-2px); }
-        button:disabled { background: #ccc; cursor: not-allowed; }
-        .rooms-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-            gap: 30px;
-            margin-top: 40px;
+
+        .card-badge.green {
+            background: rgba(39, 174, 96, 0.2);
+            color: #27ae60;
         }
-        .room-card {
-            background: white;
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
-            transition: transform 0.3s;
+
+        .card-badge.orange {
+            background: rgba(230, 126, 34, 0.2);
+            color: #e67e22;
         }
-        .room-card:hover { transform: translateY(-5px); }
-        .room-image {
-            width: 100%;
-            height: 200px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
+
+        .footer {
+            text-align: center;
+            margin-top: 60px;
+            padding-top: 30px;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: #8892b0;
+            font-size: 0.85rem;
+        }
+
+        .footer a {
+            color: #667eea;
+            text-decoration: none;
+        }
+
+        .footer a:hover {
+            text-decoration: underline;
+        }
+
+        .api-status {
+            display: inline-flex;
             align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 48px;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(39, 174, 96, 0.15);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #27ae60;
+            margin-top: 20px;
         }
-        .room-content { padding: 20px; }
-        .room-name { font-size: 24px; font-weight: 700; margin-bottom: 10px; }
-        .room-price { font-size: 32px; color: #667eea; font-weight: 700; margin: 15px 0; }
-        .loading { text-align: center; color: white; font-size: 24px; padding: 40px; }
-        .message { padding: 20px; border-radius: 10px; margin: 20px 0; text-align: center; }
-        .message.error { background: #f8d7da; color: #721c24; border: 2px solid #f5c6cb; }
-        .message.success { background: #d4edda; color: #155724; border: 2px solid #c3e6cb; }
+
+        .api-status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #27ae60;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
     </style>
 </head>
 <body>
     <div class="container">
-        <header>
-            <h1>🏨 Hotel Booking</h1>
-            <p>Find and book your perfect room</p>
-        </header>
-        <div class="search-box">
-            <h2 style="margin-bottom: 20px;">Search Available Rooms</h2>
-            <div class="form-grid">
-                <div class="form-group">
-                    <label>Check In</label>
-                    <input type="date" id="checkIn" min="">
-                </div>
-                <div class="form-group">
-                    <label>Check Out</label>
-                    <input type="date" id="checkOut" min="">
-                </div>
-                <div class="form-group">
-                    <label>Guests</label>
-                    <select id="guests">
-                        <option value="1">1 Guest</option>
-                        <option value="2" selected>2 Guests</option>
-                        <option value="3">3 Guests</option>
-                        <option value="4">4 Guests</option>
-                    </select>
-                </div>
-            </div>
-            <button onclick="searchRooms()" id="searchBtn">Search Rooms</button>
+        <div class="header">
+            <div class="logo">GAS</div>
+            <p class="tagline">Guest Accommodation System</p>
+            <div class="api-status">API Online</div>
         </div>
-        <div id="message"></div>
-        <div id="loading" class="loading"
+
+        <div class="section">
+            <div class="section-title">Administration</div>
+            <div class="cards">
+                <a href="/gas-admin.html" class="card">
+                    <div class="card-icon">🏨</div>
+                    <div class="card-title">Admin Dashboard</div>
+                    <div class="card-desc">Manage properties, rooms, bookings, pricing, and all system settings.</div>
+                    <span class="card-badge green">Full Access</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">Channel Manager Integrations</div>
+            <div class="cards">
+                <a href="/beds24-wizard.html" class="card">
+                    <div class="card-icon">🔗</div>
+                    <div class="card-title">Beds24 Wizard</div>
+                    <div class="card-desc">Connect and sync properties from Beds24 channel manager.</div>
+                    <span class="card-badge">Integration</span>
+                </a>
+                <a href="/hostaway-wizard.html" class="card">
+                    <div class="card-icon">🔗</div>
+                    <div class="card-title">Hostaway Wizard</div>
+                    <div class="card-desc">Connect and sync properties from Hostaway channel manager.</div>
+                    <span class="card-badge">Integration</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">WordPress Plugin</div>
+            <div class="cards">
+                <a href="/gas-widgets-preview.html" class="card">
+                    <div class="card-icon">🎨</div>
+                    <div class="card-title">Widget Preview</div>
+                    <div class="card-desc">Preview all booking widgets: search bar, room listings, and room detail pages.</div>
+                    <span class="card-badge orange">Preview</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="section">
+            <div class="section-title">API Documentation</div>
+            <div class="cards">
+                <a href="/api/health" class="card">
+                    <div class="card-icon">💚</div>
+                    <div class="card-title">Health Check</div>
+                    <div class="card-desc">Check API and database connectivity status.</div>
+                    <span class="card-badge">Endpoint</span>
+                </a>
+                <a href="/api/public/property/1" class="card">
+                    <div class="card-icon">📡</div>
+                    <div class="card-title">Public API</div>
+                    <div class="card-desc">Property info, availability, pricing, and booking endpoints for your website.</div>
+                    <span class="card-badge">Endpoint</span>
+                </a>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Guest Accommodation System &copy; 2025</p>
+            <p style="margin-top: 8px;">
+                <a href="/api/health">API Status</a> · 
+                <a href="https://github.com" target="_blank">GitHub</a>
+            </p>
+        </div>
+    </div>
+</body>
+</html>
