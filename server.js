@@ -6910,7 +6910,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     const bookings = await pool.query(`
       SELECT check_in, check_out 
       FROM bookings 
-      WHERE room_id = $1 
+      WHERE (room_id = $1 OR bookable_unit_id = $1)
         AND status NOT IN ('cancelled', 'rejected', 'no_show')
         AND check_in < $3 
         AND check_out > $2
