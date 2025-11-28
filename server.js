@@ -6774,7 +6774,26 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const unit = await pool.query(`
-      SELECT bu.*, p.name as property_name, p.currency
+      SELECT 
+        bu.id, bu.name, bu.unit_type, bu.max_guests, bu.base_price,
+        bu.bedroom_count, bu.bathroom_count, bu.property_id,
+        bu.description,
+        CASE 
+          WHEN bu.short_description IS NULL THEN NULL
+          WHEN jsonb_typeof(bu.short_description::jsonb) = 'object' THEN bu.short_description::jsonb->>'en'
+          ELSE bu.short_description::text
+        END as short_description,
+        CASE 
+          WHEN bu.full_description IS NULL THEN NULL
+          WHEN jsonb_typeof(bu.full_description::jsonb) = 'object' THEN bu.full_description::jsonb->>'en'
+          ELSE bu.full_description::text
+        END as full_description,
+        p.name as property_name, 
+        p.currency,
+        p.city,
+        p.country,
+        p.latitude,
+        p.longitude
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -6820,6 +6839,48 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     });
   } catch (error) {
     console.error('Public unit error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get property terms (public)
+app.get('/api/public/property/:propertyId/terms', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN house_rules IS NULL THEN NULL
+          WHEN jsonb_typeof(house_rules::jsonb) = 'object' THEN house_rules::jsonb->>'en'
+          ELSE house_rules::text
+        END as house_rules,
+        CASE 
+          WHEN cancellation_policy IS NULL THEN NULL
+          WHEN jsonb_typeof(cancellation_policy::jsonb) = 'object' THEN cancellation_policy::jsonb->>'en'
+          ELSE cancellation_policy::text
+        END as cancellation_policy,
+        CASE 
+          WHEN general_terms IS NULL THEN NULL
+          WHEN jsonb_typeof(general_terms::jsonb) = 'object' THEN general_terms::jsonb->>'en'
+          ELSE general_terms::text
+        END as general_terms
+      FROM properties 
+      WHERE id = $1
+    `, [propertyId]);
+    
+    if (!result.rows[0]) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({
+      success: true,
+      house_rules: result.rows[0].house_rules || '',
+      cancellation_policy: result.rows[0].cancellation_policy || '',
+      general_terms: result.rows[0].general_terms || ''
+    });
+  } catch (error) {
+    console.error('Property terms error:', error);
     res.json({ success: false, error: error.message });
   }
 });
