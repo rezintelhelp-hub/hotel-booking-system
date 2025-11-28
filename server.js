@@ -6444,6 +6444,475 @@ app.post('/api/ai/generate-content', async (req, res) => {
   }
 });
 
+// =====================================================
+// PUBLIC API ENDPOINTS (for WordPress plugin & widgets)
+// =====================================================
+
+// Get property info (public)
+app.get('/api/public/property/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    const property = await pool.query(`
+      SELECT id, name, property_type, description, city, country, currency, timezone
+      FROM properties WHERE id = $1
+    `, [propertyId]);
+    
+    if (!property.rows[0]) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const units = await pool.query(`
+      SELECT id, name, unit_type, max_guests, description, base_price
+      FROM bookable_units WHERE property_id = $1 AND status = 'active'
+      ORDER BY name
+    `, [propertyId]);
+    
+    const images = await pool.query(`
+      SELECT id, url, alt_text, is_primary
+      FROM property_images WHERE property_id = $1
+      ORDER BY sort_order, is_primary DESC
+    `, [propertyId]);
+    
+    res.json({
+      success: true,
+      property: property.rows[0],
+      units: units.rows,
+      images: images.rows
+    });
+  } catch (error) {
+    console.error('Public property error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get unit/room info (public)
+app.get('/api/public/unit/:unitId', async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    
+    const unit = await pool.query(`
+      SELECT bu.*, p.name as property_name, p.currency, p.timezone
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [unitId]);
+    
+    if (!unit.rows[0]) {
+      return res.json({ success: false, error: 'Unit not found' });
+    }
+    
+    const images = await pool.query(`
+      SELECT id, url, alt_text, is_primary
+      FROM bookable_unit_images WHERE unit_id = $1
+      ORDER BY sort_order, is_primary DESC
+    `, [unitId]);
+    
+    const amenities = await pool.query(`
+      SELECT name, category, icon
+      FROM bookable_unit_amenities WHERE unit_id = $1
+      ORDER BY category, name
+    `, [unitId]);
+    
+    res.json({
+      success: true,
+      unit: unit.rows[0],
+      images: images.rows,
+      amenities: amenities.rows
+    });
+  } catch (error) {
+    console.error('Public unit error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get availability calendar (public)
+app.get('/api/public/availability/:unitId', async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    const { from, to } = req.query;
+    
+    // Default to next 90 days if not specified
+    const startDate = from || new Date().toISOString().split('T')[0];
+    const endDate = to || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const availability = await pool.query(`
+      SELECT 
+        date,
+        COALESCE(direct_price, cm_price) as price,
+        is_available,
+        is_blocked,
+        min_stay
+      FROM room_availability
+      WHERE room_id = $1 AND date >= $2 AND date <= $3
+      ORDER BY date
+    `, [unitId, startDate, endDate]);
+    
+    // Get unit info for base price fallback
+    const unit = await pool.query(`
+      SELECT base_price, currency FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [unitId]);
+    
+    const basePrice = unit.rows[0]?.base_price || 0;
+    const currency = unit.rows[0]?.currency || 'GBP';
+    
+    // Build calendar with all dates
+    const calendar = [];
+    let current = new Date(startDate);
+    const end = new Date(endDate);
+    const availMap = {};
+    
+    availability.rows.forEach(a => {
+      const dateStr = a.date.toISOString().split('T')[0];
+      availMap[dateStr] = a;
+    });
+    
+    while (current <= end) {
+      const dateStr = current.toISOString().split('T')[0];
+      const dayData = availMap[dateStr];
+      
+      calendar.push({
+        date: dateStr,
+        price: dayData?.price || basePrice,
+        available: dayData ? (dayData.is_available && !dayData.is_blocked) : true,
+        min_stay: dayData?.min_stay || 1
+      });
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    res.json({
+      success: true,
+      unit_id: unitId,
+      currency: currency,
+      calendar: calendar
+    });
+  } catch (error) {
+    console.error('Public availability error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Calculate price for dates (public)
+app.post('/api/public/calculate-price', async (req, res) => {
+  try {
+    const { unit_id, check_in, check_out, guests, voucher_code } = req.body;
+    
+    if (!unit_id || !check_in || !check_out) {
+      return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
+    }
+    
+    // Get availability for date range
+    const availability = await pool.query(`
+      SELECT date, COALESCE(direct_price, cm_price) as price, is_available, is_blocked
+      FROM room_availability
+      WHERE room_id = $1 AND date >= $2 AND date < $3
+      ORDER BY date
+    `, [unit_id, check_in, check_out]);
+    
+    // Get unit for base price
+    const unit = await pool.query(`
+      SELECT bu.base_price, bu.max_guests, p.currency 
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [unit_id]);
+    
+    if (!unit.rows[0]) {
+      return res.json({ success: false, error: 'Unit not found' });
+    }
+    
+    const basePrice = unit.rows[0].base_price || 0;
+    const currency = unit.rows[0].currency || 'GBP';
+    
+    // Calculate nights
+    const checkInDate = new Date(check_in);
+    const checkOutDate = new Date(check_out);
+    const nights = Math.ceil((checkOutDate - checkInDate) / (1000 * 60 * 60 * 24));
+    
+    if (nights < 1) {
+      return res.json({ success: false, error: 'Invalid date range' });
+    }
+    
+    // Build nightly breakdown
+    const nightlyBreakdown = [];
+    let accommodationTotal = 0;
+    let allAvailable = true;
+    
+    let current = new Date(check_in);
+    for (let i = 0; i < nights; i++) {
+      const dateStr = current.toISOString().split('T')[0];
+      const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === dateStr);
+      
+      const nightPrice = dayData?.price || basePrice;
+      accommodationTotal += parseFloat(nightPrice);
+      
+      if (dayData && (!dayData.is_available || dayData.is_blocked)) {
+        allAvailable = false;
+      }
+      
+      nightlyBreakdown.push({
+        date: dateStr,
+        price: parseFloat(nightPrice)
+      });
+      
+      current.setDate(current.getDate() + 1);
+    }
+    
+    // Check for applicable offers
+    let discount = 0;
+    let offerApplied = null;
+    
+    const offers = await pool.query(`
+      SELECT * FROM offers
+      WHERE active = true
+        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+        AND (room_id IS NULL OR room_id = $1)
+        AND (min_nights IS NULL OR min_nights <= $2)
+        AND (valid_from IS NULL OR valid_from <= $3)
+        AND (valid_until IS NULL OR valid_until >= $4)
+      ORDER BY priority DESC, discount_value DESC
+      LIMIT 1
+    `, [unit_id, nights, check_in, check_out]);
+    
+    if (offers.rows[0]) {
+      const offer = offers.rows[0];
+      if (offer.discount_type === 'percentage') {
+        discount = accommodationTotal * (offer.discount_value / 100);
+      } else {
+        discount = parseFloat(offer.discount_value);
+      }
+      offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value };
+    }
+    
+    // Check voucher
+    let voucherDiscount = 0;
+    let voucherApplied = null;
+    
+    if (voucher_code) {
+      const voucher = await pool.query(`
+        SELECT * FROM vouchers
+        WHERE code = $1 AND active = true
+          AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $2))
+          AND (unit_id IS NULL OR unit_id = $2)
+          AND (min_nights IS NULL OR min_nights <= $3)
+          AND (valid_from IS NULL OR valid_from <= $4)
+          AND (valid_until IS NULL OR valid_until >= $5)
+          AND (max_uses IS NULL OR times_used < max_uses)
+      `, [voucher_code.toUpperCase(), unit_id, nights, check_in, check_out]);
+      
+      if (voucher.rows[0]) {
+        const v = voucher.rows[0];
+        if (v.discount_type === 'percentage') {
+          voucherDiscount = accommodationTotal * (v.discount_value / 100);
+        } else {
+          voucherDiscount = parseFloat(v.discount_value);
+        }
+        voucherApplied = { code: v.code, name: v.name, discount_type: v.discount_type, discount_value: v.discount_value };
+      } else {
+        return res.json({ success: false, error: 'Invalid or expired voucher code' });
+      }
+    }
+    
+    // Get applicable taxes
+    let taxTotal = 0;
+    const taxBreakdown = [];
+    
+    const taxes = await pool.query(`
+      SELECT * FROM taxes
+      WHERE active = true
+        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+        AND (unit_id IS NULL OR unit_id = $1)
+    `, [unit_id]);
+    
+    const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount;
+    
+    taxes.rows.forEach(tax => {
+      let taxAmount = 0;
+      if (tax.tax_type === 'percentage') {
+        taxAmount = subtotalAfterDiscounts * (tax.rate / 100);
+      } else if (tax.tax_type === 'per_night') {
+        taxAmount = tax.rate * nights;
+      } else if (tax.tax_type === 'per_person_per_night') {
+        taxAmount = tax.rate * nights * (guests || 1);
+      } else {
+        taxAmount = parseFloat(tax.rate);
+      }
+      taxTotal += taxAmount;
+      taxBreakdown.push({ name: tax.name, amount: taxAmount });
+    });
+    
+    const grandTotal = subtotalAfterDiscounts + taxTotal;
+    
+    res.json({
+      success: true,
+      available: allAvailable,
+      currency: currency,
+      nights: nights,
+      accommodation_total: accommodationTotal,
+      offer_discount: discount,
+      offer_applied: offerApplied,
+      voucher_discount: voucherDiscount,
+      voucher_applied: voucherApplied,
+      subtotal: subtotalAfterDiscounts,
+      taxes: taxBreakdown,
+      tax_total: taxTotal,
+      grand_total: grandTotal,
+      nightly_breakdown: nightlyBreakdown
+    });
+  } catch (error) {
+    console.error('Calculate price error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create booking (public)
+app.post('/api/public/book', async (req, res) => {
+  try {
+    const { 
+      unit_id, check_in, check_out, guests,
+      guest_first_name, guest_last_name, guest_email, guest_phone,
+      voucher_code, notes, total_price
+    } = req.body;
+    
+    // Validate required fields
+    if (!unit_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
+      return res.json({ success: false, error: 'Missing required fields' });
+    }
+    
+    // Get unit and property info
+    const unit = await pool.query(`
+      SELECT bu.*, p.id as property_id, p.name as property_name
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [unit_id]);
+    
+    if (!unit.rows[0]) {
+      return res.json({ success: false, error: 'Unit not found' });
+    }
+    
+    // Create booking
+    const booking = await pool.query(`
+      INSERT INTO bookings (
+        property_id, room_id, check_in, check_out, 
+        guest_first_name, guest_last_name, guest_email, guest_phone,
+        num_guests, total_price, status, source, notes, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'direct', $11, NOW())
+      RETURNING *
+    `, [
+      unit.rows[0].property_id,
+      unit_id,
+      check_in,
+      check_out,
+      guest_first_name,
+      guest_last_name,
+      guest_email,
+      guest_phone || null,
+      guests || 1,
+      total_price || 0,
+      notes || null
+    ]);
+    
+    // If voucher was used, increment usage
+    if (voucher_code) {
+      await pool.query(`
+        UPDATE vouchers SET times_used = times_used + 1 WHERE code = $1
+      `, [voucher_code.toUpperCase()]);
+    }
+    
+    // Block availability for these dates
+    const checkInDate = new Date(check_in);
+    const checkOutDate = new Date(check_out);
+    let current = new Date(check_in);
+    
+    while (current < checkOutDate) {
+      const dateStr = current.toISOString().split('T')[0];
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+        VALUES ($1, $2, false, true, 'booking')
+        ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true
+      `, [unit_id, dateStr]);
+      current.setDate(current.getDate() + 1);
+    }
+    
+    res.json({
+      success: true,
+      booking_id: booking.rows[0].id,
+      booking: booking.rows[0]
+    });
+  } catch (error) {
+    console.error('Create booking error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Validate voucher (public)
+app.post('/api/public/validate-voucher', async (req, res) => {
+  try {
+    const { code, unit_id, check_in, check_out } = req.body;
+    
+    if (!code) {
+      return res.json({ success: false, error: 'Voucher code required' });
+    }
+    
+    const nights = check_in && check_out ? 
+      Math.ceil((new Date(check_out) - new Date(check_in)) / (1000 * 60 * 60 * 24)) : 1;
+    
+    const voucher = await pool.query(`
+      SELECT * FROM vouchers
+      WHERE code = $1 AND active = true
+        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $2))
+        AND (unit_id IS NULL OR unit_id = $2)
+        AND (min_nights IS NULL OR min_nights <= $3)
+        AND (valid_from IS NULL OR valid_from <= $4)
+        AND (valid_until IS NULL OR valid_until >= $5)
+        AND (max_uses IS NULL OR times_used < max_uses)
+    `, [code.toUpperCase(), unit_id || null, nights, check_in || null, check_out || null]);
+    
+    if (voucher.rows[0]) {
+      res.json({
+        success: true,
+        valid: true,
+        voucher: {
+          code: voucher.rows[0].code,
+          name: voucher.rows[0].name,
+          discount_type: voucher.rows[0].discount_type,
+          discount_value: voucher.rows[0].discount_value
+        }
+      });
+    } else {
+      res.json({ success: true, valid: false, error: 'Invalid or expired voucher' });
+    }
+  } catch (error) {
+    console.error('Validate voucher error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get available upsells (public)
+app.get('/api/public/upsells/:unitId', async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    
+    const upsells = await pool.query(`
+      SELECT id, name, description, category, price, price_type
+      FROM upsells
+      WHERE active = true
+        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+        AND (unit_id IS NULL OR unit_id = $1)
+      ORDER BY category, name
+    `, [unitId]);
+    
+    res.json({ success: true, upsells: upsells.rows });
+  } catch (error) {
+    console.error('Get upsells error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
