@@ -7114,7 +7114,7 @@ app.get('/api/admin/clients', async (req, res) => {
       SELECT 
         c.*,
         COUNT(DISTINCT p.id) as property_count,
-        (SELECT COUNT(*) FROM bookable_units bu JOIN properties p2 ON bu.property_id = p2.id WHERE p2.client_id = c.id) as room_count,
+        (SELECT COUNT(*) FROM rooms r2 JOIN properties p2 ON r2.property_id = p2.id WHERE p2.client_id = c.id) as room_count,
         0 as total_bookings
       FROM clients c
       LEFT JOIN properties p ON p.client_id = c.id
@@ -7142,9 +7142,9 @@ app.get('/api/admin/clients/:id', async (req, res) => {
     
     // Get client's properties
     const properties = await pool.query(`
-      SELECT p.*, COUNT(bu.id) as room_count
+      SELECT p.*, COUNT(r.id) as room_count
       FROM properties p
-      LEFT JOIN bookable_units bu ON bu.property_id = p.id
+      LEFT JOIN rooms r ON r.property_id = p.id
       WHERE p.client_id = $1
       GROUP BY p.id
       ORDER BY p.name
@@ -7317,31 +7317,11 @@ app.post('/api/admin/clients/:id/assign-property', async (req, res) => {
       RETURNING *
     `, [id, property_id]);
     
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Property not found' });
-    }
-    
-    // Also update channel manager connections (if table has client_id column)
-    try {
-      await pool.query(`
-        UPDATE channel_connections SET client_id = $1
-        WHERE property_id = $2
-      `, [id, property_id]);
-    } catch (connError) {
-      // Ignore if channel_connections table doesn't exist or doesn't have these columns
-      console.log('Note: channel_connections update skipped:', connError.message);
-    }
-    
-    // Also update rooms to be associated with the client
-    try {
-      await pool.query(`
-        UPDATE rooms SET client_id = $1
-        WHERE property_id = $2
-      `, [id, property_id]);
-    } catch (roomError) {
-      // Rooms table might not have client_id column
-      console.log('Note: rooms client_id update skipped:', roomError.message);
-    }
+    // Also update channel manager connections
+    await pool.query(`
+      UPDATE channel_connections SET client_id = $1
+      WHERE property_id = $2
+    `, [id, property_id]);
     
     res.json({ success: true, property: result.rows[0] });
   } catch (error) {
@@ -7354,9 +7334,9 @@ app.post('/api/admin/clients/:id/assign-property', async (req, res) => {
 app.get('/api/admin/properties/unassigned', async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.*, COUNT(bu.id) as room_count
+      SELECT p.*, COUNT(r.id) as room_count
       FROM properties p
-      LEFT JOIN bookable_units bu ON bu.property_id = p.id
+      LEFT JOIN rooms r ON r.property_id = p.id
       WHERE p.client_id IS NULL
       GROUP BY p.id
       ORDER BY p.name
@@ -7365,58 +7345,6 @@ app.get('/api/admin/properties/unassigned', async (req, res) => {
     res.json({ success: true, properties: result.rows });
   } catch (error) {
     console.error('Get unassigned properties error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get rooms/units for a specific property
-app.get('/api/admin/properties/:id/rooms', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      SELECT bu.*, p.name as property_name
-      FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      WHERE bu.property_id = $1
-      ORDER BY bu.name
-    `, [id]);
-    
-    res.json({ success: true, rooms: result.rows });
-  } catch (error) {
-    console.error('Get property rooms error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Unassign property from client
-app.post('/api/admin/properties/:id/unassign', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      UPDATE properties SET client_id = NULL, updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *
-    `, [id]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Property not found' });
-    }
-    
-    // Also update channel manager connections
-    try {
-      await pool.query(`
-        UPDATE channel_connections SET client_id = NULL
-        WHERE property_id = $1
-      `, [id]);
-    } catch (e) {
-      console.log('Note: channel_connections update skipped:', e.message);
-    }
-    
-    res.json({ success: true, property: result.rows[0] });
-  } catch (error) {
-    console.error('Unassign property error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -7552,9 +7480,9 @@ const validateApiKey = async (req, res, next) => {
 app.get('/api/v1/properties', validateApiKey, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT p.*, COUNT(bu.id) as room_count
+      SELECT p.*, COUNT(r.id) as room_count
       FROM properties p
-      LEFT JOIN bookable_units bu ON bu.property_id = p.id
+      LEFT JOIN rooms r ON r.property_id = p.id
       WHERE p.client_id = $1
       GROUP BY p.id
       ORDER BY p.name
@@ -7567,53 +7495,15 @@ app.get('/api/v1/properties', validateApiKey, async (req, res) => {
   }
 });
 
-// Get single property with rooms (authenticated)
-app.get('/api/v1/properties/:id', validateApiKey, async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Get property (verify it belongs to this client)
-    const propertyResult = await pool.query(`
-      SELECT p.*
-      FROM properties p
-      WHERE p.id = $1 AND p.client_id = $2
-    `, [id, req.client.id]);
-    
-    if (propertyResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found or not authorized' });
-    }
-    
-    const property = propertyResult.rows[0];
-    
-    // Get rooms/units for this property
-    const roomsResult = await pool.query(`
-      SELECT bu.id, bu.name, bu.description, bu.max_occupancy, bu.max_adults, bu.max_children,
-             bu.bedroom_count, bu.bathroom_count, bu.base_price, bu.currency, bu.status
-      FROM bookable_units bu
-      WHERE bu.property_id = $1
-      ORDER BY bu.name
-    `, [id]);
-    
-    res.json({ 
-      success: true, 
-      property: property,
-      rooms: roomsResult.rows
-    });
-  } catch (error) {
-    console.error('Get single property error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // Get all units for client (authenticated)
 app.get('/api/v1/units', validateApiKey, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT bu.*, p.name as property_name, p.id as property_id
-      FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
+      SELECT r.*, p.name as property_name, p.id as property_id
+      FROM rooms r
+      JOIN properties p ON r.property_id = p.id
       WHERE p.client_id = $1
-      ORDER BY p.name, bu.name
+      ORDER BY p.name, r.name
     `, [req.client.id]);
     
     res.json({ success: true, units: result.rows });
@@ -7631,9 +7521,9 @@ app.get('/api/v1/availability/:unitId', validateApiKey, async (req, res) => {
     
     // Verify unit belongs to this client
     const unitCheck = await pool.query(`
-      SELECT bu.id FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      WHERE bu.id = $1 AND p.client_id = $2
+      SELECT r.id FROM rooms r
+      JOIN properties p ON r.property_id = p.id
+      WHERE r.id = $1 AND p.client_id = $2
     `, [unitId, req.client.id]);
     
     if (unitCheck.rows.length === 0) {
@@ -7654,6 +7544,424 @@ app.get('/api/v1/availability/:unitId', validateApiKey, async (req, res) => {
     res.json({ success: false, error: error.message });
   }
 });
+
+// Serve frontend - MUST BE LAST (after all API routes)
+app.get('*', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+
+// =========================================================
+// AGENT PROPERTY ACCESS SYSTEM
+// =========================================================
+
+// Migration: Create agent property access tables
+app.post('/api/admin/migrate-agent-access', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🔄 Running Migration: Agent Property Access System...');
+    
+    // Add columns to properties table
+    await client.query(`
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS agent_availability VARCHAR(20) DEFAULT 'none'
+    `);
+    await client.query(`
+      ALTER TABLE properties ADD COLUMN IF NOT EXISTS default_commission DECIMAL(5,2) DEFAULT 15.00
+    `);
+    console.log('   ✓ Added agent columns to properties table');
+    
+    // Add client_type to clients table
+    await client.query(`
+      ALTER TABLE clients ADD COLUMN IF NOT EXISTS client_type VARCHAR(20) DEFAULT 'owner'
+    `);
+    console.log('   ✓ Added client_type to clients table');
+    
+    // Create agent_property_access table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS agent_property_access (
+        id SERIAL PRIMARY KEY,
+        agent_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        commission_rate DECIMAL(5,2) DEFAULT 15.00,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        approved_at TIMESTAMP,
+        approved_by INTEGER,
+        notes TEXT,
+        UNIQUE(agent_id, property_id)
+      )
+    `);
+    console.log('   ✓ Created agent_property_access table');
+    
+    // Create indexes
+    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_access_agent ON agent_property_access(agent_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_access_property ON agent_property_access(property_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_access_status ON agent_property_access(status)');
+    console.log('   ✓ Created indexes');
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Agent property access system created successfully'
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Get property agent settings
+app.get('/api/admin/properties/:id/agent-settings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const property = await pool.query(`
+      SELECT id, name, agent_availability, default_commission
+      FROM properties WHERE id = $1
+    `, [id]);
+    
+    if (property.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    // Get agents with access to this property
+    const agents = await pool.query(`
+      SELECT apa.*, c.name as agent_name, c.email as agent_email
+      FROM agent_property_access apa
+      JOIN clients c ON apa.agent_id = c.id
+      WHERE apa.property_id = $1
+      ORDER BY apa.status, apa.requested_at DESC
+    `, [id]);
+    
+    res.json({
+      success: true,
+      property: property.rows[0],
+      agents: agents.rows
+    });
+  } catch (error) {
+    console.error('Get agent settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update property agent availability
+app.put('/api/admin/properties/:id/agent-settings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { agent_availability, default_commission } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE properties 
+      SET agent_availability = COALESCE($1, agent_availability),
+          default_commission = COALESCE($2, default_commission),
+          updated_at = NOW()
+      WHERE id = $3
+      RETURNING id, agent_availability, default_commission
+    `, [agent_availability, default_commission, id]);
+    
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    console.error('Update agent settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Approve/reject agent access request
+app.put('/api/admin/agent-access/:accessId', async (req, res) => {
+  try {
+    const { accessId } = req.params;
+    const { status, commission_rate, notes } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE agent_property_access
+      SET status = $1,
+          commission_rate = COALESCE($2, commission_rate),
+          notes = COALESCE($3, notes),
+          approved_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE approved_at END
+      WHERE id = $4
+      RETURNING *
+    `, [status, commission_rate, notes, accessId]);
+    
+    res.json({ success: true, access: result.rows[0] });
+  } catch (error) {
+    console.error('Update agent access error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Remove agent access
+app.delete('/api/admin/agent-access/:accessId', async (req, res) => {
+  try {
+    const { accessId } = req.params;
+    await pool.query('DELETE FROM agent_property_access WHERE id = $1', [accessId]);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete agent access error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all travel agents (clients with client_type = 'agent')
+app.get('/api/admin/agents', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT c.*, 
+             COUNT(DISTINCT apa.property_id) as property_count
+      FROM clients c
+      LEFT JOIN agent_property_access apa ON apa.agent_id = c.id AND apa.status = 'approved'
+      WHERE c.client_type = 'agent'
+      GROUP BY c.id
+      ORDER BY c.name
+    `);
+    
+    res.json({ success: true, agents: result.rows });
+  } catch (error) {
+    console.error('Get agents error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get properties available to agents (for agent browsing)
+app.get('/api/admin/properties/available-to-agents', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.id, p.name, p.city, p.country, p.property_type, 
+             p.agent_availability, p.default_commission,
+             c.name as owner_name
+      FROM properties p
+      LEFT JOIN clients c ON p.client_id = c.id
+      WHERE p.agent_availability IN ('open', 'request')
+      ORDER BY p.name
+    `);
+    
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    console.error('Get available properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Agent requests access to a property
+app.post('/api/admin/agent-access/request', async (req, res) => {
+  try {
+    const { agent_id, property_id, notes } = req.body;
+    
+    // Check property availability setting
+    const property = await pool.query(`
+      SELECT agent_availability, default_commission FROM properties WHERE id = $1
+    `, [property_id]);
+    
+    if (property.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const availability = property.rows[0].agent_availability;
+    const commission = property.rows[0].default_commission || 15.00;
+    
+    if (availability === 'none') {
+      return res.json({ success: false, error: 'This property is not available to agents' });
+    }
+    
+    // If open, auto-approve; if request, set to pending
+    const status = availability === 'open' ? 'approved' : 'pending';
+    
+    const result = await pool.query(`
+      INSERT INTO agent_property_access (agent_id, property_id, status, commission_rate, notes, approved_at)
+      VALUES ($1, $2, $3, $4, $5, CASE WHEN $3 = 'approved' THEN NOW() ELSE NULL END)
+      ON CONFLICT (agent_id, property_id) DO UPDATE SET
+        status = EXCLUDED.status,
+        notes = EXCLUDED.notes,
+        requested_at = NOW()
+      RETURNING *
+    `, [agent_id, property_id, status, commission, notes]);
+    
+    res.json({ 
+      success: true, 
+      access: result.rows[0],
+      message: status === 'approved' ? 'Access granted' : 'Request submitted for approval'
+    });
+  } catch (error) {
+    console.error('Request agent access error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get properties accessible by a specific agent
+app.get('/api/admin/agents/:agentId/properties', async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT p.*, apa.status, apa.commission_rate, apa.approved_at,
+             c.name as owner_name
+      FROM agent_property_access apa
+      JOIN properties p ON apa.property_id = p.id
+      LEFT JOIN clients c ON p.client_id = c.id
+      WHERE apa.agent_id = $1
+      ORDER BY apa.status, p.name
+    `, [agentId]);
+    
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    console.error('Get agent properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// WORDPRESS PLUGIN API - Client ID based
+// =========================================================
+
+// Get all properties for a client (by API key or client_id)
+app.get('/api/public/client/:clientId/properties', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    // Check if this is a property owner or travel agent
+    const client = await pool.query(`
+      SELECT id, client_type FROM clients WHERE id = $1
+    `, [clientId]);
+    
+    if (client.rows.length === 0) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    let properties;
+    
+    if (client.rows[0].client_type === 'agent') {
+      // Travel agent - get properties they have approved access to
+      properties = await pool.query(`
+        SELECT p.id, p.name, p.property_type, p.description, p.city, p.country, 
+               p.currency, p.hero_image_url,
+               (SELECT thumbnail_url FROM property_images WHERE property_id = p.id AND is_primary = true LIMIT 1) as image,
+               apa.commission_rate
+        FROM properties p
+        JOIN agent_property_access apa ON p.id = apa.property_id
+        WHERE apa.agent_id = $1 AND apa.status = 'approved'
+        ORDER BY p.name
+      `, [clientId]);
+    } else {
+      // Property owner - get their own properties
+      properties = await pool.query(`
+        SELECT p.id, p.name, p.property_type, p.description, p.city, p.country, 
+               p.currency, p.hero_image_url,
+               (SELECT thumbnail_url FROM property_images WHERE property_id = p.id AND is_primary = true LIMIT 1) as image
+        FROM properties p
+        WHERE p.client_id = $1
+        ORDER BY p.name
+      `, [clientId]);
+    }
+    
+    res.json({ success: true, properties: properties.rows });
+  } catch (error) {
+    console.error('Get client properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get rooms for properties accessible by client
+app.get('/api/public/client/:clientId/rooms', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { property_id } = req.query;
+    
+    // Check client type
+    const client = await pool.query(`
+      SELECT id, client_type FROM clients WHERE id = $1
+    `, [clientId]);
+    
+    if (client.rows.length === 0) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    let rooms;
+    
+    if (client.rows[0].client_type === 'agent') {
+      // Travel agent - only rooms from approved properties
+      let query = `
+        SELECT bu.*, p.name as property_name, p.currency
+        FROM bookable_units bu
+        JOIN properties p ON bu.property_id = p.id
+        JOIN agent_property_access apa ON p.id = apa.property_id
+        WHERE apa.agent_id = $1 AND apa.status = 'approved'
+      `;
+      const params = [clientId];
+      
+      if (property_id) {
+        query += ' AND bu.property_id = $2';
+        params.push(property_id);
+      }
+      
+      query += ' ORDER BY p.name, bu.name';
+      rooms = await pool.query(query, params);
+    } else {
+      // Property owner - their own rooms
+      let query = `
+        SELECT bu.*, p.name as property_name, p.currency
+        FROM bookable_units bu
+        JOIN properties p ON bu.property_id = p.id
+        WHERE p.client_id = $1
+      `;
+      const params = [clientId];
+      
+      if (property_id) {
+        query += ' AND bu.property_id = $2';
+        params.push(property_id);
+      }
+      
+      query += ' ORDER BY p.name, bu.name';
+      rooms = await pool.query(query, params);
+    }
+    
+    res.json({ success: true, rooms: rooms.rows });
+  } catch (error) {
+    console.error('Get client rooms error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Validate client ID (for WordPress plugin setup)
+app.get('/api/public/validate-client/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    const client = await pool.query(`
+      SELECT id, name, client_type, 
+             (SELECT COUNT(*) FROM properties WHERE client_id = $1) as own_properties,
+             (SELECT COUNT(*) FROM agent_property_access WHERE agent_id = $1 AND status = 'approved') as agent_properties
+      FROM clients WHERE id = $1
+    `, [clientId]);
+    
+    if (client.rows.length === 0) {
+      return res.json({ success: false, valid: false, error: 'Client not found' });
+    }
+    
+    const c = client.rows[0];
+    const propertyCount = c.client_type === 'agent' ? parseInt(c.agent_properties) : parseInt(c.own_properties);
+    
+    res.json({ 
+      success: true, 
+      valid: true,
+      client: {
+        id: c.id,
+        name: c.name,
+        type: c.client_type,
+        property_count: propertyCount
+      }
+    });
+  } catch (error) {
+    console.error('Validate client error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
