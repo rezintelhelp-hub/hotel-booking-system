@@ -498,6 +498,378 @@ app.get('/admin/deploy-database', (req, res) => {
   `);
 });
 
+// Admin page for editing property locations (for map functionality)
+app.get('/admin/property-locations', async (req, res) => {
+  res.send(`
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>📍 Property Locations - GAS Admin</title>
+      <meta name="viewport" content="width=device-width, initial-scale=1">
+      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+          background: #f5f5f5;
+          min-height: 100vh;
+          padding: 20px;
+        }
+        .container {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+        h1 {
+          color: #333;
+          font-size: 28px;
+          margin-bottom: 20px;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+        }
+        .property-card {
+          background: white;
+          border-radius: 12px;
+          padding: 24px;
+          margin-bottom: 20px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .property-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .property-name {
+          font-size: 20px;
+          font-weight: 600;
+          color: #333;
+        }
+        .property-location {
+          color: #666;
+          font-size: 14px;
+        }
+        .form-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 16px;
+          margin-bottom: 16px;
+        }
+        .form-group {
+          display: flex;
+          flex-direction: column;
+          gap: 6px;
+        }
+        label {
+          font-size: 13px;
+          font-weight: 500;
+          color: #555;
+        }
+        input, select {
+          padding: 10px 12px;
+          border: 1px solid #ddd;
+          border-radius: 8px;
+          font-size: 14px;
+          transition: border-color 0.2s;
+        }
+        input:focus, select:focus {
+          outline: none;
+          border-color: #667eea;
+        }
+        .btn {
+          padding: 10px 20px;
+          border: none;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 500;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-primary {
+          background: #667eea;
+          color: white;
+        }
+        .btn-primary:hover {
+          background: #5a6fd6;
+        }
+        .btn-secondary {
+          background: #e2e8f0;
+          color: #475569;
+        }
+        .btn-secondary:hover {
+          background: #cbd5e1;
+        }
+        .btn-group {
+          display: flex;
+          gap: 10px;
+          margin-top: 16px;
+        }
+        .map-container {
+          height: 200px;
+          border-radius: 8px;
+          margin-top: 16px;
+          border: 1px solid #ddd;
+        }
+        .status {
+          padding: 6px 12px;
+          border-radius: 6px;
+          font-size: 12px;
+          font-weight: 500;
+        }
+        .status-success {
+          background: #d1fae5;
+          color: #065f46;
+        }
+        .status-warning {
+          background: #fef3c7;
+          color: #92400e;
+        }
+        .coords-display {
+          font-family: monospace;
+          font-size: 12px;
+          color: #666;
+          margin-top: 8px;
+        }
+        .loading {
+          text-align: center;
+          padding: 40px;
+          color: #666;
+        }
+        .alert {
+          padding: 12px 16px;
+          border-radius: 8px;
+          margin-bottom: 20px;
+        }
+        .alert-info {
+          background: #e0f2fe;
+          color: #0369a1;
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>📍 Property Locations</h1>
+        <div class="alert alert-info">
+          Set coordinates for each property to enable map functionality on your booking website.
+          Click on the map to set location, or enter coordinates manually.
+        </div>
+        <div id="properties-list">
+          <div class="loading">Loading properties...</div>
+        </div>
+      </div>
+
+      <script>
+        const maps = {};
+        const markers = {};
+        
+        async function loadProperties() {
+          try {
+            const res = await fetch('/api/db/properties');
+            const data = await res.json();
+            
+            if (data.success) {
+              renderProperties(data.data);
+            } else {
+              document.getElementById('properties-list').innerHTML = 
+                '<div class="alert" style="background:#fee2e2;color:#991b1b;">Error loading properties: ' + data.error + '</div>';
+            }
+          } catch (err) {
+            document.getElementById('properties-list').innerHTML = 
+              '<div class="alert" style="background:#fee2e2;color:#991b1b;">Error: ' + err.message + '</div>';
+          }
+        }
+        
+        function renderProperties(properties) {
+          const container = document.getElementById('properties-list');
+          
+          if (properties.length === 0) {
+            container.innerHTML = '<div class="alert alert-info">No properties found. Import some properties first.</div>';
+            return;
+          }
+          
+          container.innerHTML = properties.map(p => \`
+            <div class="property-card" id="property-\${p.id}">
+              <div class="property-header">
+                <div>
+                  <div class="property-name">\${p.name}</div>
+                  <div class="property-location">\${p.city || ''}\${p.city && p.country ? ', ' : ''}\${p.country || ''}</div>
+                </div>
+                <span class="status \${p.latitude && p.longitude ? 'status-success' : 'status-warning'}">
+                  \${p.latitude && p.longitude ? '✓ Coordinates Set' : '⚠ No Coordinates'}
+                </span>
+              </div>
+              
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>District / Area</label>
+                  <input type="text" id="district-\${p.id}" value="\${p.district || ''}" placeholder="e.g. Manhattan">
+                </div>
+                <div class="form-group">
+                  <label>State / Region</label>
+                  <input type="text" id="state-\${p.id}" value="\${p.state || ''}" placeholder="e.g. New York">
+                </div>
+                <div class="form-group">
+                  <label>Zip / Postal Code</label>
+                  <input type="text" id="zip_code-\${p.id}" value="\${p.zip_code || ''}" placeholder="e.g. 10001">
+                </div>
+              </div>
+              
+              <div class="form-grid">
+                <div class="form-group">
+                  <label>Latitude</label>
+                  <input type="number" step="any" id="lat-\${p.id}" value="\${p.latitude || ''}" placeholder="e.g. 40.7128">
+                </div>
+                <div class="form-group">
+                  <label>Longitude</label>
+                  <input type="number" step="any" id="lng-\${p.id}" value="\${p.longitude || ''}" placeholder="e.g. -74.0060">
+                </div>
+                <div class="form-group" style="justify-content: flex-end;">
+                  <button class="btn btn-secondary" onclick="geocodeAddress(\${p.id}, '\${(p.address || '').replace(/'/g, "\\\\'")}', '\${(p.city || '').replace(/'/g, "\\\\'")}', '\${(p.country || '').replace(/'/g, "\\\\'")}')">
+                    🔍 Lookup from Address
+                  </button>
+                </div>
+              </div>
+              
+              <div class="map-container" id="map-\${p.id}"></div>
+              <div class="coords-display" id="coords-\${p.id}">
+                \${p.latitude && p.longitude ? 'Current: ' + p.latitude + ', ' + p.longitude : 'Click on map or use lookup to set coordinates'}
+              </div>
+              
+              <div class="btn-group">
+                <button class="btn btn-primary" onclick="saveProperty(\${p.id})">💾 Save Changes</button>
+              </div>
+            </div>
+          \`).join('');
+          
+          // Initialize maps after DOM is ready
+          setTimeout(() => {
+            properties.forEach(p => initMap(p));
+          }, 100);
+        }
+        
+        function initMap(property) {
+          const mapId = 'map-' + property.id;
+          const container = document.getElementById(mapId);
+          if (!container) return;
+          
+          // Default center (London) or property coords
+          const lat = property.latitude || 51.5074;
+          const lng = property.longitude || -0.1278;
+          const zoom = property.latitude ? 15 : 5;
+          
+          const map = L.map(mapId).setView([lat, lng], zoom);
+          maps[property.id] = map;
+          
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors'
+          }).addTo(map);
+          
+          // Add marker if coords exist
+          if (property.latitude && property.longitude) {
+            markers[property.id] = L.marker([property.latitude, property.longitude]).addTo(map);
+          }
+          
+          // Click to set location
+          map.on('click', function(e) {
+            const { lat, lng } = e.latlng;
+            document.getElementById('lat-' + property.id).value = lat.toFixed(7);
+            document.getElementById('lng-' + property.id).value = lng.toFixed(7);
+            document.getElementById('coords-' + property.id).textContent = 'Selected: ' + lat.toFixed(7) + ', ' + lng.toFixed(7);
+            
+            // Update or add marker
+            if (markers[property.id]) {
+              markers[property.id].setLatLng([lat, lng]);
+            } else {
+              markers[property.id] = L.marker([lat, lng]).addTo(map);
+            }
+          });
+        }
+        
+        async function geocodeAddress(propertyId, address, city, country) {
+          const query = [address, city, country].filter(Boolean).join(', ');
+          if (!query) {
+            alert('No address available for this property');
+            return;
+          }
+          
+          try {
+            const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query));
+            const data = await res.json();
+            
+            if (data && data.length > 0) {
+              const { lat, lon } = data[0];
+              document.getElementById('lat-' + propertyId).value = parseFloat(lat).toFixed(7);
+              document.getElementById('lng-' + propertyId).value = parseFloat(lon).toFixed(7);
+              document.getElementById('coords-' + propertyId).textContent = 'Found: ' + lat + ', ' + lon;
+              
+              // Update map
+              const map = maps[propertyId];
+              if (map) {
+                map.setView([lat, lon], 15);
+                if (markers[propertyId]) {
+                  markers[propertyId].setLatLng([lat, lon]);
+                } else {
+                  markers[propertyId] = L.marker([lat, lon]).addTo(map);
+                }
+              }
+            } else {
+              alert('Could not find coordinates for this address. Try clicking on the map manually.');
+            }
+          } catch (err) {
+            alert('Geocoding error: ' + err.message);
+          }
+        }
+        
+        async function saveProperty(propertyId) {
+          const district = document.getElementById('district-' + propertyId).value;
+          const state = document.getElementById('state-' + propertyId).value;
+          const zip_code = document.getElementById('zip_code-' + propertyId).value;
+          const latitude = document.getElementById('lat-' + propertyId).value;
+          const longitude = document.getElementById('lng-' + propertyId).value;
+          
+          try {
+            const res = await fetch('/api/db/properties/' + propertyId, {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                district: district || null,
+                state: state || null,
+                zip_code: zip_code || null,
+                latitude: latitude ? parseFloat(latitude) : null,
+                longitude: longitude ? parseFloat(longitude) : null
+              })
+            });
+            
+            const data = await res.json();
+            
+            if (data.success) {
+              // Update status badge
+              const card = document.getElementById('property-' + propertyId);
+              const statusBadge = card.querySelector('.status');
+              if (latitude && longitude) {
+                statusBadge.className = 'status status-success';
+                statusBadge.textContent = '✓ Coordinates Set';
+              }
+              alert('Property location saved successfully!');
+            } else {
+              alert('Error saving: ' + data.error);
+            }
+          } catch (err) {
+            alert('Error: ' + err.message);
+          }
+        }
+        
+        // Load on page ready
+        loadProperties();
+      </script>
+    </body>
+    </html>
+  `);
+});
+
 // API: Check current database status
 app.get('/api/migration/status', async (req, res) => {
   try {
