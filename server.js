@@ -139,7 +139,6 @@ const upload = multer({
 app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
-app.use('/downloads', express.static('downloads'));
 
 const BEDS24_TOKEN = process.env.BEDS24_TOKEN;
 const BEDS24_API = 'https://beds24.com/api/v2';
@@ -7178,7 +7177,7 @@ app.post('/api/admin/clients', async (req, res) => {
     const {
       name, email, phone,
       address_line1, address_line2, city, region, postcode, country,
-      currency, timezone, plan, notes, client_type
+      currency, timezone, plan, notes
     } = req.body;
     
     // Generate API key
@@ -7188,14 +7187,14 @@ app.post('/api/admin/clients', async (req, res) => {
       INSERT INTO clients (
         name, email, phone,
         address_line1, address_line2, city, region, postcode, country,
-        currency, timezone, plan, notes, client_type,
+        currency, timezone, plan, notes,
         api_key, api_key_created_at, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, CURRENT_TIMESTAMP, 'active')
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, 'active')
       RETURNING *
     `, [
       name, email, phone,
       address_line1, address_line2, city, region, postcode, country || 'United Kingdom',
-      currency || 'GBP', timezone || 'Europe/London', plan || 'free', notes, client_type || 'owner',
+      currency || 'GBP', timezone || 'Europe/London', plan || 'free', notes,
       apiKey
     ]);
     
@@ -7217,7 +7216,7 @@ app.put('/api/admin/clients/:id', async (req, res) => {
     const {
       name, email, phone,
       address_line1, address_line2, city, region, postcode, country,
-      currency, timezone, plan, status, notes, client_type
+      currency, timezone, plan, status, notes
     } = req.body;
     
     const result = await pool.query(`
@@ -7236,14 +7235,13 @@ app.put('/api/admin/clients/:id', async (req, res) => {
         plan = COALESCE($12, plan),
         status = COALESCE($13, status),
         notes = COALESCE($14, notes),
-        client_type = COALESCE($15, client_type),
         updated_at = CURRENT_TIMESTAMP
-      WHERE id = $16
+      WHERE id = $15
       RETURNING *
     `, [
       name, email, phone,
       address_line1, address_line2, city, region, postcode, country,
-      currency, timezone, plan, status, notes, client_type,
+      currency, timezone, plan, status, notes,
       id
     ]);
     
@@ -7546,12 +7544,6 @@ app.get('/api/v1/availability/:unitId', validateApiKey, async (req, res) => {
     res.json({ success: false, error: error.message });
   }
 });
-
-// Serve frontend - MUST BE LAST (after all API routes)
-app.get('*', (req, res) => {
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
 
 // =========================================================
 // AGENT PROPERTY ACCESS SYSTEM
@@ -7975,8 +7967,9 @@ app.get('/api/public/validate-client/:clientId', async (req, res) => {
   }
 });
 
-
-// Serve frontend - MUST BE LAST (after all API routes)
+// =========================================================
+// SERVE FRONTEND - MUST BE LAST
+// =========================================================
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
