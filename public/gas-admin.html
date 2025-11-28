@@ -2537,6 +2537,46 @@
         </div>
     </div>
 
+    <!-- Assign Properties Modal -->
+    <div id="assignPropertiesModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">🏠 Assign Properties</h3>
+                    <p id="assign-props-subtitle" style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Select properties to assign</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('assignPropertiesModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="assign-props-client-id">
+                
+                <!-- Select All -->
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
+                    <label style="display: flex; align-items: center; cursor: pointer; font-weight: 500;">
+                        <input type="checkbox" id="assign-props-select-all" onchange="toggleSelectAllProperties()" style="margin-right: 0.5rem; width: 18px; height: 18px;">
+                        Select All
+                    </label>
+                    <span id="assign-props-count" style="font-size: 0.85rem; color: var(--text-secondary);">0 properties available</span>
+                </div>
+                
+                <div id="assign-props-list" style="max-height: 350px; overflow-y: auto;">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p style="margin-top: 1rem;">Loading properties...</p>
+                    </div>
+                </div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                    <span id="assign-props-selected" style="font-size: 0.9rem; color: var(--text-secondary);">0 selected</span>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('assignPropertiesModal')">Cancel</button>
+                        <button type="button" class="btn" onclick="submitPropertyAssignments()" id="assign-props-submit" disabled>Assign Selected</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Offer Modal -->
     <div id="addOfferModal" class="modal">
         <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
@@ -3814,35 +3854,147 @@
 
         async function assignPropertyToClient(clientId) {
             try {
+                // Store client ID
+                document.getElementById('assign-props-client-id').value = clientId;
+                
+                // Fetch client name for subtitle
+                const clientRes = await fetch(`/api/admin/clients/${clientId}`);
+                const clientData = await clientRes.json();
+                const clientName = clientData.client?.name || 'Client';
+                document.getElementById('assign-props-subtitle').textContent = `Assign to: ${clientName}`;
+                
+                // Fetch unassigned properties
                 const response = await fetch('/api/admin/properties/unassigned');
                 const data = await response.json();
                 
+                const container = document.getElementById('assign-props-list');
+                
                 if (!data.properties || data.properties.length === 0) {
-                    alert('No unassigned properties available');
-                    return;
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🏠</div>
+                            <p>No unassigned properties available.</p>
+                            <p style="font-size: 0.85rem; margin-top: 0.5rem;">All properties have been assigned to clients.</p>
+                        </div>
+                    `;
+                    document.getElementById('assign-props-count').textContent = '0 properties available';
+                    document.getElementById('assign-props-submit').disabled = true;
+                } else {
+                    document.getElementById('assign-props-count').textContent = `${data.properties.length} properties available`;
+                    
+                    container.innerHTML = data.properties.map(p => `
+                        <label class="property-assign-item" style="display: flex; align-items: flex-start; padding: 0.75rem; margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor=this.querySelector('input').checked ? 'var(--accent)' : 'var(--border)'">
+                            <input type="checkbox" class="property-assign-checkbox" value="${p.id}" onchange="updatePropertySelectionCount()" style="margin-right: 0.75rem; margin-top: 0.25rem; width: 18px; height: 18px; flex-shrink: 0;">
+                            <div style="flex: 1; min-width: 0;">
+                                <div style="font-weight: 500; color: var(--text-primary); margin-bottom: 0.25rem;">
+                                    ${p.name}
+                                </div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1rem; flex-wrap: wrap;">
+                                    <span>ID: ${p.id}</span>
+                                    ${p.room_count ? `<span>🛏️ ${p.room_count} rooms</span>` : ''}
+                                    ${p.city ? `<span>📍 ${p.city}</span>` : ''}
+                                </div>
+                            </div>
+                        </label>
+                    `).join('');
                 }
                 
-                const propertyId = prompt(
-                    'Enter property ID to assign:\n\nUnassigned properties:\n' + 
-                    data.properties.map(p => `ID ${p.id}: ${p.name}`).join('\n')
-                );
+                // Reset selection state
+                document.getElementById('assign-props-select-all').checked = false;
+                updatePropertySelectionCount();
                 
-                if (propertyId) {
-                    const assignResponse = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
+                openModal('assignPropertiesModal');
+            } catch (error) {
+                alert('Error loading properties: ' + error.message);
+            }
+        }
+        
+        function toggleSelectAllProperties() {
+            const selectAll = document.getElementById('assign-props-select-all').checked;
+            document.querySelectorAll('.property-assign-checkbox').forEach(cb => {
+                cb.checked = selectAll;
+                // Update visual style
+                const label = cb.closest('.property-assign-item');
+                if (label) {
+                    label.style.borderColor = selectAll ? 'var(--accent)' : 'var(--border)';
+                    label.style.background = selectAll ? 'var(--accent-light)' : '';
+                }
+            });
+            updatePropertySelectionCount();
+        }
+        
+        function updatePropertySelectionCount() {
+            const checked = document.querySelectorAll('.property-assign-checkbox:checked').length;
+            const total = document.querySelectorAll('.property-assign-checkbox').length;
+            
+            document.getElementById('assign-props-selected').textContent = `${checked} selected`;
+            document.getElementById('assign-props-submit').disabled = checked === 0;
+            
+            // Update select all checkbox state
+            const selectAllCheckbox = document.getElementById('assign-props-select-all');
+            selectAllCheckbox.checked = checked === total && total > 0;
+            selectAllCheckbox.indeterminate = checked > 0 && checked < total;
+            
+            // Update visual styles for all items
+            document.querySelectorAll('.property-assign-checkbox').forEach(cb => {
+                const label = cb.closest('.property-assign-item');
+                if (label) {
+                    label.style.borderColor = cb.checked ? 'var(--accent)' : 'var(--border)';
+                    label.style.background = cb.checked ? 'var(--accent-light)' : '';
+                }
+            });
+        }
+        
+        async function submitPropertyAssignments() {
+            const clientId = document.getElementById('assign-props-client-id').value;
+            const selectedIds = Array.from(document.querySelectorAll('.property-assign-checkbox:checked')).map(cb => parseInt(cb.value));
+            
+            if (selectedIds.length === 0) {
+                alert('Please select at least one property');
+                return;
+            }
+            
+            const submitBtn = document.getElementById('assign-props-submit');
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Assigning...';
+            
+            try {
+                // Assign properties one by one (or use bulk endpoint if available)
+                let successCount = 0;
+                let errors = [];
+                
+                for (const propertyId of selectedIds) {
+                    const response = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ property_id: parseInt(propertyId) })
+                        body: JSON.stringify({ property_id: propertyId })
                     });
                     
-                    const result = await assignResponse.json();
+                    const result = await response.json();
                     if (result.success) {
-                        viewClient(clientId);
+                        successCount++;
                     } else {
-                        alert('Error: ' + result.error);
+                        errors.push(`Property ${propertyId}: ${result.error}`);
                     }
                 }
+                
+                closeModal('assignPropertiesModal');
+                
+                if (errors.length === 0) {
+                    alert(`✓ Successfully assigned ${successCount} property${successCount > 1 ? 'ies' : ''}`);
+                } else {
+                    alert(`Assigned ${successCount} properties.\n\nErrors:\n${errors.join('\n')}`);
+                }
+                
+                // Refresh the client view
+                viewClient(clientId);
+                loadClients(); // Refresh the list too
+                
             } catch (error) {
-                alert('Error: ' + error.message);
+                alert('Error assigning properties: ' + error.message);
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Assign Selected';
             }
         }
 
