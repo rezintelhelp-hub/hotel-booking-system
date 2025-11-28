@@ -2195,21 +2195,22 @@
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">2</div>
                         <div>
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Configure Plugin Settings</h4>
-                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">In WordPress, go to <strong>Settings → GAS Booking</strong> and enter:</p>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">In WordPress, go to <strong>GAS Booking</strong> (in sidebar) and enter:</p>
                             <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-size: 0.85rem;">
-                                <div style="display: grid; grid-template-columns: 130px 1fr; gap: 0.5rem; align-items: center;">
+                                <div style="display: grid; grid-template-columns: 130px 1fr; gap: 0.75rem; align-items: center;">
                                     <strong>API URL:</strong>
                                     <div>
                                         <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-api-url-guide"></code>
                                         <button onclick="copyShortcode(document.getElementById('wp-api-url-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
                                     </div>
-                                    <strong>Property ID:</strong>
+                                    <strong>API Key:</strong>
                                     <div>
-                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-property-id-guide">1</code>
-                                        <button onclick="copyShortcode(document.getElementById('wp-property-id-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
+                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-api-key-guide">Get from Clients → View → Copy API Key</code>
                                     </div>
                                 </div>
-                                <p style="margin: 0.75rem 0 0 0; color: var(--text-secondary); font-size: 0.8rem;">Leave other settings as default, then click <strong>Save Changes</strong></p>
+                                <p style="margin: 0.75rem 0 0 0; color: var(--text-secondary); font-size: 0.8rem;">
+                                    <strong>⚠️ Important:</strong> Get your API Key from <strong>Clients → View your client → Copy API Key</strong>
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -2218,13 +2219,13 @@
                     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">3</div>
                         <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Add Search Bar to Homepage</h4>
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Add Properties to Homepage</h4>
                             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">Edit your homepage, add a <strong>Shortcode</strong> block, and paste:</p>
                             <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
-                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_search]</code>
-                                <button onclick="copyShortcode('[gas_search]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_properties]</code>
+                                <button onclick="copyShortcode('[gas_properties]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
-                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows check-in/check-out date picker</p>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows all properties linked to your API key</p>
                         </div>
                     </div>
 
@@ -2232,13 +2233,13 @@
                     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">4</div>
                         <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Create "Book Now" Page</h4>
-                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;"><strong>Pages → Add New</strong> → Title: "Book Now" → Add Shortcode block:</p>
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Add Search Form (Optional)</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">For a search form with date picker:</p>
                             <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
-                                <code style="color: #e2e8f0; font-size: 0.9rem;" id="wp-rooms-shortcode">[gas_rooms property_id="1"]</code>
-                                <button onclick="copyShortcode('[gas_rooms property_id=&quot;' + (window.currentPropertyId || 1) + '&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_search]</code>
+                                <button onclick="copyShortcode('[gas_search]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
-                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows grid of all rooms with availability</p>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows check-in/check-out date picker with guest selector</p>
                         </div>
                     </div>
 
@@ -2246,38 +2247,38 @@
                     <div style="display: flex; gap: 1rem;">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">5</div>
                         <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Create "Room" Page</h4>
-                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;"><strong>Pages → Add New</strong> → Title: "Room" → Add Shortcode block:</p>
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Single Property Page (Optional)</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">To show a specific property by ID:</p>
                             <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
-                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_room]</code>
-                                <button onclick="copyShortcode('[gas_room]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_property id="123"]</code>
+                                <button onclick="copyShortcode('[gas_property id=&quot;123&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
-                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows full room details, calendar & booking form</p>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Replace "123" with your property ID from the Properties list</p>
                         </div>
                     </div>
                 </div>
 
-                <!-- Flow Diagram -->
+                <!-- How It Works -->
                 <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
-                    <h3 class="card-title" style="margin-bottom: 1rem;">🔄 Booking Flow</h3>
-                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.9rem;">
-                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
-                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🏠</div>
-                            <strong>Homepage</strong>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_search]</div>
+                    <h3 class="card-title" style="margin-bottom: 1rem;">🔑 How It Works</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.9rem;">
+                        <div style="background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔐</div>
+                            <strong>API Key</strong>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.5rem 0 0 0;">Your API key links the plugin to your client account</p>
                         </div>
-                        <div style="font-size: 1.5rem; color: var(--accent);">→</div>
-                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
-                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📋</div>
-                            <strong>Book Now</strong>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_rooms]</div>
+                        <div style="background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🏠</div>
+                            <strong>Your Properties</strong>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.5rem 0 0 0;">Only shows properties assigned to your client</p>
                         </div>
-                        <div style="font-size: 1.5rem; color: var(--accent);">→</div>
-                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
-                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🛏️</div>
-                            <strong>Room Details</strong>
-                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_room]</div>
+                        <div style="background: white; padding: 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">📱</div>
+                            <strong>Auto Updates</strong>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.5rem 0 0 0;">Availability syncs from your channel manager</p>
                         </div>
+                    </div>
+                </div>
                         <div style="font-size: 1.5rem; color: var(--accent);">→</div>
                         <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
                             <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">✅</div>
