@@ -641,9 +641,13 @@ app.get('/api/setup-clients', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL`);
     console.log('✅ Added client_id to properties');
 
-    // 4. Add client_id to channel_manager_connections
-    await pool.query(`ALTER TABLE channel_manager_connections ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL`);
-    console.log('✅ Added client_id to channel_manager_connections');
+    // 4. Add client_id to channel_connections (if table exists)
+    try {
+      await pool.query(`ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS client_id INTEGER REFERENCES clients(id) ON DELETE SET NULL`);
+      console.log('✅ Added client_id to channel_connections');
+    } catch (e) {
+      console.log('⚠️ channel_connections table not found, skipping');
+    }
 
     // 5. Create indexes
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_clients_email ON clients(email)`);
@@ -7132,7 +7136,7 @@ app.get('/api/admin/clients/:id', async (req, res) => {
     // Get client's channel connections
     const connections = await pool.query(`
       SELECT cmc.*, p.name as property_name
-      FROM channel_manager_connections cmc
+      FROM channel_connections cmc
       LEFT JOIN properties p ON p.id = cmc.property_id
       WHERE cmc.client_id = $1
       ORDER BY cmc.channel_manager
@@ -7299,7 +7303,7 @@ app.post('/api/admin/clients/:id/assign-property', async (req, res) => {
     
     // Also update channel manager connections
     await pool.query(`
-      UPDATE channel_manager_connections SET client_id = $1
+      UPDATE channel_connections SET client_id = $1
       WHERE property_id = $2
     `, [id, property_id]);
     
