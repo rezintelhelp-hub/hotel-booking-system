@@ -3772,12 +3772,19 @@
                             ${data.properties && data.properties.length > 0 ? `
                                 <div style="background: var(--bg-primary); border-radius: 8px; overflow: hidden;">
                                     ${data.properties.map(p => `
-                                        <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
-                                            <div>
-                                                <strong>${p.name}</strong>
-                                                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 0.5rem;">${p.room_count || 0} rooms</span>
+                                        <div class="property-row" style="border-bottom: 1px solid var(--border);">
+                                            <div onclick="togglePropertyRooms(${p.id}, this)" style="padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
+                                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <span class="property-toggle" style="color: var(--text-secondary); transition: transform 0.2s;">▶</span>
+                                                    <strong>${p.name}</strong>
+                                                    <span class="badge" style="font-size: 0.75rem;">${p.room_count || 0} rooms</span>
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                                    <code style="font-size: 0.75rem; background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 3px;">ID: ${p.id}</code>
+                                                    <button onclick="event.stopPropagation(); unassignProperty(${p.id}, ${c.id})" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" title="Unassign from client">✕</button>
+                                                </div>
                                             </div>
-                                            <code style="font-size: 0.75rem; background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 3px;">ID: ${p.id}</code>
+                                            <div id="property-rooms-${p.id}" style="display: none; background: var(--bg-secondary); border-top: 1px solid var(--border);"></div>
                                         </div>
                                     `).join('')}
                                 </div>
@@ -3995,6 +4002,91 @@
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Assign Selected';
+            }
+        }
+
+        // Toggle property rooms visibility
+        async function togglePropertyRooms(propertyId, element) {
+            const roomsContainer = document.getElementById(`property-rooms-${propertyId}`);
+            const toggle = element.querySelector('.property-toggle');
+            
+            if (roomsContainer.style.display === 'none') {
+                // Show rooms - load them first
+                roomsContainer.innerHTML = `
+                    <div style="padding: 1rem; text-align: center; color: var(--text-secondary);">
+                        <span>Loading rooms...</span>
+                    </div>
+                `;
+                roomsContainer.style.display = 'block';
+                toggle.style.transform = 'rotate(90deg)';
+                
+                try {
+                    const response = await fetch(`/api/admin/properties/${propertyId}/rooms`);
+                    const data = await response.json();
+                    
+                    if (data.success && data.rooms && data.rooms.length > 0) {
+                        roomsContainer.innerHTML = `
+                            <div style="padding: 0.5rem;">
+                                ${data.rooms.map(r => `
+                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.75rem; margin: 0.25rem 0; background: var(--bg-card); border-radius: 6px; border: 1px solid var(--border);">
+                                        <div>
+                                            <span style="font-weight: 500;">${r.name}</span>
+                                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">
+                                                ${r.max_occupancy ? `👥 Max ${r.max_occupancy}` : ''}
+                                                ${r.base_price ? ` • 💰 ${r.currency || 'GBP'} ${r.base_price}` : ''}
+                                                ${r.bedroom_count ? ` • 🛏️ ${r.bedroom_count} bed` : ''}
+                                            </div>
+                                        </div>
+                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                            <span class="badge ${r.status === 'active' ? 'badge-success' : 'badge-secondary'}" style="font-size: 0.7rem;">${r.status || 'active'}</span>
+                                            <button onclick="editRoom(${r.id})" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Edit</button>
+                                        </div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        `;
+                    } else {
+                        roomsContainer.innerHTML = `
+                            <div style="padding: 1rem; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">
+                                No rooms found for this property
+                            </div>
+                        `;
+                    }
+                } catch (error) {
+                    roomsContainer.innerHTML = `
+                        <div style="padding: 1rem; text-align: center; color: var(--error); font-size: 0.85rem;">
+                            Error loading rooms: ${error.message}
+                        </div>
+                    `;
+                }
+            } else {
+                // Hide rooms
+                roomsContainer.style.display = 'none';
+                toggle.style.transform = 'rotate(0deg)';
+            }
+        }
+
+        // Unassign property from client
+        async function unassignProperty(propertyId, clientId) {
+            if (!confirm('Unassign this property from the client? The property will become unassigned.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/properties/${propertyId}/unassign`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    viewClient(clientId);
+                    loadClients();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
             }
         }
 
