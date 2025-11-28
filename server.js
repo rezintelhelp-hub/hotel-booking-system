@@ -6774,7 +6774,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const unit = await pool.query(`
-      SELECT bu.*, p.name as property_name, p.currency, p.timezone
+      SELECT bu.*, p.name as property_name, p.currency
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -6784,23 +6784,39 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
-    const images = await pool.query(`
-      SELECT id, url, alt_text, is_primary
-      FROM bookable_unit_images WHERE unit_id = $1
-      ORDER BY sort_order, is_primary DESC
-    `, [unitId]);
+    // Try to get images - handle if table structure differs
+    let images = [];
+    try {
+      const imgResult = await pool.query(`
+        SELECT id, image_url as url, thumbnail_url, alt_text, display_order
+        FROM room_images 
+        WHERE room_id = $1 AND is_active = true
+        ORDER BY display_order
+      `, [unitId]);
+      images = imgResult.rows;
+    } catch (imgErr) {
+      console.log('Room images query error:', imgErr.message);
+    }
     
-    const amenities = await pool.query(`
-      SELECT name, category, icon
-      FROM bookable_unit_amenities WHERE unit_id = $1
-      ORDER BY category, name
-    `, [unitId]);
+    // Try to get amenities - handle if table structure differs
+    let amenities = [];
+    try {
+      const amenResult = await pool.query(`
+        SELECT amenity_name as name, category
+        FROM bookable_unit_amenities 
+        WHERE bookable_unit_id = $1
+        ORDER BY category, amenity_name
+      `, [unitId]);
+      amenities = amenResult.rows;
+    } catch (amenErr) {
+      console.log('Amenities query error:', amenErr.message);
+    }
     
     res.json({
       success: true,
       unit: unit.rows[0],
-      images: images.rows,
-      amenities: amenities.rows
+      images: images,
+      amenities: amenities
     });
   } catch (error) {
     console.error('Public unit error:', error);
