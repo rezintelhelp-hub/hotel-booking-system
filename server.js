@@ -7317,11 +7317,31 @@ app.post('/api/admin/clients/:id/assign-property', async (req, res) => {
       RETURNING *
     `, [id, property_id]);
     
-    // Also update channel manager connections
-    await pool.query(`
-      UPDATE channel_connections SET client_id = $1
-      WHERE property_id = $2
-    `, [id, property_id]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    // Also update channel manager connections (if table has client_id column)
+    try {
+      await pool.query(`
+        UPDATE channel_connections SET client_id = $1
+        WHERE property_id = $2
+      `, [id, property_id]);
+    } catch (connError) {
+      // Ignore if channel_connections table doesn't exist or doesn't have these columns
+      console.log('Note: channel_connections update skipped:', connError.message);
+    }
+    
+    // Also update rooms to be associated with the client
+    try {
+      await pool.query(`
+        UPDATE rooms SET client_id = $1
+        WHERE property_id = $2
+      `, [id, property_id]);
+    } catch (roomError) {
+      // Rooms table might not have client_id column
+      console.log('Note: rooms client_id update skipped:', roomError.message);
+    }
     
     res.json({ success: true, property: result.rows[0] });
   } catch (error) {
