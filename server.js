@@ -5764,6 +5764,69 @@ app.post('/api/admin/migrate-002-image-management', async (req, res) => {
   }
 });
 
+// Migration: Agent Unit Access System
+app.post('/api/admin/migrate-agent-access', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🔄 Running Migration: Agent Unit Access System...');
+    
+    // Add client_type column to clients table
+    await client.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS client_type VARCHAR(20) DEFAULT 'owner'`);
+    console.log('   ✓ Added client_type to clients');
+    
+    // Add agent_availability column to bookable_units
+    await client.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS agent_availability VARCHAR(20) DEFAULT 'none'`);
+    console.log('   ✓ Added agent_availability to bookable_units');
+    
+    // Add default_commission column to bookable_units
+    await client.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS default_commission DECIMAL(5,2) DEFAULT 15.00`);
+    console.log('   ✓ Added default_commission to bookable_units');
+    
+    // Add timezone column to properties
+    await client.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'America/New_York'`);
+    console.log('   ✓ Added timezone to properties');
+    
+    // Create agent_unit_access table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS agent_unit_access (
+        id SERIAL PRIMARY KEY,
+        agent_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        commission_rate DECIMAL(5,2),
+        requested_at TIMESTAMP DEFAULT NOW(),
+        approved_at TIMESTAMP,
+        approved_by INTEGER,
+        notes TEXT,
+        UNIQUE(agent_id, unit_id)
+      )
+    `);
+    console.log('   ✓ Created agent_unit_access table');
+    
+    // Create indexes
+    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_agent ON agent_unit_access(agent_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_unit ON agent_unit_access(unit_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_status ON agent_unit_access(status)');
+    console.log('   ✓ Created indexes');
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Agent unit access system created successfully'
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Cleanup duplicate imports
 app.post('/api/admin/cleanup-duplicates', async (req, res) => {
   const client = await pool.connect();
@@ -6685,7 +6748,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const unit = await pool.query(`
-      SELECT bu.*, p.name as property_name, p.currency, p.timezone
+      SELECT bu.*, p.name as property_name, p.currency
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -7545,431 +7608,7 @@ app.get('/api/v1/availability/:unitId', validateApiKey, async (req, res) => {
   }
 });
 
-// =========================================================
-// AGENT PROPERTY ACCESS SYSTEM
-// =========================================================
-
-// Migration: Create agent UNIT access tables (room/unit level, not property)
-app.post('/api/admin/migrate-agent-access', async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    
-    console.log('🔄 Running Migration: Agent Unit Access System...');
-    
-    // Add columns to bookable_units table (the actual sellable product)
-    await client.query(`
-      ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS agent_availability VARCHAR(20) DEFAULT 'none'
-    `);
-    await client.query(`
-      ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS default_commission DECIMAL(5,2) DEFAULT 15.00
-    `);
-    console.log('   ✓ Added agent columns to bookable_units table');
-    
-    // Add client_type to clients table
-    await client.query(`
-      ALTER TABLE clients ADD COLUMN IF NOT EXISTS client_type VARCHAR(20) DEFAULT 'owner'
-    `);
-    console.log('   ✓ Added client_type to clients table');
-    
-    // Create agent_unit_access table (tracks which agents can sell which units)
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS agent_unit_access (
-        id SERIAL PRIMARY KEY,
-        agent_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
-        status VARCHAR(20) DEFAULT 'pending',
-        commission_rate DECIMAL(5,2) DEFAULT 15.00,
-        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        approved_at TIMESTAMP,
-        approved_by INTEGER,
-        notes TEXT,
-        UNIQUE(agent_id, unit_id)
-      )
-    `);
-    console.log('   ✓ Created agent_unit_access table');
-    
-    // Create indexes
-    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_agent ON agent_unit_access(agent_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_unit ON agent_unit_access(unit_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_status ON agent_unit_access(status)');
-    console.log('   ✓ Created indexes');
-    
-    await client.query('COMMIT');
-    
-    res.json({
-      success: true,
-      message: 'Agent unit access system created successfully'
-    });
-    
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Migration error:', error);
-    res.json({ success: false, error: error.message });
-  } finally {
-    client.release();
-  }
-});
-
-// Get unit agent settings
-app.get('/api/admin/units/:id/agent-settings', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const unit = await pool.query(`
-      SELECT bu.id, bu.name, bu.agent_availability, bu.default_commission,
-             p.name as property_name
-      FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      WHERE bu.id = $1
-    `, [id]);
-    
-    if (unit.rows.length === 0) {
-      return res.json({ success: false, error: 'Unit not found' });
-    }
-    
-    // Get agents with access to this unit
-    const agents = await pool.query(`
-      SELECT aua.*, c.name as agent_name, c.email as agent_email
-      FROM agent_unit_access aua
-      JOIN clients c ON aua.agent_id = c.id
-      WHERE aua.unit_id = $1
-      ORDER BY aua.status, aua.requested_at DESC
-    `, [id]);
-    
-    res.json({
-      success: true,
-      unit: unit.rows[0],
-      agents: agents.rows
-    });
-  } catch (error) {
-    console.error('Get unit agent settings error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Update unit agent availability
-app.put('/api/admin/units/:id/agent-settings', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { agent_availability, default_commission } = req.body;
-    
-    const result = await pool.query(`
-      UPDATE bookable_units 
-      SET agent_availability = COALESCE($1, agent_availability),
-          default_commission = COALESCE($2, default_commission),
-          updated_at = NOW()
-      WHERE id = $3
-      RETURNING id, agent_availability, default_commission
-    `, [agent_availability, default_commission, id]);
-    
-    res.json({ success: true, unit: result.rows[0] });
-  } catch (error) {
-    console.error('Update unit agent settings error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Approve/reject agent access request
-app.put('/api/admin/agent-access/:accessId', async (req, res) => {
-  try {
-    const { accessId } = req.params;
-    const { status, commission_rate, notes } = req.body;
-    
-    const result = await pool.query(`
-      UPDATE agent_unit_access
-      SET status = $1,
-          commission_rate = COALESCE($2, commission_rate),
-          notes = COALESCE($3, notes),
-          approved_at = CASE WHEN $1 = 'approved' THEN NOW() ELSE approved_at END
-      WHERE id = $4
-      RETURNING *
-    `, [status, commission_rate, notes, accessId]);
-    
-    res.json({ success: true, access: result.rows[0] });
-  } catch (error) {
-    console.error('Update agent access error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Remove agent access
-app.delete('/api/admin/agent-access/:accessId', async (req, res) => {
-  try {
-    const { accessId } = req.params;
-    await pool.query('DELETE FROM agent_unit_access WHERE id = $1', [accessId]);
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete agent access error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get all travel agents (clients with client_type = 'agent')
-app.get('/api/admin/agents', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT c.*, 
-             COUNT(DISTINCT aua.unit_id) as unit_count
-      FROM clients c
-      LEFT JOIN agent_unit_access aua ON aua.agent_id = c.id AND aua.status = 'approved'
-      WHERE c.client_type = 'agent'
-      GROUP BY c.id
-      ORDER BY c.name
-    `);
-    
-    res.json({ success: true, agents: result.rows });
-  } catch (error) {
-    console.error('Get agents error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get units available to agents (for agent browsing)
-app.get('/api/admin/units/available-to-agents', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT bu.id, bu.name, bu.unit_type, bu.max_guests, bu.base_price,
-             bu.agent_availability, bu.default_commission,
-             p.name as property_name, p.city, p.country,
-             c.name as owner_name
-      FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      LEFT JOIN clients c ON p.client_id = c.id
-      WHERE bu.agent_availability IN ('open', 'request')
-      ORDER BY p.name, bu.name
-    `);
-    
-    res.json({ success: true, units: result.rows });
-  } catch (error) {
-    console.error('Get available units error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Agent requests access to a unit
-app.post('/api/admin/agent-access/request', async (req, res) => {
-  try {
-    const { agent_id, unit_id, notes } = req.body;
-    
-    // Check unit availability setting
-    const unit = await pool.query(`
-      SELECT agent_availability, default_commission FROM bookable_units WHERE id = $1
-    `, [unit_id]);
-    
-    if (unit.rows.length === 0) {
-      return res.json({ success: false, error: 'Unit not found' });
-    }
-    
-    const availability = unit.rows[0].agent_availability;
-    const commission = unit.rows[0].default_commission || 15.00;
-    
-    if (availability === 'none') {
-      return res.json({ success: false, error: 'This unit is not available to agents' });
-    }
-    
-    // If open, auto-approve; if request, set to pending
-    const status = availability === 'open' ? 'approved' : 'pending';
-    
-    const result = await pool.query(`
-      INSERT INTO agent_unit_access (agent_id, unit_id, status, commission_rate, notes, approved_at)
-      VALUES ($1, $2, $3, $4, $5, CASE WHEN $3 = 'approved' THEN NOW() ELSE NULL END)
-      ON CONFLICT (agent_id, unit_id) DO UPDATE SET
-        status = EXCLUDED.status,
-        notes = EXCLUDED.notes,
-        requested_at = NOW()
-      RETURNING *
-    `, [agent_id, unit_id, status, commission, notes]);
-    
-    res.json({ 
-      success: true, 
-      access: result.rows[0],
-      message: status === 'approved' ? 'Access granted' : 'Request submitted for approval'
-    });
-  } catch (error) {
-    console.error('Request agent access error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get units accessible by a specific agent
-app.get('/api/admin/agents/:agentId/units', async (req, res) => {
-  try {
-    const { agentId } = req.params;
-    
-    const result = await pool.query(`
-      SELECT bu.*, aua.status, aua.commission_rate, aua.approved_at,
-             p.name as property_name, p.city, p.country,
-             c.name as owner_name
-      FROM agent_unit_access aua
-      JOIN bookable_units bu ON aua.unit_id = bu.id
-      JOIN properties p ON bu.property_id = p.id
-      LEFT JOIN clients c ON p.client_id = c.id
-      WHERE aua.agent_id = $1
-      ORDER BY aua.status, p.name, bu.name
-    `, [agentId]);
-    
-    res.json({ success: true, units: result.rows });
-  } catch (error) {
-    console.error('Get agent units error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// =========================================================
-// WORDPRESS PLUGIN API - Client ID based (unit level)
-// =========================================================
-
-// Get all properties for a client (owner sees their properties, agent sees properties with approved units)
-app.get('/api/public/client/:clientId/properties', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    
-    // Check if this is a property owner or travel agent
-    const client = await pool.query(`
-      SELECT id, client_type FROM clients WHERE id = $1
-    `, [clientId]);
-    
-    if (client.rows.length === 0) {
-      return res.json({ success: false, error: 'Client not found' });
-    }
-    
-    let properties;
-    
-    if (client.rows[0].client_type === 'agent') {
-      // Travel agent - get properties that have units they have approved access to
-      properties = await pool.query(`
-        SELECT DISTINCT p.id, p.name, p.property_type, p.description, p.city, p.country, 
-               p.currency, p.hero_image_url,
-               (SELECT thumbnail_url FROM property_images WHERE property_id = p.id AND is_primary = true LIMIT 1) as image,
-               (SELECT COUNT(*) FROM agent_unit_access aua 
-                JOIN bookable_units bu ON aua.unit_id = bu.id 
-                WHERE bu.property_id = p.id AND aua.agent_id = $1 AND aua.status = 'approved') as approved_units
-        FROM properties p
-        JOIN bookable_units bu ON bu.property_id = p.id
-        JOIN agent_unit_access aua ON aua.unit_id = bu.id
-        WHERE aua.agent_id = $1 AND aua.status = 'approved'
-        ORDER BY p.name
-      `, [clientId]);
-    } else {
-      // Property owner - get their own properties
-      properties = await pool.query(`
-        SELECT p.id, p.name, p.property_type, p.description, p.city, p.country, 
-               p.currency, p.hero_image_url,
-               (SELECT thumbnail_url FROM property_images WHERE property_id = p.id AND is_primary = true LIMIT 1) as image
-        FROM properties p
-        WHERE p.client_id = $1
-        ORDER BY p.name
-      `, [clientId]);
-    }
-    
-    res.json({ success: true, properties: properties.rows });
-  } catch (error) {
-    console.error('Get client properties error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get rooms/units for properties accessible by client
-app.get('/api/public/client/:clientId/rooms', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    const { property_id } = req.query;
-    
-    // Check client type
-    const client = await pool.query(`
-      SELECT id, client_type FROM clients WHERE id = $1
-    `, [clientId]);
-    
-    if (client.rows.length === 0) {
-      return res.json({ success: false, error: 'Client not found' });
-    }
-    
-    let rooms;
-    
-    if (client.rows[0].client_type === 'agent') {
-      // Travel agent - only units they have approved access to
-      let query = `
-        SELECT bu.*, p.name as property_name, p.currency, aua.commission_rate
-        FROM bookable_units bu
-        JOIN properties p ON bu.property_id = p.id
-        JOIN agent_unit_access aua ON aua.unit_id = bu.id
-        WHERE aua.agent_id = $1 AND aua.status = 'approved'
-      `;
-      const params = [clientId];
-      
-      if (property_id) {
-        query += ' AND bu.property_id = $2';
-        params.push(property_id);
-      }
-      
-      query += ' ORDER BY p.name, bu.name';
-      rooms = await pool.query(query, params);
-    } else {
-      // Property owner - their own rooms
-      let query = `
-        SELECT bu.*, p.name as property_name, p.currency
-        FROM bookable_units bu
-        JOIN properties p ON bu.property_id = p.id
-        WHERE p.client_id = $1
-      `;
-      const params = [clientId];
-      
-      if (property_id) {
-        query += ' AND bu.property_id = $2';
-        params.push(property_id);
-      }
-      
-      query += ' ORDER BY p.name, bu.name';
-      rooms = await pool.query(query, params);
-    }
-    
-    res.json({ success: true, rooms: rooms.rows });
-  } catch (error) {
-    console.error('Get client rooms error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Validate client ID (for WordPress plugin setup)
-app.get('/api/public/validate-client/:clientId', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    
-    const client = await pool.query(`
-      SELECT id, name, client_type, 
-             (SELECT COUNT(*) FROM properties WHERE client_id = $1) as own_properties,
-             (SELECT COUNT(*) FROM agent_unit_access WHERE agent_id = $1 AND status = 'approved') as agent_units
-      FROM clients WHERE id = $1
-    `, [clientId]);
-    
-    if (client.rows.length === 0) {
-      return res.json({ success: false, valid: false, error: 'Client not found' });
-    }
-    
-    const c = client.rows[0];
-    const propertyCount = c.client_type === 'agent' ? parseInt(c.agent_units) : parseInt(c.own_properties);
-    
-    res.json({ 
-      success: true, 
-      valid: true,
-      client: {
-        id: c.id,
-        name: c.name,
-        type: c.client_type,
-        property_count: propertyCount,
-        description: c.client_type === 'agent' ? `${propertyCount} approved units` : `${propertyCount} properties`
-      }
-    });
-  } catch (error) {
-    console.error('Validate client error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// =========================================================
-// SERVE FRONTEND - MUST BE LAST
-// =========================================================
+// Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
