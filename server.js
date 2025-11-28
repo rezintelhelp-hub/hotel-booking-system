@@ -7369,6 +7369,58 @@ app.get('/api/admin/properties/unassigned', async (req, res) => {
   }
 });
 
+// Get rooms/units for a specific property
+app.get('/api/admin/properties/:id/rooms', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT bu.*, p.name as property_name
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.property_id = $1
+      ORDER BY bu.name
+    `, [id]);
+    
+    res.json({ success: true, rooms: result.rows });
+  } catch (error) {
+    console.error('Get property rooms error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Unassign property from client
+app.post('/api/admin/properties/:id/unassign', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      UPDATE properties SET client_id = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    // Also update channel manager connections
+    try {
+      await pool.query(`
+        UPDATE channel_connections SET client_id = NULL
+        WHERE property_id = $1
+      `, [id]);
+    } catch (e) {
+      console.log('Note: channel_connections update skipped:', e.message);
+    }
+    
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    console.error('Unassign property error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =========================================================
 // CLIENT USER MANAGEMENT
 // =========================================================
