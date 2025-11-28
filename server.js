@@ -6695,12 +6695,9 @@ app.post('/api/public/calculate-price', async (req, res) => {
       const voucher = await pool.query(`
         SELECT * FROM vouchers
         WHERE code = $1 AND active = true
-          AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $2))
-          AND (unit_id IS NULL OR unit_id = $2)
-          AND (min_nights IS NULL OR min_nights <= $3)
           AND (valid_from IS NULL OR valid_from <= $4)
           AND (valid_until IS NULL OR valid_until >= $5)
-          AND (max_uses IS NULL OR times_used < max_uses)
+          AND (max_uses IS NULL OR uses_count < max_uses)
       `, [voucher_code.toUpperCase(), unit_id, nights, check_in, check_out]);
       
       if (voucher.rows[0]) {
@@ -6724,7 +6721,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       SELECT * FROM taxes
       WHERE active = true
         AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
-        AND (unit_id IS NULL OR unit_id = $1)
+        AND (room_id IS NULL OR room_id = $1)
     `, [unit_id]);
     
     const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount;
@@ -6898,11 +6895,11 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const upsells = await pool.query(`
-      SELECT id, name, description, category, price, price_type
+      SELECT id, name, description, category, price, charge_type as price_type
       FROM upsells
       WHERE active = true
         AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
-        AND (unit_id IS NULL OR unit_id = $1)
+        AND (room_id IS NULL OR room_id = $1)
       ORDER BY category, name
     `, [unitId]);
     
