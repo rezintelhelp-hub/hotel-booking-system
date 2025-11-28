@@ -7114,12 +7114,10 @@ app.get('/api/admin/clients', async (req, res) => {
       SELECT 
         c.*,
         COUNT(DISTINCT p.id) as property_count,
-        COUNT(DISTINCT r.id) as room_count,
-        COUNT(DISTINCT b.id) as total_bookings
+        (SELECT COUNT(*) FROM rooms r2 JOIN properties p2 ON r2.property_id = p2.id WHERE p2.client_id = c.id) as room_count,
+        0 as total_bookings
       FROM clients c
       LEFT JOIN properties p ON p.client_id = c.id
-      LEFT JOIN rooms r ON r.property_id = p.id
-      LEFT JOIN bookings b ON b.room_id = r.id
       GROUP BY c.id
       ORDER BY c.created_at DESC
     `);
