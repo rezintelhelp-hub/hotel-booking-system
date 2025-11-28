@@ -7158,21 +7158,12 @@ app.get('/api/admin/clients/:id', async (req, res) => {
       ORDER BY role, created_at
     `, [id]);
     
-    // Get client's channel connections
-    const connections = await pool.query(`
-      SELECT cmc.*, p.name as property_name
-      FROM channel_connections cmc
-      LEFT JOIN properties p ON p.id = cmc.property_id
-      WHERE cmc.client_id = $1
-      ORDER BY cmc.channel_manager
-    `, [id]);
-    
     res.json({ 
       success: true, 
       client: client.rows[0],
       properties: properties.rows,
       users: users.rows,
-      connections: connections.rows
+      connections: []
     });
   } catch (error) {
     console.error('Get client error:', error);
