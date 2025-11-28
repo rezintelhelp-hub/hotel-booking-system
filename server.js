@@ -655,9 +655,36 @@ app.get('/api/setup-clients', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_client_id ON properties(client_id)`);
     console.log('✅ Created indexes');
 
+    // 6. Create default clients if none exist
+    const existingClients = await pool.query('SELECT COUNT(*) FROM clients');
+    if (parseInt(existingClients.rows[0].count) === 0) {
+      // Generate API keys
+      const crypto = require('crypto');
+      const apiKey1 = 'gas_' + crypto.randomBytes(28).toString('hex');
+      const apiKey2 = 'gas_' + crypto.randomBytes(28).toString('hex');
+      
+      // Create Lehmann House client
+      await pool.query(`
+        INSERT INTO clients (name, email, currency, plan, status, api_key, api_key_created_at)
+        VALUES ('Lehmann House', 'info@lehmannhouse.com', 'GBP', 'free', 'active', $1, CURRENT_TIMESTAMP)
+      `, [apiKey1]);
+      console.log('✅ Created Lehmann House client');
+      
+      // Create Hostaway Demo client
+      await pool.query(`
+        INSERT INTO clients (name, email, currency, plan, status, api_key, api_key_created_at)
+        VALUES ('Hostaway Properties', 'demo@hostaway.com', 'GBP', 'free', 'active', $1, CURRENT_TIMESTAMP)
+      `, [apiKey2]);
+      console.log('✅ Created Hostaway Properties client');
+    }
+
+    // Get final count
+    const finalCount = await pool.query('SELECT COUNT(*) FROM clients');
+    
     res.json({ 
       success: true, 
-      message: 'Clients tables created successfully! Now go to GAS Admin → Clients to add your first client.' 
+      message: 'Clients tables created successfully!',
+      clients_count: parseInt(finalCount.rows[0].count)
     });
   } catch (error) {
     console.error('Setup clients error:', error);
