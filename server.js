@@ -5764,69 +5764,6 @@ app.post('/api/admin/migrate-002-image-management', async (req, res) => {
   }
 });
 
-// Migration: Agent Unit Access System
-app.post('/api/admin/migrate-agent-access', async (req, res) => {
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    
-    console.log('🔄 Running Migration: Agent Unit Access System...');
-    
-    // Add client_type column to clients table
-    await client.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS client_type VARCHAR(20) DEFAULT 'owner'`);
-    console.log('   ✓ Added client_type to clients');
-    
-    // Add agent_availability column to bookable_units
-    await client.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS agent_availability VARCHAR(20) DEFAULT 'none'`);
-    console.log('   ✓ Added agent_availability to bookable_units');
-    
-    // Add default_commission column to bookable_units
-    await client.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS default_commission DECIMAL(5,2) DEFAULT 15.00`);
-    console.log('   ✓ Added default_commission to bookable_units');
-    
-    // Add timezone column to properties
-    await client.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) DEFAULT 'America/New_York'`);
-    console.log('   ✓ Added timezone to properties');
-    
-    // Create agent_unit_access table
-    await client.query(`
-      CREATE TABLE IF NOT EXISTS agent_unit_access (
-        id SERIAL PRIMARY KEY,
-        agent_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
-        status VARCHAR(20) DEFAULT 'pending',
-        commission_rate DECIMAL(5,2),
-        requested_at TIMESTAMP DEFAULT NOW(),
-        approved_at TIMESTAMP,
-        approved_by INTEGER,
-        notes TEXT,
-        UNIQUE(agent_id, unit_id)
-      )
-    `);
-    console.log('   ✓ Created agent_unit_access table');
-    
-    // Create indexes
-    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_agent ON agent_unit_access(agent_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_unit ON agent_unit_access(unit_id)');
-    await client.query('CREATE INDEX IF NOT EXISTS idx_agent_unit_access_status ON agent_unit_access(status)');
-    console.log('   ✓ Created indexes');
-    
-    await client.query('COMMIT');
-    
-    res.json({
-      success: true,
-      message: 'Agent unit access system created successfully'
-    });
-    
-  } catch (error) {
-    await client.query('ROLLBACK');
-    console.error('Migration error:', error);
-    res.json({ success: false, error: error.message });
-  } finally {
-    client.release();
-  }
-});
-
 // Cleanup duplicate imports
 app.post('/api/admin/cleanup-duplicates', async (req, res) => {
   const client = await pool.connect();
@@ -6704,93 +6641,6 @@ app.post('/api/ai/generate-content', async (req, res) => {
 // PUBLIC API ENDPOINTS (for WordPress plugin & widgets)
 // =====================================================
 
-// Validate client ID (public)
-app.get('/api/public/validate-client/:clientId', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    
-    const client = await pool.query(`
-      SELECT c.id, c.company_name, c.client_type,
-             COUNT(DISTINCT p.id) as property_count
-      FROM clients c
-      LEFT JOIN properties p ON p.client_id = c.id
-      WHERE c.id = $1
-      GROUP BY c.id
-    `, [clientId]);
-    
-    if (!client.rows[0]) {
-      return res.json({ success: false, error: 'Client not found' });
-    }
-    
-    res.json({
-      success: true,
-      client: client.rows[0]
-    });
-  } catch (error) {
-    console.error('Validate client error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get all properties for a client (public)
-app.get('/api/public/client/:clientId/properties', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    
-    const properties = await pool.query(`
-      SELECT p.id, p.name, p.property_type, p.description, 
-             p.city, p.country, p.currency,
-             COUNT(bu.id) as room_count
-      FROM properties p
-      LEFT JOIN bookable_units bu ON bu.property_id = p.id
-      WHERE p.client_id = $1
-      GROUP BY p.id
-      ORDER BY p.name
-    `, [clientId]);
-    
-    res.json({
-      success: true,
-      properties: properties.rows
-    });
-  } catch (error) {
-    console.error('Client properties error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get all rooms for a client (public) - used by WordPress plugin
-app.get('/api/public/client/:clientId/rooms', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    const { property_id } = req.query;
-    
-    let query = `
-      SELECT bu.*, p.name as property_name, p.currency
-      FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      WHERE p.client_id = $1
-    `;
-    const params = [clientId];
-    
-    if (property_id) {
-      query += ` AND bu.property_id = $2`;
-      params.push(property_id);
-    }
-    
-    query += ` ORDER BY p.name, bu.name`;
-    
-    const rooms = await pool.query(query, params);
-    
-    res.json({
-      success: true,
-      rooms: rooms.rows
-    });
-  } catch (error) {
-    console.error('Client rooms error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // Get property info (public)
 app.get('/api/public/property/:propertyId', async (req, res) => {
   try {
@@ -6835,7 +6685,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const unit = await pool.query(`
-      SELECT bu.*, p.name as property_name, p.currency
+      SELECT bu.*, p.name as property_name, p.currency, p.timezone
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -6845,37 +6695,23 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
-    // Try to get images from room_images table first, fall back to empty array
-    let images = [];
-    try {
-      const imgResult = await pool.query(`
-        SELECT id, image_url as url, alt_text, is_primary, display_order
-        FROM room_images WHERE room_id = $1 AND is_active = true
-        ORDER BY display_order, is_primary DESC
-      `, [unitId]);
-      images = imgResult.rows;
-    } catch (imgErr) {
-      console.log('No room_images table or error:', imgErr.message);
-    }
+    const images = await pool.query(`
+      SELECT id, url, alt_text, is_primary
+      FROM bookable_unit_images WHERE unit_id = $1
+      ORDER BY sort_order, is_primary DESC
+    `, [unitId]);
     
-    // Try to get amenities, fall back to empty array
-    let amenities = [];
-    try {
-      const amenResult = await pool.query(`
-        SELECT name, category, icon
-        FROM bookable_unit_amenities WHERE unit_id = $1
-        ORDER BY category, name
-      `, [unitId]);
-      amenities = amenResult.rows;
-    } catch (amenErr) {
-      console.log('No amenities table or error:', amenErr.message);
-    }
+    const amenities = await pool.query(`
+      SELECT name, category, icon
+      FROM bookable_unit_amenities WHERE unit_id = $1
+      ORDER BY category, name
+    `, [unitId]);
     
     res.json({
       success: true,
       unit: unit.rows[0],
-      images: images,
-      amenities: amenities
+      images: images.rows,
+      amenities: amenities.rows
     });
   } catch (error) {
     console.error('Public unit error:', error);
@@ -6893,7 +6729,6 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     const startDate = from || new Date().toISOString().split('T')[0];
     const endDate = to || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
-    // Get availability from room_availability table
     const availability = await pool.query(`
       SELECT 
         date,
@@ -6907,25 +6742,30 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     `, [unitId, startDate, endDate]);
     
     // Get existing bookings that overlap with this date range
-    const bookings = await pool.query(`
-      SELECT check_in, check_out 
-      FROM bookings 
-      WHERE (room_id = $1 OR bookable_unit_id = $1)
-        AND status NOT IN ('cancelled', 'rejected', 'no_show')
-        AND check_in < $3 
-        AND check_out > $2
-    `, [unitId, startDate, endDate]);
-    
-    // Build set of booked dates
-    const bookedDates = new Set();
-    bookings.rows.forEach(b => {
-      let current = new Date(b.check_in);
-      const end = new Date(b.check_out);
-      while (current < end) {
-        bookedDates.add(current.toISOString().split('T')[0]);
-        current.setDate(current.getDate() + 1);
-      }
-    });
+    let bookedDates = new Set();
+    try {
+      const bookings = await pool.query(`
+        SELECT arrival_date, departure_date 
+        FROM bookings 
+        WHERE bookable_unit_id = $1
+          AND status NOT IN ('cancelled', 'rejected', 'no_show')
+          AND arrival_date < $3 
+          AND departure_date > $2
+      `, [unitId, startDate, endDate]);
+      
+      // Build set of booked dates
+      bookings.rows.forEach(b => {
+        let current = new Date(b.arrival_date);
+        const end = new Date(b.departure_date);
+        while (current < end) {
+          bookedDates.add(current.toISOString().split('T')[0]);
+          current.setDate(current.getDate() + 1);
+        }
+      });
+    } catch (bookingErr) {
+      console.log('Bookings query error (may not exist):', bookingErr.message);
+      // Continue without booking data - rely on room_availability table
+    }
     
     // Get unit info for base price fallback
     const unit = await pool.query(`
@@ -6948,24 +6788,30 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       availMap[dateStr] = a;
     });
     
+    let totalPrice = 0;
+    let allAvailable = true;
+    
     while (current <= end) {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availMap[dateStr];
       const isBooked = bookedDates.has(dateStr);
       
+      // Date is available only if: not booked AND (no availability record OR is_available=true AND not blocked)
+      const isAvailable = !isBooked && (dayData ? (dayData.is_available && !dayData.is_blocked) : true);
+      const price = dayData?.price || basePrice;
+      
+      if (!isAvailable) allAvailable = false;
+      totalPrice += parseFloat(price) || 0;
+      
       calendar.push({
         date: dateStr,
-        price: dayData?.price || basePrice,
-        available: !isBooked && (dayData ? (dayData.is_available && !dayData.is_blocked) : true),
+        price: price,
+        available: isAvailable,
         min_stay: dayData?.min_stay || 1
       });
       
       current.setDate(current.getDate() + 1);
     }
-    
-    // Also return overall availability for the range
-    const allAvailable = calendar.every(d => d.available);
-    const totalPrice = calendar.reduce((sum, d) => sum + parseFloat(d.price || 0), 0);
     
     res.json({
       success: true,
