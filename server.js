@@ -1,4 +1,5 @@
-// Updated for DELETE endpoint + DATABASE MIGRATION
+// GAS - Guest Accommodation System Server
+// Multi-tenant SaaS for property management
 require('dotenv').config();
 const express = require('express');
 const axios = require('axios');
@@ -21,11 +22,85 @@ const pool = new Pool({
   ssl: { rejectUnauthorized: false }
 });
 
-pool.query('SELECT NOW()', (err, res) => {
+// Run database migrations on startup
+async function runMigrations() {
+  try {
+    // Create migrations tracking table if it doesn't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS _migrations (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL UNIQUE,
+        executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+
+    // Get list of migration files
+    const migrationsDir = path.join(__dirname, 'migrations');
+    
+    // Check if migrations directory exists
+    if (!fs.existsSync(migrationsDir)) {
+      console.log('📁 No migrations directory found, skipping migrations');
+      return;
+    }
+    
+    const files = fs.readdirSync(migrationsDir)
+      .filter(f => f.endsWith('.sql'))
+      .sort();
+
+    if (files.length === 0) {
+      console.log('📁 No migration files found');
+      return;
+    }
+
+    console.log(`📁 Found ${files.length} migration files`);
+
+    for (const file of files) {
+      // Check if already executed
+      const executed = await pool.query(
+        'SELECT id FROM _migrations WHERE name = $1',
+        [file]
+      );
+
+      if (executed.rows.length > 0) {
+        console.log(`⏭️  Skipping ${file} (already executed)`);
+        continue;
+      }
+
+      // Read and execute migration
+      console.log(`🔄 Running migration: ${file}`);
+      const sql = fs.readFileSync(path.join(migrationsDir, file), 'utf8');
+      
+      try {
+        await pool.query(sql);
+        
+        // Record successful migration
+        await pool.query(
+          'INSERT INTO _migrations (name) VALUES ($1)',
+          [file]
+        );
+        
+        console.log(`✅ Completed: ${file}`);
+      } catch (err) {
+        console.error(`❌ Migration failed: ${file}`);
+        console.error(err.message);
+        // Don't throw - let server continue even if migration fails
+      }
+    }
+
+    console.log('🎉 Migrations check complete!');
+  } catch (error) {
+    console.error('Migration runner error:', error.message);
+  }
+}
+
+// Initialize database connection and run migrations
+pool.query('SELECT NOW()', async (err, res) => {
   if (err) {
     console.error('❌ Database connection failed:', err);
   } else {
     console.log('✅ Database connected:', res.rows[0].now);
+    // Run migrations after successful connection
+    await runMigrations();
   }
 });
 
@@ -6906,6 +6981,459 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
     res.json({ success: true, upsells: upsells.rows });
   } catch (error) {
     console.error('Get upsells error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// CLIENT MANAGEMENT API
+// =========================================================
+
+// Get all clients (admin view)
+app.get('/api/admin/clients', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        c.*,
+        COUNT(DISTINCT p.id) as property_count,
+        COUNT(DISTINCT r.id) as room_count,
+        COUNT(DISTINCT b.id) as total_bookings
+      FROM clients c
+      LEFT JOIN properties p ON p.client_id = c.id
+      LEFT JOIN rooms r ON r.property_id = p.id
+      LEFT JOIN bookings b ON b.room_id = r.id
+      GROUP BY c.id
+      ORDER BY c.created_at DESC
+    `);
+    
+    res.json({ success: true, clients: result.rows });
+  } catch (error) {
+    console.error('Get clients error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single client with details
+app.get('/api/admin/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const client = await pool.query(`SELECT * FROM clients WHERE id = $1`, [id]);
+    
+    if (client.rows.length === 0) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    // Get client's properties
+    const properties = await pool.query(`
+      SELECT p.*, COUNT(r.id) as room_count
+      FROM properties p
+      LEFT JOIN rooms r ON r.property_id = p.id
+      WHERE p.client_id = $1
+      GROUP BY p.id
+      ORDER BY p.name
+    `, [id]);
+    
+    // Get client's users
+    const users = await pool.query(`
+      SELECT id, email, first_name, last_name, role, status, last_login_at, created_at
+      FROM client_users
+      WHERE client_id = $1
+      ORDER BY role, created_at
+    `, [id]);
+    
+    // Get client's channel connections
+    const connections = await pool.query(`
+      SELECT cmc.*, p.name as property_name
+      FROM channel_manager_connections cmc
+      LEFT JOIN properties p ON p.id = cmc.property_id
+      WHERE cmc.client_id = $1
+      ORDER BY cmc.channel_manager
+    `, [id]);
+    
+    res.json({ 
+      success: true, 
+      client: client.rows[0],
+      properties: properties.rows,
+      users: users.rows,
+      connections: connections.rows
+    });
+  } catch (error) {
+    console.error('Get client error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create new client
+app.post('/api/admin/clients', async (req, res) => {
+  try {
+    const {
+      name, email, phone,
+      address_line1, address_line2, city, region, postcode, country,
+      currency, timezone, plan, notes
+    } = req.body;
+    
+    // Generate API key
+    const apiKey = 'gas_' + require('crypto').randomBytes(28).toString('hex');
+    
+    const result = await pool.query(`
+      INSERT INTO clients (
+        name, email, phone,
+        address_line1, address_line2, city, region, postcode, country,
+        currency, timezone, plan, notes,
+        api_key, api_key_created_at, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, CURRENT_TIMESTAMP, 'active')
+      RETURNING *
+    `, [
+      name, email, phone,
+      address_line1, address_line2, city, region, postcode, country || 'United Kingdom',
+      currency || 'GBP', timezone || 'Europe/London', plan || 'free', notes,
+      apiKey
+    ]);
+    
+    res.json({ success: true, client: result.rows[0] });
+  } catch (error) {
+    console.error('Create client error:', error);
+    if (error.code === '23505') {
+      res.json({ success: false, error: 'A client with this email already exists' });
+    } else {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Update client
+app.put('/api/admin/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name, email, phone,
+      address_line1, address_line2, city, region, postcode, country,
+      currency, timezone, plan, status, notes
+    } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE clients SET
+        name = COALESCE($1, name),
+        email = COALESCE($2, email),
+        phone = COALESCE($3, phone),
+        address_line1 = COALESCE($4, address_line1),
+        address_line2 = COALESCE($5, address_line2),
+        city = COALESCE($6, city),
+        region = COALESCE($7, region),
+        postcode = COALESCE($8, postcode),
+        country = COALESCE($9, country),
+        currency = COALESCE($10, currency),
+        timezone = COALESCE($11, timezone),
+        plan = COALESCE($12, plan),
+        status = COALESCE($13, status),
+        notes = COALESCE($14, notes),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $15
+      RETURNING *
+    `, [
+      name, email, phone,
+      address_line1, address_line2, city, region, postcode, country,
+      currency, timezone, plan, status, notes,
+      id
+    ]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    res.json({ success: true, client: result.rows[0] });
+  } catch (error) {
+    console.error('Update client error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete client
+app.delete('/api/admin/clients/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check for associated properties
+    const properties = await pool.query(`SELECT COUNT(*) FROM properties WHERE client_id = $1`, [id]);
+    
+    if (parseInt(properties.rows[0].count) > 0) {
+      return res.json({ 
+        success: false, 
+        error: `Cannot delete client with ${properties.rows[0].count} associated properties. Reassign or delete properties first.` 
+      });
+    }
+    
+    await pool.query(`DELETE FROM clients WHERE id = $1`, [id]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete client error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Regenerate API key
+app.post('/api/admin/clients/:id/regenerate-api-key', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const newApiKey = 'gas_' + require('crypto').randomBytes(28).toString('hex');
+    
+    const result = await pool.query(`
+      UPDATE clients 
+      SET api_key = $1, api_key_created_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING id, api_key, api_key_created_at
+    `, [newApiKey, id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    res.json({ success: true, api_key: result.rows[0].api_key });
+  } catch (error) {
+    console.error('Regenerate API key error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Assign property to client
+app.post('/api/admin/clients/:id/assign-property', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { property_id } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE properties SET client_id = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+    `, [id, property_id]);
+    
+    // Also update channel manager connections
+    await pool.query(`
+      UPDATE channel_manager_connections SET client_id = $1
+      WHERE property_id = $2
+    `, [id, property_id]);
+    
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    console.error('Assign property error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get unassigned properties (not belonging to any client)
+app.get('/api/admin/properties/unassigned', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*, COUNT(r.id) as room_count
+      FROM properties p
+      LEFT JOIN rooms r ON r.property_id = p.id
+      WHERE p.client_id IS NULL
+      GROUP BY p.id
+      ORDER BY p.name
+    `);
+    
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    console.error('Get unassigned properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// CLIENT USER MANAGEMENT
+// =========================================================
+
+// Add user to client
+app.post('/api/admin/clients/:id/users', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { email, first_name, last_name, phone, role } = req.body;
+    
+    // Generate invite token
+    const inviteToken = require('crypto').randomBytes(32).toString('hex');
+    
+    const result = await pool.query(`
+      INSERT INTO client_users (client_id, email, first_name, last_name, phone, role, status, invite_token, invite_expires_at)
+      VALUES ($1, $2, $3, $4, $5, $6, 'invited', $7, CURRENT_TIMESTAMP + INTERVAL '7 days')
+      RETURNING *
+    `, [id, email, first_name, last_name, phone, role || 'staff', inviteToken]);
+    
+    res.json({ 
+      success: true, 
+      user: result.rows[0],
+      invite_link: `/accept-invite?token=${inviteToken}`
+    });
+  } catch (error) {
+    console.error('Add user error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update user
+app.put('/api/admin/clients/:clientId/users/:userId', async (req, res) => {
+  try {
+    const { clientId, userId } = req.params;
+    const { first_name, last_name, phone, role, status } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE client_users SET
+        first_name = COALESCE($1, first_name),
+        last_name = COALESCE($2, last_name),
+        phone = COALESCE($3, phone),
+        role = COALESCE($4, role),
+        status = COALESCE($5, status),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $6 AND client_id = $7
+      RETURNING *
+    `, [first_name, last_name, phone, role, status, userId, clientId]);
+    
+    res.json({ success: true, user: result.rows[0] });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Remove user from client
+app.delete('/api/admin/clients/:clientId/users/:userId', async (req, res) => {
+  try {
+    const { clientId, userId } = req.params;
+    
+    // Prevent deleting the owner
+    const user = await pool.query(`SELECT role FROM client_users WHERE id = $1 AND client_id = $2`, [userId, clientId]);
+    if (user.rows[0]?.role === 'owner') {
+      return res.json({ success: false, error: 'Cannot delete the account owner' });
+    }
+    
+    await pool.query(`DELETE FROM client_users WHERE id = $1 AND client_id = $2`, [userId, clientId]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// PUBLIC API - AUTHENTICATED BY API KEY
+// =========================================================
+
+// Middleware to validate API key and get client
+const validateApiKey = async (req, res, next) => {
+  const apiKey = req.headers['x-api-key'] || req.query.api_key;
+  
+  if (!apiKey) {
+    return res.status(401).json({ success: false, error: 'API key required' });
+  }
+  
+  try {
+    const result = await pool.query(`
+      SELECT id, name, plan, status FROM clients WHERE api_key = $1
+    `, [apiKey]);
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const client = result.rows[0];
+    
+    if (client.status !== 'active') {
+      return res.status(403).json({ success: false, error: 'Account is ' + client.status });
+    }
+    
+    if (client.plan === 'free') {
+      return res.status(403).json({ success: false, error: 'API access requires a paid plan. Please upgrade at your GAS dashboard.' });
+    }
+    
+    // Attach client to request
+    req.client = client;
+    
+    // Track API usage
+    await pool.query(`
+      UPDATE clients SET 
+        api_requests_today = CASE 
+          WHEN api_requests_reset_at < CURRENT_DATE THEN 1 
+          ELSE api_requests_today + 1 
+        END,
+        api_requests_reset_at = CURRENT_DATE
+      WHERE id = $1
+    `, [client.id]);
+    
+    next();
+  } catch (error) {
+    console.error('API key validation error:', error);
+    res.status(500).json({ success: false, error: 'Authentication error' });
+  }
+};
+
+// Get client's properties (authenticated)
+app.get('/api/v1/properties', validateApiKey, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*, COUNT(r.id) as room_count
+      FROM properties p
+      LEFT JOIN rooms r ON r.property_id = p.id
+      WHERE p.client_id = $1
+      GROUP BY p.id
+      ORDER BY p.name
+    `, [req.client.id]);
+    
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    console.error('Get client properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all units for client (authenticated)
+app.get('/api/v1/units', validateApiKey, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT r.*, p.name as property_name, p.id as property_id
+      FROM rooms r
+      JOIN properties p ON r.property_id = p.id
+      WHERE p.client_id = $1
+      ORDER BY p.name, r.name
+    `, [req.client.id]);
+    
+    res.json({ success: true, units: result.rows });
+  } catch (error) {
+    console.error('Get client units error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get availability for a unit (authenticated - checks ownership)
+app.get('/api/v1/availability/:unitId', validateApiKey, async (req, res) => {
+  try {
+    const { unitId } = req.params;
+    const { from, to } = req.query;
+    
+    // Verify unit belongs to this client
+    const unitCheck = await pool.query(`
+      SELECT r.id FROM rooms r
+      JOIN properties p ON r.property_id = p.id
+      WHERE r.id = $1 AND p.client_id = $2
+    `, [unitId, req.client.id]);
+    
+    if (unitCheck.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Unit not found or not authorized' });
+    }
+    
+    // Get availability (reuse existing logic)
+    const availability = await pool.query(`
+      SELECT date, price, available, min_stay, max_stay
+      FROM daily_rates
+      WHERE room_id = $1 AND date >= $2 AND date <= $3
+      ORDER BY date
+    `, [unitId, from, to]);
+    
+    res.json({ success: true, unit_id: unitId, calendar: availability.rows });
+  } catch (error) {
+    console.error('Get availability error:', error);
     res.json({ success: false, error: error.message });
   }
 });
