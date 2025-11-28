@@ -6641,6 +6641,95 @@ app.post('/api/ai/generate-content', async (req, res) => {
 // PUBLIC API ENDPOINTS (for WordPress plugin & widgets)
 // =====================================================
 
+// Validate client ID (public)
+app.get('/api/public/validate-client/:clientId', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    const client = await pool.query(`
+      SELECT c.id, c.name,
+             COUNT(DISTINCT p.id) as property_count
+      FROM clients c
+      LEFT JOIN properties p ON p.client_id = c.id
+      WHERE c.id = $1
+      GROUP BY c.id
+    `, [clientId]);
+    
+    if (!client.rows[0]) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    res.json({
+      success: true,
+      client: client.rows[0]
+    });
+  } catch (error) {
+    console.error('Validate client error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all properties for a client (public)
+app.get('/api/public/client/:clientId/properties', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    const properties = await pool.query(`
+      SELECT p.id, p.name, p.property_type, p.description, 
+             p.city, p.country, p.currency,
+             COUNT(bu.id) as room_count
+      FROM properties p
+      LEFT JOIN bookable_units bu ON bu.property_id = p.id
+      WHERE p.client_id = $1
+      GROUP BY p.id
+      ORDER BY p.name
+    `, [clientId]);
+    
+    res.json({
+      success: true,
+      properties: properties.rows
+    });
+  } catch (error) {
+    console.error('Client properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all rooms for a client (public) - used by WordPress plugin
+app.get('/api/public/client/:clientId/rooms', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { property_id } = req.query;
+    
+    let query = `
+      SELECT bu.id, bu.name, bu.unit_type, bu.description, bu.max_guests, bu.base_price,
+             p.name as property_name, p.currency,
+             (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_primary = true LIMIT 1) as image_url
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.client_id = $1
+    `;
+    const params = [clientId];
+    
+    if (property_id) {
+      query += ` AND bu.property_id = $2`;
+      params.push(property_id);
+    }
+    
+    query += ` ORDER BY p.name, bu.name`;
+    
+    const rooms = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      rooms: rooms.rows
+    });
+  } catch (error) {
+    console.error('Client rooms error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get property info (public)
 app.get('/api/public/property/:propertyId', async (req, res) => {
   try {
