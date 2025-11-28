@@ -6893,6 +6893,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     const startDate = from || new Date().toISOString().split('T')[0];
     const endDate = to || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
+    // Get availability from room_availability table
     const availability = await pool.query(`
       SELECT 
         date,
@@ -6904,6 +6905,27 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       WHERE room_id = $1 AND date >= $2 AND date <= $3
       ORDER BY date
     `, [unitId, startDate, endDate]);
+    
+    // Get existing bookings that overlap with this date range
+    const bookings = await pool.query(`
+      SELECT check_in, check_out 
+      FROM bookings 
+      WHERE room_id = $1 
+        AND status NOT IN ('cancelled', 'rejected', 'no_show')
+        AND check_in < $3 
+        AND check_out > $2
+    `, [unitId, startDate, endDate]);
+    
+    // Build set of booked dates
+    const bookedDates = new Set();
+    bookings.rows.forEach(b => {
+      let current = new Date(b.check_in);
+      const end = new Date(b.check_out);
+      while (current < end) {
+        bookedDates.add(current.toISOString().split('T')[0]);
+        current.setDate(current.getDate() + 1);
+      }
+    });
     
     // Get unit info for base price fallback
     const unit = await pool.query(`
@@ -6929,22 +6951,29 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
     while (current <= end) {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availMap[dateStr];
+      const isBooked = bookedDates.has(dateStr);
       
       calendar.push({
         date: dateStr,
         price: dayData?.price || basePrice,
-        available: dayData ? (dayData.is_available && !dayData.is_blocked) : true,
+        available: !isBooked && (dayData ? (dayData.is_available && !dayData.is_blocked) : true),
         min_stay: dayData?.min_stay || 1
       });
       
       current.setDate(current.getDate() + 1);
     }
     
+    // Also return overall availability for the range
+    const allAvailable = calendar.every(d => d.available);
+    const totalPrice = calendar.reduce((sum, d) => sum + parseFloat(d.price || 0), 0);
+    
     res.json({
       success: true,
       unit_id: unitId,
       currency: currency,
-      calendar: calendar
+      calendar: calendar,
+      is_available: allAvailable,
+      total_price: totalPrice
     });
   } catch (error) {
     console.error('Public availability error:', error);
