@@ -3230,12 +3230,12 @@
             
             // Load rooms for reference
             try {
-                const response = await fetch('/api/admin/rooms');
+                const response = await fetch('/api/admin/units');
                 const data = await response.json();
                 
-                if (data.success && data.rooms && data.rooms.length > 0) {
+                if (data.success && data.data && data.data.length > 0) {
                     // Set first property ID
-                    const firstPropertyId = data.rooms[0].property_id;
+                    const firstPropertyId = data.data[0].property_id;
                     window.currentPropertyId = firstPropertyId;
                     document.getElementById('shortcode-property-id').textContent = firstPropertyId;
                     document.getElementById('wp-property-id').textContent = firstPropertyId;
@@ -3245,7 +3245,7 @@
                     html += '<thead><tr style="text-align: left; border-bottom: 1px solid var(--border);"><th style="padding: 0.5rem;">Room Name</th><th style="padding: 0.5rem;">ID</th><th style="padding: 0.5rem;">Shortcode</th></tr></thead>';
                     html += '<tbody>';
                     
-                    data.rooms.forEach(room => {
+                    data.data.forEach(room => {
                         html += `<tr style="border-bottom: 1px solid var(--border);">
                             <td style="padding: 0.5rem;">${room.name}</td>
                             <td style="padding: 0.5rem;"><code style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 3px;">${room.id}</code></td>
