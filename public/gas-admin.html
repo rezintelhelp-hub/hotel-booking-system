@@ -2182,7 +2182,7 @@
                         <div>
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Install the Plugin</h4>
                             <ol style="margin: 0; padding-left: 1.25rem; color: var(--text-secondary); font-size: 0.9rem; line-height: 1.8;">
-                                <li><a href="/downloads/gas-booking-plugin.zip" download style="color: var(--accent); font-weight: 600;">📥 Download the GAS Booking Plugin ZIP file</a></li>
+                                <li>Download the <strong>GAS Booking Plugin</strong> ZIP file</li>
                                 <li>In WordPress, go to <strong>Plugins → Add New → Upload Plugin</strong></li>
                                 <li>Choose the ZIP file and click <strong>Install Now</strong></li>
                                 <li>Click <strong>Activate Plugin</strong></li>
@@ -2203,10 +2203,10 @@
                                         <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-api-url-guide"></code>
                                         <button onclick="copyShortcode(document.getElementById('wp-api-url-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
                                     </div>
-                                    <strong>Client Account ID:</strong>
+                                    <strong>Property ID:</strong>
                                     <div>
-                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-client-id-guide">1</code>
-                                        <button onclick="copyShortcode(document.getElementById('wp-client-id-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
+                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-property-id-guide">1</code>
+                                        <button onclick="copyShortcode(document.getElementById('wp-property-id-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
                                     </div>
                                 </div>
                                 <p style="margin: 0.75rem 0 0 0; color: var(--text-secondary); font-size: 0.8rem;">Leave other settings as default, then click <strong>Save Changes</strong></p>
@@ -2307,9 +2307,9 @@
                             <code style="background: white; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem;" id="wp-api-url"></code>
                             <button onclick="copyShortcode(document.getElementById('wp-api-url').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">Copy</button>
                             
-                            <span style="color: var(--text-secondary); font-weight: 500;">Client Account ID:</span>
-                            <code style="background: white; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem;" id="wp-client-id">1</code>
-                            <button onclick="copyShortcode(document.getElementById('wp-client-id').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">Copy</button>
+                            <span style="color: var(--text-secondary); font-weight: 500;">Property ID:</span>
+                            <code style="background: white; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem;" id="wp-property-id">1</code>
+                            <button onclick="copyShortcode(document.getElementById('wp-property-id').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">Copy</button>
                         </div>
                     </div>
                 </div>
@@ -2473,14 +2473,7 @@
                     <!-- Settings -->
                     <div style="margin-bottom: 1.5rem;">
                         <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Settings</h4>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label>Client Type</label>
-                                <select id="client-type" class="form-input">
-                                    <option value="owner">Property Owner</option>
-                                    <option value="agent">Travel Agent</option>
-                                </select>
-                            </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
                                 <label>Currency</label>
                                 <select id="client-currency" class="form-input">
@@ -2539,46 +2532,6 @@
                 <div class="loading">
                     <div class="spinner"></div>
                     <p style="margin-top: 1rem;">Loading client details...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Assign Properties Modal -->
-    <div id="assignPropertiesModal" class="modal">
-        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
-                <div>
-                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">🏠 Assign Properties</h3>
-                    <p id="assign-props-subtitle" style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Select properties to assign</p>
-                </div>
-                <button class="modal-close" onclick="closeModal('assignPropertiesModal')" style="color: white; font-size: 1.5rem;">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 1.5rem;">
-                <input type="hidden" id="assign-props-client-id">
-                
-                <!-- Select All -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
-                    <label style="display: flex; align-items: center; cursor: pointer; font-weight: 500;">
-                        <input type="checkbox" id="assign-props-select-all" onchange="toggleSelectAllProperties()" style="margin-right: 0.5rem; width: 18px; height: 18px;">
-                        Select All
-                    </label>
-                    <span id="assign-props-count" style="font-size: 0.85rem; color: var(--text-secondary);">0 properties available</span>
-                </div>
-                
-                <div id="assign-props-list" style="max-height: 350px; overflow-y: auto;">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        <p style="margin-top: 1rem;">Loading properties...</p>
-                    </div>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
-                    <span id="assign-props-selected" style="font-size: 0.9rem; color: var(--text-secondary);">0 selected</span>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button type="button" class="btn btn-secondary" onclick="closeModal('assignPropertiesModal')">Cancel</button>
-                        <button type="button" class="btn" onclick="submitPropertyAssignments()" id="assign-props-submit" disabled>Assign Selected</button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -3321,54 +3274,116 @@
 
     <!-- Edit Property Modal -->
     <div id="editPropertyModal" class="modal">
-        <div class="modal-content">
+        <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
                 <h3 class="modal-title">Edit Property</h3>
                 <button class="modal-close" onclick="closeModal('editPropertyModal')">×</button>
             </div>
             <form id="editPropertyForm" onsubmit="return saveProperty(event)">
                 <input type="hidden" id="edit-property-id">
-                <div class="form-group">
-                    <label class="form-label">Property Name *</label>
-                    <input type="text" class="form-input" id="edit-property-name" required>
+                
+                <!-- Basic Info Section -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">Basic Information</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Property Name *</label>
+                            <input type="text" class="form-input" id="edit-property-name" required>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Property Type</label>
+                            <select class="form-input" id="edit-property-type">
+                                <option value="hotel">Hotel</option>
+                                <option value="apartment">Apartment</option>
+                                <option value="house">House</option>
+                                <option value="bedAndBreakfast">Bed & Breakfast</option>
+                                <option value="hostel">Hostel</option>
+                                <option value="villa">Villa</option>
+                                <option value="cottage">Cottage</option>
+                                <option value="guesthouse">Guesthouse</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Status</label>
+                            <select class="form-input" id="edit-property-status">
+                                <option value="active">Active</option>
+                                <option value="draft">Draft</option>
+                                <option value="inactive">Inactive</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Property Type</label>
-                    <select class="form-input" id="edit-property-type">
-                        <option value="hotel">Hotel</option>
-                        <option value="apartment">Apartment</option>
-                        <option value="house">House</option>
-                        <option value="bedAndBreakfast">Bed & Breakfast</option>
-                        <option value="hostel">Hostel</option>
-                    </select>
+                
+                <!-- Address Section -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">📍 Address & Location</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Street Address</label>
+                            <input type="text" class="form-input" id="edit-property-address" placeholder="123 High Street">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">City / Town</label>
+                            <input type="text" class="form-input" id="edit-property-city" placeholder="London">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">District / Area</label>
+                            <input type="text" class="form-input" id="edit-property-district" placeholder="Westminster">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">State / County / Region</label>
+                            <input type="text" class="form-input" id="edit-property-state" placeholder="Greater London">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Postcode / ZIP</label>
+                            <input type="text" class="form-input" id="edit-property-zipcode" placeholder="SW1A 1AA">
+                        </div>
+                        <div class="form-group" style="grid-column: 1 / -1;">
+                            <label class="form-label">Country</label>
+                            <input type="text" class="form-input" id="edit-property-country" placeholder="United Kingdom">
+                        </div>
+                    </div>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">Address</label>
-                    <input type="text" class="form-input" id="edit-property-address">
+                
+                <!-- Coordinates Section -->
+                <div style="margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">🗺️ Map Coordinates</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Latitude</label>
+                            <input type="text" class="form-input" id="edit-property-latitude" placeholder="51.5074">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Longitude</label>
+                            <input type="text" class="form-input" id="edit-property-longitude" placeholder="-0.1278">
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="geocodePropertyAddress()" style="height: 42px;">
+                            📍 Lookup
+                        </button>
+                    </div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        Coordinates are used for map display on your booking site.
+                    </p>
+                    
+                    <!-- Mini Map Preview -->
+                    <div id="property-map-preview" style="margin-top: 1rem; height: 200px; background: #e5e7eb; border-radius: 8px; display: none; position: relative; overflow: hidden;">
+                        <div id="property-map-container" style="width: 100%; height: 100%;"></div>
+                        <div style="position: absolute; bottom: 8px; left: 8px; background: rgba(255,255,255,0.9); padding: 4px 8px; border-radius: 4px; font-size: 0.75rem;">
+                            Click map to set coordinates
+                        </div>
+                    </div>
+                    <button type="button" class="btn btn-secondary" onclick="togglePropertyMap()" style="margin-top: 0.5rem; font-size: 0.85rem;" id="toggle-map-btn">
+                        🗺️ Show Map
+                    </button>
                 </div>
-                <div class="form-group">
-                    <label class="form-label">City</label>
-                    <input type="text" class="form-input" id="edit-property-city">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Country</label>
-                    <input type="text" class="form-input" id="edit-property-country">
-                </div>
-                <div class="form-group">
-                    <label class="form-label">Status</label>
-                    <select class="form-input" id="edit-property-status">
-                        <option value="active">Active</option>
-                        <option value="draft">Draft</option>
-                        <option value="inactive">Inactive</option>
-                    </select>
-                </div>
-                <div style="display: flex; gap: 1rem; justify-content: space-between;">
+                
+                <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
                     <button type="button" class="btn" style="background: var(--error); border-color: var(--error);" onclick="deleteProperty()">
-                        Delete Property
+                        🗑️ Delete Property
                     </button>
                     <div style="display: flex; gap: 1rem;">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('editPropertyModal')">Cancel</button>
-                        <button type="submit" class="btn">Save Changes</button>
+                        <button type="submit" class="btn">💾 Save Changes</button>
                     </div>
                 </div>
             </form>
@@ -3600,7 +3615,6 @@
                                 <thead>
                                     <tr>
                                         <th>Client</th>
-                                        <th>Type</th>
                                         <th>Properties</th>
                                         <th>Rooms</th>
                                         <th>Plan</th>
@@ -3615,11 +3629,6 @@
                                             <td>
                                                 <strong>${client.name}</strong>
                                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">${client.email}</div>
-                                            </td>
-                                            <td>
-                                                <span class="badge ${client.client_type === 'agent' ? 'badge-warning' : 'badge-success'}">
-                                                    ${client.client_type === 'agent' ? '🛫 Agent' : '🏠 Owner'}
-                                                </span>
                                             </td>
                                             <td><span class="badge">${client.property_count || 0}</span></td>
                                             <td><span class="badge">${client.room_count || 0}</span></td>
@@ -3685,7 +3694,6 @@
                     document.getElementById('client-region').value = c.region || '';
                     document.getElementById('client-postcode').value = c.postcode || '';
                     document.getElementById('client-country').value = c.country || 'United Kingdom';
-                    document.getElementById('client-type').value = c.client_type || 'owner';
                     document.getElementById('client-currency').value = c.currency || 'GBP';
                     document.getElementById('client-plan').value = c.plan || 'free';
                     document.getElementById('client-status').value = c.status || 'active';
@@ -3713,7 +3721,6 @@
                 region: document.getElementById('client-region').value,
                 postcode: document.getElementById('client-postcode').value,
                 country: document.getElementById('client-country').value,
-                client_type: document.getElementById('client-type').value,
                 currency: document.getElementById('client-currency').value,
                 plan: document.getElementById('client-plan').value,
                 status: document.getElementById('client-status').value,
@@ -3787,19 +3794,12 @@
                             ${data.properties && data.properties.length > 0 ? `
                                 <div style="background: var(--bg-primary); border-radius: 8px; overflow: hidden;">
                                     ${data.properties.map(p => `
-                                        <div class="property-row" style="border-bottom: 1px solid var(--border);">
-                                            <div onclick="togglePropertyRooms(${p.id}, this)" style="padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
-                                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                    <span class="property-toggle" style="color: var(--text-secondary); transition: transform 0.2s;">▶</span>
-                                                    <strong>${p.name}</strong>
-                                                    <span class="badge" style="font-size: 0.75rem;">${p.room_count || 0} rooms</span>
-                                                </div>
-                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                                    <code style="font-size: 0.75rem; background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 3px;">ID: ${p.id}</code>
-                                                    <button onclick="event.stopPropagation(); unassignProperty(${p.id}, ${c.id})" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" title="Unassign from client">✕</button>
-                                                </div>
+                                        <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <strong>${p.name}</strong>
+                                                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 0.5rem;">${p.room_count || 0} rooms</span>
                                             </div>
-                                            <div id="property-rooms-${p.id}" style="display: none; background: var(--bg-secondary); border-top: 1px solid var(--border);"></div>
+                                            <code style="font-size: 0.75rem; background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 3px;">ID: ${p.id}</code>
                                         </div>
                                     `).join('')}
                                 </div>
@@ -3876,229 +3876,32 @@
 
         async function assignPropertyToClient(clientId) {
             try {
-                // Store client ID
-                document.getElementById('assign-props-client-id').value = clientId;
-                
-                // Fetch client name for subtitle
-                const clientRes = await fetch(`/api/admin/clients/${clientId}`);
-                const clientData = await clientRes.json();
-                const clientName = clientData.client?.name || 'Client';
-                document.getElementById('assign-props-subtitle').textContent = `Assign to: ${clientName}`;
-                
-                // Fetch unassigned properties
                 const response = await fetch('/api/admin/properties/unassigned');
                 const data = await response.json();
                 
-                const container = document.getElementById('assign-props-list');
-                
                 if (!data.properties || data.properties.length === 0) {
-                    container.innerHTML = `
-                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">🏠</div>
-                            <p>No unassigned properties available.</p>
-                            <p style="font-size: 0.85rem; margin-top: 0.5rem;">All properties have been assigned to clients.</p>
-                        </div>
-                    `;
-                    document.getElementById('assign-props-count').textContent = '0 properties available';
-                    document.getElementById('assign-props-submit').disabled = true;
-                } else {
-                    document.getElementById('assign-props-count').textContent = `${data.properties.length} properties available`;
-                    
-                    container.innerHTML = data.properties.map(p => `
-                        <label class="property-assign-item" style="display: flex; align-items: flex-start; padding: 0.75rem; margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor=this.querySelector('input').checked ? 'var(--accent)' : 'var(--border)'">
-                            <input type="checkbox" class="property-assign-checkbox" value="${p.id}" onchange="updatePropertySelectionCount()" style="margin-right: 0.75rem; margin-top: 0.25rem; width: 18px; height: 18px; flex-shrink: 0;">
-                            <div style="flex: 1; min-width: 0;">
-                                <div style="font-weight: 500; color: var(--text-primary); margin-bottom: 0.25rem;">
-                                    ${p.name}
-                                </div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1rem; flex-wrap: wrap;">
-                                    <span>ID: ${p.id}</span>
-                                    ${p.room_count ? `<span>🛏️ ${p.room_count} rooms</span>` : ''}
-                                    ${p.city ? `<span>📍 ${p.city}</span>` : ''}
-                                </div>
-                            </div>
-                        </label>
-                    `).join('');
+                    alert('No unassigned properties available');
+                    return;
                 }
                 
-                // Reset selection state
-                document.getElementById('assign-props-select-all').checked = false;
-                updatePropertySelectionCount();
+                const propertyId = prompt(
+                    'Enter property ID to assign:\n\nUnassigned properties:\n' + 
+                    data.properties.map(p => `ID ${p.id}: ${p.name}`).join('\n')
+                );
                 
-                openModal('assignPropertiesModal');
-            } catch (error) {
-                alert('Error loading properties: ' + error.message);
-            }
-        }
-        
-        function toggleSelectAllProperties() {
-            const selectAll = document.getElementById('assign-props-select-all').checked;
-            document.querySelectorAll('.property-assign-checkbox').forEach(cb => {
-                cb.checked = selectAll;
-                // Update visual style
-                const label = cb.closest('.property-assign-item');
-                if (label) {
-                    label.style.borderColor = selectAll ? 'var(--accent)' : 'var(--border)';
-                    label.style.background = selectAll ? 'var(--accent-light)' : '';
-                }
-            });
-            updatePropertySelectionCount();
-        }
-        
-        function updatePropertySelectionCount() {
-            const checked = document.querySelectorAll('.property-assign-checkbox:checked').length;
-            const total = document.querySelectorAll('.property-assign-checkbox').length;
-            
-            document.getElementById('assign-props-selected').textContent = `${checked} selected`;
-            document.getElementById('assign-props-submit').disabled = checked === 0;
-            
-            // Update select all checkbox state
-            const selectAllCheckbox = document.getElementById('assign-props-select-all');
-            selectAllCheckbox.checked = checked === total && total > 0;
-            selectAllCheckbox.indeterminate = checked > 0 && checked < total;
-            
-            // Update visual styles for all items
-            document.querySelectorAll('.property-assign-checkbox').forEach(cb => {
-                const label = cb.closest('.property-assign-item');
-                if (label) {
-                    label.style.borderColor = cb.checked ? 'var(--accent)' : 'var(--border)';
-                    label.style.background = cb.checked ? 'var(--accent-light)' : '';
-                }
-            });
-        }
-        
-        async function submitPropertyAssignments() {
-            const clientId = document.getElementById('assign-props-client-id').value;
-            const selectedIds = Array.from(document.querySelectorAll('.property-assign-checkbox:checked')).map(cb => parseInt(cb.value));
-            
-            if (selectedIds.length === 0) {
-                alert('Please select at least one property');
-                return;
-            }
-            
-            const submitBtn = document.getElementById('assign-props-submit');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Assigning...';
-            
-            try {
-                // Assign properties one by one (or use bulk endpoint if available)
-                let successCount = 0;
-                let errors = [];
-                
-                for (const propertyId of selectedIds) {
-                    const response = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
+                if (propertyId) {
+                    const assignResponse = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ property_id: propertyId })
+                        body: JSON.stringify({ property_id: parseInt(propertyId) })
                     });
                     
-                    const result = await response.json();
+                    const result = await assignResponse.json();
                     if (result.success) {
-                        successCount++;
+                        viewClient(clientId);
                     } else {
-                        errors.push(`Property ${propertyId}: ${result.error}`);
+                        alert('Error: ' + result.error);
                     }
-                }
-                
-                closeModal('assignPropertiesModal');
-                
-                if (errors.length === 0) {
-                    alert(`✓ Successfully assigned ${successCount} property${successCount > 1 ? 'ies' : ''}`);
-                } else {
-                    alert(`Assigned ${successCount} properties.\n\nErrors:\n${errors.join('\n')}`);
-                }
-                
-                // Refresh the client view
-                viewClient(clientId);
-                loadClients(); // Refresh the list too
-                
-            } catch (error) {
-                alert('Error assigning properties: ' + error.message);
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Assign Selected';
-            }
-        }
-
-        // Toggle property rooms visibility
-        async function togglePropertyRooms(propertyId, element) {
-            const roomsContainer = document.getElementById(`property-rooms-${propertyId}`);
-            const toggle = element.querySelector('.property-toggle');
-            
-            if (roomsContainer.style.display === 'none') {
-                // Show rooms - load them first
-                roomsContainer.innerHTML = `
-                    <div style="padding: 1rem; text-align: center; color: var(--text-secondary);">
-                        <span>Loading rooms...</span>
-                    </div>
-                `;
-                roomsContainer.style.display = 'block';
-                toggle.style.transform = 'rotate(90deg)';
-                
-                try {
-                    const response = await fetch(`/api/admin/properties/${propertyId}/rooms`);
-                    const data = await response.json();
-                    
-                    if (data.success && data.rooms && data.rooms.length > 0) {
-                        roomsContainer.innerHTML = `
-                            <div style="padding: 0.5rem;">
-                                ${data.rooms.map(r => `
-                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.75rem; margin: 0.25rem 0; background: var(--bg-card); border-radius: 6px; border: 1px solid var(--border);">
-                                        <div>
-                                            <span style="font-weight: 500;">${r.name}</span>
-                                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">
-                                                ${r.max_occupancy ? `👥 Max ${r.max_occupancy}` : ''}
-                                                ${r.base_price ? ` • 💰 ${r.currency || 'GBP'} ${r.base_price}` : ''}
-                                                ${r.bedroom_count ? ` • 🛏️ ${r.bedroom_count} bed` : ''}
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <span class="badge ${r.status === 'active' ? 'badge-success' : 'badge-secondary'}" style="font-size: 0.7rem;">${r.status || 'active'}</span>
-                                            <button onclick="editRoom(${r.id})" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Edit</button>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `;
-                    } else {
-                        roomsContainer.innerHTML = `
-                            <div style="padding: 1rem; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">
-                                No rooms found for this property
-                            </div>
-                        `;
-                    }
-                } catch (error) {
-                    roomsContainer.innerHTML = `
-                        <div style="padding: 1rem; text-align: center; color: var(--error); font-size: 0.85rem;">
-                            Error loading rooms: ${error.message}
-                        </div>
-                    `;
-                }
-            } else {
-                // Hide rooms
-                roomsContainer.style.display = 'none';
-                toggle.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Unassign property from client
-        async function unassignProperty(propertyId, clientId) {
-            if (!confirm('Unassign this property from the client? The property will become unassigned.')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/admin/properties/${propertyId}/unassign`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    viewClient(clientId);
-                    loadClients();
-                } else {
-                    alert('Error: ' + result.error);
                 }
             } catch (error) {
                 alert('Error: ' + error.message);
@@ -4123,30 +3926,18 @@
             document.getElementById('wp-api-url').textContent = apiUrl;
             document.getElementById('wp-api-url-guide').textContent = apiUrl;
             
-            // Load first client ID for display
-            try {
-                const clientsRes = await fetch('/api/admin/clients');
-                const clientsData = await clientsRes.json();
-                if (clientsData.success && clientsData.clients && clientsData.clients.length > 0) {
-                    const firstClientId = clientsData.clients[0].id;
-                    document.getElementById('wp-client-id').textContent = firstClientId;
-                    document.getElementById('wp-client-id-guide').textContent = firstClientId;
-                }
-            } catch (e) {
-                console.error('Error loading clients:', e);
-            }
-            
             // Load rooms for reference
             try {
                 const response = await fetch('/api/admin/units');
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
-                    // Set first property ID for shortcode examples
+                    // Set first property ID in all locations
                     const firstPropertyId = data.data[0].property_id;
                     window.currentPropertyId = firstPropertyId;
-                    const propIdEl = document.getElementById('shortcode-property-id');
-                    if (propIdEl) propIdEl.textContent = firstPropertyId;
+                    document.getElementById('shortcode-property-id').textContent = firstPropertyId;
+                    document.getElementById('wp-property-id').textContent = firstPropertyId;
+                    document.getElementById('wp-property-id-guide').textContent = firstPropertyId;
                     document.getElementById('wp-rooms-shortcode').textContent = `[gas_rooms property_id="${firstPropertyId}"]`;
                     
                     // Build rooms table
@@ -4261,7 +4052,6 @@
                                         <th>Type</th>
                                         <th>Capacity</th>
                                         <th>Qty</th>
-                                        <th>Agent Access</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
@@ -4276,13 +4066,6 @@
                                             <td>${unit.max_guests || '-'} guests</td>
                                             <td>${unit.quantity || 1}</td>
                                             <td>
-                                                <select onchange="updateUnitAgentAccess(${unit.id}, this.value)" class="form-input" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; width: auto;">
-                                                    <option value="none" ${unit.agent_availability === 'none' || !unit.agent_availability ? 'selected' : ''}>🚫 None</option>
-                                                    <option value="open" ${unit.agent_availability === 'open' ? 'selected' : ''}>🌍 Open</option>
-                                                    <option value="request" ${unit.agent_availability === 'request' ? 'selected' : ''}>📩 Request</option>
-                                                </select>
-                                            </td>
-                                            <td>
                                                 <span class="badge ${(unit.status === 'available' || unit.status === 'active') ? 'badge-success' : unit.status === 'maintenance' ? 'badge-warning' : 'badge-secondary'}">
                                                     ${(unit.status === 'available' || unit.status === 'active') ? '✅' : unit.status === 'maintenance' ? '🔧' : '❌'} ${unit.status || 'available'}
                                                 </span>
@@ -4292,12 +4075,6 @@
                                     `).join('')}
                                 </tbody>
                             </table>
-                        </div>
-                        <div style="margin-top: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; font-size: 0.85rem; color: var(--text-secondary);">
-                            <strong>Agent Access Legend:</strong>
-                            🚫 <strong>None</strong> - Not available to travel agents |
-                            🌍 <strong>Open</strong> - Any agent can list this room (auto-approved) |
-                            📩 <strong>Request</strong> - Agents must request access to sell this room
                         </div>
                     `;
                     container.innerHTML = html;
@@ -7598,26 +7375,9 @@
             }
         }
 
-        // Update unit agent access setting
-        async function updateUnitAgentAccess(unitId, availability) {
-            try {
-                const response = await fetch(`/api/admin/units/${unitId}/agent-settings`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ agent_availability: availability })
-                });
-                
-                const result = await response.json();
-                
-                if (!result.success) {
-                    alert('Error: ' + result.error);
-                    loadRooms(); // Reload to reset
-                }
-            } catch (error) {
-                alert('Error updating agent access: ' + error.message);
-                loadRooms();
-            }
-        }
+        // Property map instance
+        let propertyMap = null;
+        let propertyMarker = null;
 
         async function editProperty(id) {
             try {
@@ -7628,11 +7388,22 @@
                     const prop = data.data;
                     document.getElementById('edit-property-id').value = prop.id;
                     document.getElementById('edit-property-name').value = prop.name || '';
-                    document.getElementById('edit-property-type').value = prop.property_type || '';
+                    document.getElementById('edit-property-type').value = prop.property_type || 'hotel';
                     document.getElementById('edit-property-address').value = prop.address || '';
                     document.getElementById('edit-property-city').value = prop.city || '';
+                    document.getElementById('edit-property-district').value = prop.district || '';
+                    document.getElementById('edit-property-state').value = prop.state || '';
+                    document.getElementById('edit-property-zipcode').value = prop.zip_code || '';
                     document.getElementById('edit-property-country').value = prop.country || '';
+                    document.getElementById('edit-property-latitude').value = prop.latitude || '';
+                    document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
+                    
+                    // Reset map state
+                    document.getElementById('property-map-preview').style.display = 'none';
+                    document.getElementById('toggle-map-btn').textContent = '🗺️ Show Map';
+                    propertyMap = null;
+                    propertyMarker = null;
                     
                     openModal('editPropertyModal');
                 }
@@ -7650,7 +7421,12 @@
                 property_type: document.getElementById('edit-property-type').value,
                 address: document.getElementById('edit-property-address').value,
                 city: document.getElementById('edit-property-city').value,
+                district: document.getElementById('edit-property-district').value,
+                state: document.getElementById('edit-property-state').value,
+                zip_code: document.getElementById('edit-property-zipcode').value,
                 country: document.getElementById('edit-property-country').value,
+                latitude: document.getElementById('edit-property-latitude').value ? parseFloat(document.getElementById('edit-property-latitude').value) : null,
+                longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value
             };
             
@@ -7663,7 +7439,7 @@
                 
                 const result = await response.json();
                 if (result.success) {
-                    alert('Property updated successfully!');
+                    alert('✅ Property updated successfully!');
                     closeModal('editPropertyModal');
                     loadProperties();
                 } else {
@@ -7675,6 +7451,137 @@
             }
             
             return false;
+        }
+
+        async function geocodePropertyAddress() {
+            const address = document.getElementById('edit-property-address').value;
+            const city = document.getElementById('edit-property-city').value;
+            const state = document.getElementById('edit-property-state').value;
+            const zipcode = document.getElementById('edit-property-zipcode').value;
+            const country = document.getElementById('edit-property-country').value;
+            
+            const fullAddress = [address, city, state, zipcode, country].filter(Boolean).join(', ');
+            
+            if (!fullAddress) {
+                alert('Please enter an address first');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(fullAddress)}&limit=1`, {
+                    headers: { 'User-Agent': 'GAS-Admin/1.0' }
+                });
+                
+                const results = await response.json();
+                
+                if (results && results.length > 0) {
+                    const lat = parseFloat(results[0].lat).toFixed(7);
+                    const lon = parseFloat(results[0].lon).toFixed(7);
+                    
+                    document.getElementById('edit-property-latitude').value = lat;
+                    document.getElementById('edit-property-longitude').value = lon;
+                    
+                    if (propertyMap) {
+                        updatePropertyMapMarker(lat, lon);
+                    }
+                    
+                    alert(`✅ Coordinates found!\n\nLatitude: ${lat}\nLongitude: ${lon}`);
+                } else {
+                    alert('Could not find coordinates for this address. Try being more specific or enter coordinates manually.');
+                }
+            } catch (error) {
+                console.error('Geocoding error:', error);
+                alert('Error looking up address. Please enter coordinates manually.');
+            }
+        }
+
+        function togglePropertyMap() {
+            const mapPreview = document.getElementById('property-map-preview');
+            const btn = document.getElementById('toggle-map-btn');
+            
+            if (mapPreview.style.display === 'none') {
+                mapPreview.style.display = 'block';
+                btn.textContent = '🗺️ Hide Map';
+                if (!propertyMap) {
+                    initPropertyMap();
+                }
+            } else {
+                mapPreview.style.display = 'none';
+                btn.textContent = '🗺️ Show Map';
+            }
+        }
+
+        function initPropertyMap() {
+            if (!document.getElementById('leaflet-css')) {
+                const link = document.createElement('link');
+                link.id = 'leaflet-css';
+                link.rel = 'stylesheet';
+                link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+                document.head.appendChild(link);
+            }
+            
+            if (typeof L === 'undefined') {
+                const script = document.createElement('script');
+                script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+                script.onload = () => createPropertyMap();
+                document.head.appendChild(script);
+            } else {
+                createPropertyMap();
+            }
+        }
+
+        function createPropertyMap() {
+            const lat = parseFloat(document.getElementById('edit-property-latitude').value) || 51.5074;
+            const lon = parseFloat(document.getElementById('edit-property-longitude').value) || -0.1278;
+            
+            propertyMap = L.map('property-map-container').setView([lat, lon], 15);
+            
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap'
+            }).addTo(propertyMap);
+            
+            if (document.getElementById('edit-property-latitude').value) {
+                propertyMarker = L.marker([lat, lon], { draggable: true }).addTo(propertyMap);
+                propertyMarker.on('dragend', function(e) {
+                    const pos = e.target.getLatLng();
+                    document.getElementById('edit-property-latitude').value = pos.lat.toFixed(7);
+                    document.getElementById('edit-property-longitude').value = pos.lng.toFixed(7);
+                });
+            }
+            
+            propertyMap.on('click', function(e) {
+                document.getElementById('edit-property-latitude').value = e.latlng.lat.toFixed(7);
+                document.getElementById('edit-property-longitude').value = e.latlng.lng.toFixed(7);
+                
+                if (propertyMarker) {
+                    propertyMarker.setLatLng(e.latlng);
+                } else {
+                    propertyMarker = L.marker(e.latlng, { draggable: true }).addTo(propertyMap);
+                    propertyMarker.on('dragend', function(ev) {
+                        const pos = ev.target.getLatLng();
+                        document.getElementById('edit-property-latitude').value = pos.lat.toFixed(7);
+                        document.getElementById('edit-property-longitude').value = pos.lng.toFixed(7);
+                    });
+                }
+            });
+            
+            setTimeout(() => propertyMap.invalidateSize(), 100);
+        }
+
+        function updatePropertyMapMarker(lat, lon) {
+            if (propertyMap) {
+                propertyMap.setView([lat, lon], 15);
+                if (propertyMarker) {
+                    propertyMarker.setLatLng([lat, lon]);
+                } else {
+                    propertyMarker = L.marker([lat, lon], { draggable: true }).addTo(propertyMap);
+                    propertyMarker.on('dragend', function(e) {
+                        const pos = e.target.getLatLng();
+                        document.getElementById('edit-property-latitude').value = pos.lat.toFixed(7);
+                        document.getElementById('edit-property-longitude').value = pos.lng.toFixed(7);
+                    });
+                }
+            }
         }
 
         async function deleteProperty() {
