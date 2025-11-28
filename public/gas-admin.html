@@ -2195,22 +2195,21 @@
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">2</div>
                         <div>
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Configure Plugin Settings</h4>
-                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">In WordPress, go to <strong>GAS Booking</strong> (in sidebar) and enter:</p>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">In WordPress, go to <strong>Settings → GAS Booking</strong> and enter:</p>
                             <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-size: 0.85rem;">
-                                <div style="display: grid; grid-template-columns: 130px 1fr; gap: 0.75rem; align-items: center;">
+                                <div style="display: grid; grid-template-columns: 130px 1fr; gap: 0.5rem; align-items: center;">
                                     <strong>API URL:</strong>
                                     <div>
                                         <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-api-url-guide"></code>
                                         <button onclick="copyShortcode(document.getElementById('wp-api-url-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
                                     </div>
-                                    <strong>API Key:</strong>
+                                    <strong>Client Account ID:</strong>
                                     <div>
-                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-api-key-guide">Get from Clients → View → Copy API Key</code>
+                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-client-id-guide">1</code>
+                                        <button onclick="copyShortcode(document.getElementById('wp-client-id-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
                                     </div>
                                 </div>
-                                <p style="margin: 0.75rem 0 0 0; color: var(--text-secondary); font-size: 0.8rem;">
-                                    <strong>⚠️ Important:</strong> Get your API Key from <strong>Clients → View your client → Copy API Key</strong>
-                                </p>
+                                <p style="margin: 0.75rem 0 0 0; color: var(--text-secondary); font-size: 0.8rem;">Leave other settings as default, then click <strong>Save Changes</strong></p>
                             </div>
                         </div>
                     </div>
@@ -2219,13 +2218,13 @@
                     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">3</div>
                         <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Add Properties to Homepage</h4>
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Add Search Bar to Homepage</h4>
                             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">Edit your homepage, add a <strong>Shortcode</strong> block, and paste:</p>
                             <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
-                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_properties]</code>
-                                <button onclick="copyShortcode('[gas_properties]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_search]</code>
+                                <button onclick="copyShortcode('[gas_search]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
-                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows all properties linked to your API key</p>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows check-in/check-out date picker</p>
                         </div>
                     </div>
 
@@ -2233,13 +2232,13 @@
                     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid var(--border);">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">4</div>
                         <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Add Search Form (Optional)</h4>
-                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">For a search form with date picker:</p>
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Create "Book Now" Page</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;"><strong>Pages → Add New</strong> → Title: "Book Now" → Add Shortcode block:</p>
                             <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
-                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_search]</code>
-                                <button onclick="copyShortcode('[gas_search]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code style="color: #e2e8f0; font-size: 0.9rem;" id="wp-rooms-shortcode">[gas_rooms property_id="1"]</code>
+                                <button onclick="copyShortcode('[gas_rooms property_id=&quot;' + (window.currentPropertyId || 1) + '&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
-                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows check-in/check-out date picker with guest selector</p>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows grid of all rooms with availability</p>
                         </div>
                     </div>
 
@@ -2247,14 +2246,160 @@
                     <div style="display: flex; gap: 1rem;">
                         <div style="background: var(--accent); color: white; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; flex-shrink: 0;">5</div>
                         <div style="flex: 1;">
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Single Property Page (Optional)</h4>
-                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">To show a specific property by ID:</p>
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Create "Room" Page</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;"><strong>Pages → Add New</strong> → Title: "Room" → Add Shortcode block:</p>
                             <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
-                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_property id="123"]</code>
-                                <button onclick="copyShortcode('[gas_property id=&quot;123&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code style="color: #e2e8f0; font-size: 0.9rem;">[gas_room]</code>
+                                <button onclick="copyShortcode('[gas_room]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
-                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Replace "123" with your property ID from the Properties list</p>
+                            <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows full room details, calendar & booking form</p>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Flow Diagram -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+                    <h3 class="card-title" style="margin-bottom: 1rem;">🔄 Booking Flow</h3>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.9rem;">
+                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🏠</div>
+                            <strong>Homepage</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_search]</div>
+                        </div>
+                        <div style="font-size: 1.5rem; color: var(--accent);">→</div>
+                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📋</div>
+                            <strong>Book Now</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_rooms]</div>
+                        </div>
+                        <div style="font-size: 1.5rem; color: var(--accent);">→</div>
+                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🛏️</div>
+                            <strong>Room Details</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_room]</div>
+                        </div>
+                        <div style="font-size: 1.5rem; color: var(--accent);">→</div>
+                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">✅</div>
+                            <strong>Booked!</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Confirmation</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Plugin Download & Settings -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                        <div>
+                            <h3 class="card-title" style="display: flex; align-items: center; gap: 0.5rem;">
+                                <svg width="24" height="24" viewBox="0 0 122.5 122.5" fill="#21759b"><path d="M8.7 61.3c0 20.8 12.1 38.8 29.6 47.3L13 40.3c-2.8 6.5-4.3 13.7-4.3 21zm88.6-2.7c0-6.5-2.3-11-4.3-14.5-2.7-4.3-5.2-8-5.2-12.3 0-4.8 3.7-9.3 8.9-9.3h.7c-9.4-8.6-21.9-13.9-35.7-13.9-18.5 0-34.7 9.5-44.2 23.8h3.4c5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.8.3-6 .5l19.1 57 11.5-34.5-8.2-22.5c-2.8-.2-5.5-.5-5.5-.5-2.8-.2-2.5-4.5.3-4.3 0 0 8.7.7 13.9.7 5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.9.3-6 .5l19 56.5 5.2-17.5c2.3-7.3 4-12.5 4-17zm-36.3 7.6l-15.8 45.8c4.7 1.4 9.7 2.2 14.8 2.2 6.1 0 12-1.1 17.4-3-.1-.2-.3-.5-.4-.7l-16-43.3zm45.1-29.8c.5 3.4.7 7 .7 10.9 0 10.8-2 22.9-8 38l-21.8 63.1c21.2-12.4 35.5-35.5 35.5-62.1 0-17.9-6.2-34.3-16.4-47.9zM61.3 0C27.5 0 0 27.5 0 61.3c0 33.8 27.5 61.3 61.3 61.3 33.8 0 61.3-27.5 61.3-61.3C122.5 27.5 95 0 61.3 0zm0 119.7c-32.2 0-58.5-26.2-58.5-58.5 0-32.2 26.2-58.5 58.5-58.5 32.2 0 58.5 26.2 58.5 58.5-.1 32.3-26.3 58.5-58.5 58.5z"/></svg>
+                                Your Settings
+                            </h3>
+                        </div>
+                        <a href="/gas-widgets-preview.html" target="_blank" class="btn btn-secondary" style="text-decoration: none;">
+                            Preview Widgets →
+                        </a>
+                    </div>
+                    
+                    <div style="background: var(--accent-light); border-radius: 8px; padding: 1rem;">
+                        <div style="display: grid; grid-template-columns: 140px 1fr auto; gap: 0.75rem; align-items: center; font-size: 0.9rem;">
+                            <span style="color: var(--text-secondary); font-weight: 500;">API URL:</span>
+                            <code style="background: white; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem;" id="wp-api-url"></code>
+                            <button onclick="copyShortcode(document.getElementById('wp-api-url').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">Copy</button>
+                            
+                            <span style="color: var(--text-secondary); font-weight: 500;">Client Account ID:</span>
+                            <code style="background: white; padding: 0.4rem 0.75rem; border-radius: 4px; font-size: 0.85rem;" id="wp-client-id">1</code>
+                            <button onclick="copyShortcode(document.getElementById('wp-client-id').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.3rem 0.75rem; border-radius: 4px; cursor: pointer; font-size: 0.75rem;">Copy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shortcodes Reference -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title" style="margin-bottom: 1rem;">📝 Shortcode Reference</h3>
+                    
+                    <!-- Search Bar -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="background: #dbeafe; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🔍</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Search Bar</h4>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Homepage</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_search]</code>
+                                <button onclick="copyShortcode('[gas_search]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">style="vertical"</code>
+                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">button_text="Search"</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Room Listing -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="background: #dcfce7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🏠</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Room Listing</h4>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Book Now page</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_rooms property_id="<span id="shortcode-property-id">1</span>"]</code>
+                                <button onclick="copyShortcode('[gas_rooms property_id=&quot;' + (window.currentPropertyId || 1) + '&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">columns="2"</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Room Detail -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="background: #fef3c7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🛏️</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Room Detail Page</h4>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Room page</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_room]</code>
+                                <button onclick="copyShortcode('[gas_room]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">unit_id="190"</code>
+                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">months="3"</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Compact Booking -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
+                        <div style="background: #fce7f3; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">📅</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Compact Booking Widget</h4>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Sidebar / Embed</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_booking unit_id="190"]</code>
+                                <button onclick="copyShortcode('[gas_booking unit_id=&quot;190&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">months="2"</code>
+                                <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px; margin-left: 0.25rem;">show_prices="no"</code>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Room IDs Reference -->
+                <div class="card">
+                    <h3 class="card-title" style="margin-bottom: 0.5rem;">Your Room IDs</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">Reference these IDs when using shortcodes for specific rooms:</p>
+                    <div id="wp-room-ids" style="background: var(--bg-primary); border-radius: 8px; padding: 1rem;">
+                        <p style="color: var(--text-secondary); font-size: 0.85rem;">Loading rooms...</p>
                     </div>
                 </div>
             </div>
@@ -2387,46 +2532,6 @@
                 <div class="loading">
                     <div class="spinner"></div>
                     <p style="margin-top: 1rem;">Loading client details...</p>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Assign Properties Modal -->
-    <div id="assignPropertiesModal" class="modal">
-        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
-                <div>
-                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">🏠 Assign Properties</h3>
-                    <p id="assign-props-subtitle" style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Select properties to assign</p>
-                </div>
-                <button class="modal-close" onclick="closeModal('assignPropertiesModal')" style="color: white; font-size: 1.5rem;">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 1.5rem;">
-                <input type="hidden" id="assign-props-client-id">
-                
-                <!-- Select All -->
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border);">
-                    <label style="display: flex; align-items: center; cursor: pointer; font-weight: 500;">
-                        <input type="checkbox" id="assign-props-select-all" onchange="toggleSelectAllProperties()" style="margin-right: 0.5rem; width: 18px; height: 18px;">
-                        Select All
-                    </label>
-                    <span id="assign-props-count" style="font-size: 0.85rem; color: var(--text-secondary);">0 properties available</span>
-                </div>
-                
-                <div id="assign-props-list" style="max-height: 350px; overflow-y: auto;">
-                    <div class="loading">
-                        <div class="spinner"></div>
-                        <p style="margin-top: 1rem;">Loading properties...</p>
-                    </div>
-                </div>
-                
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border);">
-                    <span id="assign-props-selected" style="font-size: 0.9rem; color: var(--text-secondary);">0 selected</span>
-                    <div style="display: flex; gap: 0.5rem;">
-                        <button type="button" class="btn btn-secondary" onclick="closeModal('assignPropertiesModal')">Cancel</button>
-                        <button type="button" class="btn" onclick="submitPropertyAssignments()" id="assign-props-submit" disabled>Assign Selected</button>
-                    </div>
                 </div>
             </div>
         </div>
@@ -3627,19 +3732,12 @@
                             ${data.properties && data.properties.length > 0 ? `
                                 <div style="background: var(--bg-primary); border-radius: 8px; overflow: hidden;">
                                     ${data.properties.map(p => `
-                                        <div class="property-row" style="border-bottom: 1px solid var(--border);">
-                                            <div onclick="togglePropertyRooms(${p.id}, this)" style="padding: 0.75rem 1rem; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: background 0.15s;" onmouseover="this.style.background='var(--bg-secondary)'" onmouseout="this.style.background=''">
-                                                <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                    <span class="property-toggle" style="color: var(--text-secondary); transition: transform 0.2s;">▶</span>
-                                                    <strong>${p.name}</strong>
-                                                    <span class="badge" style="font-size: 0.75rem;">${p.room_count || 0} rooms</span>
-                                                </div>
-                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                                    <code style="font-size: 0.75rem; background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 3px;">ID: ${p.id}</code>
-                                                    <button onclick="event.stopPropagation(); unassignProperty(${p.id}, ${c.id})" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" title="Unassign from client">✕</button>
-                                                </div>
+                                        <div style="padding: 0.75rem 1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center;">
+                                            <div>
+                                                <strong>${p.name}</strong>
+                                                <span style="font-size: 0.8rem; color: var(--text-secondary); margin-left: 0.5rem;">${p.room_count || 0} rooms</span>
                                             </div>
-                                            <div id="property-rooms-${p.id}" style="display: none; background: var(--bg-secondary); border-top: 1px solid var(--border);"></div>
+                                            <code style="font-size: 0.75rem; background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 3px;">ID: ${p.id}</code>
                                         </div>
                                     `).join('')}
                                 </div>
@@ -3716,229 +3814,32 @@
 
         async function assignPropertyToClient(clientId) {
             try {
-                // Store client ID
-                document.getElementById('assign-props-client-id').value = clientId;
-                
-                // Fetch client name for subtitle
-                const clientRes = await fetch(`/api/admin/clients/${clientId}`);
-                const clientData = await clientRes.json();
-                const clientName = clientData.client?.name || 'Client';
-                document.getElementById('assign-props-subtitle').textContent = `Assign to: ${clientName}`;
-                
-                // Fetch unassigned properties
                 const response = await fetch('/api/admin/properties/unassigned');
                 const data = await response.json();
                 
-                const container = document.getElementById('assign-props-list');
-                
                 if (!data.properties || data.properties.length === 0) {
-                    container.innerHTML = `
-                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">🏠</div>
-                            <p>No unassigned properties available.</p>
-                            <p style="font-size: 0.85rem; margin-top: 0.5rem;">All properties have been assigned to clients.</p>
-                        </div>
-                    `;
-                    document.getElementById('assign-props-count').textContent = '0 properties available';
-                    document.getElementById('assign-props-submit').disabled = true;
-                } else {
-                    document.getElementById('assign-props-count').textContent = `${data.properties.length} properties available`;
-                    
-                    container.innerHTML = data.properties.map(p => `
-                        <label class="property-assign-item" style="display: flex; align-items: flex-start; padding: 0.75rem; margin-bottom: 0.5rem; border: 1px solid var(--border); border-radius: 8px; cursor: pointer; transition: all 0.15s;" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor=this.querySelector('input').checked ? 'var(--accent)' : 'var(--border)'">
-                            <input type="checkbox" class="property-assign-checkbox" value="${p.id}" onchange="updatePropertySelectionCount()" style="margin-right: 0.75rem; margin-top: 0.25rem; width: 18px; height: 18px; flex-shrink: 0;">
-                            <div style="flex: 1; min-width: 0;">
-                                <div style="font-weight: 500; color: var(--text-primary); margin-bottom: 0.25rem;">
-                                    ${p.name}
-                                </div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary); display: flex; gap: 1rem; flex-wrap: wrap;">
-                                    <span>ID: ${p.id}</span>
-                                    ${p.room_count ? `<span>🛏️ ${p.room_count} rooms</span>` : ''}
-                                    ${p.city ? `<span>📍 ${p.city}</span>` : ''}
-                                </div>
-                            </div>
-                        </label>
-                    `).join('');
+                    alert('No unassigned properties available');
+                    return;
                 }
                 
-                // Reset selection state
-                document.getElementById('assign-props-select-all').checked = false;
-                updatePropertySelectionCount();
+                const propertyId = prompt(
+                    'Enter property ID to assign:\n\nUnassigned properties:\n' + 
+                    data.properties.map(p => `ID ${p.id}: ${p.name}`).join('\n')
+                );
                 
-                openModal('assignPropertiesModal');
-            } catch (error) {
-                alert('Error loading properties: ' + error.message);
-            }
-        }
-        
-        function toggleSelectAllProperties() {
-            const selectAll = document.getElementById('assign-props-select-all').checked;
-            document.querySelectorAll('.property-assign-checkbox').forEach(cb => {
-                cb.checked = selectAll;
-                // Update visual style
-                const label = cb.closest('.property-assign-item');
-                if (label) {
-                    label.style.borderColor = selectAll ? 'var(--accent)' : 'var(--border)';
-                    label.style.background = selectAll ? 'var(--accent-light)' : '';
-                }
-            });
-            updatePropertySelectionCount();
-        }
-        
-        function updatePropertySelectionCount() {
-            const checked = document.querySelectorAll('.property-assign-checkbox:checked').length;
-            const total = document.querySelectorAll('.property-assign-checkbox').length;
-            
-            document.getElementById('assign-props-selected').textContent = `${checked} selected`;
-            document.getElementById('assign-props-submit').disabled = checked === 0;
-            
-            // Update select all checkbox state
-            const selectAllCheckbox = document.getElementById('assign-props-select-all');
-            selectAllCheckbox.checked = checked === total && total > 0;
-            selectAllCheckbox.indeterminate = checked > 0 && checked < total;
-            
-            // Update visual styles for all items
-            document.querySelectorAll('.property-assign-checkbox').forEach(cb => {
-                const label = cb.closest('.property-assign-item');
-                if (label) {
-                    label.style.borderColor = cb.checked ? 'var(--accent)' : 'var(--border)';
-                    label.style.background = cb.checked ? 'var(--accent-light)' : '';
-                }
-            });
-        }
-        
-        async function submitPropertyAssignments() {
-            const clientId = document.getElementById('assign-props-client-id').value;
-            const selectedIds = Array.from(document.querySelectorAll('.property-assign-checkbox:checked')).map(cb => parseInt(cb.value));
-            
-            if (selectedIds.length === 0) {
-                alert('Please select at least one property');
-                return;
-            }
-            
-            const submitBtn = document.getElementById('assign-props-submit');
-            submitBtn.disabled = true;
-            submitBtn.textContent = 'Assigning...';
-            
-            try {
-                // Assign properties one by one (or use bulk endpoint if available)
-                let successCount = 0;
-                let errors = [];
-                
-                for (const propertyId of selectedIds) {
-                    const response = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
+                if (propertyId) {
+                    const assignResponse = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ property_id: propertyId })
+                        body: JSON.stringify({ property_id: parseInt(propertyId) })
                     });
                     
-                    const result = await response.json();
+                    const result = await assignResponse.json();
                     if (result.success) {
-                        successCount++;
+                        viewClient(clientId);
                     } else {
-                        errors.push(`Property ${propertyId}: ${result.error}`);
+                        alert('Error: ' + result.error);
                     }
-                }
-                
-                closeModal('assignPropertiesModal');
-                
-                if (errors.length === 0) {
-                    alert(`✓ Successfully assigned ${successCount} property${successCount > 1 ? 'ies' : ''}`);
-                } else {
-                    alert(`Assigned ${successCount} properties.\n\nErrors:\n${errors.join('\n')}`);
-                }
-                
-                // Refresh the client view
-                viewClient(clientId);
-                loadClients(); // Refresh the list too
-                
-            } catch (error) {
-                alert('Error assigning properties: ' + error.message);
-            } finally {
-                submitBtn.disabled = false;
-                submitBtn.textContent = 'Assign Selected';
-            }
-        }
-
-        // Toggle property rooms visibility
-        async function togglePropertyRooms(propertyId, element) {
-            const roomsContainer = document.getElementById(`property-rooms-${propertyId}`);
-            const toggle = element.querySelector('.property-toggle');
-            
-            if (roomsContainer.style.display === 'none') {
-                // Show rooms - load them first
-                roomsContainer.innerHTML = `
-                    <div style="padding: 1rem; text-align: center; color: var(--text-secondary);">
-                        <span>Loading rooms...</span>
-                    </div>
-                `;
-                roomsContainer.style.display = 'block';
-                toggle.style.transform = 'rotate(90deg)';
-                
-                try {
-                    const response = await fetch(`/api/admin/properties/${propertyId}/rooms`);
-                    const data = await response.json();
-                    
-                    if (data.success && data.rooms && data.rooms.length > 0) {
-                        roomsContainer.innerHTML = `
-                            <div style="padding: 0.5rem;">
-                                ${data.rooms.map(r => `
-                                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.6rem 0.75rem; margin: 0.25rem 0; background: var(--bg-card); border-radius: 6px; border: 1px solid var(--border);">
-                                        <div>
-                                            <span style="font-weight: 500;">${r.name}</span>
-                                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.2rem;">
-                                                ${r.max_occupancy ? `👥 Max ${r.max_occupancy}` : ''}
-                                                ${r.base_price ? ` • 💰 ${r.currency || 'GBP'} ${r.base_price}` : ''}
-                                                ${r.bedroom_count ? ` • 🛏️ ${r.bedroom_count} bed` : ''}
-                                            </div>
-                                        </div>
-                                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                            <span class="badge ${r.status === 'active' ? 'badge-success' : 'badge-secondary'}" style="font-size: 0.7rem;">${r.status || 'active'}</span>
-                                            <button onclick="editRoom(${r.id})" class="btn btn-secondary" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">Edit</button>
-                                        </div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        `;
-                    } else {
-                        roomsContainer.innerHTML = `
-                            <div style="padding: 1rem; text-align: center; color: var(--text-secondary); font-size: 0.85rem;">
-                                No rooms found for this property
-                            </div>
-                        `;
-                    }
-                } catch (error) {
-                    roomsContainer.innerHTML = `
-                        <div style="padding: 1rem; text-align: center; color: var(--error); font-size: 0.85rem;">
-                            Error loading rooms: ${error.message}
-                        </div>
-                    `;
-                }
-            } else {
-                // Hide rooms
-                roomsContainer.style.display = 'none';
-                toggle.style.transform = 'rotate(0deg)';
-            }
-        }
-
-        // Unassign property from client
-        async function unassignProperty(propertyId, clientId) {
-            if (!confirm('Unassign this property from the client? The property will become unassigned.')) {
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/admin/properties/${propertyId}/unassign`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
-                });
-                
-                const result = await response.json();
-                if (result.success) {
-                    viewClient(clientId);
-                    loadClients();
-                } else {
-                    alert('Error: ' + result.error);
                 }
             } catch (error) {
                 alert('Error: ' + error.message);
@@ -3958,42 +3859,60 @@
 
         // Load WordPress view data
         async function loadWordPressView() {
-            // Set API URL
+            // Set API URL in all locations
             const apiUrl = window.location.origin;
-            const apiUrlGuide = document.getElementById('wp-api-url-guide');
-            if (apiUrlGuide) apiUrlGuide.textContent = apiUrl;
+            document.getElementById('wp-api-url').textContent = apiUrl;
+            document.getElementById('wp-api-url-guide').textContent = apiUrl;
             
-            // Load the first client's API key to display
+            // Load first client ID
             try {
-                const response = await fetch('/api/admin/clients');
+                const clientsRes = await fetch('/api/admin/clients');
+                const clientsData = await clientsRes.json();
+                if (clientsData.success && clientsData.clients && clientsData.clients.length > 0) {
+                    const firstClientId = clientsData.clients[0].id;
+                    document.getElementById('wp-client-id').textContent = firstClientId;
+                    document.getElementById('wp-client-id-guide').textContent = firstClientId;
+                }
+            } catch (e) {
+                console.error('Error loading clients:', e);
+            }
+            
+            // Load rooms for reference
+            try {
+                const response = await fetch('/api/admin/units');
                 const data = await response.json();
                 
-                if (data.success && data.clients && data.clients.length > 0) {
-                    // Get the first client with an API key
-                    const clientWithKey = data.clients.find(c => c.api_key);
-                    if (clientWithKey) {
-                        const apiKeyEl = document.getElementById('wp-client-api-key');
-                        if (apiKeyEl) {
-                            apiKeyEl.textContent = clientWithKey.api_key;
-                        }
-                    } else {
-                        const apiKeyEl = document.getElementById('wp-client-api-key');
-                        if (apiKeyEl) {
-                            apiKeyEl.textContent = 'No API key found - create a client first';
-                        }
-                    }
+                if (data.success && data.data && data.data.length > 0) {
+                    // Set first property ID for shortcode examples
+                    const firstPropertyId = data.data[0].property_id;
+                    window.currentPropertyId = firstPropertyId;
+                    document.getElementById('shortcode-property-id').textContent = firstPropertyId;
+                    document.getElementById('wp-rooms-shortcode').textContent = `[gas_rooms property_id="${firstPropertyId}"]`;
+                    
+                    // Build rooms table
+                    let html = '<table style="width: 100%; font-size: 0.85rem;">';
+                    html += '<thead><tr style="text-align: left; border-bottom: 1px solid var(--border);"><th style="padding: 0.5rem;">Room Name</th><th style="padding: 0.5rem;">ID</th><th style="padding: 0.5rem;">Shortcode</th></tr></thead>';
+                    html += '<tbody>';
+                    
+                    data.data.forEach(room => {
+                        html += `<tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.5rem;">${room.name}</td>
+                            <td style="padding: 0.5rem;"><code style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 3px;">${room.id}</code></td>
+                            <td style="padding: 0.5rem;">
+                                <code style="background: #1e293b; color: #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">[gas_booking unit_id="${room.id}"]</code>
+                                <button onclick="copyShortcode('[gas_booking unit_id=&quot;${room.id}&quot;]')" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
+                            </td>
+                        </tr>`;
+                    });
+                    
+                    html += '</tbody></table>';
+                    document.getElementById('wp-room-ids').innerHTML = html;
                 } else {
-                    const apiKeyEl = document.getElementById('wp-client-api-key');
-                    if (apiKeyEl) {
-                        apiKeyEl.textContent = 'No clients found - create a client first';
-                    }
+                    document.getElementById('wp-room-ids').innerHTML = '<p style="color: var(--text-secondary);">No rooms found. Add rooms first.</p>';
                 }
             } catch (error) {
-                console.error('Error loading WordPress view:', error);
-                const apiKeyEl = document.getElementById('wp-client-api-key');
-                if (apiKeyEl) {
-                    apiKeyEl.textContent = 'Error loading - check console';
-                }
+                console.error('Error loading rooms for WordPress view:', error);
+                document.getElementById('wp-room-ids').innerHTML = '<p style="color: var(--error);">Error loading rooms</p>';
             }
         }
 
