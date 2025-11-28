@@ -7567,6 +7567,44 @@ app.get('/api/v1/properties', validateApiKey, async (req, res) => {
   }
 });
 
+// Get single property with rooms (authenticated)
+app.get('/api/v1/properties/:id', validateApiKey, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get property (verify it belongs to this client)
+    const propertyResult = await pool.query(`
+      SELECT p.*
+      FROM properties p
+      WHERE p.id = $1 AND p.client_id = $2
+    `, [id, req.client.id]);
+    
+    if (propertyResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found or not authorized' });
+    }
+    
+    const property = propertyResult.rows[0];
+    
+    // Get rooms/units for this property
+    const roomsResult = await pool.query(`
+      SELECT bu.id, bu.name, bu.description, bu.max_occupancy, bu.max_adults, bu.max_children,
+             bu.bedroom_count, bu.bathroom_count, bu.base_price, bu.currency, bu.status
+      FROM bookable_units bu
+      WHERE bu.property_id = $1
+      ORDER BY bu.name
+    `, [id]);
+    
+    res.json({ 
+      success: true, 
+      property: property,
+      rooms: roomsResult.rows
+    });
+  } catch (error) {
+    console.error('Get single property error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get all units for client (authenticated)
 app.get('/api/v1/units', validateApiKey, async (req, res) => {
   try {
