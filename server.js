@@ -6778,7 +6778,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
         is_blocked,
         min_stay
       FROM room_availability
-      WHERE room_id = $1 AND date >= $2 AND date <= $3
+      WHERE room_id = $1 AND date >= $2 AND date < $3
       ORDER BY date
     `, [unitId, startDate, endDate]);
     
@@ -6803,16 +6803,32 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       availMap[dateStr] = a;
     });
     
-    while (current <= end) {
+    // Check overall availability and calculate total
+    let isAvailable = true;
+    let totalPrice = 0;
+    let nightCount = 0;
+    
+    while (current < end) {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availMap[dateStr];
       
+      const dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked) : true;
+      const dayPrice = dayData?.price || basePrice;
+      
       calendar.push({
         date: dateStr,
-        price: dayData?.price || basePrice,
-        available: dayData ? (dayData.is_available && !dayData.is_blocked) : true,
+        price: parseFloat(dayPrice),
+        available: dayAvailable,
         min_stay: dayData?.min_stay || 1
       });
+      
+      // If any day is unavailable, whole range is unavailable
+      if (!dayAvailable) {
+        isAvailable = false;
+      }
+      
+      totalPrice += parseFloat(dayPrice);
+      nightCount++;
       
       current.setDate(current.getDate() + 1);
     }
@@ -6821,6 +6837,9 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       success: true,
       unit_id: unitId,
       currency: currency,
+      is_available: isAvailable,
+      total_price: totalPrice,
+      nights: nightCount,
       calendar: calendar
     });
   } catch (error) {
