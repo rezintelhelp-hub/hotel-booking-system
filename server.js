@@ -7162,6 +7162,92 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
 // PUBLIC API - OFFERS, UPSELLS & PREMIUM FEATURES
 // =========================================================
 
+// Get all rooms for a client (public - for WordPress plugin)
+app.get('/api/public/client/:clientId/rooms', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { property_id, room_ids, limit, random } = req.query;
+    
+    let query = `
+      SELECT 
+        bu.id,
+        bu.name,
+        bu.description,
+        bu.base_price,
+        bu.max_guests,
+        bu.max_adults,
+        bu.bedroom_count,
+        bu.bathroom_count,
+        bu.beds24_room_id,
+        bu.latitude,
+        bu.longitude,
+        p.id as property_id,
+        p.name as property_name,
+        p.city,
+        p.currency,
+        (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY sort_order LIMIT 1) as image_url
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.client_id = $1
+    `;
+    
+    const params = [clientId];
+    let paramIndex = 2;
+    
+    // Filter by property
+    if (property_id) {
+      query += ` AND p.id = $${paramIndex}`;
+      params.push(property_id);
+      paramIndex++;
+    }
+    
+    // Filter by specific room IDs
+    if (room_ids) {
+      const ids = room_ids.split(',').map(id => parseInt(id.trim())).filter(id => !isNaN(id));
+      if (ids.length > 0) {
+        query += ` AND bu.id = ANY($${paramIndex}::int[])`;
+        params.push(ids);
+        paramIndex++;
+      }
+    }
+    
+    // Order
+    if (random === 'true') {
+      query += ' ORDER BY RANDOM()';
+    } else {
+      query += ' ORDER BY bu.name';
+    }
+    
+    // Limit
+    if (limit) {
+      query += ` LIMIT $${paramIndex}`;
+      params.push(parseInt(limit));
+    }
+    
+    const result = await pool.query(query, params);
+    
+    // Get max guests across all rooms
+    const maxGuestsResult = await pool.query(`
+      SELECT MAX(COALESCE(bu.max_guests, bu.max_adults, 2)) as max_guests
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.client_id = $1
+    `, [clientId]);
+    
+    res.json({
+      success: true,
+      rooms: result.rows,
+      meta: {
+        total: result.rows.length,
+        max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10
+      }
+    });
+  } catch (error) {
+    console.error('Get client rooms error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get active offers for a client (for website display)
 app.get('/api/public/client/:clientId/offers', async (req, res) => {
   try {
