@@ -717,6 +717,14 @@ app.get('/api/setup-database', async (req, res) => {
     // Add access_token column to channel_connections
     await pool.query(`ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS access_token TEXT`);
     
+    // Add tourist tax columns to properties
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_enabled BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_type VARCHAR(20) DEFAULT 'per_guest_per_night'`); // per_guest_per_night, per_night, per_booking, percentage
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_amount DECIMAL(10, 2) DEFAULT 0`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_name VARCHAR(100) DEFAULT 'Tourist Tax'`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_max_nights INTEGER`); // NULL = no max
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_exempt_children BOOLEAN DEFAULT true`);
+    
     // Add pricing columns to room_availability
     await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS reference_price DECIMAL(10,2)`);
     await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS standard_price DECIMAL(10,2)`);
@@ -7009,6 +7017,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     let taxTotal = 0;
     const taxBreakdown = [];
     
+    // Get regular taxes
     const taxes = await pool.query(`
       SELECT * FROM taxes
       WHERE active = true
@@ -7032,6 +7041,52 @@ app.post('/api/public/calculate-price', async (req, res) => {
       taxTotal += taxAmount;
       taxBreakdown.push({ name: tax.name, amount: taxAmount });
     });
+    
+    // Get tourist tax from property settings
+    const propertyTax = await pool.query(`
+      SELECT 
+        p.tourist_tax_enabled,
+        p.tourist_tax_type,
+        p.tourist_tax_amount,
+        p.tourist_tax_name,
+        p.tourist_tax_max_nights,
+        p.tourist_tax_exempt_children
+      FROM properties p
+      JOIN bookable_units bu ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [unit_id]);
+    
+    if (propertyTax.rows[0] && propertyTax.rows[0].tourist_tax_enabled) {
+      const pt = propertyTax.rows[0];
+      const taxableNights = pt.tourist_tax_max_nights ? Math.min(nights, pt.tourist_tax_max_nights) : nights;
+      let touristTaxAmount = 0;
+      
+      switch (pt.tourist_tax_type) {
+        case 'per_guest_per_night':
+          touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights * (guests || 1);
+          break;
+        case 'per_night':
+          touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights;
+          break;
+        case 'per_booking':
+          touristTaxAmount = parseFloat(pt.tourist_tax_amount);
+          break;
+        case 'percentage':
+          touristTaxAmount = accommodationTotal * (parseFloat(pt.tourist_tax_amount) / 100);
+          break;
+        default:
+          touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights * (guests || 1);
+      }
+      
+      if (touristTaxAmount > 0) {
+        taxTotal += touristTaxAmount;
+        taxBreakdown.push({ 
+          name: pt.tourist_tax_name || 'Tourist Tax', 
+          amount: touristTaxAmount,
+          type: 'tourist_tax'
+        });
+      }
+    }
     
     const grandTotal = subtotalAfterDiscounts + taxTotal;
     
