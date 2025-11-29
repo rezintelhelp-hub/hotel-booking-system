@@ -7098,9 +7098,20 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     const grandTotal = subtotalAfterDiscounts + taxTotal;
     
+    // Debug info for availability
+    const availabilityDebug = {
+      dates_checked: nights,
+      availability_rows_found: availability.rows.length,
+      unavailable_dates: nightlyBreakdown.filter((n, i) => {
+        const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === n.date);
+        return dayData && (!dayData.is_available || dayData.is_blocked);
+      }).map(n => n.date)
+    };
+    
     res.json({
       success: true,
       available: allAvailable,
+      availability_debug: availabilityDebug,
       currency: currency,
       nights: nights,
       room_name: unit.rows[0].name,
