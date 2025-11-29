@@ -5964,6 +5964,85 @@
                 html += `</tr>`;
                 
                 // ══════════════════════════════════════════════════════════════
+                // STANDARD PRICE - MIN STAYS ROW
+                // ══════════════════════════════════════════════════════════════
+                // Get standard offer restrictions (or use defaults)
+                const stdMinNights = standardOffer?.min_nights || 1;
+                const stdCheckinDays = (standardOffer?.allowed_checkin_days || '0,1,2,3,4,5,6').split(',').map(d => parseInt(d.trim()));
+                const stdCheckoutDays = (standardOffer?.allowed_checkout_days || '0,1,2,3,4,5,6').split(',').map(d => parseInt(d.trim()));
+                
+                html += `
+                    <tr style="border-bottom: 1px dashed #86efac;">
+                        <td style="padding: 0.4rem 0.75rem; position: sticky; left: 0; background: #ecfdf5; z-index: 1; font-size: 0.8rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; padding-left: 1.5rem;">
+                                <span style="color: #16a34a;">📏</span>
+                                <span style="color: #166534;">Min Stay</span>
+                            </div>
+                        </td>`;
+                
+                dates.forEach(d => {
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    const dateStr = d.toISOString().split('T')[0];
+                    html += `<td style="padding: 0.4rem; text-align: center; background: ${isWeekend ? '#d1fae5' : '#ecfdf5'};">
+                        <input type="number" min="1" max="30" value="${stdMinNights}" 
+                            class="min-stay-input"
+                            data-offer="standard"
+                            data-date="${dateStr}"
+                            style="width: 40px; padding: 0.2rem; text-align: center; border: 1px solid #86efac; border-radius: 3px; font-size: 0.85rem; background: white;"
+                            onchange="markStandardRestrictionChanged(this)">
+                    </td>`;
+                });
+                html += `</tr>`;
+                
+                // ══════════════════════════════════════════════════════════════
+                // STANDARD PRICE - CLOSED CHECK-IN/OUT ROW
+                // ══════════════════════════════════════════════════════════════
+                html += `
+                    <tr style="border-bottom: 2px solid #86efac;">
+                        <td style="padding: 0.4rem 0.75rem; position: sticky; left: 0; background: #fef2f2; z-index: 1; font-size: 0.8rem;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem; padding-left: 1.5rem;">
+                                <span style="color: #dc2626;">🚫</span>
+                                <span style="color: #b91c1c;">Closed for C/in or C/out</span>
+                            </div>
+                        </td>`;
+                
+                dates.forEach(d => {
+                    const dayOfWeek = d.getDay();
+                    const canCheckin = stdCheckinDays.includes(dayOfWeek);
+                    const canCheckout = stdCheckoutDays.includes(dayOfWeek);
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6;
+                    const dateStr = d.toISOString().split('T')[0];
+                    
+                    let display = '';
+                    let title = 'Open for check-in and check-out';
+                    if (!canCheckin && !canCheckout) {
+                        display = '✗';
+                        title = 'Closed for both check-in and check-out';
+                    } else if (!canCheckin) {
+                        display = 'CI';
+                        title = 'Closed for check-in';
+                    } else if (!canCheckout) {
+                        display = 'CO';
+                        title = 'Closed for check-out';
+                    }
+                    
+                    html += `<td style="padding: 0.4rem; text-align: center; background: ${isWeekend ? '#fee2e2' : '#fef2f2'};" title="${title}">
+                        <button type="button" 
+                            class="closed-toggle-btn"
+                            data-offer="standard"
+                            data-date="${dateStr}"
+                            data-day="${dayOfWeek}"
+                            data-ci="${canCheckin ? 1 : 0}"
+                            data-co="${canCheckout ? 1 : 0}"
+                            onclick="toggleStandardClosedDay(this)"
+                            style="width: 32px; height: 24px; padding: 0; border: 1px solid ${display ? '#fca5a5' : '#d1d5db'}; border-radius: 3px; font-size: 0.7rem; font-weight: 600; cursor: pointer; background: ${display ? '#fee2e2' : 'white'}; color: ${display ? '#dc2626' : '#9ca3af'};">
+                            ${display || '—'}
+                        </button>
+                    </td>`;
+                });
+                html += `</tr>`;
+                
+                // ══════════════════════════════════════════════════════════════
                 // OFFERS SECTION - Calculated from STANDARD PRICE
                 // ══════════════════════════════════════════════════════════════
                 if (otherOffers.length > 0) {
@@ -6218,6 +6297,76 @@
         // Track offer changes for saving
         const offerChanges = {};
         
+        // Track standard price restriction changes
+        let standardRestrictions = {
+            min_nights: 1,
+            allowed_checkin_days: '0,1,2,3,4,5,6',
+            allowed_checkout_days: '0,1,2,3,4,5,6',
+            changed: false
+        };
+        
+        function markStandardRestrictionChanged(input) {
+            input.style.background = '#fef3c7';
+            input.style.borderColor = '#f59e0b';
+            standardRestrictions.min_nights = parseInt(input.value) || 1;
+            standardRestrictions.changed = true;
+            document.getElementById('unsaved-indicator').style.display = 'inline';
+        }
+        
+        function toggleStandardClosedDay(btn) {
+            // Cycle through states: Open -> No CI -> No CO -> Closed -> Open
+            let ci = parseInt(btn.dataset.ci);
+            let co = parseInt(btn.dataset.co);
+            
+            if (ci && co) {
+                ci = 0; co = 1;
+            } else if (!ci && co) {
+                ci = 1; co = 0;
+            } else if (ci && !co) {
+                ci = 0; co = 0;
+            } else {
+                ci = 1; co = 1;
+            }
+            
+            btn.dataset.ci = ci;
+            btn.dataset.co = co;
+            
+            let display = '';
+            if (!ci && !co) {
+                display = '✗';
+            } else if (!ci) {
+                display = 'CI';
+            } else if (!co) {
+                display = 'CO';
+            }
+            
+            btn.innerHTML = display || '—';
+            btn.style.background = display ? '#fee2e2' : 'white';
+            btn.style.borderColor = display ? '#fca5a5' : '#d1d5db';
+            btn.style.color = display ? '#dc2626' : '#9ca3af';
+            
+            standardRestrictions.changed = true;
+            document.getElementById('unsaved-indicator').style.display = 'inline';
+            
+            // Recalculate allowed days from all buttons
+            updateStandardClosedDays();
+        }
+        
+        function updateStandardClosedDays() {
+            const buttons = document.querySelectorAll('.closed-toggle-btn[data-offer="standard"]');
+            const checkinDays = new Set();
+            const checkoutDays = new Set();
+            
+            buttons.forEach(btn => {
+                const day = parseInt(btn.dataset.day);
+                if (parseInt(btn.dataset.ci)) checkinDays.add(day);
+                if (parseInt(btn.dataset.co)) checkoutDays.add(day);
+            });
+            
+            standardRestrictions.allowed_checkin_days = Array.from(checkinDays).sort().join(',') || '0,1,2,3,4,5,6';
+            standardRestrictions.allowed_checkout_days = Array.from(checkoutDays).sort().join(',') || '0,1,2,3,4,5,6';
+        }
+        
         function markOfferChanged(input, offerId) {
             input.style.background = '#fef3c7';
             input.style.borderColor = '#f59e0b';
@@ -6302,14 +6451,74 @@
         
         async function saveOfferRestrictions() {
             const offerIds = Object.keys(offerChanges);
-            if (offerIds.length === 0) {
-                alert('No offer changes to save');
+            const hasStandardChanges = standardRestrictions.changed;
+            
+            if (offerIds.length === 0 && !hasStandardChanges) {
+                alert('No restriction changes to save');
                 return;
             }
             
             let saved = 0;
             let errors = 0;
             
+            // Save standard price restrictions (stored in availability or a separate endpoint)
+            if (hasStandardChanges) {
+                try {
+                    // For now, we'll create/update a "Standard Price" offer to store these restrictions
+                    // Or you can store in room settings - this is a placeholder
+                    const roomId = document.getElementById('offers-room-select').value;
+                    
+                    // Check if Standard Price offer exists for this room
+                    const checkResp = await fetch('/api/admin/offers');
+                    const checkData = await checkResp.json();
+                    const existingStdOffer = (checkData.data || []).find(o => o.name === 'Standard Price' && o.room_id == roomId);
+                    
+                    if (existingStdOffer) {
+                        // Update existing
+                        const response = await fetch(`/api/admin/offers/${existingStdOffer.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                ...existingStdOffer,
+                                min_nights: standardRestrictions.min_nights,
+                                allowed_checkin_days: standardRestrictions.allowed_checkin_days,
+                                allowed_checkout_days: standardRestrictions.allowed_checkout_days
+                            })
+                        });
+                        const result = await response.json();
+                        if (result.success) saved++;
+                        else errors++;
+                    } else {
+                        // Create new Standard Price offer for this room
+                        const response = await fetch('/api/admin/offers', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                name: 'Standard Price',
+                                description: 'Standard website price with restrictions',
+                                room_id: roomId,
+                                discount_type: 'percentage',
+                                discount_value: 0,
+                                min_nights: standardRestrictions.min_nights,
+                                allowed_checkin_days: standardRestrictions.allowed_checkin_days,
+                                allowed_checkout_days: standardRestrictions.allowed_checkout_days,
+                                active: true,
+                                available_website: true
+                            })
+                        });
+                        const result = await response.json();
+                        if (result.success) saved++;
+                        else errors++;
+                    }
+                    
+                    standardRestrictions.changed = false;
+                } catch (error) {
+                    console.error('Error saving standard restrictions:', error);
+                    errors++;
+                }
+            }
+            
+            // Save other offer restrictions
             for (const offerId of offerIds) {
                 try {
                     // Get current offer data first
