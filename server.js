@@ -3209,26 +3209,50 @@ app.post('/api/admin/offers', async (req, res) => {
       stackable, priority, active
     } = req.body;
     
-    const result = await pool.query(`
-      INSERT INTO offers (
-        name, description, property_id, room_id,
-        discount_type, discount_value, applies_to,
-        min_nights, max_nights, min_guests, max_guests,
-        min_advance_days, max_advance_days,
-        valid_from, valid_until, valid_days_of_week,
-        allowed_checkin_days, allowed_checkout_days,
-        stackable, priority, active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
-      RETURNING *
-    `, [
-      name, description, property_id || null, room_id || null,
-      discount_type || 'percentage', discount_value, applies_to || 'standard_price',
-      min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
-      min_advance_days || null, max_advance_days || null,
-      valid_from || null, valid_until || null, valid_days_of_week || null,
-      allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
-      stackable || false, priority || 0, active !== false
-    ]);
+    let result;
+    try {
+      // Try with new columns
+      result = await pool.query(`
+        INSERT INTO offers (
+          name, description, property_id, room_id,
+          discount_type, discount_value, applies_to,
+          min_nights, max_nights, min_guests, max_guests,
+          min_advance_days, max_advance_days,
+          valid_from, valid_until, valid_days_of_week,
+          allowed_checkin_days, allowed_checkout_days,
+          stackable, priority, active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+        RETURNING *
+      `, [
+        name, description, property_id || null, room_id || null,
+        discount_type || 'percentage', discount_value, applies_to || 'standard_price',
+        min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
+        min_advance_days || null, max_advance_days || null,
+        valid_from || null, valid_until || null, valid_days_of_week || null,
+        allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
+        stackable || false, priority || 0, active !== false
+      ]);
+    } catch (colErr) {
+      // Fallback without new columns
+      result = await pool.query(`
+        INSERT INTO offers (
+          name, description, property_id, room_id,
+          discount_type, discount_value, applies_to,
+          min_nights, max_nights, min_guests, max_guests,
+          min_advance_days, max_advance_days,
+          valid_from, valid_until, valid_days_of_week,
+          stackable, priority, active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+        RETURNING *
+      `, [
+        name, description, property_id || null, room_id || null,
+        discount_type || 'percentage', discount_value, applies_to || 'standard_price',
+        min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
+        min_advance_days || null, max_advance_days || null,
+        valid_from || null, valid_until || null, valid_days_of_week || null,
+        stackable || false, priority || 0, active !== false
+      ]);
+    }
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -3249,26 +3273,50 @@ app.put('/api/admin/offers/:id', async (req, res) => {
       stackable, priority, active
     } = req.body;
     
-    const result = await pool.query(`
-      UPDATE offers SET
-        name = $1, description = $2, property_id = $3, room_id = $4,
-        discount_type = $5, discount_value = $6, applies_to = $7,
-        min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
-        min_advance_days = $12, max_advance_days = $13,
-        valid_from = $14, valid_until = $15, valid_days_of_week = $16,
-        allowed_checkin_days = $17, allowed_checkout_days = $18,
-        stackable = $19, priority = $20, active = $21, updated_at = NOW()
-      WHERE id = $22
-      RETURNING *
-    `, [
-      name, description, property_id || null, room_id || null,
-      discount_type, discount_value, applies_to,
-      min_nights, max_nights || null, min_guests || null, max_guests || null,
-      min_advance_days || null, max_advance_days || null,
-      valid_from || null, valid_until || null, valid_days_of_week || null,
-      allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
-      stackable, priority, active, req.params.id
-    ]);
+    let result;
+    try {
+      // Try with new columns
+      result = await pool.query(`
+        UPDATE offers SET
+          name = $1, description = $2, property_id = $3, room_id = $4,
+          discount_type = $5, discount_value = $6, applies_to = $7,
+          min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
+          min_advance_days = $12, max_advance_days = $13,
+          valid_from = $14, valid_until = $15, valid_days_of_week = $16,
+          allowed_checkin_days = $17, allowed_checkout_days = $18,
+          stackable = $19, priority = $20, active = $21, updated_at = NOW()
+        WHERE id = $22
+        RETURNING *
+      `, [
+        name, description, property_id || null, room_id || null,
+        discount_type, discount_value, applies_to,
+        min_nights, max_nights || null, min_guests || null, max_guests || null,
+        min_advance_days || null, max_advance_days || null,
+        valid_from || null, valid_until || null, valid_days_of_week || null,
+        allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
+        stackable, priority, active, req.params.id
+      ]);
+    } catch (colErr) {
+      // Fallback without new columns
+      result = await pool.query(`
+        UPDATE offers SET
+          name = $1, description = $2, property_id = $3, room_id = $4,
+          discount_type = $5, discount_value = $6, applies_to = $7,
+          min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
+          min_advance_days = $12, max_advance_days = $13,
+          valid_from = $14, valid_until = $15, valid_days_of_week = $16,
+          stackable = $17, priority = $18, active = $19, updated_at = NOW()
+        WHERE id = $20
+        RETURNING *
+      `, [
+        name, description, property_id || null, room_id || null,
+        discount_type, discount_value, applies_to,
+        min_nights, max_nights || null, min_guests || null, max_guests || null,
+        min_advance_days || null, max_advance_days || null,
+        valid_from || null, valid_until || null, valid_days_of_week || null,
+        stackable, priority, active, req.params.id
+      ]);
+    }
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -7446,39 +7494,77 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
     const checkinDayOfWeek = check_in ? new Date(check_in).getDay() : null;
     const checkoutDayOfWeek = check_out ? new Date(check_out).getDay() : null;
     
-    const offers = await pool.query(`
-      SELECT 
-        o.id,
-        o.name,
-        o.description,
-        o.discount_type,
-        o.discount_value,
-        o.applies_to,
-        o.min_nights,
-        o.max_nights,
-        o.allowed_checkin_days,
-        o.allowed_checkout_days,
-        o.valid_from,
-        o.valid_until,
-        o.property_id,
-        o.room_id,
-        p.name as property_name
-      FROM offers o
-      LEFT JOIN properties p ON o.property_id = p.id
-      WHERE o.active = true
-        AND o.available_website = true
-        AND (o.user_id = $1 OR o.user_id IS NULL)
-        AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
-        AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
-        AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
-        AND ($3::integer IS NULL OR o.min_nights IS NULL OR o.min_nights <= $3)
-        AND ($3::integer IS NULL OR o.max_nights IS NULL OR o.max_nights >= $3)
-        AND ($4::integer IS NULL OR o.min_guests IS NULL OR o.min_guests <= $4)
-        AND ($4::integer IS NULL OR o.max_guests IS NULL OR o.max_guests >= $4)
-        AND ($5::integer IS NULL OR o.min_advance_days IS NULL OR o.min_advance_days <= $5)
-        AND ($5::integer IS NULL OR o.max_advance_days IS NULL OR o.max_advance_days >= $5)
-      ORDER BY o.priority DESC, o.discount_value DESC
-    `, [clientId, unit_id || null, nights, guests || null, advanceDays]);
+    let offers;
+    try {
+      // Try with new columns
+      offers = await pool.query(`
+        SELECT 
+          o.id,
+          o.name,
+          o.description,
+          o.discount_type,
+          o.discount_value,
+          o.applies_to,
+          o.min_nights,
+          o.max_nights,
+          o.allowed_checkin_days,
+          o.allowed_checkout_days,
+          o.valid_from,
+          o.valid_until,
+          o.property_id,
+          o.room_id,
+          p.name as property_name
+        FROM offers o
+        LEFT JOIN properties p ON o.property_id = p.id
+        WHERE o.active = true
+          AND o.available_website = true
+          AND (o.user_id = $1 OR o.user_id IS NULL)
+          AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
+          AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
+          AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
+          AND ($3::integer IS NULL OR o.min_nights IS NULL OR o.min_nights <= $3)
+          AND ($3::integer IS NULL OR o.max_nights IS NULL OR o.max_nights >= $3)
+          AND ($4::integer IS NULL OR o.min_guests IS NULL OR o.min_guests <= $4)
+          AND ($4::integer IS NULL OR o.max_guests IS NULL OR o.max_guests >= $4)
+          AND ($5::integer IS NULL OR o.min_advance_days IS NULL OR o.min_advance_days <= $5)
+          AND ($5::integer IS NULL OR o.max_advance_days IS NULL OR o.max_advance_days >= $5)
+        ORDER BY o.priority DESC, o.discount_value DESC
+      `, [clientId, unit_id || null, nights, guests || null, advanceDays]);
+    } catch (colError) {
+      // Fallback without new columns if they don't exist yet
+      console.log('Falling back to offers query without checkin/checkout columns');
+      offers = await pool.query(`
+        SELECT 
+          o.id,
+          o.name,
+          o.description,
+          o.discount_type,
+          o.discount_value,
+          o.applies_to,
+          o.min_nights,
+          o.max_nights,
+          o.valid_from,
+          o.valid_until,
+          o.property_id,
+          o.room_id,
+          p.name as property_name
+        FROM offers o
+        LEFT JOIN properties p ON o.property_id = p.id
+        WHERE o.active = true
+          AND o.available_website = true
+          AND (o.user_id = $1 OR o.user_id IS NULL)
+          AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
+          AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
+          AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
+          AND ($3::integer IS NULL OR o.min_nights IS NULL OR o.min_nights <= $3)
+          AND ($3::integer IS NULL OR o.max_nights IS NULL || o.max_nights >= $3)
+          AND ($4::integer IS NULL OR o.min_guests IS NULL OR o.min_guests <= $4)
+          AND ($4::integer IS NULL OR o.max_guests IS NULL OR o.max_guests >= $4)
+          AND ($5::integer IS NULL OR o.min_advance_days IS NULL OR o.min_advance_days <= $5)
+          AND ($5::integer IS NULL OR o.max_advance_days IS NULL OR o.max_advance_days >= $5)
+        ORDER BY o.priority DESC, o.discount_value DESC
+      `, [clientId, unit_id || null, nights, guests || null, advanceDays]);
+    }
     
     // Filter by check-in/check-out day restrictions (done in JS for flexibility)
     let filteredOffers = offers.rows;
