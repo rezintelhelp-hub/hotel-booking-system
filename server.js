@@ -7185,7 +7185,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.name as property_name,
         p.city,
         p.currency,
-        (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY sort_order LIMIT 1) as image_url
+        (SELECT image_url FROM room_images WHERE room_id = bu.id LIMIT 1) as image_url
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       WHERE p.client_id = $1
