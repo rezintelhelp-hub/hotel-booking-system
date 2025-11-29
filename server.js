@@ -750,6 +750,8 @@ app.get('/api/setup-database', async (req, res) => {
         valid_from DATE,
         valid_until DATE,
         valid_days_of_week VARCHAR(20),
+        allowed_checkin_days VARCHAR(20) DEFAULT '0,1,2,3,4,5,6',
+        allowed_checkout_days VARCHAR(20) DEFAULT '0,1,2,3,4,5,6',
         stackable BOOLEAN DEFAULT false,
         priority INTEGER DEFAULT 0,
         available_website BOOLEAN DEFAULT true,
@@ -763,6 +765,11 @@ app.get('/api/setup-database', async (req, res) => {
     // Add distribution columns if they don't exist
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS available_website BOOLEAN DEFAULT true`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS available_agents BOOLEAN DEFAULT false`);
+    // Add check-in/check-out restriction columns
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS allowed_checkin_days VARCHAR(20) DEFAULT '0,1,2,3,4,5,6'`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS allowed_checkout_days VARCHAR(20) DEFAULT '0,1,2,3,4,5,6'`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS min_nights INTEGER DEFAULT 1`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS max_nights INTEGER`);
     
     // Create vouchers table
     await pool.query(`
@@ -3198,6 +3205,7 @@ app.post('/api/admin/offers', async (req, res) => {
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
+      allowed_checkin_days, allowed_checkout_days,
       stackable, priority, active
     } = req.body;
     
@@ -3208,8 +3216,9 @@ app.post('/api/admin/offers', async (req, res) => {
         min_nights, max_nights, min_guests, max_guests,
         min_advance_days, max_advance_days,
         valid_from, valid_until, valid_days_of_week,
+        allowed_checkin_days, allowed_checkout_days,
         stackable, priority, active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
       RETURNING *
     `, [
       name, description, property_id || null, room_id || null,
@@ -3217,6 +3226,7 @@ app.post('/api/admin/offers', async (req, res) => {
       min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
       min_advance_days || null, max_advance_days || null,
       valid_from || null, valid_until || null, valid_days_of_week || null,
+      allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
       stackable || false, priority || 0, active !== false
     ]);
     
@@ -3235,6 +3245,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
+      allowed_checkin_days, allowed_checkout_days,
       stackable, priority, active
     } = req.body;
     
@@ -3245,8 +3256,9 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
         min_advance_days = $12, max_advance_days = $13,
         valid_from = $14, valid_until = $15, valid_days_of_week = $16,
-        stackable = $17, priority = $18, active = $19, updated_at = NOW()
-      WHERE id = $20
+        allowed_checkin_days = $17, allowed_checkout_days = $18,
+        stackable = $19, priority = $20, active = $21, updated_at = NOW()
+      WHERE id = $22
       RETURNING *
     `, [
       name, description, property_id || null, room_id || null,
@@ -3254,6 +3266,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
       min_nights, max_nights || null, min_guests || null, max_guests || null,
       min_advance_days || null, max_advance_days || null,
       valid_from || null, valid_until || null, valid_days_of_week || null,
+      allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
       stackable, priority, active, req.params.id
     ]);
     
@@ -7429,6 +7442,10 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
     const advanceDays = check_in ? 
       Math.ceil((new Date(check_in) - new Date()) / (1000 * 60 * 60 * 24)) : null;
     
+    // Get day of week for check-in and check-out (0 = Sunday, 6 = Saturday)
+    const checkinDayOfWeek = check_in ? new Date(check_in).getDay() : null;
+    const checkoutDayOfWeek = check_out ? new Date(check_out).getDay() : null;
+    
     const offers = await pool.query(`
       SELECT 
         o.id,
@@ -7439,6 +7456,8 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         o.applies_to,
         o.min_nights,
         o.max_nights,
+        o.allowed_checkin_days,
+        o.allowed_checkout_days,
         o.valid_from,
         o.valid_until,
         o.property_id,
@@ -7461,16 +7480,40 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
       ORDER BY o.priority DESC, o.discount_value DESC
     `, [clientId, unit_id || null, nights, guests || null, advanceDays]);
     
+    // Filter by check-in/check-out day restrictions (done in JS for flexibility)
+    let filteredOffers = offers.rows;
+    if (checkinDayOfWeek !== null || checkoutDayOfWeek !== null) {
+      filteredOffers = offers.rows.filter(offer => {
+        // Check if check-in day is allowed
+        if (checkinDayOfWeek !== null && offer.allowed_checkin_days) {
+          const allowedCheckinDays = offer.allowed_checkin_days.split(',').map(d => parseInt(d.trim()));
+          if (!allowedCheckinDays.includes(checkinDayOfWeek)) {
+            return false;
+          }
+        }
+        // Check if check-out day is allowed
+        if (checkoutDayOfWeek !== null && offer.allowed_checkout_days) {
+          const allowedCheckoutDays = offer.allowed_checkout_days.split(',').map(d => parseInt(d.trim()));
+          if (!allowedCheckoutDays.includes(checkoutDayOfWeek)) {
+            return false;
+          }
+        }
+        return true;
+      });
+    }
+    
     res.json({ 
       success: true, 
-      offers: offers.rows,
+      offers: filteredOffers,
       meta: {
-        total: offers.rows.length,
+        total: filteredOffers.length,
         filters_applied: {
           unit_id: unit_id || null,
           nights: nights,
           guests: guests || null,
-          advance_days: advanceDays
+          advance_days: advanceDays,
+          checkin_day: checkinDayOfWeek,
+          checkout_day: checkoutDayOfWeek
         }
       }
     });
