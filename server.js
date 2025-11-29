@@ -498,378 +498,6 @@ app.get('/admin/deploy-database', (req, res) => {
   `);
 });
 
-// Admin page for editing property locations (for map functionality)
-app.get('/admin/property-locations', async (req, res) => {
-  res.send(`
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>📍 Property Locations - GAS Admin</title>
-      <meta name="viewport" content="width=device-width, initial-scale=1">
-      <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-      <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-      <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-          background: #f5f5f5;
-          min-height: 100vh;
-          padding: 20px;
-        }
-        .container {
-          max-width: 1200px;
-          margin: 0 auto;
-        }
-        h1 {
-          color: #333;
-          font-size: 28px;
-          margin-bottom: 20px;
-          display: flex;
-          align-items: center;
-          gap: 10px;
-        }
-        .property-card {
-          background: white;
-          border-radius: 12px;
-          padding: 24px;
-          margin-bottom: 20px;
-          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
-        }
-        .property-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-          flex-wrap: wrap;
-          gap: 10px;
-        }
-        .property-name {
-          font-size: 20px;
-          font-weight: 600;
-          color: #333;
-        }
-        .property-location {
-          color: #666;
-          font-size: 14px;
-        }
-        .form-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-          gap: 16px;
-          margin-bottom: 16px;
-        }
-        .form-group {
-          display: flex;
-          flex-direction: column;
-          gap: 6px;
-        }
-        label {
-          font-size: 13px;
-          font-weight: 500;
-          color: #555;
-        }
-        input, select {
-          padding: 10px 12px;
-          border: 1px solid #ddd;
-          border-radius: 8px;
-          font-size: 14px;
-          transition: border-color 0.2s;
-        }
-        input:focus, select:focus {
-          outline: none;
-          border-color: #667eea;
-        }
-        .btn {
-          padding: 10px 20px;
-          border: none;
-          border-radius: 8px;
-          font-size: 14px;
-          font-weight: 500;
-          cursor: pointer;
-          transition: all 0.2s;
-        }
-        .btn-primary {
-          background: #667eea;
-          color: white;
-        }
-        .btn-primary:hover {
-          background: #5a6fd6;
-        }
-        .btn-secondary {
-          background: #e2e8f0;
-          color: #475569;
-        }
-        .btn-secondary:hover {
-          background: #cbd5e1;
-        }
-        .btn-group {
-          display: flex;
-          gap: 10px;
-          margin-top: 16px;
-        }
-        .map-container {
-          height: 200px;
-          border-radius: 8px;
-          margin-top: 16px;
-          border: 1px solid #ddd;
-        }
-        .status {
-          padding: 6px 12px;
-          border-radius: 6px;
-          font-size: 12px;
-          font-weight: 500;
-        }
-        .status-success {
-          background: #d1fae5;
-          color: #065f46;
-        }
-        .status-warning {
-          background: #fef3c7;
-          color: #92400e;
-        }
-        .coords-display {
-          font-family: monospace;
-          font-size: 12px;
-          color: #666;
-          margin-top: 8px;
-        }
-        .loading {
-          text-align: center;
-          padding: 40px;
-          color: #666;
-        }
-        .alert {
-          padding: 12px 16px;
-          border-radius: 8px;
-          margin-bottom: 20px;
-        }
-        .alert-info {
-          background: #e0f2fe;
-          color: #0369a1;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <h1>📍 Property Locations</h1>
-        <div class="alert alert-info">
-          Set coordinates for each property to enable map functionality on your booking website.
-          Click on the map to set location, or enter coordinates manually.
-        </div>
-        <div id="properties-list">
-          <div class="loading">Loading properties...</div>
-        </div>
-      </div>
-
-      <script>
-        const maps = {};
-        const markers = {};
-        
-        async function loadProperties() {
-          try {
-            const res = await fetch('/api/db/properties');
-            const data = await res.json();
-            
-            if (data.success) {
-              renderProperties(data.data);
-            } else {
-              document.getElementById('properties-list').innerHTML = 
-                '<div class="alert" style="background:#fee2e2;color:#991b1b;">Error loading properties: ' + data.error + '</div>';
-            }
-          } catch (err) {
-            document.getElementById('properties-list').innerHTML = 
-              '<div class="alert" style="background:#fee2e2;color:#991b1b;">Error: ' + err.message + '</div>';
-          }
-        }
-        
-        function renderProperties(properties) {
-          const container = document.getElementById('properties-list');
-          
-          if (properties.length === 0) {
-            container.innerHTML = '<div class="alert alert-info">No properties found. Import some properties first.</div>';
-            return;
-          }
-          
-          container.innerHTML = properties.map(p => \`
-            <div class="property-card" id="property-\${p.id}">
-              <div class="property-header">
-                <div>
-                  <div class="property-name">\${p.name}</div>
-                  <div class="property-location">\${p.city || ''}\${p.city && p.country ? ', ' : ''}\${p.country || ''}</div>
-                </div>
-                <span class="status \${p.latitude && p.longitude ? 'status-success' : 'status-warning'}">
-                  \${p.latitude && p.longitude ? '✓ Coordinates Set' : '⚠ No Coordinates'}
-                </span>
-              </div>
-              
-              <div class="form-grid">
-                <div class="form-group">
-                  <label>District / Area</label>
-                  <input type="text" id="district-\${p.id}" value="\${p.district || ''}" placeholder="e.g. Manhattan">
-                </div>
-                <div class="form-group">
-                  <label>State / Region</label>
-                  <input type="text" id="state-\${p.id}" value="\${p.state || ''}" placeholder="e.g. New York">
-                </div>
-                <div class="form-group">
-                  <label>Zip / Postal Code</label>
-                  <input type="text" id="zip_code-\${p.id}" value="\${p.zip_code || ''}" placeholder="e.g. 10001">
-                </div>
-              </div>
-              
-              <div class="form-grid">
-                <div class="form-group">
-                  <label>Latitude</label>
-                  <input type="number" step="any" id="lat-\${p.id}" value="\${p.latitude || ''}" placeholder="e.g. 40.7128">
-                </div>
-                <div class="form-group">
-                  <label>Longitude</label>
-                  <input type="number" step="any" id="lng-\${p.id}" value="\${p.longitude || ''}" placeholder="e.g. -74.0060">
-                </div>
-                <div class="form-group" style="justify-content: flex-end;">
-                  <button class="btn btn-secondary" onclick="geocodeAddress(\${p.id}, '\${(p.address || '').replace(/'/g, "\\\\'")}', '\${(p.city || '').replace(/'/g, "\\\\'")}', '\${(p.country || '').replace(/'/g, "\\\\'")}')">
-                    🔍 Lookup from Address
-                  </button>
-                </div>
-              </div>
-              
-              <div class="map-container" id="map-\${p.id}"></div>
-              <div class="coords-display" id="coords-\${p.id}">
-                \${p.latitude && p.longitude ? 'Current: ' + p.latitude + ', ' + p.longitude : 'Click on map or use lookup to set coordinates'}
-              </div>
-              
-              <div class="btn-group">
-                <button class="btn btn-primary" onclick="saveProperty(\${p.id})">💾 Save Changes</button>
-              </div>
-            </div>
-          \`).join('');
-          
-          // Initialize maps after DOM is ready
-          setTimeout(() => {
-            properties.forEach(p => initMap(p));
-          }, 100);
-        }
-        
-        function initMap(property) {
-          const mapId = 'map-' + property.id;
-          const container = document.getElementById(mapId);
-          if (!container) return;
-          
-          // Default center (London) or property coords
-          const lat = property.latitude || 51.5074;
-          const lng = property.longitude || -0.1278;
-          const zoom = property.latitude ? 15 : 5;
-          
-          const map = L.map(mapId).setView([lat, lng], zoom);
-          maps[property.id] = map;
-          
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '© OpenStreetMap contributors'
-          }).addTo(map);
-          
-          // Add marker if coords exist
-          if (property.latitude && property.longitude) {
-            markers[property.id] = L.marker([property.latitude, property.longitude]).addTo(map);
-          }
-          
-          // Click to set location
-          map.on('click', function(e) {
-            const { lat, lng } = e.latlng;
-            document.getElementById('lat-' + property.id).value = lat.toFixed(7);
-            document.getElementById('lng-' + property.id).value = lng.toFixed(7);
-            document.getElementById('coords-' + property.id).textContent = 'Selected: ' + lat.toFixed(7) + ', ' + lng.toFixed(7);
-            
-            // Update or add marker
-            if (markers[property.id]) {
-              markers[property.id].setLatLng([lat, lng]);
-            } else {
-              markers[property.id] = L.marker([lat, lng]).addTo(map);
-            }
-          });
-        }
-        
-        async function geocodeAddress(propertyId, address, city, country) {
-          const query = [address, city, country].filter(Boolean).join(', ');
-          if (!query) {
-            alert('No address available for this property');
-            return;
-          }
-          
-          try {
-            const res = await fetch('https://nominatim.openstreetmap.org/search?format=json&q=' + encodeURIComponent(query));
-            const data = await res.json();
-            
-            if (data && data.length > 0) {
-              const { lat, lon } = data[0];
-              document.getElementById('lat-' + propertyId).value = parseFloat(lat).toFixed(7);
-              document.getElementById('lng-' + propertyId).value = parseFloat(lon).toFixed(7);
-              document.getElementById('coords-' + propertyId).textContent = 'Found: ' + lat + ', ' + lon;
-              
-              // Update map
-              const map = maps[propertyId];
-              if (map) {
-                map.setView([lat, lon], 15);
-                if (markers[propertyId]) {
-                  markers[propertyId].setLatLng([lat, lon]);
-                } else {
-                  markers[propertyId] = L.marker([lat, lon]).addTo(map);
-                }
-              }
-            } else {
-              alert('Could not find coordinates for this address. Try clicking on the map manually.');
-            }
-          } catch (err) {
-            alert('Geocoding error: ' + err.message);
-          }
-        }
-        
-        async function saveProperty(propertyId) {
-          const district = document.getElementById('district-' + propertyId).value;
-          const state = document.getElementById('state-' + propertyId).value;
-          const zip_code = document.getElementById('zip_code-' + propertyId).value;
-          const latitude = document.getElementById('lat-' + propertyId).value;
-          const longitude = document.getElementById('lng-' + propertyId).value;
-          
-          try {
-            const res = await fetch('/api/db/properties/' + propertyId, {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                district: district || null,
-                state: state || null,
-                zip_code: zip_code || null,
-                latitude: latitude ? parseFloat(latitude) : null,
-                longitude: longitude ? parseFloat(longitude) : null
-              })
-            });
-            
-            const data = await res.json();
-            
-            if (data.success) {
-              // Update status badge
-              const card = document.getElementById('property-' + propertyId);
-              const statusBadge = card.querySelector('.status');
-              if (latitude && longitude) {
-                statusBadge.className = 'status status-success';
-                statusBadge.textContent = '✓ Coordinates Set';
-              }
-              alert('Property location saved successfully!');
-            } else {
-              alert('Error saving: ' + data.error);
-            }
-          } catch (err) {
-            alert('Error: ' + err.message);
-          }
-        }
-        
-        // Load on page ready
-        loadProperties();
-      </script>
-    </body>
-    </html>
-  `);
-});
-
 // API: Check current database status
 app.get('/api/migration/status', async (req, res) => {
   try {
@@ -967,9 +595,12 @@ app.get('/api/setup-clients', async (req, res) => {
         date_format VARCHAR(20) DEFAULT 'DD/MM/YYYY',
         language VARCHAR(10) DEFAULT 'en',
         plan VARCHAR(20) DEFAULT 'free',
+        subscription_status VARCHAR(20) DEFAULT 'active',
+        features_enabled JSONB DEFAULT '{}',
         plan_started_at TIMESTAMP,
         plan_expires_at TIMESTAMP,
         stripe_customer_id VARCHAR(100),
+        stripe_subscription_id VARCHAR(100),
         api_key VARCHAR(64) UNIQUE,
         api_key_created_at TIMESTAMP,
         api_requests_today INTEGER DEFAULT 0,
@@ -982,6 +613,12 @@ app.get('/api/setup-clients', async (req, res) => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Add new columns to clients if they don't exist
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(20) DEFAULT 'active'`);
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS features_enabled JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100)`);
+    
     console.log('✅ Created clients table');
 
     // 2. Create client_users table
@@ -1075,12 +712,6 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER`);
     // Add hostaway columns
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
-    // Add location fields to properties
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS district VARCHAR(100)`);
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(100)`);
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS zip_code VARCHAR(20)`);
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)`);
-    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
     // Add access_token column to channel_connections
@@ -1176,14 +807,18 @@ app.get('/api/setup-database', async (req, res) => {
         price DECIMAL(10,2) NOT NULL,
         charge_type VARCHAR(30) DEFAULT 'per_booking',
         max_quantity INTEGER,
+        image_url TEXT,
+        category VARCHAR(50),
         active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT NOW(),
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
     
-    // Add room_ids column if it doesn't exist
+    // Add new columns if they don't exist
     await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS room_ids TEXT`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS image_url TEXT`);
+    await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
     
     // Create fees table
     await pool.query(`
@@ -1322,7 +957,7 @@ app.post('/api/db/properties', async (req, res) => {
 app.put('/api/db/properties/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, address, city, country, property_type, status, district, state, zip_code, latitude, longitude } = req.body;
+    const { name, description, address, city, country, property_type, status } = req.body;
 
     const result = await pool.query(
       `UPDATE properties SET 
@@ -1333,15 +968,10 @@ app.put('/api/db/properties/:id', async (req, res) => {
         country = COALESCE($5, country), 
         property_type = COALESCE($6, property_type),
         status = COALESCE($7, status),
-        district = COALESCE($8, district),
-        state = COALESCE($9, state),
-        zip_code = COALESCE($10, zip_code),
-        latitude = COALESCE($11, latitude),
-        longitude = COALESCE($12, longitude),
         updated_at = NOW()
-      WHERE id = $13
+      WHERE id = $8
       RETURNING *`,
-      [name, description, address, city, country, property_type, status, district, state, zip_code, latitude, longitude, id]
+      [name, description, address, city, country, property_type, status, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -7024,97 +6654,6 @@ app.post('/api/ai/generate-content', async (req, res) => {
 // PUBLIC API ENDPOINTS (for WordPress plugin & widgets)
 // =====================================================
 
-// Validate client ID (public)
-app.get('/api/public/validate-client/:clientId', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    
-    const client = await pool.query(`
-      SELECT c.id, c.name,
-             COUNT(DISTINCT p.id) as property_count
-      FROM clients c
-      LEFT JOIN properties p ON p.client_id = c.id
-      WHERE c.id = $1
-      GROUP BY c.id
-    `, [clientId]);
-    
-    if (!client.rows[0]) {
-      return res.json({ success: false, error: 'Client not found' });
-    }
-    
-    res.json({
-      success: true,
-      client: client.rows[0]
-    });
-  } catch (error) {
-    console.error('Validate client error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get all properties for a client (public)
-app.get('/api/public/client/:clientId/properties', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    
-    const properties = await pool.query(`
-      SELECT p.id, p.name, p.property_type, p.description, 
-             p.city, p.country, p.currency,
-             COUNT(bu.id) as room_count
-      FROM properties p
-      LEFT JOIN bookable_units bu ON bu.property_id = p.id
-      WHERE p.client_id = $1
-      GROUP BY p.id
-      ORDER BY p.name
-    `, [clientId]);
-    
-    res.json({
-      success: true,
-      properties: properties.rows
-    });
-  } catch (error) {
-    console.error('Client properties error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get all rooms for a client (public) - used by WordPress plugin
-app.get('/api/public/client/:clientId/rooms', async (req, res) => {
-  try {
-    const { clientId } = req.params;
-    const { property_id } = req.query;
-    
-    let query = `
-      SELECT bu.id, bu.name, bu.unit_type, bu.description, bu.max_guests, bu.base_price,
-             bu.bedroom_count, bu.bathroom_count,
-             p.id as property_id, p.name as property_name, p.currency,
-             p.address, p.city, p.country, p.latitude, p.longitude,
-             (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_primary = true LIMIT 1) as image_url
-      FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      WHERE p.client_id = $1
-    `;
-    const params = [clientId];
-    
-    if (property_id) {
-      query += ` AND bu.property_id = $2`;
-      params.push(property_id);
-    }
-    
-    query += ` ORDER BY p.name, bu.name`;
-    
-    const rooms = await pool.query(query, params);
-    
-    res.json({
-      success: true,
-      rooms: rooms.rows
-    });
-  } catch (error) {
-    console.error('Client rooms error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // Get property info (public)
 app.get('/api/public/property/:propertyId', async (req, res) => {
   try {
@@ -7159,26 +6698,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const unit = await pool.query(`
-      SELECT 
-        bu.id, bu.name, bu.unit_type, bu.max_guests, bu.base_price,
-        bu.bedroom_count, bu.bathroom_count, bu.property_id,
-        bu.description,
-        CASE 
-          WHEN bu.short_description IS NULL THEN NULL
-          WHEN jsonb_typeof(bu.short_description::jsonb) = 'object' THEN bu.short_description::jsonb->>'en'
-          ELSE bu.short_description::text
-        END as short_description,
-        CASE 
-          WHEN bu.full_description IS NULL THEN NULL
-          WHEN jsonb_typeof(bu.full_description::jsonb) = 'object' THEN bu.full_description::jsonb->>'en'
-          ELSE bu.full_description::text
-        END as full_description,
-        p.name as property_name, 
-        p.currency,
-        p.city,
-        p.country,
-        p.latitude,
-        p.longitude
+      SELECT bu.*, p.name as property_name, p.currency, p.timezone
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -7188,84 +6708,26 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
-    // Try to get images - handle if table structure differs
-    let images = [];
-    try {
-      const imgResult = await pool.query(`
-        SELECT id, image_url as url, thumbnail_url, alt_text, display_order
-        FROM room_images 
-        WHERE room_id = $1 AND is_active = true
-        ORDER BY display_order
-      `, [unitId]);
-      images = imgResult.rows;
-    } catch (imgErr) {
-      console.log('Room images query error:', imgErr.message);
-    }
+    const images = await pool.query(`
+      SELECT id, url, alt_text, is_primary
+      FROM bookable_unit_images WHERE unit_id = $1
+      ORDER BY sort_order, is_primary DESC
+    `, [unitId]);
     
-    // Try to get amenities - handle if table structure differs
-    let amenities = [];
-    try {
-      const amenResult = await pool.query(`
-        SELECT amenity_name as name, category
-        FROM bookable_unit_amenities 
-        WHERE bookable_unit_id = $1
-        ORDER BY category, amenity_name
-      `, [unitId]);
-      amenities = amenResult.rows;
-    } catch (amenErr) {
-      console.log('Amenities query error:', amenErr.message);
-    }
+    const amenities = await pool.query(`
+      SELECT name, category, icon
+      FROM bookable_unit_amenities WHERE unit_id = $1
+      ORDER BY category, name
+    `, [unitId]);
     
     res.json({
       success: true,
       unit: unit.rows[0],
-      images: images,
-      amenities: amenities
+      images: images.rows,
+      amenities: amenities.rows
     });
   } catch (error) {
     console.error('Public unit error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get property terms (public)
-app.get('/api/public/property/:propertyId/terms', async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-    
-    const result = await pool.query(`
-      SELECT 
-        CASE 
-          WHEN house_rules IS NULL THEN NULL
-          WHEN jsonb_typeof(house_rules::jsonb) = 'object' THEN house_rules::jsonb->>'en'
-          ELSE house_rules::text
-        END as house_rules,
-        CASE 
-          WHEN cancellation_policy IS NULL THEN NULL
-          WHEN jsonb_typeof(cancellation_policy::jsonb) = 'object' THEN cancellation_policy::jsonb->>'en'
-          ELSE cancellation_policy::text
-        END as cancellation_policy,
-        CASE 
-          WHEN general_terms IS NULL THEN NULL
-          WHEN jsonb_typeof(general_terms::jsonb) = 'object' THEN general_terms::jsonb->>'en'
-          ELSE general_terms::text
-        END as general_terms
-      FROM properties 
-      WHERE id = $1
-    `, [propertyId]);
-    
-    if (!result.rows[0]) {
-      return res.json({ success: false, error: 'Property not found' });
-    }
-    
-    res.json({
-      success: true,
-      house_rules: result.rows[0].house_rules || '',
-      cancellation_policy: result.rows[0].cancellation_policy || '',
-      general_terms: result.rows[0].general_terms || ''
-    });
-  } catch (error) {
-    console.error('Property terms error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -7292,32 +6754,6 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       ORDER BY date
     `, [unitId, startDate, endDate]);
     
-    // Get existing bookings that overlap with this date range
-    let bookedDates = new Set();
-    try {
-      const bookings = await pool.query(`
-        SELECT arrival_date, departure_date 
-        FROM bookings 
-        WHERE bookable_unit_id = $1
-          AND status NOT IN ('cancelled', 'rejected', 'no_show')
-          AND arrival_date < $3 
-          AND departure_date > $2
-      `, [unitId, startDate, endDate]);
-      
-      // Build set of booked dates
-      bookings.rows.forEach(b => {
-        let current = new Date(b.arrival_date);
-        const end = new Date(b.departure_date);
-        while (current < end) {
-          bookedDates.add(current.toISOString().split('T')[0]);
-          current.setDate(current.getDate() + 1);
-        }
-      });
-    } catch (bookingErr) {
-      console.log('Bookings query error (may not exist):', bookingErr.message);
-      // Continue without booking data - rely on room_availability table
-    }
-    
     // Get unit info for base price fallback
     const unit = await pool.query(`
       SELECT base_price, currency FROM bookable_units bu
@@ -7339,25 +6775,14 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       availMap[dateStr] = a;
     });
     
-    let totalPrice = 0;
-    let allAvailable = true;
-    
     while (current <= end) {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availMap[dateStr];
-      const isBooked = bookedDates.has(dateStr);
-      
-      // Date is available only if: not booked AND (no availability record OR is_available=true AND not blocked)
-      const isAvailable = !isBooked && (dayData ? (dayData.is_available && !dayData.is_blocked) : true);
-      const price = dayData?.price || basePrice;
-      
-      if (!isAvailable) allAvailable = false;
-      totalPrice += parseFloat(price) || 0;
       
       calendar.push({
         date: dateStr,
-        price: price,
-        available: isAvailable,
+        price: dayData?.price || basePrice,
+        available: dayData ? (dayData.is_available && !dayData.is_blocked) : true,
         min_stay: dayData?.min_stay || 1
       });
       
@@ -7368,9 +6793,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       success: true,
       unit_id: unitId,
       currency: currency,
-      calendar: calendar,
-      is_available: allAvailable,
-      total_price: totalPrice
+      calendar: calendar
     });
   } catch (error) {
     console.error('Public availability error:', error);
@@ -7378,10 +6801,10 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
   }
 });
 
-// Calculate price for dates (public)
+// Calculate price for dates (public) - supports offers, vouchers, upsells
 app.post('/api/public/calculate-price', async (req, res) => {
   try {
-    const { unit_id, check_in, check_out, guests, voucher_code } = req.body;
+    const { unit_id, check_in, check_out, guests, voucher_code, upsells } = req.body;
     
     if (!unit_id || !check_in || !check_out) {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
@@ -7397,7 +6820,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     // Get unit for base price
     const unit = await pool.query(`
-      SELECT bu.base_price, bu.max_guests, p.currency 
+      SELECT bu.base_price, bu.max_guests, bu.name, p.currency 
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -7496,6 +6919,45 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
+    // Calculate upsells total
+    let upsellsTotal = 0;
+    const upsellsBreakdown = [];
+    
+    if (upsells && upsells.length > 0) {
+      for (const item of upsells) {
+        const upsellResult = await pool.query(`
+          SELECT * FROM upsells WHERE id = $1 AND active = true
+        `, [item.id]);
+        
+        if (upsellResult.rows[0]) {
+          const u = upsellResult.rows[0];
+          let itemTotal = parseFloat(u.price);
+          
+          // Calculate based on charge type
+          if (u.charge_type === 'per_night') {
+            itemTotal = itemTotal * nights;
+          } else if (u.charge_type === 'per_guest') {
+            itemTotal = itemTotal * (guests || 1);
+          } else if (u.charge_type === 'per_guest_per_night') {
+            itemTotal = itemTotal * nights * (guests || 1);
+          }
+          
+          // Apply quantity
+          itemTotal = itemTotal * (item.quantity || 1);
+          
+          upsellsTotal += itemTotal;
+          upsellsBreakdown.push({
+            id: u.id,
+            name: u.name,
+            unit_price: parseFloat(u.price),
+            charge_type: u.charge_type,
+            quantity: item.quantity || 1,
+            total: itemTotal
+          });
+        }
+      }
+    }
+    
     // Get applicable taxes
     let taxTotal = 0;
     const taxBreakdown = [];
@@ -7507,7 +6969,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (room_id IS NULL OR room_id = $1)
     `, [unit_id]);
     
-    const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount;
+    const subtotalAfterDiscounts = accommodationTotal - discount - voucherDiscount + upsellsTotal;
     
     taxes.rows.forEach(tax => {
       let taxAmount = 0;
@@ -7531,11 +6993,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
       available: allAvailable,
       currency: currency,
       nights: nights,
+      room_name: unit.rows[0].name,
       accommodation_total: accommodationTotal,
       offer_discount: discount,
       offer_applied: offerApplied,
       voucher_discount: voucherDiscount,
       voucher_applied: voucherApplied,
+      upsells_total: upsellsTotal,
+      upsells_breakdown: upsellsBreakdown,
       subtotal: subtotalAfterDiscounts,
       taxes: taxBreakdown,
       tax_total: taxTotal,
@@ -7689,6 +7154,248 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
     res.json({ success: true, upsells: upsells.rows });
   } catch (error) {
     console.error('Get upsells error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// PUBLIC API - OFFERS, UPSELLS & PREMIUM FEATURES
+// =========================================================
+
+// Get active offers for a client (for website display)
+app.get('/api/public/client/:clientId/offers', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { unit_id, check_in, check_out, guests } = req.query;
+    
+    // Calculate nights if dates provided
+    const nights = check_in && check_out ? 
+      Math.ceil((new Date(check_out) - new Date(check_in)) / (1000 * 60 * 60 * 24)) : null;
+    
+    // Calculate advance days (days until check-in)
+    const advanceDays = check_in ? 
+      Math.ceil((new Date(check_in) - new Date()) / (1000 * 60 * 60 * 24)) : null;
+    
+    const offers = await pool.query(`
+      SELECT 
+        o.id,
+        o.name,
+        o.description,
+        o.discount_type,
+        o.discount_value,
+        o.applies_to,
+        o.min_nights,
+        o.max_nights,
+        o.valid_from,
+        o.valid_until,
+        o.property_id,
+        o.room_id,
+        p.name as property_name
+      FROM offers o
+      LEFT JOIN properties p ON o.property_id = p.id
+      WHERE o.active = true
+        AND o.available_website = true
+        AND (o.user_id = $1 OR o.user_id IS NULL)
+        AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
+        AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
+        AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
+        AND ($3::integer IS NULL OR o.min_nights IS NULL OR o.min_nights <= $3)
+        AND ($3::integer IS NULL OR o.max_nights IS NULL OR o.max_nights >= $3)
+        AND ($4::integer IS NULL OR o.min_guests IS NULL OR o.min_guests <= $4)
+        AND ($4::integer IS NULL OR o.max_guests IS NULL OR o.max_guests >= $4)
+        AND ($5::integer IS NULL OR o.min_advance_days IS NULL OR o.min_advance_days <= $5)
+        AND ($5::integer IS NULL OR o.max_advance_days IS NULL OR o.max_advance_days >= $5)
+      ORDER BY o.priority DESC, o.discount_value DESC
+    `, [clientId, unit_id || null, nights, guests || null, advanceDays]);
+    
+    res.json({ 
+      success: true, 
+      offers: offers.rows,
+      meta: {
+        total: offers.rows.length,
+        filters_applied: {
+          unit_id: unit_id || null,
+          nights: nights,
+          guests: guests || null,
+          advance_days: advanceDays
+        }
+      }
+    });
+  } catch (error) {
+    console.error('Get public offers error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get upsells for a client (all active upsells)
+app.get('/api/public/client/:clientId/upsells', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    const { unit_id, property_id } = req.query;
+    
+    const upsells = await pool.query(`
+      SELECT 
+        u.id,
+        u.name,
+        u.description,
+        u.price,
+        u.charge_type,
+        u.max_quantity,
+        u.image_url,
+        u.category,
+        u.property_id,
+        u.room_id,
+        u.room_ids,
+        p.name as property_name
+      FROM upsells u
+      LEFT JOIN properties p ON u.property_id = p.id
+      WHERE u.active = true
+        AND (u.user_id = $1 OR u.user_id IS NULL)
+        AND (
+          $2::integer IS NULL 
+          OR u.room_id IS NULL 
+          OR u.room_id = $2
+          OR u.room_ids LIKE '%' || $2::text || '%'
+        )
+        AND ($3::integer IS NULL OR u.property_id IS NULL OR u.property_id = $3)
+      ORDER BY u.category NULLS LAST, u.name
+    `, [clientId, unit_id || null, property_id || null]);
+    
+    // Group by category
+    const grouped = {};
+    upsells.rows.forEach(upsell => {
+      const cat = upsell.category || 'Other';
+      if (!grouped[cat]) grouped[cat] = [];
+      grouped[cat].push(upsell);
+    });
+    
+    res.json({ 
+      success: true, 
+      upsells: upsells.rows,
+      upsells_by_category: grouped,
+      meta: {
+        total: upsells.rows.length,
+        categories: Object.keys(grouped)
+      }
+    });
+  } catch (error) {
+    console.error('Get public upsells error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get client features/modules (what's enabled based on plan)
+app.get('/api/public/client/:clientId/features', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    // Get client subscription info
+    const client = await pool.query(`
+      SELECT 
+        c.id,
+        c.name,
+        c.plan,
+        c.subscription_status,
+        c.features_enabled,
+        c.created_at
+      FROM clients c
+      WHERE c.id = $1
+    `, [clientId]);
+    
+    if (!client.rows[0]) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    const clientData = client.rows[0];
+    const plan = clientData.plan || 'free';
+    const customFeatures = clientData.features_enabled || {};
+    
+    // Define features by plan
+    const planFeatures = {
+      free: {
+        rooms: true,
+        search_widget: true,
+        availability_calendar: true,
+        basic_booking: true,
+        offers: false,
+        upsells: false,
+        vouchers: false,
+        attractions: false,
+        blog: false,
+        analytics: false,
+        white_label: false
+      },
+      pro: {
+        rooms: true,
+        search_widget: true,
+        availability_calendar: true,
+        basic_booking: true,
+        offers: true,
+        upsells: true,
+        vouchers: true,
+        attractions: true,
+        blog: false,
+        analytics: true,
+        white_label: false
+      },
+      agency: {
+        rooms: true,
+        search_widget: true,
+        availability_calendar: true,
+        basic_booking: true,
+        offers: true,
+        upsells: true,
+        vouchers: true,
+        attractions: true,
+        blog: true,
+        analytics: true,
+        white_label: true
+      }
+    };
+    
+    // Merge plan features with any custom overrides
+    const features = {
+      ...(planFeatures[plan] || planFeatures.free),
+      ...customFeatures
+    };
+    
+    res.json({ 
+      success: true,
+      client_id: clientId,
+      plan: plan,
+      subscription_status: clientData.subscription_status || 'active',
+      features: features,
+      meta: {
+        available_plans: ['free', 'pro', 'agency'],
+        upgrade_url: 'https://gas-booking.com/pricing'
+      }
+    });
+  } catch (error) {
+    console.error('Get client features error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get max guests across all rooms for a client (for dropdown limits)
+app.get('/api/public/client/:clientId/max-guests', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT MAX(COALESCE(bu.max_guests, bu.max_adults, 2)) as max_guests
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.client_id = $1
+    `, [clientId]);
+    
+    const maxGuests = result.rows[0]?.max_guests || 10;
+    
+    res.json({
+      success: true,
+      max_guests: maxGuests
+    });
+  } catch (error) {
+    console.error('Get max guests error:', error);
     res.json({ success: false, error: error.message });
   }
 });
