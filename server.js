@@ -7087,7 +7087,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     let query = `
       SELECT bu.id, bu.name, bu.unit_type, bu.description, bu.max_guests, bu.base_price,
              bu.bedroom_count, bu.bathroom_count,
-             p.name as property_name, p.currency,
+             p.id as property_id, p.name as property_name, p.currency,
+             p.address, p.city, p.country, p.latitude, p.longitude,
              (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_primary = true LIMIT 1) as image_url
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
