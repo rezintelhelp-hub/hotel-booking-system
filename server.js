@@ -6708,17 +6708,45 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
-    const images = await pool.query(`
-      SELECT id, url, alt_text, is_primary
-      FROM bookable_unit_images WHERE unit_id = $1
-      ORDER BY sort_order, is_primary DESC
+    // Try room_images first, fallback to bookable_unit_images
+    let images = await pool.query(`
+      SELECT id, image_url as url, alt_text
+      FROM room_images WHERE room_id = $1
     `, [unitId]);
     
-    const amenities = await pool.query(`
-      SELECT name, category, icon
-      FROM bookable_unit_amenities WHERE unit_id = $1
-      ORDER BY category, name
-    `, [unitId]);
+    // If no images in room_images, try bookable_unit_images
+    if (images.rows.length === 0) {
+      try {
+        images = await pool.query(`
+          SELECT id, url, alt_text
+          FROM bookable_unit_images WHERE unit_id = $1
+        `, [unitId]);
+      } catch (e) {
+        // Table doesn't exist, that's fine
+        images = { rows: [] };
+      }
+    }
+    
+    // Try to get amenities
+    let amenities = { rows: [] };
+    try {
+      amenities = await pool.query(`
+        SELECT name, category, icon
+        FROM bookable_unit_amenities WHERE unit_id = $1
+        ORDER BY category, name
+      `, [unitId]);
+    } catch (e) {
+      // Table doesn't exist, try room_amenities
+      try {
+        amenities = await pool.query(`
+          SELECT name, category, icon
+          FROM room_amenities WHERE room_id = $1
+          ORDER BY category, name
+        `, [unitId]);
+      } catch (e2) {
+        // Neither table exists
+      }
+    }
     
     res.json({
       success: true,
