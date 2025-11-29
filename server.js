@@ -7050,50 +7050,55 @@ app.post('/api/public/calculate-price', async (req, res) => {
       taxBreakdown.push({ name: tax.name, amount: taxAmount });
     });
     
-    // Get tourist tax from property settings
-    const propertyTax = await pool.query(`
-      SELECT 
-        p.tourist_tax_enabled,
-        p.tourist_tax_type,
-        p.tourist_tax_amount,
-        p.tourist_tax_name,
-        p.tourist_tax_max_nights,
-        p.tourist_tax_exempt_children
-      FROM properties p
-      JOIN bookable_units bu ON bu.property_id = p.id
-      WHERE bu.id = $1
-    `, [unit_id]);
-    
-    if (propertyTax.rows[0] && propertyTax.rows[0].tourist_tax_enabled) {
-      const pt = propertyTax.rows[0];
-      const taxableNights = pt.tourist_tax_max_nights ? Math.min(nights, pt.tourist_tax_max_nights) : nights;
-      let touristTaxAmount = 0;
+    // Get tourist tax from property settings (wrapped in try-catch in case columns don't exist)
+    try {
+      const propertyTax = await pool.query(`
+        SELECT 
+          p.tourist_tax_enabled,
+          p.tourist_tax_type,
+          p.tourist_tax_amount,
+          p.tourist_tax_name,
+          p.tourist_tax_max_nights,
+          p.tourist_tax_exempt_children
+        FROM properties p
+        JOIN bookable_units bu ON bu.property_id = p.id
+        WHERE bu.id = $1
+      `, [unit_id]);
       
-      switch (pt.tourist_tax_type) {
-        case 'per_guest_per_night':
-          touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights * (guests || 1);
-          break;
-        case 'per_night':
-          touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights;
-          break;
-        case 'per_booking':
-          touristTaxAmount = parseFloat(pt.tourist_tax_amount);
-          break;
-        case 'percentage':
-          touristTaxAmount = accommodationTotal * (parseFloat(pt.tourist_tax_amount) / 100);
-          break;
-        default:
-          touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights * (guests || 1);
+      if (propertyTax.rows[0] && propertyTax.rows[0].tourist_tax_enabled) {
+        const pt = propertyTax.rows[0];
+        const taxableNights = pt.tourist_tax_max_nights ? Math.min(nights, pt.tourist_tax_max_nights) : nights;
+        let touristTaxAmount = 0;
+        
+        switch (pt.tourist_tax_type) {
+          case 'per_guest_per_night':
+            touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights * (guests || 1);
+            break;
+          case 'per_night':
+            touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights;
+            break;
+          case 'per_booking':
+            touristTaxAmount = parseFloat(pt.tourist_tax_amount);
+            break;
+          case 'percentage':
+            touristTaxAmount = accommodationTotal * (parseFloat(pt.tourist_tax_amount) / 100);
+            break;
+          default:
+            touristTaxAmount = parseFloat(pt.tourist_tax_amount) * taxableNights * (guests || 1);
+        }
+        
+        if (touristTaxAmount > 0) {
+          taxTotal += touristTaxAmount;
+          taxBreakdown.push({ 
+            name: pt.tourist_tax_name || 'Tourist Tax', 
+            amount: touristTaxAmount,
+            type: 'tourist_tax'
+          });
+        }
       }
-      
-      if (touristTaxAmount > 0) {
-        taxTotal += touristTaxAmount;
-        taxBreakdown.push({ 
-          name: pt.tourist_tax_name || 'Tourist Tax', 
-          amount: touristTaxAmount,
-          type: 'tourist_tax'
-        });
-      }
+    } catch (touristTaxError) {
+      // Tourist tax columns may not exist yet - skip silently
+      console.log('Tourist tax columns not available:', touristTaxError.message);
     }
     
     const grandTotal = subtotalAfterDiscounts + taxTotal;
