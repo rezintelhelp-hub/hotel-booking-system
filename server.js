@@ -769,6 +769,7 @@ app.get('/api/setup-database', async (req, res) => {
       CREATE TABLE IF NOT EXISTS vouchers (
         id SERIAL PRIMARY KEY,
         user_id INTEGER DEFAULT 1,
+        property_id INTEGER,
         code VARCHAR(50) UNIQUE NOT NULL,
         name VARCHAR(255) NOT NULL,
         description TEXT,
@@ -777,9 +778,11 @@ app.get('/api/setup-database', async (req, res) => {
         applies_to VARCHAR(20) DEFAULT 'total',
         min_nights INTEGER DEFAULT 1,
         min_total DECIMAL(10,2),
+        min_booking_value DECIMAL(10,2),
         max_uses INTEGER,
         uses_count INTEGER DEFAULT 0,
         single_use_per_guest BOOLEAN DEFAULT false,
+        is_public BOOLEAN DEFAULT false,
         property_ids INTEGER[],
         room_ids INTEGER[],
         valid_from DATE,
@@ -789,6 +792,11 @@ app.get('/api/setup-database', async (req, res) => {
         updated_at TIMESTAMP DEFAULT NOW()
       )
     `);
+    
+    // Add is_public column if not exists (for existing tables)
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS property_id INTEGER`);
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS min_booking_value DECIMAL(10,2)`);
     
     // Create voucher_uses table to track usage
     await pool.query(`
@@ -7468,6 +7476,57 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
     });
   } catch (error) {
     console.error('Get public upsells error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get public vouchers for a client (only public ones, not hidden codes)
+app.get('/api/public/client/:clientId/vouchers', async (req, res) => {
+  try {
+    const { clientId } = req.params;
+    
+    // Get vouchers that are marked as public/showable
+    const vouchers = await pool.query(`
+      SELECT 
+        v.id,
+        v.code,
+        v.name,
+        v.description,
+        v.discount_type,
+        v.discount_value,
+        v.min_nights,
+        v.min_booking_value,
+        v.valid_from,
+        v.valid_until,
+        v.max_uses,
+        v.uses_count
+      FROM vouchers v
+      JOIN properties p ON v.property_id = p.id
+      WHERE p.client_id = $1
+        AND v.active = true
+        AND v.is_public = true
+        AND (v.valid_from IS NULL OR v.valid_from <= CURRENT_DATE)
+        AND (v.valid_until IS NULL OR v.valid_until >= CURRENT_DATE)
+        AND (v.max_uses IS NULL OR v.uses_count < v.max_uses)
+      ORDER BY v.discount_value DESC
+    `, [clientId]);
+    
+    // Format dates for display
+    const formattedVouchers = vouchers.rows.map(v => ({
+      ...v,
+      valid_from: v.valid_from ? v.valid_from.toISOString().split('T')[0] : null,
+      valid_until: v.valid_until ? v.valid_until.toISOString().split('T')[0] : null
+    }));
+    
+    res.json({ 
+      success: true, 
+      vouchers: formattedVouchers,
+      meta: {
+        total: formattedVouchers.length
+      }
+    });
+  } catch (error) {
+    console.error('Get public vouchers error:', error);
     res.json({ success: false, error: error.message });
   }
 });
