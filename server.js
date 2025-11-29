@@ -4416,7 +4416,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
         SELECT 
           "${checkInCol}" as check_in,
           "${checkOutCol}" as check_out,
-          COALESCE(guest_first_name, guest_name, '') as guest_name,
+          COALESCE(guest_first_name, '') || ' ' || COALESCE(guest_last_name, '') as guest_name,
           status
         FROM bookings
         WHERE "${roomIdCol}" = $1 
