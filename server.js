@@ -797,6 +797,8 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS is_public BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS property_id INTEGER`);
     await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS min_booking_value DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS times_used INTEGER DEFAULT 0`);
+    await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS min_nights INTEGER DEFAULT 1`);
     
     // Create voucher_uses table to track usage
     await pool.query(`
@@ -7047,15 +7049,30 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     taxes.rows.forEach(tax => {
       let taxAmount = 0;
-      if (tax.tax_type === 'percentage') {
-        taxAmount = subtotalAfterDiscounts * (tax.rate / 100);
-      } else if (tax.tax_type === 'per_night') {
-        taxAmount = tax.rate * nights;
-      } else if (tax.tax_type === 'per_person_per_night') {
-        taxAmount = tax.rate * nights * (guests || 1);
+      // Support both old (tax_type/rate) and new (amount_type/amount) column names
+      const taxType = tax.tax_type || tax.amount_type || tax.charge_per || 'fixed';
+      const taxRate = parseFloat(tax.rate || tax.amount) || 0;
+      
+      if (taxType === 'percentage') {
+        taxAmount = subtotalAfterDiscounts * (taxRate / 100);
+      } else if (taxType === 'per_night') {
+        taxAmount = taxRate * nights;
+      } else if (taxType === 'per_person_per_night') {
+        taxAmount = taxRate * nights * (guests || 1);
       } else {
-        taxAmount = parseFloat(tax.rate) || 0;
+        // Fixed amount
+        taxAmount = taxRate;
       }
+      
+      // Apply max_nights limit if set
+      if (tax.max_nights && nights > tax.max_nights) {
+        if (taxType === 'per_night') {
+          taxAmount = taxRate * tax.max_nights;
+        } else if (taxType === 'per_person_per_night') {
+          taxAmount = taxRate * tax.max_nights * (guests || 1);
+        }
+      }
+      
       taxTotal += taxAmount;
       taxBreakdown.push({ name: tax.name, amount: taxAmount });
     });
@@ -7242,50 +7259,48 @@ app.post('/api/public/validate-voucher', async (req, res) => {
     const nights = check_in && check_out ? 
       Math.ceil((new Date(check_out) - new Date(check_in)) / (1000 * 60 * 60 * 24)) : 1;
     
-    // Try with property_id first, fall back to simpler query if column doesn't exist
+    // Simple voucher lookup - just by code and active status
+    // More complex property/unit filtering requires schema updates
     let voucher;
     try {
       voucher = await pool.query(`
         SELECT * FROM vouchers
-        WHERE code = $1 AND active = true
-          AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $2))
-          AND (unit_id IS NULL OR unit_id = $2)
-          AND (min_nights IS NULL OR min_nights <= $3)
-          AND (valid_from IS NULL OR valid_from <= $4)
-          AND (valid_until IS NULL OR valid_until >= $5)
+        WHERE UPPER(code) = UPPER($1) AND active = true
+          AND (valid_from IS NULL OR valid_from <= CURRENT_DATE)
+          AND (valid_until IS NULL OR valid_until >= CURRENT_DATE)
           AND (max_uses IS NULL OR times_used < max_uses)
-      `, [code.toUpperCase(), unit_id || null, nights, check_in || null, check_out || null]);
+      `, [code]);
     } catch (queryError) {
-      // Fallback: simpler query without property_id
-      console.log('Voucher query fallback - property_id column may not exist');
+      console.log('Voucher query error:', queryError.message);
+      // Ultimate fallback - just check code
       voucher = await pool.query(`
-        SELECT * FROM vouchers
-        WHERE code = $1 AND active = true
-          AND (unit_id IS NULL OR unit_id = $2)
-          AND (min_nights IS NULL OR min_nights <= $3)
-          AND (valid_from IS NULL OR valid_from <= $4)
-          AND (valid_until IS NULL OR valid_until >= $5)
-          AND (max_uses IS NULL OR times_used < max_uses)
-      `, [code.toUpperCase(), unit_id || null, nights, check_in || null, check_out || null]);
+        SELECT * FROM vouchers WHERE UPPER(code) = UPPER($1) AND active = true
+      `, [code]);
     }
     
     if (voucher.rows[0]) {
+      const v = voucher.rows[0];
+      // Check min_nights if column exists
+      if (v.min_nights && nights < v.min_nights) {
+        return res.json({ success: true, valid: false, error: `Minimum ${v.min_nights} nights required` });
+      }
+      
       res.json({
         success: true,
         valid: true,
         voucher: {
-          code: voucher.rows[0].code,
-          name: voucher.rows[0].name,
-          discount_type: voucher.rows[0].discount_type,
-          discount_value: voucher.rows[0].discount_value
+          code: v.code,
+          name: v.name,
+          discount_type: v.discount_type,
+          discount_value: v.discount_value
         }
       });
     } else {
-      res.json({ success: true, valid: false, error: 'Invalid or expired voucher' });
+      res.json({ success: true, valid: false, error: 'Invalid or expired voucher code' });
     }
   } catch (error) {
     console.error('Validate voucher error:', error);
-    res.json({ success: false, error: error.message });
+    res.json({ success: false, error: 'Unable to validate voucher' });
   }
 });
 
