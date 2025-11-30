@@ -221,8 +221,8 @@ app.get('/api/debug/fix-migrations', async (req, res) => {
     
     // Drop and recreate channel_managers table properly
     try {
-      await pool.query('DROP TABLE IF EXISTS channel_manager_requests');
-      await pool.query('DROP TABLE IF EXISTS channel_managers');
+      await pool.query('DROP TABLE IF EXISTS channel_manager_requests CASCADE');
+      await pool.query('DROP TABLE IF EXISTS channel_managers CASCADE');
       fixes.push('Dropped old channel_managers tables');
     } catch (e) {
       fixes.push('Drop tables: ' + e.message);
