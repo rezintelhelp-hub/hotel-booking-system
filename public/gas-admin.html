@@ -3540,7 +3540,7 @@
                 <h3 class="modal-title">Upload Images</h3>
                 <button class="modal-close" onclick="closeModal('imageUploadModal')">&times;</button>
             </div>
-            <div class="modal-body">
+            <div class="modal-body" style="position: relative;">
                 <!-- Upload Zone -->
                 <div class="upload-zone" id="uploadZone">
                     <div style="font-size: 3rem; margin-bottom: 1rem;">📤</div>
@@ -3596,12 +3596,14 @@
                     </button>
                 </div>
 
-                <!-- Progress -->
-                <div id="uploadProgress" style="display: none; margin-top: 1rem;">
-                    <div style="background: var(--bg-secondary); height: 8px; border-radius: 4px; overflow: hidden;">
-                        <div id="progressBar" style="background: var(--accent); height: 100%; width: 0%; transition: width 0.3s;"></div>
+                <!-- Progress (shown during upload) -->
+                <div id="uploadProgress" style="display: none; position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(255,255,255,0.95); z-index: 10; border-radius: 12px; display: none; flex-direction: column; align-items: center; justify-content: center;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">📤</div>
+                    <h3 style="margin-bottom: 1rem;">Uploading Images...</h3>
+                    <div style="width: 80%; max-width: 300px; background: var(--bg-secondary); height: 12px; border-radius: 6px; overflow: hidden; margin-bottom: 0.5rem;">
+                        <div id="progressBar" style="background: linear-gradient(90deg, #3b82f6, #8b5cf6); height: 100%; width: 0%; transition: width 0.3s;"></div>
                     </div>
-                    <p style="text-align: center; margin-top: 0.5rem; color: var(--text-secondary);" id="progressText">Uploading...</p>
+                    <p style="text-align: center; color: var(--text-secondary); font-size: 1.1rem;" id="progressText">0%</p>
                 </div>
             </div>
         </div>
@@ -4905,7 +4907,7 @@
                                 const isLast = idx === group.images.length - 1;
                                 
                                 return `
-                                <div class="image-card" data-id="${img.id}" data-type="${img.type}" data-entity="${img.entityId}">
+                                <div class="image-card" data-id="${img.id}" data-image-id="${img.id}" data-type="${img.type}" data-entity="${img.entityId}">
                                     <img src="${img.thumbnail_url || img.image_url}" alt="${img.alt_text || ''}" loading="lazy">
                                     <div class="image-card-info">
                                         <div class="image-tags">
@@ -5063,7 +5065,11 @@
             }
 
             document.getElementById('uploadButton').disabled = true;
-            document.getElementById('uploadProgress').style.display = 'block';
+            // Show centered progress overlay
+            const progressDiv = document.getElementById('uploadProgress');
+            progressDiv.style.display = 'flex';
+            document.getElementById('progressBar').style.width = '0%';
+            document.getElementById('progressText').textContent = '0%';
             
             let uploadedCount = 0;
             let errorCount = 0;
@@ -5114,18 +5120,26 @@
                 completed += selectedFiles.length;
                 const progress = (completed / totalUploads) * 100;
                 document.getElementById('progressBar').style.width = progress + '%';
-                document.getElementById('progressText').textContent = `Uploading... ${Math.round(progress)}%`;
+                document.getElementById('progressText').textContent = `${Math.round(progress)}%`;
             }
 
-            document.getElementById('progressText').textContent = `Upload complete! ${uploadedCount} images uploaded${errorCount > 0 ? `, ${errorCount} errors` : ''}`;
+            // Show completion
+            document.getElementById('progressText').textContent = `✓ ${uploadedCount} images uploaded${errorCount > 0 ? ` (${errorCount} errors)` : ''}`;
             
             setTimeout(() => {
                 closeModal('imageUploadModal');
                 loadImages();
-            }, 2000);
+            }, 1500);
         }
 
         async function setPrimaryImage(type, entityId, imageId) {
+            // Show loading state on the image
+            const imgCard = document.querySelector(`[data-image-id="${imageId}"]`);
+            if (imgCard) {
+                imgCard.style.opacity = '0.5';
+                imgCard.style.pointerEvents = 'none';
+            }
+            
             try {
                 const endpoint = type === 'property'
                     ? `/api/admin/properties/${entityId}/images/${imageId}/primary`
@@ -5135,18 +5149,33 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    loadImages();
+                    await loadImages(); // await the refresh
                 } else {
                     alert('Error: ' + result.error);
+                    if (imgCard) {
+                        imgCard.style.opacity = '1';
+                        imgCard.style.pointerEvents = 'auto';
+                    }
                 }
             } catch (error) {
                 console.error('Error setting primary:', error);
                 alert('Error setting primary image');
+                if (imgCard) {
+                    imgCard.style.opacity = '1';
+                    imgCard.style.pointerEvents = 'auto';
+                }
             }
         }
 
         async function deleteImage(type, imageId) {
             if (!confirm('Delete this image? This cannot be undone.')) return;
+            
+            // Show loading state
+            const imgCard = document.querySelector(`[data-image-id="${imageId}"]`);
+            if (imgCard) {
+                imgCard.style.opacity = '0.5';
+                imgCard.style.pointerEvents = 'none';
+            }
             
             try {
                 const endpoint = type === 'property'
@@ -5157,9 +5186,23 @@
                 const result = await response.json();
                 
                 if (result.success) {
-                    await loadImages(); // await to ensure refresh
+                    // Remove the card immediately for instant feedback
+                    const imgCard = document.querySelector(`[data-image-id="${imageId}"]`);
+                    if (imgCard) {
+                        imgCard.style.transition = 'opacity 0.3s, transform 0.3s';
+                        imgCard.style.opacity = '0';
+                        imgCard.style.transform = 'scale(0.8)';
+                        setTimeout(() => imgCard.remove(), 300);
+                    }
+                    // Then refresh to update counts etc
+                    await loadImages();
                 } else {
                     alert('Error: ' + result.error);
+                    const imgCard = document.querySelector(`[data-image-id="${imageId}"]`);
+                    if (imgCard) {
+                        imgCard.style.opacity = '1';
+                        imgCard.style.pointerEvents = 'auto';
+                    }
                 }
             } catch (error) {
                 console.error('Error deleting image:', error);
@@ -5168,6 +5211,13 @@
         }
 
         async function moveImage(type, entityId, imageId, direction) {
+            // Show loading state
+            const imgCard = document.querySelector(`[data-image-id="${imageId}"]`);
+            if (imgCard) {
+                imgCard.style.opacity = '0.5';
+                imgCard.style.pointerEvents = 'none';
+            }
+            
             // Get images for this entity
             const entityImages = allImages.filter(img => 
                 img.type === type && img.entityId === entityId
@@ -5176,7 +5226,13 @@
             const currentIndex = entityImages.findIndex(img => img.id === imageId);
             const newIndex = currentIndex + direction;
             
-            if (newIndex < 0 || newIndex >= entityImages.length) return;
+            if (newIndex < 0 || newIndex >= entityImages.length) {
+                if (imgCard) {
+                    imgCard.style.opacity = '1';
+                    imgCard.style.pointerEvents = 'auto';
+                }
+                return;
+            }
             
             // Swap positions
             const newOrder = entityImages.map(img => img.id);
@@ -5199,10 +5255,18 @@
                     await loadImages();
                 } else {
                     alert('Error: ' + result.error);
+                    if (imgCard) {
+                        imgCard.style.opacity = '1';
+                        imgCard.style.pointerEvents = 'auto';
+                    }
                 }
             } catch (error) {
                 console.error('Error reordering:', error);
                 alert('Error reordering images');
+                if (imgCard) {
+                    imgCard.style.opacity = '1';
+                    imgCard.style.pointerEvents = 'auto';
+                }
             }
         }
 
