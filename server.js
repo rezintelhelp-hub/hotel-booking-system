@@ -7216,8 +7216,9 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     
     // Try room_images first, fallback to bookable_unit_images
     let images = await pool.query(`
-      SELECT id, image_url as url, alt_text
+      SELECT id, image_url as url, alt_text, is_primary, display_order
       FROM room_images WHERE room_id = $1
+      ORDER BY is_primary DESC, display_order ASC
     `, [unitId]);
     
     // If no images in room_images, try bookable_unit_images
@@ -7226,6 +7227,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
         images = await pool.query(`
           SELECT id, url, alt_text
           FROM bookable_unit_images WHERE unit_id = $1
+          ORDER BY display_order ASC
         `, [unitId]);
       } catch (e) {
         // Table doesn't exist, that's fine
@@ -7840,7 +7842,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.name as property_name,
         p.city,
         p.currency,
-        (SELECT image_url FROM room_images WHERE room_id = bu.id LIMIT 1) as image_url
+        (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       WHERE p.client_id = $1
