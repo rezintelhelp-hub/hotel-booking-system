@@ -164,6 +164,117 @@ app.get('/downloads/gas-theme-developer.zip', (req, res) => {
 const BEDS24_TOKEN = process.env.BEDS24_TOKEN;
 const BEDS24_API = 'https://beds24.com/api/v2';
 
+// =====================================================
+// MIGRATION DEBUG ENDPOINT
+// =====================================================
+app.get('/api/debug/migrations', async (req, res) => {
+  try {
+    // Check what migrations have run
+    const migrations = await pool.query('SELECT * FROM schema_migrations ORDER BY executed_at');
+    
+    // Check if key tables exist
+    const tables = await pool.query(`
+      SELECT table_name 
+      FROM information_schema.tables 
+      WHERE table_schema = 'public' 
+      ORDER BY table_name
+    `);
+    
+    // Check if channel_managers table exists and has data
+    let channelManagers = { exists: false, count: 0 };
+    try {
+      const cmResult = await pool.query('SELECT COUNT(*) FROM channel_managers');
+      channelManagers = { exists: true, count: parseInt(cmResult.rows[0].count) };
+    } catch (e) {
+      channelManagers = { exists: false, error: e.message };
+    }
+    
+    res.json({
+      success: true,
+      migrations: migrations.rows,
+      tables: tables.rows.map(r => r.table_name),
+      channelManagers
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fix stuck migrations
+app.get('/api/debug/fix-migrations', async (req, res) => {
+  try {
+    const fixes = [];
+    
+    // Mark 003 as executed if it's causing issues
+    try {
+      await pool.query(`
+        INSERT INTO schema_migrations (filename, executed_at) 
+        VALUES ('003-clients-multi-tenant.sql', NOW())
+        ON CONFLICT (filename) DO NOTHING
+      `);
+      fixes.push('Marked 003-clients-multi-tenant.sql as executed');
+    } catch (e) {
+      fixes.push('003 fix failed: ' + e.message);
+    }
+    
+    // Create channel_managers table if it doesn't exist
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS channel_managers (
+          id SERIAL PRIMARY KEY,
+          name VARCHAR(100) NOT NULL,
+          slug VARCHAR(100) NOT NULL UNIQUE,
+          type VARCHAR(50) DEFAULT 'pms_cm',
+          status VARCHAR(50) DEFAULT 'not_started',
+          website_url VARCHAR(255),
+          api_docs_url VARCHAR(255),
+          logo_url VARCHAR(255),
+          description TEXT,
+          market_focus VARCHAR(100),
+          regions VARCHAR(255),
+          priority INTEGER DEFAULT 0,
+          request_count INTEGER DEFAULT 0,
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+      fixes.push('Created channel_managers table');
+    } catch (e) {
+      fixes.push('channel_managers table: ' + e.message);
+    }
+    
+    // Insert seed data
+    try {
+      await pool.query(`
+        INSERT INTO channel_managers (name, slug, type, status, website_url, market_focus, regions, priority, description) VALUES
+        ('Beds24', 'beds24', 'pms_cm', 'live', 'https://beds24.com', 'All', 'Global', 100, 'PMS + channel manager'),
+        ('Hostaway', 'hostaway', 'vr_allinone', 'live', 'https://hostaway.com', 'VR', 'Global', 100, 'All-in-one vacation rental software')
+        ON CONFLICT (slug) DO NOTHING
+      `);
+      fixes.push('Seeded Beds24 and Hostaway');
+    } catch (e) {
+      fixes.push('Seed data: ' + e.message);
+    }
+    
+    // Mark 008 as executed
+    try {
+      await pool.query(`
+        INSERT INTO schema_migrations (filename, executed_at) 
+        VALUES ('008_channel_managers.sql', NOW())
+        ON CONFLICT (filename) DO NOTHING
+      `);
+      fixes.push('Marked 008_channel_managers.sql as executed');
+    } catch (e) {
+      fixes.push('008 fix failed: ' + e.message);
+    }
+    
+    res.json({ success: true, fixes });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 async function beds24Request(endpoint, method = 'GET', data = null) {
   try {
     const config = {
