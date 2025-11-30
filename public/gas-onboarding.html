@@ -1024,51 +1024,37 @@
     <section class="section section-dark" id="certified">
         <div class="section-container">
             <div class="section-header">
-                <h2>Become GAS Certified</h2>
-                <p>Join the network and display your certified member badge with pride</p>
+                <h2>Display Your Badge</h2>
+                <p>Show guests you're part of something bigger</p>
             </div>
 
             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; max-width: 1000px; margin: 0 auto;">
-                <!-- Badge Preview -->
-                <div style="text-align: center;">
-                    <div style="background: white; border-radius: 20px; padding: 3rem; box-shadow: var(--shadow-lg); display: inline-block;">
-                        <svg width="180" height="200" viewBox="0 0 180 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <!-- Shield shape -->
-                            <path d="M90 10 L170 40 L170 100 C170 140 140 170 90 190 C40 170 10 140 10 100 L10 40 L90 10Z" 
-                                  fill="url(#shieldGradient)" stroke="url(#borderGradient)" stroke-width="3"/>
-                            <!-- Inner shield -->
-                            <path d="M90 25 L155 50 L155 98 C155 132 130 158 90 175 C50 158 25 132 25 98 L25 50 L90 25Z" 
-                                  fill="white" fill-opacity="0.95"/>
-                            <!-- GAS text -->
-                            <text x="90" y="85" text-anchor="middle" font-family="Inter, sans-serif" font-size="36" font-weight="800" fill="url(#textGradient)">GAS</text>
-                            <!-- Checkmark circle -->
-                            <circle cx="90" cy="115" r="18" fill="url(#checkGradient)"/>
-                            <path d="M82 115 L87 120 L98 109" stroke="white" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-                            <!-- CERTIFIED text -->
-                            <text x="90" y="152" text-anchor="middle" font-family="Inter, sans-serif" font-size="14" font-weight="700" fill="#64748b" letter-spacing="2">CERTIFIED</text>
-                            <!-- MEMBER text -->
-                            <text x="90" y="168" text-anchor="middle" font-family="Inter, sans-serif" font-size="11" font-weight="500" fill="#94a3b8" letter-spacing="1">MEMBER</text>
-                            <!-- Gradients -->
-                            <defs>
-                                <linearGradient id="shieldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#6366f1"/>
-                                    <stop offset="100%" stop-color="#8b5cf6"/>
-                                </linearGradient>
-                                <linearGradient id="borderGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#4f46e5"/>
-                                    <stop offset="100%" stop-color="#7c3aed"/>
-                                </linearGradient>
-                                <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#6366f1"/>
-                                    <stop offset="100%" stop-color="#8b5cf6"/>
-                                </linearGradient>
-                                <linearGradient id="checkGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                                    <stop offset="0%" stop-color="#10b981"/>
-                                    <stop offset="100%" stop-color="#059669"/>
-                                </linearGradient>
-                            </defs>
-                        </svg>
-                        <p style="margin-top: 1rem; color: var(--text-muted); font-size: 0.85rem;">Display on your website</p>
+                <!-- Badge Previews -->
+                <div style="display: flex; flex-direction: column; gap: 2rem; align-items: center;">
+                    <!-- Light badge -->
+                    <div style="background: white; border-radius: 16px; padding: 2.5rem 3rem; box-shadow: var(--shadow-lg);">
+                        <div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); border-radius: 6px; color: white; font-family: 'Inter', sans-serif;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                            <span style="font-weight: 600; font-size: 0.9rem; letter-spacing: 0.3px;">Powered by</span>
+                            <span style="font-weight: 800; font-size: 1rem;">GAS</span>
+                        </div>
+                        <p style="margin: 1rem 0 0; color: var(--text-muted); font-size: 0.8rem;">Light background</p>
+                    </div>
+                    
+                    <!-- Dark badge -->
+                    <div style="background: #1e293b; border-radius: 16px; padding: 2.5rem 3rem; box-shadow: var(--shadow-lg);">
+                        <div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; background: white; border-radius: 6px; color: var(--primary); font-family: 'Inter', sans-serif;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                            <span style="font-weight: 600; font-size: 0.9rem; letter-spacing: 0.3px;">Powered by</span>
+                            <span style="font-weight: 800; font-size: 1rem;">GAS</span>
+                        </div>
+                        <p style="margin: 1rem 0 0; color: #94a3b8; font-size: 0.8rem;">Dark background</p>
                     </div>
                 </div>
 
@@ -1078,29 +1064,29 @@
                         <div style="display: flex; gap: 1rem; align-items: flex-start;">
                             <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">✓</div>
                             <div>
-                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Trust Badge</h4>
+                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Build Trust</h4>
                                 <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Show visitors you're part of a verified network of quality independents</p>
                             </div>
                         </div>
                         <div style="display: flex; gap: 1rem; align-items: flex-start;">
                             <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">🔗</div>
                             <div>
-                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Link to Your Profile</h4>
-                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Badge links directly to your GAS profile for instant verification</p>
+                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Direct Link</h4>
+                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Badge links to your GAS profile for instant verification</p>
                             </div>
                         </div>
                         <div style="display: flex; gap: 1rem; align-items: flex-start;">
                             <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">📈</div>
                             <div>
-                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Grow the Network</h4>
-                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Every badge spreads awareness - help other independents discover GAS</p>
+                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Grow Together</h4>
+                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Every badge spreads the word - help other independents find GAS</p>
                             </div>
                         </div>
                         <div style="display: flex; gap: 1rem; align-items: flex-start;">
-                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">🎯</div>
+                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">⚡</div>
                             <div>
-                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Easy to Add</h4>
-                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Simple embed code for any website - WordPress, Wix, Squarespace, custom</p>
+                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">One Click Add</h4>
+                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Simple embed code for WordPress, Wix, Squarespace, or any site</p>
                             </div>
                         </div>
                     </div>
