@@ -6569,7 +6569,7 @@
             if (!select) return;
             
             try {
-                const response = await fetch('/api/properties');
+                const response = await fetch('/api/db/properties');
                 const data = await response.json();
                 
                 select.innerHTML = '<option value="">Select Property...</option>';
@@ -6610,9 +6610,9 @@
             
             // Load rooms for this property
             try {
-                const roomsRes = await fetch(`/api/properties/${propertyId}/rooms`);
+                const roomsRes = await fetch('/api/db/bookable-units');
                 const roomsData = await roomsRes.json();
-                propertyRooms = roomsData.success ? roomsData.data || [] : [];
+                propertyRooms = roomsData.success ? (roomsData.data || []).filter(r => r.property_id == propertyId) : [];
             } catch (e) {
                 propertyRooms = [];
             }
@@ -6786,15 +6786,20 @@
             
             // Get property details
             try {
-                const response = await fetch(`/api/properties/${propertyId}`);
+                const response = await fetch('/api/db/properties');
                 const data = await response.json();
                 
-                if (!data.success) {
+                if (!data.success || !data.data) {
                     alert('Could not load property details');
                     return;
                 }
                 
-                const property = data.data;
+                const property = data.data.find(p => p.id == propertyId);
+                
+                if (!property) {
+                    alert('Property not found');
+                    return;
+                }
                 
                 // For now, show a placeholder - in future this would call an AI API
                 const suggestions = analyzePropertyForFeatures(property);
