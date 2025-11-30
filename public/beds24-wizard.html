@@ -534,6 +534,13 @@
         async function checkExistingConnection() {
             try {
                 const response = await fetch('/api/beds24/check-connection');
+                
+                // Don't show error if not authenticated - user just needs to connect
+                if (!response.ok) {
+                    console.log('No existing connection, user needs to connect');
+                    return;
+                }
+                
                 const data = await response.json();
                 
                 if (data.success && data.hasConnection) {
@@ -549,6 +556,7 @@
                     }, 1000);
                 }
             } catch (error) {
+                // Silently ignore - user just needs to connect fresh
                 console.log('No existing connection, user needs to connect');
             }
         }
@@ -576,7 +584,7 @@
             const btn = document.getElementById('connectBtn');
             
             if (!inviteCode) {
-                showAlert('step1Alert', 'error', 'Please enter your Beds24 invite code');
+                showAlert('step1Alert', 'error', 'Please enter your Beds24 invite code above');
                 return;
             }
 
@@ -608,10 +616,30 @@
                         loadProperties();
                     }, 1000);
                 } else {
-                    throw new Error(data.error || 'Failed to connect');
+                    // Provide user-friendly error messages
+                    let errorMsg = data.error || 'Failed to connect';
+                    
+                    if (errorMsg.includes('401') || errorMsg.includes('Unauthorized') || errorMsg.includes('invalid')) {
+                        errorMsg = 'Invalid invite code. Please check you copied it correctly from Beds24.';
+                    } else if (errorMsg.includes('expired')) {
+                        errorMsg = 'This invite code has expired. Please generate a new one in Beds24.';
+                    } else if (errorMsg.includes('network') || errorMsg.includes('fetch')) {
+                        errorMsg = 'Connection error. Please check your internet and try again.';
+                    }
+                    
+                    throw new Error(errorMsg);
                 }
             } catch (error) {
-                showAlert('step1Alert', 'error', '✗ ' + error.message);
+                let errorMsg = error.message;
+                
+                // Clean up technical error messages
+                if (errorMsg.includes('status code 401')) {
+                    errorMsg = 'Invalid invite code. Please check you copied it correctly from Beds24.';
+                } else if (errorMsg.includes('Failed to fetch')) {
+                    errorMsg = 'Connection error. Please check your internet and try again.';
+                }
+                
+                showAlert('step1Alert', 'error', errorMsg);
                 btn.disabled = false;
                 btn.textContent = 'Connect to Beds24 →';
             } finally {
