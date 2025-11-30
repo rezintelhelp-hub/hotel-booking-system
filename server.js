@@ -3587,6 +3587,285 @@ app.get('/api/features/list', async (req, res) => {
 });
 
 // =====================================================
+// CHANNEL MANAGERS API
+// =====================================================
+
+// GET /api/channel-managers - List all channel managers (for dropdown)
+app.get('/api/channel-managers', async (req, res) => {
+    try {
+        const { status } = req.query; // optional filter by status
+        
+        let query = `
+            SELECT id, name, slug, type, status, website_url, logo_url, 
+                   market_focus, regions, description, request_count
+            FROM channel_managers 
+        `;
+        
+        const params = [];
+        if (status) {
+            query += ' WHERE status = $1';
+            params.push(status);
+        }
+        
+        query += ' ORDER BY priority DESC, name ASC';
+        
+        const result = await pool.query(query, params);
+        
+        res.json({ 
+            success: true, 
+            data: result.rows,
+            integrated: result.rows.filter(cm => cm.status === 'live'),
+            pending: result.rows.filter(cm => cm.status !== 'live')
+        });
+    } catch (error) {
+        console.error('Error fetching channel managers:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// GET /api/channel-managers/:slug - Get single channel manager by slug
+app.get('/api/channel-managers/:slug', async (req, res) => {
+    try {
+        const { slug } = req.params;
+        
+        const result = await pool.query(
+            'SELECT * FROM channel_managers WHERE slug = $1',
+            [slug]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Channel manager not found' });
+        }
+        
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error fetching channel manager:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/channel-managers - Add new channel manager (admin)
+app.post('/api/channel-managers', async (req, res) => {
+    try {
+        const { name, slug, type, website_url, api_docs_url, market_focus, regions, description, notes } = req.body;
+        
+        const result = await pool.query(
+            `INSERT INTO channel_managers 
+             (name, slug, type, website_url, api_docs_url, market_focus, regions, description, notes)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+             RETURNING *`,
+            [name, slug || name.toLowerCase().replace(/\s+/g, '-'), type || 'pms_cm', 
+             website_url, api_docs_url, market_focus, regions, description, notes]
+        );
+        
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error creating channel manager:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// PUT /api/channel-managers/:id - Update channel manager status (admin)
+app.put('/api/channel-managers/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, api_docs_url, notes, priority } = req.body;
+        
+        const result = await pool.query(
+            `UPDATE channel_managers 
+             SET status = COALESCE($1, status),
+                 api_docs_url = COALESCE($2, api_docs_url),
+                 notes = COALESCE($3, notes),
+                 priority = COALESCE($4, priority),
+                 updated_at = CURRENT_TIMESTAMP
+             WHERE id = $5
+             RETURNING *`,
+            [status, api_docs_url, notes, priority, id]
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Channel manager not found' });
+        }
+        
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error updating channel manager:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
+// CHANNEL MANAGER REQUESTS API
+// =====================================================
+
+// POST /api/channel-manager-requests - User requests an integration
+app.post('/api/channel-manager-requests', async (req, res) => {
+    try {
+        const { user_id, property_id, channel_manager_id, cm_name_other, notes } = req.body;
+        
+        // Check if this user already requested this CM
+        if (channel_manager_id) {
+            const existing = await pool.query(
+                `SELECT id FROM channel_manager_requests 
+                 WHERE user_id = $1 AND channel_manager_id = $2 AND status != 'cancelled'`,
+                [user_id, channel_manager_id]
+            );
+            
+            if (existing.rows.length > 0) {
+                return res.json({ 
+                    success: true, 
+                    message: 'You have already requested this integration',
+                    existing: true 
+                });
+            }
+        }
+        
+        const result = await pool.query(
+            `INSERT INTO channel_manager_requests 
+             (user_id, property_id, channel_manager_id, cm_name_other, notes)
+             VALUES ($1, $2, $3, $4, $5)
+             RETURNING *`,
+            [user_id, property_id, channel_manager_id, cm_name_other, notes]
+        );
+        
+        res.json({ 
+            success: true, 
+            data: result.rows[0],
+            message: 'Integration request submitted! We\'ll be in touch soon.'
+        });
+    } catch (error) {
+        console.error('Error creating CM request:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// GET /api/channel-manager-requests - List all requests (admin)
+app.get('/api/channel-manager-requests', async (req, res) => {
+    try {
+        const { status } = req.query;
+        
+        let query = `
+            SELECT r.*, 
+                   cm.name as cm_name, 
+                   cm.status as cm_status,
+                   u.email as user_email,
+                   p.name as property_name
+            FROM channel_manager_requests r
+            LEFT JOIN channel_managers cm ON r.channel_manager_id = cm.id
+            LEFT JOIN users u ON r.user_id = u.id
+            LEFT JOIN properties p ON r.property_id = p.id
+        `;
+        
+        const params = [];
+        if (status) {
+            query += ' WHERE r.status = $1';
+            params.push(status);
+        }
+        
+        query += ' ORDER BY r.requested_at DESC';
+        
+        const result = await pool.query(query, params);
+        
+        res.json({ success: true, data: result.rows });
+    } catch (error) {
+        console.error('Error fetching CM requests:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// PUT /api/channel-manager-requests/:id - Update request status (admin)
+app.put('/api/channel-manager-requests/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status, api_access_status, admin_notes } = req.body;
+        
+        const updates = [];
+        const params = [];
+        let paramCount = 1;
+        
+        if (status) {
+            updates.push(`status = $${paramCount++}`);
+            params.push(status);
+        }
+        if (api_access_status) {
+            updates.push(`api_access_status = $${paramCount++}`);
+            params.push(api_access_status);
+        }
+        if (admin_notes) {
+            updates.push(`admin_notes = $${paramCount++}`);
+            params.push(admin_notes);
+        }
+        
+        if (status === 'completed') {
+            updates.push(`completed_at = CURRENT_TIMESTAMP`);
+        }
+        
+        updates.push(`updated_at = CURRENT_TIMESTAMP`);
+        params.push(id);
+        
+        const result = await pool.query(
+            `UPDATE channel_manager_requests 
+             SET ${updates.join(', ')}
+             WHERE id = $${paramCount}
+             RETURNING *`,
+            params
+        );
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Request not found' });
+        }
+        
+        res.json({ success: true, data: result.rows[0] });
+    } catch (error) {
+        console.error('Error updating CM request:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// GET /api/channel-manager-requests/stats - Dashboard stats (admin)
+app.get('/api/channel-manager-requests/stats', async (req, res) => {
+    try {
+        // Most requested CMs
+        const topRequested = await pool.query(`
+            SELECT cm.name, cm.slug, cm.status, COUNT(r.id) as request_count
+            FROM channel_managers cm
+            LEFT JOIN channel_manager_requests r ON cm.id = r.channel_manager_id
+            GROUP BY cm.id
+            ORDER BY request_count DESC
+            LIMIT 10
+        `);
+        
+        // Requests by status
+        const byStatus = await pool.query(`
+            SELECT status, COUNT(*) as count
+            FROM channel_manager_requests
+            GROUP BY status
+        `);
+        
+        // Unknown CMs requested
+        const unknownCMs = await pool.query(`
+            SELECT cm_name_other, COUNT(*) as count
+            FROM channel_manager_requests
+            WHERE channel_manager_id IS NULL AND cm_name_other IS NOT NULL
+            GROUP BY cm_name_other
+            ORDER BY count DESC
+        `);
+        
+        res.json({ 
+            success: true, 
+            data: {
+                top_requested: topRequested.rows,
+                by_status: byStatus.rows,
+                unknown_cms: unknownCMs.rows
+            }
+        });
+    } catch (error) {
+        console.error('Error fetching CM stats:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
 // UPSELLS API
 // =====================================================
 
