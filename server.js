@@ -3439,6 +3439,154 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
 });
 
 // =====================================================
+// PROPERTY MARKETING FEATURES API
+// =====================================================
+
+// GET /api/properties/:id/features - Get all features for a property
+app.get('/api/properties/:id/features', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const result = await pool.query(
+            `SELECT id, feature_name, category, is_custom, excluded_room_ids, created_at
+             FROM property_features 
+             WHERE property_id = $1 
+             ORDER BY category, feature_name`,
+            [id]
+        );
+        
+        res.json({ 
+            success: true, 
+            features: result.rows 
+        });
+    } catch (error) {
+        console.error('Error fetching property features:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// POST /api/properties/:id/features - Save features for a property (replaces all)
+app.post('/api/properties/:id/features', async (req, res) => {
+    const client = await pool.connect();
+    
+    try {
+        const { id } = req.params;
+        const { features } = req.body; // Array of { feature_name, category, is_custom, excluded_room_ids }
+        
+        await client.query('BEGIN');
+        
+        // Delete existing features for this property
+        await client.query(
+            'DELETE FROM property_features WHERE property_id = $1',
+            [id]
+        );
+        
+        // Insert new features
+        if (features && features.length > 0) {
+            for (const feature of features) {
+                await client.query(
+                    `INSERT INTO property_features 
+                     (property_id, feature_name, category, is_custom, excluded_room_ids)
+                     VALUES ($1, $2, $3, $4, $5)`,
+                    [
+                        id,
+                        feature.feature_name,
+                        feature.category || 'custom',
+                        feature.is_custom || false,
+                        feature.excluded_room_ids || []
+                    ]
+                );
+            }
+        }
+        
+        await client.query('COMMIT');
+        
+        res.json({ 
+            success: true, 
+            message: `Saved ${features?.length || 0} features for property ${id}` 
+        });
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Error saving property features:', error);
+        res.status(500).json({ success: false, error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// GET /api/features/search - Search properties by features (for travel agents)
+app.get('/api/features/search', async (req, res) => {
+    try {
+        const { features, match } = req.query;
+        // features = comma-separated list of feature names
+        // match = 'all' (default) or 'any'
+        
+        if (!features) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Please provide features parameter' 
+            });
+        }
+        
+        const featureList = features.split(',').map(f => f.trim().toLowerCase());
+        const matchAll = match !== 'any';
+        
+        let query;
+        if (matchAll) {
+            // Properties that have ALL specified features
+            query = `
+                SELECT DISTINCT p.id, p.name, p.description, p.address, p.city, p.country,
+                       array_agg(DISTINCT pf.feature_name) as features
+                FROM properties p
+                JOIN property_features pf ON p.id = pf.property_id
+                WHERE LOWER(pf.feature_name) = ANY($1)
+                GROUP BY p.id
+                HAVING COUNT(DISTINCT LOWER(pf.feature_name)) = $2
+            `;
+            
+            const result = await pool.query(query, [featureList, featureList.length]);
+            res.json({ success: true, properties: result.rows });
+        } else {
+            // Properties that have ANY of the specified features
+            query = `
+                SELECT DISTINCT p.id, p.name, p.description, p.address, p.city, p.country,
+                       array_agg(DISTINCT pf.feature_name) as features
+                FROM properties p
+                JOIN property_features pf ON p.id = pf.property_id
+                WHERE LOWER(pf.feature_name) = ANY($1)
+                GROUP BY p.id
+            `;
+            
+            const result = await pool.query(query, [featureList]);
+            res.json({ success: true, properties: result.rows });
+        }
+    } catch (error) {
+        console.error('Error searching by features:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// GET /api/features/list - Get all available features (for dropdowns/filters)
+app.get('/api/features/list', async (req, res) => {
+    try {
+        const result = await pool.query(
+            `SELECT feature_name, category, COUNT(*) as property_count
+             FROM property_features
+             GROUP BY feature_name, category
+             ORDER BY category, property_count DESC, feature_name`
+        );
+        
+        res.json({ 
+            success: true, 
+            features: result.rows 
+        });
+    } catch (error) {
+        console.error('Error fetching features list:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
 // UPSELLS API
 // =====================================================
 
