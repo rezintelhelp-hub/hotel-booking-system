@@ -1301,6 +1301,31 @@
                 userData[saveAs] = reply;
             }
 
+            // Handle final step redirects
+            if (reply === "Take me to my dashboard") {
+                // Redirect based on channel manager selection
+                setTimeout(() => {
+                    if (userData.channelManager === 'Beds24') {
+                        window.location.href = '/beds24-wizard.html';
+                    } else if (userData.channelManager === 'Hostaway') {
+                        window.location.href = '/hostaway-wizard.html';
+                    } else {
+                        // Other or no CM - go to main admin
+                        window.location.href = '/gas-admin.html';
+                    }
+                }, 1000);
+                return;
+            }
+            
+            if (reply === "I have questions") {
+                // Show contact info or open support
+                addAIMessage({
+                    message: "No problem! You can reach us at hello@gas.travel or just reply here with your question. We're here to help! 💬",
+                    quickReplies: ["Take me to my dashboard", "I'll email you"]
+                });
+                return;
+            }
+
             currentStep++;
             if (currentStep < chatFlow.length) {
                 setTimeout(() => addAIMessage(chatFlow[currentStep]), 500);
