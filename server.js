@@ -140,6 +140,27 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// =====================================================
+// WORDPRESS DOWNLOADS
+// =====================================================
+app.get('/downloads/gas-booking-wp-plugin-v47.zip', (req, res) => {
+  const filePath = path.join(__dirname, 'public', 'downloads', 'gas-booking-wp-plugin-v47.zip');
+  if (fs.existsSync(filePath)) {
+    res.download(filePath);
+  } else {
+    res.status(404).json({ error: 'Plugin file not found. Please upload to public/downloads/' });
+  }
+});
+
+app.get('/downloads/gas-theme-developer.zip', (req, res) => {
+  const filePath = path.join(__dirname, 'public', 'downloads', 'gas-theme-developer.zip');
+  if (fs.existsSync(filePath)) {
+    res.download(filePath);
+  } else {
+    res.status(404).json({ error: 'Theme file not found. Please upload to public/downloads/' });
+  }
+});
+
 const BEDS24_TOKEN = process.env.BEDS24_TOKEN;
 const BEDS24_API = 'https://beds24.com/api/v2';
 
