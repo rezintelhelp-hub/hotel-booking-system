@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GAS - Guest Accommodation System</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -11,99 +12,273 @@
             box-sizing: border-box;
         }
 
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --accent: #8b5cf6;
+            --bg-primary: #f8fafc;
+            --bg-card: #ffffff;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
             min-height: 100vh;
-            color: #fff;
+            color: var(--text-primary);
         }
 
         .container {
-            max-width: 900px;
+            max-width: 1000px;
             margin: 0 auto;
-            padding: 60px 20px;
+            padding: 40px 20px;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 60px;
+            margin-bottom: 50px;
         }
 
         .logo {
-            font-size: 3.5rem;
-            font-weight: 700;
+            font-size: 3rem;
+            font-weight: 800;
             letter-spacing: -2px;
-            margin-bottom: 10px;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            margin-bottom: 8px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
             background-clip: text;
         }
 
         .tagline {
-            color: #8892b0;
+            color: var(--text-secondary);
             font-size: 1.1rem;
         }
 
-        .section {
+        .api-status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(16, 185, 129, 0.1);
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: var(--success);
+            margin-top: 16px;
+            font-weight: 500;
+        }
+
+        .api-status::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        /* Progress Tracker */
+        .progress-tracker {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
             margin-bottom: 40px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+        }
+
+        .progress-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .progress-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+        }
+
+        .progress-step-count {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: var(--border);
+            border-radius: 4px;
+            overflow: hidden;
+            margin-bottom: 20px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            border-radius: 4px;
+            transition: width 0.5s ease;
+        }
+
+        .progress-steps {
+            display: flex;
+            justify-content: space-between;
+        }
+
+        .progress-step {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+            flex: 1;
+        }
+
+        .progress-step-dot {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-muted);
+            transition: all 0.3s;
+        }
+
+        .progress-step.complete .progress-step-dot {
+            background: var(--success);
+            color: white;
+        }
+
+        .progress-step.active .progress-step-dot {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+        }
+
+        .progress-step-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-align: center;
+        }
+
+        .progress-step.complete .progress-step-label,
+        .progress-step.active .progress-step-label {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        /* Sections */
+        .section {
+            margin-bottom: 30px;
         }
 
         .section-title {
-            font-size: 0.8rem;
+            font-size: 0.75rem;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.15em;
-            color: #667eea;
-            margin-bottom: 15px;
-            padding-left: 5px;
+            letter-spacing: 0.1em;
+            color: var(--primary);
+            margin-bottom: 12px;
+            padding-left: 4px;
         }
 
         .cards {
             display: grid;
             grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: 20px;
+            gap: 16px;
         }
 
         .card {
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            background: var(--bg-card);
+            border: 1px solid var(--border);
             border-radius: 12px;
-            padding: 25px;
+            padding: 24px;
             text-decoration: none;
-            color: #fff;
-            transition: all 0.3s ease;
+            color: var(--text-primary);
+            transition: all 0.2s ease;
             display: block;
+            position: relative;
+            cursor: pointer;
         }
 
-        .card:hover {
-            background: rgba(255, 255, 255, 0.1);
-            border-color: rgba(102, 126, 234, 0.5);
-            transform: translateY(-4px);
+        .card:hover:not(.locked) {
+            border-color: var(--primary);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+            transform: translateY(-2px);
+        }
+
+        .card.locked {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .card.locked::after {
+            content: '🔒';
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            font-size: 1.2rem;
+        }
+
+        .card.active {
+            border-color: var(--primary);
+            border-width: 2px;
+            box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.1);
+        }
+
+        .card.complete {
+            border-color: var(--success);
+        }
+
+        .card.complete::after {
+            content: '✓';
+            position: absolute;
+            top: 16px;
+            right: 16px;
+            font-size: 1rem;
+            background: var(--success);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
 
         .card-icon {
-            font-size: 2rem;
-            margin-bottom: 15px;
+            font-size: 1.75rem;
+            margin-bottom: 12px;
         }
 
         .card-title {
-            font-size: 1.25rem;
+            font-size: 1.1rem;
             font-weight: 600;
-            margin-bottom: 8px;
+            margin-bottom: 6px;
         }
 
         .card-desc {
             font-size: 0.9rem;
-            color: #8892b0;
+            color: var(--text-secondary);
             line-height: 1.5;
         }
 
         .card-badge {
             display: inline-block;
             padding: 4px 10px;
-            background: rgba(102, 126, 234, 0.2);
-            color: #667eea;
             font-size: 0.7rem;
             font-weight: 600;
             text-transform: uppercase;
@@ -112,27 +287,363 @@
             margin-top: 12px;
         }
 
-        .card-badge.green {
-            background: rgba(39, 174, 96, 0.2);
-            color: #27ae60;
+        .card-badge.integration {
+            background: rgba(99, 102, 241, 0.1);
+            color: var(--primary);
         }
 
-        .card-badge.orange {
-            background: rgba(230, 126, 34, 0.2);
-            color: #e67e22;
+        .card-badge.required {
+            background: rgba(239, 68, 68, 0.1);
+            color: var(--error);
+        }
+
+        .card-badge.complete {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--success);
+        }
+
+        .card-badge.locked {
+            background: rgba(148, 163, 184, 0.2);
+            color: var(--text-muted);
+        }
+
+        /* Chat Bot */
+        .chat-bot {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+        }
+
+        .chat-bot-toggle {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            box-shadow: 0 4px 20px rgba(99, 102, 241, 0.4);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .chat-bot-toggle:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 25px rgba(99, 102, 241, 0.5);
+        }
+
+        .chat-bot-window {
+            position: absolute;
+            bottom: 70px;
+            right: 0;
+            width: 360px;
+            max-height: 500px;
+            background: var(--bg-card);
+            border-radius: 16px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.15);
+            border: 1px solid var(--border);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-bot-window.open {
+            display: flex;
+            animation: slideUp 0.3s ease;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-header {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            padding: 16px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .chat-avatar {
+            width: 40px;
+            height: 40px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+        }
+
+        .chat-header-info h4 {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+
+        .chat-header-info p {
+            font-size: 0.8rem;
+            opacity: 0.9;
+        }
+
+        .chat-body {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            max-height: 350px;
+        }
+
+        .chat-message {
+            margin-bottom: 16px;
+            max-width: 85%;
+        }
+
+        .chat-message.bot {
+            background: var(--bg-primary);
+            border-radius: 12px 12px 12px 4px;
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--text-primary);
+        }
+
+        .chat-message.user {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            border-radius: 12px 12px 4px 12px;
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            margin-left: auto;
+        }
+
+        .chat-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .chat-action-btn {
+            padding: 8px 14px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+        }
+
+        .chat-action-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+        }
+
+        /* CM Selection Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .modal.open {
+            display: flex;
+            animation: fadeIn 0.2s ease;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: 16px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .modal-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 4px;
+        }
+
+        .modal-close:hover {
+            color: var(--text-primary);
+        }
+
+        .modal-body {
+            padding: 24px;
+        }
+
+        .cm-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .cm-option {
+            padding: 16px;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .cm-option:hover {
+            border-color: var(--primary);
+        }
+
+        .cm-option.selected {
+            border-color: var(--primary);
+            background: rgba(99, 102, 241, 0.05);
+        }
+
+        .cm-option.supported {
+            position: relative;
+        }
+
+        .cm-option.supported::after {
+            content: '✓ Ready';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            font-size: 0.65rem;
+            background: var(--success);
+            color: white;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
+
+        .cm-option-name {
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .cm-option-desc {
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.95rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            width: 100%;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: white;
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            box-shadow: none;
+        }
+
+        /* Email Draft */
+        .email-draft {
+            background: var(--bg-primary);
+            border-radius: 8px;
+            padding: 16px;
+            margin-top: 16px;
+            font-size: 0.85rem;
+            line-height: 1.6;
+        }
+
+        .email-draft-header {
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .copy-btn {
+            padding: 6px 12px;
+            font-size: 0.75rem;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .copy-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
         }
 
         .footer {
             text-align: center;
-            margin-top: 60px;
-            padding-top: 30px;
-            border-top: 1px solid rgba(255, 255, 255, 0.1);
-            color: #8892b0;
+            margin-top: 50px;
+            padding-top: 24px;
+            border-top: 1px solid var(--border);
+            color: var(--text-muted);
             font-size: 0.85rem;
         }
 
         .footer a {
-            color: #667eea;
+            color: var(--primary);
             text-decoration: none;
         }
 
@@ -140,30 +651,32 @@
             text-decoration: underline;
         }
 
-        .api-status {
-            display: inline-flex;
-            align-items: center;
-            gap: 8px;
-            padding: 8px 16px;
-            background: rgba(39, 174, 96, 0.15);
-            border-radius: 20px;
-            font-size: 0.85rem;
-            color: #27ae60;
-            margin-top: 20px;
-        }
+        /* Responsive */
+        @media (max-width: 640px) {
+            .container {
+                padding: 24px 16px;
+            }
 
-        .api-status::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            background: #27ae60;
-            border-radius: 50%;
-            animation: pulse 2s infinite;
-        }
+            .logo {
+                font-size: 2.5rem;
+            }
 
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.5; }
+            .progress-steps {
+                gap: 4px;
+            }
+
+            .progress-step-label {
+                font-size: 0.65rem;
+            }
+
+            .chat-bot-window {
+                width: calc(100vw - 32px);
+                right: -8px;
+            }
+
+            .cm-grid {
+                grid-template-columns: 1fr;
+            }
         }
     </style>
 </head>
@@ -175,73 +688,367 @@
             <div class="api-status">API Online</div>
         </div>
 
+        <!-- Progress Tracker -->
+        <div class="progress-tracker">
+            <div class="progress-header">
+                <div class="progress-title">🚀 Getting Started</div>
+                <div class="progress-step-count"><span id="completedSteps">0</span> of 5 complete</div>
+            </div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+            </div>
+            <div class="progress-steps">
+                <div class="progress-step active" id="step1">
+                    <div class="progress-step-dot">1</div>
+                    <div class="progress-step-label">Connect CM</div>
+                </div>
+                <div class="progress-step" id="step2">
+                    <div class="progress-step-dot">2</div>
+                    <div class="progress-step-label">Import Rooms</div>
+                </div>
+                <div class="progress-step" id="step3">
+                    <div class="progress-step-dot">3</div>
+                    <div class="progress-step-label">Add Images</div>
+                </div>
+                <div class="progress-step" id="step4">
+                    <div class="progress-step-dot">4</div>
+                    <div class="progress-step-label">Add Content</div>
+                </div>
+                <div class="progress-step" id="step5">
+                    <div class="progress-step-dot">5</div>
+                    <div class="progress-step-label">Go Live</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 1: Channel Manager -->
+        <div class="section">
+            <div class="section-title">Step 1: Connect Your Channel Manager</div>
+            <div class="cards">
+                <div class="card active" id="cmCard" onclick="openCMModal()">
+                    <div class="card-icon">🔗</div>
+                    <div class="card-title">Channel Manager</div>
+                    <div class="card-desc">Connect your channel manager to sync rooms, availability and pricing automatically.</div>
+                    <span class="card-badge required">Required</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 2: Properties & Rooms (Locked) -->
+        <div class="section">
+            <div class="section-title">Step 2: Your Properties</div>
+            <div class="cards">
+                <div class="card locked" id="propertiesCard">
+                    <div class="card-icon">🏨</div>
+                    <div class="card-title">Properties</div>
+                    <div class="card-desc">View and manage your imported properties.</div>
+                    <span class="card-badge locked">Connect CM First</span>
+                </div>
+                <div class="card locked" id="roomsCard">
+                    <div class="card-icon">🛏️</div>
+                    <div class="card-title">Rooms</div>
+                    <div class="card-desc">Manage rooms, rates and availability synced from your CM.</div>
+                    <span class="card-badge locked">Connect CM First</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 3: Images (Locked) -->
+        <div class="section">
+            <div class="section-title">Step 3: Images</div>
+            <div class="cards">
+                <div class="card locked" id="imagesCard">
+                    <div class="card-icon">📷</div>
+                    <div class="card-title">Property Images</div>
+                    <div class="card-desc">Upload high-quality photos of your properties and rooms.</div>
+                    <span class="card-badge locked">Import Rooms First</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 4: Content (Locked) -->
+        <div class="section">
+            <div class="section-title">Step 4: Content & Marketing</div>
+            <div class="cards">
+                <div class="card locked" id="contentCard">
+                    <div class="card-icon">✏️</div>
+                    <div class="card-title">Descriptions & Features</div>
+                    <div class="card-desc">Add compelling descriptions and highlight your unique features.</div>
+                    <span class="card-badge locked">Add Images First</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Step 5: Go Live (Locked) -->
+        <div class="section">
+            <div class="section-title">Step 5: Go Live</div>
+            <div class="cards">
+                <div class="card locked" id="wordpressCard">
+                    <div class="card-icon">🌐</div>
+                    <div class="card-title">WordPress Plugin</div>
+                    <div class="card-desc">Add booking to your website with our WordPress plugin.</div>
+                    <span class="card-badge locked">Complete Setup First</span>
+                </div>
+                <div class="card locked" id="badgeCard">
+                    <div class="card-icon">✅</div>
+                    <div class="card-title">GAS Certified Badge</div>
+                    <div class="card-desc">Get your badge code to display on your website.</div>
+                    <span class="card-badge locked">Complete Setup First</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Admin (Always Available) -->
         <div class="section">
             <div class="section-title">Administration</div>
             <div class="cards">
                 <a href="/gas-admin.html" class="card">
-                    <div class="card-icon">🏨</div>
-                    <div class="card-title">Admin Dashboard</div>
-                    <div class="card-desc">Manage properties, rooms, bookings, pricing, and all system settings.</div>
-                    <span class="card-badge green">Full Access</span>
-                </a>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">Channel Manager Integrations</div>
-            <div class="cards">
-                <a href="/beds24-wizard.html" class="card">
-                    <div class="card-icon">🔗</div>
-                    <div class="card-title">Beds24 Wizard</div>
-                    <div class="card-desc">Connect and sync properties from Beds24 channel manager.</div>
-                    <span class="card-badge">Integration</span>
-                </a>
-                <a href="/hostaway-wizard.html" class="card">
-                    <div class="card-icon">🔗</div>
-                    <div class="card-title">Hostaway Wizard</div>
-                    <div class="card-desc">Connect and sync properties from Hostaway channel manager.</div>
-                    <span class="card-badge">Integration</span>
-                </a>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">WordPress Plugin</div>
-            <div class="cards">
-                <a href="/gas-widgets-preview.html" class="card">
-                    <div class="card-icon">🎨</div>
-                    <div class="card-title">Widget Preview</div>
-                    <div class="card-desc">Preview all booking widgets: search bar, room listings, and room detail pages.</div>
-                    <span class="card-badge orange">Preview</span>
-                </a>
-            </div>
-        </div>
-
-        <div class="section">
-            <div class="section-title">API Documentation</div>
-            <div class="cards">
-                <a href="/api/health" class="card">
-                    <div class="card-icon">💚</div>
-                    <div class="card-title">Health Check</div>
-                    <div class="card-desc">Check API and database connectivity status.</div>
-                    <span class="card-badge">Endpoint</span>
-                </a>
-                <a href="/api/public/property/1" class="card">
-                    <div class="card-icon">📡</div>
-                    <div class="card-title">Public API</div>
-                    <div class="card-desc">Property info, availability, pricing, and booking endpoints for your website.</div>
-                    <span class="card-badge">Endpoint</span>
+                    <div class="card-icon">⚙️</div>
+                    <div class="card-title">Full Admin Dashboard</div>
+                    <div class="card-desc">Access all settings, bookings, and advanced configuration.</div>
+                    <span class="card-badge integration">Admin</span>
                 </a>
             </div>
         </div>
 
         <div class="footer">
-            <p>Guest Accommodation System &copy; 2025</p>
+            <p>Guest Accommodation System © 2025</p>
             <p style="margin-top: 8px;">
                 <a href="/api/health">API Status</a> · 
-                <a href="https://github.com" target="_blank">GitHub</a>
+                <a href="/gas-onboarding.html">Back to Onboarding</a>
             </p>
         </div>
     </div>
+
+    <!-- Chat Bot -->
+    <div class="chat-bot">
+        <div class="chat-bot-window" id="chatWindow">
+            <div class="chat-header">
+                <div class="chat-avatar">🤖</div>
+                <div class="chat-header-info">
+                    <h4>GAS Assistant</h4>
+                    <p>Here to help</p>
+                </div>
+            </div>
+            <div class="chat-body" id="chatBody">
+                <div class="chat-message bot">
+                    👋 Welcome to GAS! I'm here to guide you through setup.
+                    <br><br>
+                    First, we need to connect your channel manager. This is required because we pull your rooms, pricing, and availability directly from your CM.
+                    <br><br>
+                    <strong>Click the Channel Manager card above to get started!</strong>
+                </div>
+            </div>
+        </div>
+        <button class="chat-bot-toggle" id="chatToggle" onclick="toggleChat()">
+            💬
+        </button>
+    </div>
+
+    <!-- CM Selection Modal -->
+    <div class="modal" id="cmModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Select Your Channel Manager</h2>
+                <button class="modal-close" onclick="closeCMModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p style="margin-bottom: 20px; color: var(--text-secondary);">Which channel manager do you use to manage your property?</p>
+                
+                <div class="cm-grid" id="cmGrid">
+                    <div class="cm-option supported" data-cm="beds24" onclick="selectCM('beds24')">
+                        <div class="cm-option-name">Beds24</div>
+                        <div class="cm-option-desc">PMS + Channel Manager</div>
+                    </div>
+                    <div class="cm-option supported" data-cm="hostaway" onclick="selectCM('hostaway')">
+                        <div class="cm-option-name">Hostaway</div>
+                        <div class="cm-option-desc">Vacation Rental Software</div>
+                    </div>
+                    <div class="cm-option" data-cm="guesty" onclick="selectCM('guesty')">
+                        <div class="cm-option-name">Guesty</div>
+                        <div class="cm-option-desc">Property Management</div>
+                    </div>
+                    <div class="cm-option" data-cm="cloudbeds" onclick="selectCM('cloudbeds')">
+                        <div class="cm-option-name">Cloudbeds</div>
+                        <div class="cm-option-desc">Hotel PMS</div>
+                    </div>
+                    <div class="cm-option" data-cm="lodgify" onclick="selectCM('lodgify')">
+                        <div class="cm-option-name">Lodgify</div>
+                        <div class="cm-option-desc">Vacation Rental</div>
+                    </div>
+                    <div class="cm-option" data-cm="smoobu" onclick="selectCM('smoobu')">
+                        <div class="cm-option-name">Smoobu</div>
+                        <div class="cm-option-desc">Channel Manager</div>
+                    </div>
+                    <div class="cm-option" data-cm="ownerrez" onclick="selectCM('ownerrez')">
+                        <div class="cm-option-name">OwnerRez</div>
+                        <div class="cm-option-desc">Vacation Rental</div>
+                    </div>
+                    <div class="cm-option" data-cm="other" onclick="selectCM('other')">
+                        <div class="cm-option-name">Other</div>
+                        <div class="cm-option-desc">Not listed here</div>
+                    </div>
+                </div>
+
+                <div id="cmAction"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State
+        let selectedCM = null;
+        let chatOpen = true;
+
+        // Toggle chat
+        function toggleChat() {
+            chatOpen = !chatOpen;
+            document.getElementById('chatWindow').classList.toggle('open', chatOpen);
+            document.getElementById('chatToggle').textContent = chatOpen ? '✕' : '💬';
+        }
+
+        // Open chat on load
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('chatWindow').classList.add('open');
+        });
+
+        // CM Modal
+        function openCMModal() {
+            document.getElementById('cmModal').classList.add('open');
+        }
+
+        function closeCMModal() {
+            document.getElementById('cmModal').classList.remove('open');
+        }
+
+        // Select CM
+        function selectCM(cm) {
+            selectedCM = cm;
+            
+            // Update UI
+            document.querySelectorAll('.cm-option').forEach(opt => {
+                opt.classList.remove('selected');
+            });
+            document.querySelector(`[data-cm="${cm}"]`).classList.add('selected');
+
+            // Show action based on CM
+            const actionDiv = document.getElementById('cmAction');
+            
+            if (cm === 'beds24') {
+                actionDiv.innerHTML = `
+                    <button class="btn" onclick="window.location.href='/beds24-wizard.html'">
+                        Connect Beds24 →
+                    </button>
+                `;
+            } else if (cm === 'hostaway') {
+                actionDiv.innerHTML = `
+                    <button class="btn" onclick="window.location.href='/hostaway-wizard.html'">
+                        Connect Hostaway →
+                    </button>
+                `;
+            } else {
+                // Unsupported CM
+                const cmName = document.querySelector(`[data-cm="${cm}"] .cm-option-name`).textContent;
+                actionDiv.innerHTML = `
+                    <div style="background: rgba(245, 158, 11, 0.1); border-radius: 8px; padding: 16px; margin-bottom: 16px;">
+                        <strong style="color: var(--warning);">⏳ Coming Soon</strong>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-top: 8px;">
+                            We're not connected to ${cmName} yet, but we're working on it! 
+                            We've logged your request to help prioritize this integration.
+                        </p>
+                    </div>
+                    
+                    <p style="font-size: 0.9rem; margin-bottom: 12px;">
+                        <strong>Speed things up:</strong> Most channel managers have open APIs. 
+                        Send them this email to request API access:
+                    </p>
+                    
+                    <div class="email-draft">
+                        <div class="email-draft-header">
+                            📧 Draft Email
+                            <button class="copy-btn" onclick="copyEmail('${cmName}')">Copy</button>
+                        </div>
+                        <div id="emailContent">
+                            <strong>Subject:</strong> API Access Request for GAS Integration<br><br>
+                            Hi ${cmName} Team,<br><br>
+                            I use ${cmName} to manage my property and would like to connect it to GAS (Guest Accommodation System) for distribution to independent travel agents.<br><br>
+                            Could you please provide API documentation or enable API access for my account?<br><br>
+                            Thank you!
+                        </div>
+                    </div>
+                    
+                    <button class="btn" onclick="submitCMRequest('${cm}')" style="margin-top: 16px;">
+                        Log My Request & Notify Me
+                    </button>
+                    <p style="font-size: 0.8rem; color: var(--text-muted); margin-top: 8px; text-align: center;">
+                        We'll email you when ${cmName} is ready!
+                    </p>
+                `;
+            }
+        }
+
+        // Copy email
+        function copyEmail(cmName) {
+            const email = `Subject: API Access Request for GAS Integration
+
+Hi ${cmName} Team,
+
+I use ${cmName} to manage my property and would like to connect it to GAS (Guest Accommodation System) for distribution to independent travel agents.
+
+Could you please provide API documentation or enable API access for my account?
+
+Thank you!`;
+            
+            navigator.clipboard.writeText(email).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = 'Copied!';
+                setTimeout(() => btn.textContent = 'Copy', 2000);
+            });
+        }
+
+        // Submit CM request
+        async function submitCMRequest(cm) {
+            try {
+                const response = await fetch('/api/channel-manager-request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        channelManager: cm,
+                        // Add user info if logged in
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Update chat
+                addBotMessage(`✅ Got it! We've logged your request for ${cm}. You're #${data.requestCount || 'one of many'} people waiting. We'll email you when it's ready!`);
+                
+                closeCMModal();
+            } catch (error) {
+                alert('Request logged! We\'ll be in touch.');
+                closeCMModal();
+            }
+        }
+
+        // Add bot message
+        function addBotMessage(text) {
+            const chatBody = document.getElementById('chatBody');
+            const msg = document.createElement('div');
+            msg.className = 'chat-message bot';
+            msg.innerHTML = text;
+            chatBody.appendChild(msg);
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+
+        // Check URL params for CM selection from onboarding
+        const urlParams = new URLSearchParams(window.location.search);
+        const cmFromOnboarding = urlParams.get('cm');
+        if (cmFromOnboarding) {
+            setTimeout(() => {
+                openCMModal();
+                selectCM(cmFromOnboarding.toLowerCase());
+            }, 500);
+        }
+    </script>
 </body>
 </html>
