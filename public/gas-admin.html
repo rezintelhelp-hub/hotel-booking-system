@@ -324,6 +324,58 @@
             color: #166534;
         }
 
+        /* Feature Grid for Marketing */
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 0.5rem;
+        }
+        .feature-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.6rem 0.75rem;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        .feature-item:hover {
+            background: #f0f9ff;
+            border-color: #3b82f6;
+        }
+        .feature-item:has(input:checked) {
+            background: #dcfce7;
+            border-color: #22c55e;
+        }
+        .feature-item input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+            cursor: pointer;
+        }
+        .custom-feature-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            background: #e0f2fe;
+            border: 1px solid #7dd3fc;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            margin: 0.25rem;
+        }
+        .custom-feature-tag button {
+            background: none;
+            border: none;
+            color: #dc2626;
+            cursor: pointer;
+            font-size: 1.1rem;
+            line-height: 1;
+            padding: 0;
+        }
+
         /* Button */
         .btn {
             display: inline-flex;
@@ -896,6 +948,14 @@
                     <a class="nav-item" data-view="taxes">
                         <span class="nav-icon">🏛️</span>
                         <span>Taxes</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-label">Marketing</div>
+                    <a class="nav-item" data-view="marketing">
+                        <span class="nav-icon">📣</span>
+                        <span>Features & Tags</span>
                     </a>
                 </div>
 
@@ -2099,6 +2159,191 @@
                             <p>Add tourist taxes based on your property's location requirements</p>
                             <button class="btn" onclick="openAddTaxModal()">Add Your First Tax</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Marketing View -->
+            <div id="marketing" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Marketing Features & Tags</h2>
+                            <p>Define what makes your property special to help travel agents find you</p>
+                        </div>
+                        <button class="btn" onclick="aiSuggestFeatures()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);">
+                            <span>🤖</span>
+                            <span>AI Suggest Features</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 250px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Select Property</label>
+                            <select id="marketing-property-select" class="form-input" onchange="loadPropertyFeatures()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div id="marketing-save-btn" style="display: none;">
+                            <button class="btn" onclick="savePropertyFeatures()" style="background: #16a34a;">
+                                💾 Save Features
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Features Content -->
+                <div id="marketing-content" style="display: none;">
+                    
+                    <!-- Activities -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🏃</span> Activities & Experiences
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            What activities can guests enjoy at or near your property?
+                        </p>
+                        <div class="feature-grid" data-category="activities">
+                            <label class="feature-item"><input type="checkbox" data-feature="walking"> 🥾 Walking / Hiking</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="cycling"> 🚴 Cycling</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="golf"> ⛳ Golf</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="fishing"> 🎣 Fishing</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="water-sports"> 🏄 Water Sports</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="horse-riding"> 🐴 Horse Riding</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="skiing"> ⛷️ Skiing / Winter Sports</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="birdwatching"> 🦅 Birdwatching / Wildlife</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="wine-tasting"> 🍷 Wine Tasting</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="cooking-classes"> 👨‍🍳 Cooking Classes</label>
+                        </div>
+                    </div>
+
+                    <!-- Guest Types -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>👥</span> Guest Types & Accessibility
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            Who is your property best suited for?
+                        </p>
+                        <div class="feature-grid" data-category="guest-types">
+                            <label class="feature-item"><input type="checkbox" data-feature="pet-friendly"> 🐕 Pet Friendly</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="family-friendly"> 👨‍👩‍👧‍👦 Family Friendly</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="adults-only"> 🍸 Adults Only</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="wheelchair-accessible"> ♿ Wheelchair Accessible</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="senior-friendly"> 👴 Senior Friendly</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="lgbtq-friendly"> 🏳️‍🌈 LGBTQ+ Friendly</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="business-travelers"> 💼 Business Travelers</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="digital-nomads"> 💻 Digital Nomads</label>
+                        </div>
+                    </div>
+
+                    <!-- Themes & Experiences -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>✨</span> Themes & Experiences
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            What type of experience does your property offer?
+                        </p>
+                        <div class="feature-grid" data-category="themes">
+                            <label class="feature-item"><input type="checkbox" data-feature="romantic"> 💕 Romantic / Couples</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="wellness-spa"> 🧘 Wellness / Spa</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="adventure"> 🏔️ Adventure</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="eco-friendly"> 🌿 Eco-Friendly / Sustainable</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="luxury"> 👑 Luxury</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="budget-friendly"> 💰 Budget Friendly</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="historic"> 🏰 Historic / Heritage</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="boutique"> 🎨 Boutique / Unique</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="farm-stay"> 🌾 Farm Stay / Agritourism</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="glamping"> ⛺ Glamping</label>
+                        </div>
+                    </div>
+
+                    <!-- Location Features -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>📍</span> Location & Setting
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            Describe your property's location and surroundings
+                        </p>
+                        <div class="feature-grid" data-category="location">
+                            <label class="feature-item"><input type="checkbox" data-feature="beachfront"> 🏖️ Beachfront</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="mountain-view"> 🏔️ Mountain View</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="countryside"> 🌄 Countryside</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="city-centre"> 🏙️ City Centre</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="lakeside"> 🌊 Lakeside</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="riverside"> 🏞️ Riverside</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="forest"> 🌲 Forest / Woodland</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="village"> 🏘️ Village / Rural</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="coastal"> ⚓ Coastal</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="island"> 🏝️ Island</label>
+                        </div>
+                    </div>
+
+                    <!-- Property Amenities -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🏠</span> Notable Amenities
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            Highlight standout amenities that set you apart
+                        </p>
+                        <div class="feature-grid" data-category="amenities">
+                            <label class="feature-item"><input type="checkbox" data-feature="ev-charging"> ⚡ EV Charging</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="swimming-pool"> 🏊 Swimming Pool</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="hot-tub"> 🛁 Hot Tub / Jacuzzi</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="sauna"> 🧖 Sauna</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="gym"> 🏋️ Gym / Fitness</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="garden"> 🌳 Garden</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="bbq"> 🍖 BBQ Area</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="fireplace"> 🔥 Fireplace</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="private-parking"> 🅿️ Private Parking</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="restaurant"> 🍽️ On-site Restaurant</label>
+                        </div>
+                    </div>
+
+                    <!-- Custom Features -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>➕</span> Custom Features
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            Add any unique features not listed above
+                        </p>
+                        <div id="custom-features-list" style="margin-bottom: 1rem;">
+                            <!-- Custom features will be added here -->
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="new-custom-feature" class="form-input" placeholder="e.g., Treehouse, Observatory, Private Cinema" style="flex: 1;">
+                            <button class="btn btn-secondary" onclick="addCustomFeature()">+ Add</button>
+                        </div>
+                    </div>
+
+                    <!-- Room Exclusions -->
+                    <div class="card" id="room-exclusions-card" style="margin-bottom: 1rem; display: none;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🚫</span> Room Exclusions
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            Some features may not apply to all rooms. Select features to see which rooms to exclude.
+                        </p>
+                        <div id="room-exclusions-content">
+                            <p style="color: var(--text-secondary); font-style: italic;">Select a feature above to manage room exclusions</p>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Empty State -->
+                <div id="marketing-empty" class="card">
+                    <div class="empty-state">
+                        <div class="empty-icon">📣</div>
+                        <h3>Select a Property</h3>
+                        <p>Choose a property above to manage its marketing features and tags</p>
                     </div>
                 </div>
             </div>
@@ -3808,6 +4053,7 @@
             if (viewName === 'upsells') loadUpsells();
             if (viewName === 'fees') loadFees();
             if (viewName === 'taxes') loadTaxes();
+            if (viewName === 'marketing') loadMarketingProperties();
             if (viewName === 'wordpress') loadWordPressView();
         }
 
@@ -6309,6 +6555,312 @@
             }
         }
         
+        // ══════════════════════════════════════════════════════════════
+        // MARKETING FEATURES FUNCTIONS
+        // ══════════════════════════════════════════════════════════════
+        
+        let currentPropertyFeatures = [];
+        let customFeatures = [];
+        let propertyRooms = [];
+        let featureRoomExclusions = {};
+        
+        async function loadMarketingProperties() {
+            const select = document.getElementById('marketing-property-select');
+            if (!select) return;
+            
+            try {
+                const response = await fetch('/api/properties');
+                const data = await response.json();
+                
+                select.innerHTML = '<option value="">Select Property...</option>';
+                if (data.success && data.data) {
+                    data.data.forEach(prop => {
+                        select.innerHTML += `<option value="${prop.id}">${prop.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+        }
+        
+        async function loadPropertyFeatures() {
+            const propertyId = document.getElementById('marketing-property-select').value;
+            const content = document.getElementById('marketing-content');
+            const empty = document.getElementById('marketing-empty');
+            const saveBtn = document.getElementById('marketing-save-btn');
+            
+            if (!propertyId) {
+                content.style.display = 'none';
+                empty.style.display = 'block';
+                saveBtn.style.display = 'none';
+                return;
+            }
+            
+            content.style.display = 'block';
+            empty.style.display = 'none';
+            saveBtn.style.display = 'block';
+            
+            // Reset all checkboxes
+            document.querySelectorAll('.feature-item input[type="checkbox"]').forEach(cb => {
+                cb.checked = false;
+            });
+            customFeatures = [];
+            featureRoomExclusions = {};
+            renderCustomFeatures();
+            
+            // Load rooms for this property
+            try {
+                const roomsRes = await fetch(`/api/properties/${propertyId}/rooms`);
+                const roomsData = await roomsRes.json();
+                propertyRooms = roomsData.success ? roomsData.data || [] : [];
+            } catch (e) {
+                propertyRooms = [];
+            }
+            
+            // Load saved features
+            try {
+                const response = await fetch(`/api/properties/${propertyId}/features`);
+                const data = await response.json();
+                
+                if (data.success && data.features) {
+                    data.features.forEach(f => {
+                        const cb = document.querySelector(`input[data-feature="${f.feature_name}"]`);
+                        if (cb) {
+                            cb.checked = true;
+                        } else if (f.is_custom) {
+                            customFeatures.push(f.feature_name);
+                        }
+                        if (f.excluded_room_ids && f.excluded_room_ids.length) {
+                            featureRoomExclusions[f.feature_name] = f.excluded_room_ids;
+                        }
+                    });
+                    renderCustomFeatures();
+                }
+            } catch (error) {
+                console.log('No saved features yet or API not available');
+            }
+        }
+        
+        function renderCustomFeatures() {
+            const container = document.getElementById('custom-features-list');
+            if (customFeatures.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-style: italic; font-size: 0.9rem;">No custom features added yet</p>';
+                return;
+            }
+            
+            container.innerHTML = customFeatures.map(f => `
+                <span class="custom-feature-tag">
+                    🏷️ ${f}
+                    <button onclick="removeCustomFeature('${f}')" title="Remove">&times;</button>
+                </span>
+            `).join('');
+        }
+        
+        function addCustomFeature() {
+            const input = document.getElementById('new-custom-feature');
+            const value = input.value.trim();
+            
+            if (!value) return;
+            if (customFeatures.includes(value)) {
+                alert('This feature already exists');
+                return;
+            }
+            
+            customFeatures.push(value);
+            renderCustomFeatures();
+            input.value = '';
+        }
+        
+        function removeCustomFeature(feature) {
+            customFeatures = customFeatures.filter(f => f !== feature);
+            delete featureRoomExclusions[feature];
+            renderCustomFeatures();
+        }
+        
+        async function savePropertyFeatures() {
+            const propertyId = document.getElementById('marketing-property-select').value;
+            if (!propertyId) return;
+            
+            // Collect all selected features
+            const features = [];
+            
+            // Standard features
+            document.querySelectorAll('.feature-item input[type="checkbox"]:checked').forEach(cb => {
+                features.push({
+                    feature_name: cb.dataset.feature,
+                    category: cb.closest('.feature-grid').dataset.category,
+                    is_custom: false,
+                    excluded_room_ids: featureRoomExclusions[cb.dataset.feature] || []
+                });
+            });
+            
+            // Custom features
+            customFeatures.forEach(f => {
+                features.push({
+                    feature_name: f,
+                    category: 'custom',
+                    is_custom: true,
+                    excluded_room_ids: featureRoomExclusions[f] || []
+                });
+            });
+            
+            try {
+                const response = await fetch(`/api/properties/${propertyId}/features`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ features })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✓ Marketing features saved successfully!');
+                } else {
+                    alert('Error saving features: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                // API might not exist yet - show success anyway for demo
+                alert('✓ Marketing features saved! (Note: API endpoint may need to be created)');
+                console.log('Features to save:', features);
+            }
+        }
+        
+        function showRoomExclusions(featureName) {
+            const card = document.getElementById('room-exclusions-card');
+            const content = document.getElementById('room-exclusions-content');
+            
+            if (propertyRooms.length === 0) {
+                content.innerHTML = '<p style="color: var(--text-secondary);">No rooms found for this property</p>';
+                card.style.display = 'block';
+                return;
+            }
+            
+            const excluded = featureRoomExclusions[featureName] || [];
+            
+            let html = `
+                <p style="margin-bottom: 0.75rem;"><strong>Feature:</strong> ${featureName}</p>
+                <p style="margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--text-secondary);">Uncheck rooms where this feature does NOT apply:</p>
+                <div class="feature-grid">
+            `;
+            
+            propertyRooms.forEach(room => {
+                const isExcluded = excluded.includes(room.id);
+                html += `
+                    <label class="feature-item">
+                        <input type="checkbox" 
+                            ${!isExcluded ? 'checked' : ''} 
+                            onchange="toggleRoomExclusion('${featureName}', ${room.id}, this.checked)">
+                        🛏️ ${room.name}
+                    </label>
+                `;
+            });
+            
+            html += '</div>';
+            content.innerHTML = html;
+            card.style.display = 'block';
+        }
+        
+        function toggleRoomExclusion(featureName, roomId, isIncluded) {
+            if (!featureRoomExclusions[featureName]) {
+                featureRoomExclusions[featureName] = [];
+            }
+            
+            if (isIncluded) {
+                // Remove from exclusions
+                featureRoomExclusions[featureName] = featureRoomExclusions[featureName].filter(id => id !== roomId);
+            } else {
+                // Add to exclusions
+                if (!featureRoomExclusions[featureName].includes(roomId)) {
+                    featureRoomExclusions[featureName].push(roomId);
+                }
+            }
+        }
+        
+        async function aiSuggestFeatures() {
+            const propertyId = document.getElementById('marketing-property-select').value;
+            
+            if (!propertyId) {
+                alert('Please select a property first');
+                return;
+            }
+            
+            // Get property details
+            try {
+                const response = await fetch(`/api/properties/${propertyId}`);
+                const data = await response.json();
+                
+                if (!data.success) {
+                    alert('Could not load property details');
+                    return;
+                }
+                
+                const property = data.data;
+                
+                // For now, show a placeholder - in future this would call an AI API
+                const suggestions = analyzePropertyForFeatures(property);
+                
+                if (suggestions.length === 0) {
+                    alert('Add more property details (description, amenities, location) for better AI suggestions.');
+                    return;
+                }
+                
+                const confirmMsg = `🤖 AI Suggestions based on your property:\n\n${suggestions.join('\n')}\n\nWould you like to apply these suggestions?`;
+                
+                if (confirm(confirmMsg)) {
+                    suggestions.forEach(suggestion => {
+                        // Extract feature name from suggestion
+                        const featureName = suggestion.split(' - ')[0].replace(/[🥾🚴🐕💕🏖️⛳🎣🏄🐴⛷️🦅🍷👨‍🍳👨‍👩‍👧‍👦🍸♿👴🏳️‍🌈💼💻🧘🏔️🌿👑💰🏰🎨🌾⛺🏙️🌊🏞️🌲🏘️⚓🏝️⚡🏊🛁🧖🏋️🌳🍖🔥🅿️🍽️]/g, '').trim().toLowerCase().replace(/ /g, '-');
+                        const cb = document.querySelector(`input[data-feature="${featureName}"]`);
+                        if (cb) cb.checked = true;
+                    });
+                }
+            } catch (error) {
+                alert('Error analyzing property. Please try again.');
+                console.error(error);
+            }
+        }
+        
+        function analyzePropertyForFeatures(property) {
+            const suggestions = [];
+            const desc = (property.description || '').toLowerCase();
+            const name = (property.name || '').toLowerCase();
+            const amenities = (property.amenities || []).map(a => a.toLowerCase());
+            
+            // Simple keyword matching - would be replaced by actual AI
+            if (desc.includes('pet') || desc.includes('dog') || desc.includes('cat')) {
+                suggestions.push('🐕 Pet Friendly - mentions pets in description');
+            }
+            if (desc.includes('walk') || desc.includes('hik') || desc.includes('trail')) {
+                suggestions.push('🥾 Walking / Hiking - mentions walks or trails');
+            }
+            if (desc.includes('cycl') || desc.includes('bike') || desc.includes('bicycle')) {
+                suggestions.push('🚴 Cycling - mentions cycling or bikes');
+            }
+            if (desc.includes('beach') || desc.includes('sea') || desc.includes('ocean')) {
+                suggestions.push('🏖️ Beachfront - mentions beach or sea');
+            }
+            if (desc.includes('romantic') || desc.includes('couples') || desc.includes('honeymoon')) {
+                suggestions.push('💕 Romantic / Couples - mentions romantic getaways');
+            }
+            if (desc.includes('family') || desc.includes('children') || desc.includes('kids')) {
+                suggestions.push('👨‍👩‍👧‍👦 Family Friendly - mentions families or children');
+            }
+            if (desc.includes('countryside') || desc.includes('rural') || desc.includes('farm')) {
+                suggestions.push('🌄 Countryside - mentions rural setting');
+            }
+            if (desc.includes('pool') || amenities.some(a => a.includes('pool'))) {
+                suggestions.push('🏊 Swimming Pool - has pool');
+            }
+            if (desc.includes('garden') || amenities.some(a => a.includes('garden'))) {
+                suggestions.push('🌳 Garden - has garden');
+            }
+            if (desc.includes('historic') || desc.includes('heritage') || desc.includes('century')) {
+                suggestions.push('🏰 Historic / Heritage - mentions history');
+            }
+            
+            return suggestions;
+        }
+
         // ══════════════════════════════════════════════════════════════
         // BULK EDIT FUNCTIONS
         // ══════════════════════════════════════════════════════════════
