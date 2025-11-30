@@ -884,18 +884,34 @@
                         Learn More
                     </a>
                 </div>
-                <div class="hero-stats">
-                    <div class="hero-stat">
-                        <div class="hero-stat-value">Free</div>
-                        <div class="hero-stat-label">To List</div>
+                <div class="hero-stats" style="flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 400px;">
+                        <div class="hero-stat" style="text-align: left;">
+                            <div class="hero-stat-value">Free</div>
+                            <div class="hero-stat-label">To List</div>
+                        </div>
+                        <div class="hero-stat" style="text-align: right;">
+                            <div class="hero-stat-value">You Decide</div>
+                            <div class="hero-stat-label">Commission</div>
+                        </div>
                     </div>
-                    <div class="hero-stat">
-                        <div class="hero-stat-value">0%</div>
-                        <div class="hero-stat-label">Commission</div>
-                    </div>
-                    <div class="hero-stat">
-                        <div class="hero-stat-value">100%</div>
-                        <div class="hero-stat-label">Your Control</div>
+                    <div style="width: 100%; max-width: 400px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                            <span>OTAs charge</span>
+                            <span>You could pay</span>
+                        </div>
+                        <div style="position: relative; height: 8px; background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%); border-radius: 4px;">
+                            <div id="commission-thumb" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 3px solid var(--primary); border-radius: 50%; cursor: pointer; box-shadow: var(--shadow-md); left: 80%;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-top: 0.5rem;">
+                            <span style="color: #ef4444;">15%</span>
+                            <span style="color: #f59e0b;">10%</span>
+                            <span style="color: #10b981;">5%</span>
+                            <span style="color: #059669;">0%</span>
+                        </div>
+                        <p style="text-align: center; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.75rem;">
+                            Negotiate directly with agents. Your property, your rates.
+                        </p>
                     </div>
                 </div>
             </div>
