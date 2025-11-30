@@ -205,22 +205,33 @@ app.get('/api/debug/fix-migrations', async (req, res) => {
   try {
     const fixes = [];
     
-    // Mark 003 as executed if it's causing issues
+    // Create schema_migrations table if it doesn't exist
     try {
       await pool.query(`
-        INSERT INTO schema_migrations (filename, executed_at) 
-        VALUES ('003-clients-multi-tenant.sql', NOW())
-        ON CONFLICT (filename) DO NOTHING
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+          id SERIAL PRIMARY KEY,
+          filename VARCHAR(255) NOT NULL UNIQUE,
+          executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
       `);
-      fixes.push('Marked 003-clients-multi-tenant.sql as executed');
+      fixes.push('Created schema_migrations table');
     } catch (e) {
-      fixes.push('003 fix failed: ' + e.message);
+      fixes.push('schema_migrations: ' + e.message);
     }
     
-    // Create channel_managers table if it doesn't exist
+    // Drop and recreate channel_managers table properly
+    try {
+      await pool.query('DROP TABLE IF EXISTS channel_manager_requests');
+      await pool.query('DROP TABLE IF EXISTS channel_managers');
+      fixes.push('Dropped old channel_managers tables');
+    } catch (e) {
+      fixes.push('Drop tables: ' + e.message);
+    }
+    
+    // Create channel_managers table fresh
     try {
       await pool.query(`
-        CREATE TABLE IF NOT EXISTS channel_managers (
+        CREATE TABLE channel_managers (
           id SERIAL PRIMARY KEY,
           name VARCHAR(100) NOT NULL,
           slug VARCHAR(100) NOT NULL UNIQUE,
@@ -241,7 +252,7 @@ app.get('/api/debug/fix-migrations', async (req, res) => {
       `);
       fixes.push('Created channel_managers table');
     } catch (e) {
-      fixes.push('channel_managers table: ' + e.message);
+      fixes.push('Create channel_managers: ' + e.message);
     }
     
     // Insert seed data
@@ -249,24 +260,52 @@ app.get('/api/debug/fix-migrations', async (req, res) => {
       await pool.query(`
         INSERT INTO channel_managers (name, slug, type, status, website_url, market_focus, regions, priority, description) VALUES
         ('Beds24', 'beds24', 'pms_cm', 'live', 'https://beds24.com', 'All', 'Global', 100, 'PMS + channel manager'),
-        ('Hostaway', 'hostaway', 'vr_allinone', 'live', 'https://hostaway.com', 'VR', 'Global', 100, 'All-in-one vacation rental software')
-        ON CONFLICT (slug) DO NOTHING
+        ('Hostaway', 'hostaway', 'vr_allinone', 'live', 'https://hostaway.com', 'VR', 'Global', 100, 'All-in-one vacation rental software'),
+        ('Guesty', 'guesty', 'vr_pms', 'not_started', 'https://guesty.com', 'VR', 'Global', 90, 'Large VR PMS'),
+        ('Cloudbeds', 'cloudbeds', 'pms_cm', 'not_started', 'https://cloudbeds.com', 'Hotels', 'Global', 88, 'PMS + channel manager'),
+        ('Lodgify', 'lodgify', 'vr_cm', 'not_started', 'https://lodgify.com', 'VR', 'Global', 86, 'VR software + website builder'),
+        ('Smoobu', 'smoobu', 'vr_pms', 'not_started', 'https://smoobu.com', 'VR', 'Europe', 84, 'VR PMS + channel manager'),
+        ('OwnerRez', 'ownerrez', 'vr_cm', 'not_started', 'https://ownerrez.com', 'VR', 'US', 83, 'Vacation rental software')
       `);
-      fixes.push('Seeded Beds24 and Hostaway');
+      fixes.push('Seeded channel managers data');
     } catch (e) {
       fixes.push('Seed data: ' + e.message);
     }
     
-    // Mark 008 as executed
+    // Create channel_manager_requests table
     try {
       await pool.query(`
-        INSERT INTO schema_migrations (filename, executed_at) 
-        VALUES ('008_channel_managers.sql', NOW())
+        CREATE TABLE IF NOT EXISTS channel_manager_requests (
+          id SERIAL PRIMARY KEY,
+          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+          property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+          channel_manager_id INTEGER REFERENCES channel_managers(id) ON DELETE SET NULL,
+          cm_name_other VARCHAR(100),
+          status VARCHAR(50) DEFAULT 'pending',
+          api_access_status VARCHAR(50) DEFAULT 'unknown',
+          notes TEXT,
+          admin_notes TEXT,
+          requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          completed_at TIMESTAMP
+        )
+      `);
+      fixes.push('Created channel_manager_requests table');
+    } catch (e) {
+      fixes.push('Create requests table: ' + e.message);
+    }
+    
+    // Mark migrations as executed
+    try {
+      await pool.query(`
+        INSERT INTO schema_migrations (filename) VALUES 
+        ('003-clients-multi-tenant.sql'),
+        ('008_channel_managers.sql')
         ON CONFLICT (filename) DO NOTHING
       `);
-      fixes.push('Marked 008_channel_managers.sql as executed');
+      fixes.push('Marked migrations as executed');
     } catch (e) {
-      fixes.push('008 fix failed: ' + e.message);
+      fixes.push('Mark migrations: ' + e.message);
     }
     
     res.json({ success: true, fixes });
