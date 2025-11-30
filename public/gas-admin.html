@@ -3602,6 +3602,99 @@
         </div>
     </div>
 
+    <!-- Bulk Min Stay Modal -->
+    <div id="bulkMinStayModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #16a34a 0%, #15803d 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">📏 Bulk Min Stay Editor</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Update minimum stays across multiple dates and rooms</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('bulkMinStayModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <!-- Min Stay Value -->
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                        Min Stay Nights <span style="color: #ef4444;">*</span>
+                    </label>
+                    <input type="number" id="bulk-min-stay-value" class="form-input" min="1" max="30" value="2"
+                        style="padding: 0.75rem; border-radius: 8px; font-size: 1.1rem; font-weight: 600; width: 100px;">
+                </div>
+                
+                <!-- Date Range -->
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                    <label style="font-weight: 600; color: #166534; margin-bottom: 0.75rem; display: block;">
+                        📅 Date Range
+                    </label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div>
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">From</label>
+                            <input type="date" id="bulk-min-stay-from" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">To</label>
+                            <input type="date" id="bulk-min-stay-to" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Days of Week -->
+                <div style="background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                    <label style="font-weight: 600; color: #1e40af; margin-bottom: 0.75rem; display: block;">
+                        📆 Apply to Days
+                    </label>
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.4rem 0.75rem; background: white; border-radius: 6px; cursor: pointer; border: 1px solid #e5e7eb;">
+                            <input type="checkbox" id="bulk-day-1" checked> <span>Mon</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.4rem 0.75rem; background: white; border-radius: 6px; cursor: pointer; border: 1px solid #e5e7eb;">
+                            <input type="checkbox" id="bulk-day-2" checked> <span>Tue</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.4rem 0.75rem; background: white; border-radius: 6px; cursor: pointer; border: 1px solid #e5e7eb;">
+                            <input type="checkbox" id="bulk-day-3" checked> <span>Wed</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.4rem 0.75rem; background: white; border-radius: 6px; cursor: pointer; border: 1px solid #e5e7eb;">
+                            <input type="checkbox" id="bulk-day-4" checked> <span>Thu</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.4rem 0.75rem; background: white; border-radius: 6px; cursor: pointer; border: 1px solid #e5e7eb;">
+                            <input type="checkbox" id="bulk-day-5" checked> <span>Fri</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.4rem 0.75rem; background: #fef3c7; border-radius: 6px; cursor: pointer; border: 1px solid #fde68a;">
+                            <input type="checkbox" id="bulk-day-6" checked> <span>Sat</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.25rem; padding: 0.4rem 0.75rem; background: #fef3c7; border-radius: 6px; cursor: pointer; border: 1px solid #fde68a;">
+                            <input type="checkbox" id="bulk-day-0" checked> <span>Sun</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Room Selection -->
+                <div style="background: #faf5ff; border: 1px solid #e9d5ff; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                    <label style="font-weight: 600; color: #7c3aed; margin-bottom: 0.75rem; display: block;">
+                        🏠 Apply to Rooms
+                    </label>
+                    <div style="margin-bottom: 0.5rem;">
+                        <a href="#" onclick="selectAllBulkRooms(); return false;" style="font-size: 0.85rem; color: #2563eb;">select all</a>
+                        <span style="color: #9ca3af; margin: 0 0.5rem;">|</span>
+                        <a href="#" onclick="deselectAllBulkRooms(); return false;" style="font-size: 0.85rem; color: #2563eb;">deselect all</a>
+                    </div>
+                    <div id="bulk-min-stay-rooms" style="max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; background: white;">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                
+                <!-- Actions -->
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                    <button class="btn btn-secondary" onclick="closeModal('bulkMinStayModal')">Cancel</button>
+                    <button class="btn" onclick="applyBulkMinStay()" style="background: #16a34a; border-color: #16a34a;">
+                        ✓ Apply Min Stay
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script>
         // Navigation
         document.querySelectorAll('.nav-item').forEach(item => {
@@ -5977,6 +6070,9 @@
                             <div style="display: flex; align-items: center; gap: 0.5rem; padding-left: 1.5rem;">
                                 <span style="color: #16a34a;">📏</span>
                                 <span style="color: #166534;">Min Stay</span>
+                                <button type="button" onclick="openBulkMinStayModal()" 
+                                    style="margin-left: 0.5rem; padding: 0.15rem 0.5rem; font-size: 0.7rem; background: #16a34a; color: white; border: none; border-radius: 4px; cursor: pointer;"
+                                    title="Bulk edit min stays">Bulk</button>
                             </div>
                         </td>`;
                 
@@ -6297,6 +6393,169 @@
         // Track offer changes for saving
         const offerChanges = {};
         
+        // ══════════════════════════════════════════════════════════════
+        // BULK MIN STAY FUNCTIONS
+        // ══════════════════════════════════════════════════════════════
+        
+        function openBulkMinStayModal() {
+            // Set default dates (today to 3 months from now)
+            const today = new Date();
+            const threeMonths = new Date();
+            threeMonths.setMonth(threeMonths.getMonth() + 3);
+            
+            document.getElementById('bulk-min-stay-from').value = today.toISOString().split('T')[0];
+            document.getElementById('bulk-min-stay-to').value = threeMonths.toISOString().split('T')[0];
+            
+            // Populate rooms list
+            populateBulkMinStayRooms();
+            
+            // Open modal
+            document.getElementById('bulkMinStayModal').classList.add('active');
+        }
+        
+        async function populateBulkMinStayRooms() {
+            const container = document.getElementById('bulk-min-stay-rooms');
+            container.innerHTML = '<p style="padding: 1rem; color: #6b7280;">Loading rooms...</p>';
+            
+            try {
+                const propsRes = await fetch('/api/properties');
+                const propsData = await propsRes.json();
+                
+                if (!propsData.success || !propsData.data?.length) {
+                    container.innerHTML = '<p style="padding: 1rem; color: #6b7280;">No properties found</p>';
+                    return;
+                }
+                
+                let html = '';
+                for (const prop of propsData.data) {
+                    const roomsRes = await fetch(`/api/properties/${prop.id}/rooms`);
+                    const roomsData = await roomsRes.json();
+                    
+                    if (roomsData.success && roomsData.data?.length) {
+                        html += `<div style="padding: 0.5rem; background: #f8fafc; font-weight: 600; font-size: 0.85rem; border-bottom: 1px solid #e5e7eb;">${prop.name}</div>`;
+                        
+                        for (const room of roomsData.data) {
+                            html += `
+                                <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; cursor: pointer; border-bottom: 1px solid #f1f5f9;">
+                                    <input type="checkbox" class="bulk-room-checkbox" data-room-id="${room.id}" data-property-id="${prop.id}" checked>
+                                    <span style="font-size: 0.9rem;">${room.name}</span>
+                                </label>
+                            `;
+                        }
+                    }
+                }
+                
+                container.innerHTML = html || '<p style="padding: 1rem; color: #6b7280;">No rooms found</p>';
+            } catch (error) {
+                container.innerHTML = '<p style="padding: 1rem; color: #ef4444;">Error loading rooms</p>';
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        function selectAllBulkRooms() {
+            document.querySelectorAll('.bulk-room-checkbox').forEach(cb => cb.checked = true);
+        }
+        
+        function deselectAllBulkRooms() {
+            document.querySelectorAll('.bulk-room-checkbox').forEach(cb => cb.checked = false);
+        }
+        
+        async function applyBulkMinStay() {
+            const minStay = parseInt(document.getElementById('bulk-min-stay-value').value) || 1;
+            const fromDate = new Date(document.getElementById('bulk-min-stay-from').value);
+            const toDate = new Date(document.getElementById('bulk-min-stay-to').value);
+            
+            // Get selected days (0=Sun, 1=Mon, etc.)
+            const selectedDays = [];
+            for (let i = 0; i <= 6; i++) {
+                if (document.getElementById(`bulk-day-${i}`).checked) {
+                    selectedDays.push(i);
+                }
+            }
+            
+            // Get selected rooms
+            const selectedRooms = [];
+            document.querySelectorAll('.bulk-room-checkbox:checked').forEach(cb => {
+                selectedRooms.push({
+                    roomId: cb.dataset.roomId,
+                    propertyId: cb.dataset.propertyId
+                });
+            });
+            
+            if (selectedRooms.length === 0) {
+                alert('Please select at least one room');
+                return;
+            }
+            
+            if (selectedDays.length === 0) {
+                alert('Please select at least one day of the week');
+                return;
+            }
+            
+            // Generate list of dates to update
+            const datesToUpdate = [];
+            const current = new Date(fromDate);
+            while (current <= toDate) {
+                if (selectedDays.includes(current.getDay())) {
+                    datesToUpdate.push(current.toISOString().split('T')[0]);
+                }
+                current.setDate(current.getDate() + 1);
+            }
+            
+            if (datesToUpdate.length === 0) {
+                alert('No dates match your criteria');
+                return;
+            }
+            
+            // Confirm action
+            const confirmMsg = `This will set min stay to ${minStay} night(s) for:\n` +
+                `• ${selectedRooms.length} room(s)\n` +
+                `• ${datesToUpdate.length} date(s)\n\n` +
+                `Continue?`;
+            
+            if (!confirm(confirmMsg)) return;
+            
+            // Apply updates
+            try {
+                let successCount = 0;
+                let errorCount = 0;
+                
+                for (const room of selectedRooms) {
+                    for (const date of datesToUpdate) {
+                        try {
+                            const response = await fetch(`/api/rooms/${room.roomId}/daily-rates`, {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    date: date,
+                                    min_stay: minStay
+                                })
+                            });
+                            
+                            if (response.ok) {
+                                successCount++;
+                            } else {
+                                errorCount++;
+                            }
+                        } catch (e) {
+                            errorCount++;
+                        }
+                    }
+                }
+                
+                alert(`Bulk update complete!\n✓ ${successCount} successful\n✗ ${errorCount} failed`);
+                
+                // Refresh the grid if viewing offers
+                if (typeof loadOffersPricingGrid === 'function') {
+                    loadOffersPricingGrid();
+                }
+                
+                closeModal('bulkMinStayModal');
+            } catch (error) {
+                alert('Error applying bulk update: ' + error.message);
+            }
+        }
+
         // Track standard price restriction changes
         let standardRestrictions = {
             min_nights: 1,
