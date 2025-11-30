@@ -2171,10 +2171,6 @@
                             <h2>Marketing Features & Tags</h2>
                             <p>Define what makes your property special to help travel agents find you</p>
                         </div>
-                        <button class="btn" onclick="aiSuggestFeatures()" style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%);">
-                            <span>🤖</span>
-                            <span>AI Suggest Features</span>
-                        </button>
                     </div>
                 </div>
 
@@ -2197,6 +2193,33 @@
 
                 <!-- Features Content -->
                 <div id="marketing-content" style="display: none;">
+                    
+                    <!-- AI Suggestion Panel -->
+                    <div style="background: linear-gradient(135deg, #8b5cf6 0%, #6366f1 100%); border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; color: white;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <span style="font-size: 1.5rem;">🤖</span>
+                            <h4 style="margin: 0; font-weight: 600;">AI Feature Suggestions</h4>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0.75rem;">
+                            <textarea id="marketing-ai-prompt" rows="2" placeholder="Describe your property... e.g. 'Victorian B&B near the beach, dog-friendly, great for romantic getaways and walking holidays'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <button onclick="aiSuggestFeatures()" style="background: white; color: #8b5cf6; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Suggest Features</button>
+                        </div>
+                    </div>
+                    
+                    <!-- AI Suggestions Results (hidden by default) -->
+                    <div id="ai-suggestions-results" class="card" style="margin-bottom: 1rem; display: none; border: 2px solid #8b5cf6;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🤖</span> AI Suggested Features
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            Click on suggestions to add them to your property
+                        </p>
+                        <div id="ai-suggestions-list" style="display: flex; flex-wrap: wrap; gap: 0.5rem;">
+                            <!-- AI suggestions will appear here -->
+                        </div>
+                    </div>
                     
                     <!-- Activities -->
                     <div class="card" style="margin-bottom: 1rem;">
@@ -6784,86 +6807,267 @@
                 return;
             }
             
-            // Get property details
+            const prompt = document.getElementById('marketing-ai-prompt').value;
+            if (!prompt.trim()) {
+                alert('Please describe your property to get AI suggestions');
+                return;
+            }
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Analyzing...';
+            btn.disabled = true;
+            
             try {
-                const response = await fetch('/api/db/properties');
-                const data = await response.json();
+                // Call the AI API with a special type for marketing features
+                const response = await fetch('/api/ai/generate-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: 'marketing_features', 
+                        property_id: propertyId, 
+                        prompt: prompt 
+                    })
+                });
                 
-                if (!data.success || !data.data) {
-                    alert('Could not load property details');
-                    return;
-                }
+                const result = await response.json();
                 
-                const property = data.data.find(p => p.id == propertyId);
-                
-                if (!property) {
-                    alert('Property not found');
-                    return;
-                }
-                
-                // For now, show a placeholder - in future this would call an AI API
-                const suggestions = analyzePropertyForFeatures(property);
-                
-                if (suggestions.length === 0) {
-                    alert('Add more property details (description, amenities, location) for better AI suggestions.');
-                    return;
-                }
-                
-                const confirmMsg = `🤖 AI Suggestions based on your property:\n\n${suggestions.join('\n')}\n\nWould you like to apply these suggestions?`;
-                
-                if (confirm(confirmMsg)) {
-                    suggestions.forEach(suggestion => {
-                        // Extract feature name from suggestion
-                        const featureName = suggestion.split(' - ')[0].replace(/[🥾🚴🐕💕🏖️⛳🎣🏄🐴⛷️🦅🍷👨‍🍳👨‍👩‍👧‍👦🍸♿👴🏳️‍🌈💼💻🧘🏔️🌿👑💰🏰🎨🌾⛺🏙️🌊🏞️🌲🏘️⚓🏝️⚡🏊🛁🧖🏋️🌳🍖🔥🅿️🍽️]/g, '').trim().toLowerCase().replace(/ /g, '-');
-                        const cb = document.querySelector(`input[data-feature="${featureName}"]`);
-                        if (cb) cb.checked = true;
-                    });
+                if (result.success && result.content) {
+                    // Parse the AI response to extract feature suggestions
+                    displayAISuggestions(result.content);
+                } else {
+                    // Fallback to local analysis if API fails
+                    const localSuggestions = analyzePromptForFeatures(prompt);
+                    if (localSuggestions.length > 0) {
+                        displayAISuggestions(localSuggestions.join('\n'));
+                    } else {
+                        alert('Could not generate suggestions. Try adding more detail to your description.');
+                    }
                 }
             } catch (error) {
-                alert('Error analyzing property. Please try again.');
-                console.error(error);
+                console.error('AI suggestion error:', error);
+                // Fallback to local analysis
+                const localSuggestions = analyzePromptForFeatures(prompt);
+                if (localSuggestions.length > 0) {
+                    displayAISuggestions(localSuggestions.join('\n'));
+                } else {
+                    alert('Error connecting to AI service. Please try again.');
+                }
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
         
-        function analyzePropertyForFeatures(property) {
+        function analyzePromptForFeatures(prompt) {
             const suggestions = [];
-            const desc = (property.description || '').toLowerCase();
-            const name = (property.name || '').toLowerCase();
-            const amenities = (property.amenities || []).map(a => a.toLowerCase());
+            const text = prompt.toLowerCase();
             
-            // Simple keyword matching - would be replaced by actual AI
-            if (desc.includes('pet') || desc.includes('dog') || desc.includes('cat')) {
-                suggestions.push('🐕 Pet Friendly - mentions pets in description');
+            // Activities
+            if (text.includes('walk') || text.includes('hik') || text.includes('trail')) {
+                suggestions.push('walking|🥾 Walking / Hiking');
             }
-            if (desc.includes('walk') || desc.includes('hik') || desc.includes('trail')) {
-                suggestions.push('🥾 Walking / Hiking - mentions walks or trails');
+            if (text.includes('cycl') || text.includes('bike') || text.includes('bicycle')) {
+                suggestions.push('cycling|🚴 Cycling');
             }
-            if (desc.includes('cycl') || desc.includes('bike') || desc.includes('bicycle')) {
-                suggestions.push('🚴 Cycling - mentions cycling or bikes');
+            if (text.includes('golf')) {
+                suggestions.push('golf|⛳ Golf');
             }
-            if (desc.includes('beach') || desc.includes('sea') || desc.includes('ocean')) {
-                suggestions.push('🏖️ Beachfront - mentions beach or sea');
+            if (text.includes('fish')) {
+                suggestions.push('fishing|🎣 Fishing');
             }
-            if (desc.includes('romantic') || desc.includes('couples') || desc.includes('honeymoon')) {
-                suggestions.push('💕 Romantic / Couples - mentions romantic getaways');
+            if (text.includes('surf') || text.includes('water sport') || text.includes('kayak') || text.includes('sail')) {
+                suggestions.push('water-sports|🏄 Water Sports');
             }
-            if (desc.includes('family') || desc.includes('children') || desc.includes('kids')) {
-                suggestions.push('👨‍👩‍👧‍👦 Family Friendly - mentions families or children');
+            if (text.includes('horse') || text.includes('riding') || text.includes('equestrian')) {
+                suggestions.push('horse-riding|🐴 Horse Riding');
             }
-            if (desc.includes('countryside') || desc.includes('rural') || desc.includes('farm')) {
-                suggestions.push('🌄 Countryside - mentions rural setting');
+            if (text.includes('ski') || text.includes('snow') || text.includes('winter sport')) {
+                suggestions.push('skiing|⛷️ Skiing / Winter Sports');
             }
-            if (desc.includes('pool') || amenities.some(a => a.includes('pool'))) {
-                suggestions.push('🏊 Swimming Pool - has pool');
+            if (text.includes('bird') || text.includes('wildlife') || text.includes('nature')) {
+                suggestions.push('birdwatching|🦅 Birdwatching / Wildlife');
             }
-            if (desc.includes('garden') || amenities.some(a => a.includes('garden'))) {
-                suggestions.push('🌳 Garden - has garden');
+            if (text.includes('wine') || text.includes('vineyard')) {
+                suggestions.push('wine-tasting|🍷 Wine Tasting');
             }
-            if (desc.includes('historic') || desc.includes('heritage') || desc.includes('century')) {
-                suggestions.push('🏰 Historic / Heritage - mentions history');
+            if (text.includes('cook') || text.includes('culinary') || text.includes('food')) {
+                suggestions.push('cooking-classes|👨‍🍳 Cooking Classes');
+            }
+            
+            // Guest Types
+            if (text.includes('pet') || text.includes('dog') || text.includes('cat')) {
+                suggestions.push('pet-friendly|🐕 Pet Friendly');
+            }
+            if (text.includes('family') || text.includes('children') || text.includes('kids')) {
+                suggestions.push('family-friendly|👨‍👩‍👧‍👦 Family Friendly');
+            }
+            if (text.includes('adult only') || text.includes('adults only') || text.includes('no children')) {
+                suggestions.push('adults-only|🍸 Adults Only');
+            }
+            if (text.includes('wheelchair') || text.includes('accessible') || text.includes('mobility')) {
+                suggestions.push('wheelchair-accessible|♿ Wheelchair Accessible');
+            }
+            if (text.includes('business') || text.includes('corporate') || text.includes('conference')) {
+                suggestions.push('business-travelers|💼 Business Travelers');
+            }
+            if (text.includes('remote work') || text.includes('digital nomad') || text.includes('work from')) {
+                suggestions.push('digital-nomads|💻 Digital Nomads');
+            }
+            
+            // Themes
+            if (text.includes('romantic') || text.includes('couples') || text.includes('honeymoon') || text.includes('anniversary')) {
+                suggestions.push('romantic|💕 Romantic / Couples');
+            }
+            if (text.includes('spa') || text.includes('wellness') || text.includes('yoga') || text.includes('meditation')) {
+                suggestions.push('wellness-spa|🧘 Wellness / Spa');
+            }
+            if (text.includes('adventure') || text.includes('outdoor') || text.includes('active')) {
+                suggestions.push('adventure|🏔️ Adventure');
+            }
+            if (text.includes('eco') || text.includes('sustainable') || text.includes('green') || text.includes('organic')) {
+                suggestions.push('eco-friendly|🌿 Eco-Friendly / Sustainable');
+            }
+            if (text.includes('luxury') || text.includes('premium') || text.includes('upscale') || text.includes('5 star')) {
+                suggestions.push('luxury|👑 Luxury');
+            }
+            if (text.includes('budget') || text.includes('affordable') || text.includes('cheap') || text.includes('value')) {
+                suggestions.push('budget-friendly|💰 Budget Friendly');
+            }
+            if (text.includes('historic') || text.includes('heritage') || text.includes('victorian') || text.includes('period')) {
+                suggestions.push('historic|🏰 Historic / Heritage');
+            }
+            if (text.includes('boutique') || text.includes('unique') || text.includes('character')) {
+                suggestions.push('boutique|🎨 Boutique / Unique');
+            }
+            if (text.includes('farm') || text.includes('agri') || text.includes('rural retreat')) {
+                suggestions.push('farm-stay|🌾 Farm Stay / Agritourism');
+            }
+            if (text.includes('glamping') || text.includes('tent') || text.includes('yurt') || text.includes('treehouse')) {
+                suggestions.push('glamping|⛺ Glamping');
+            }
+            
+            // Location
+            if (text.includes('beach') || text.includes('seafront') || text.includes('oceanfront')) {
+                suggestions.push('beachfront|🏖️ Beachfront');
+            }
+            if (text.includes('mountain') || text.includes('hill') || text.includes('peak')) {
+                suggestions.push('mountain-view|🏔️ Mountain View');
+            }
+            if (text.includes('countryside') || text.includes('rural') || text.includes('pastoral')) {
+                suggestions.push('countryside|🌄 Countryside');
+            }
+            if (text.includes('city') || text.includes('urban') || text.includes('downtown') || text.includes('town centre')) {
+                suggestions.push('city-centre|🏙️ City Centre');
+            }
+            if (text.includes('lake') || text.includes('loch')) {
+                suggestions.push('lakeside|🌊 Lakeside');
+            }
+            if (text.includes('river')) {
+                suggestions.push('riverside|🏞️ Riverside');
+            }
+            if (text.includes('forest') || text.includes('woodland') || text.includes('woods')) {
+                suggestions.push('forest|🌲 Forest / Woodland');
+            }
+            if (text.includes('village') || text.includes('hamlet')) {
+                suggestions.push('village|🏘️ Village / Rural');
+            }
+            if (text.includes('coast') || text.includes('seaside') || text.includes('sea view')) {
+                suggestions.push('coastal|⚓ Coastal');
+            }
+            if (text.includes('island')) {
+                suggestions.push('island|🏝️ Island');
+            }
+            
+            // Amenities
+            if (text.includes('ev') || text.includes('electric car') || text.includes('charging')) {
+                suggestions.push('ev-charging|⚡ EV Charging');
+            }
+            if (text.includes('pool') || text.includes('swimming')) {
+                suggestions.push('swimming-pool|🏊 Swimming Pool');
+            }
+            if (text.includes('hot tub') || text.includes('jacuzzi') || text.includes('spa bath')) {
+                suggestions.push('hot-tub|🛁 Hot Tub / Jacuzzi');
+            }
+            if (text.includes('sauna')) {
+                suggestions.push('sauna|🧖 Sauna');
+            }
+            if (text.includes('gym') || text.includes('fitness')) {
+                suggestions.push('gym|🏋️ Gym / Fitness');
+            }
+            if (text.includes('garden')) {
+                suggestions.push('garden|🌳 Garden');
+            }
+            if (text.includes('bbq') || text.includes('barbecue') || text.includes('grill')) {
+                suggestions.push('bbq|🍖 BBQ Area');
+            }
+            if (text.includes('fireplace') || text.includes('log fire') || text.includes('wood burner')) {
+                suggestions.push('fireplace|🔥 Fireplace');
+            }
+            if (text.includes('parking')) {
+                suggestions.push('private-parking|🅿️ Private Parking');
+            }
+            if (text.includes('restaurant') || text.includes('dining') || text.includes('breakfast')) {
+                suggestions.push('restaurant|🍽️ On-site Restaurant');
             }
             
             return suggestions;
+        }
+        
+        function displayAISuggestions(content) {
+            const container = document.getElementById('ai-suggestions-list');
+            const resultsDiv = document.getElementById('ai-suggestions-results');
+            
+            let suggestions = [];
+            
+            // If content is already in our format (feature|label)
+            if (content.includes('|')) {
+                suggestions = content.split('\n').filter(s => s.includes('|'));
+            } else {
+                // Parse AI text response to extract features
+                suggestions = analyzePromptForFeatures(content);
+            }
+            
+            if (suggestions.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary);">No specific features detected. Try adding more detail to your description.</p>';
+                resultsDiv.style.display = 'block';
+                return;
+            }
+            
+            let html = '';
+            suggestions.forEach(s => {
+                const [featureKey, label] = s.split('|');
+                html += `
+                    <button type="button" class="ai-suggestion-btn" onclick="applySuggestion('${featureKey}')" 
+                        style="padding: 0.5rem 1rem; background: #f0fdf4; border: 1px solid #86efac; border-radius: 20px; cursor: pointer; font-size: 0.9rem; transition: all 0.2s;">
+                        ${label} <span style="color: #16a34a;">+ Add</span>
+                    </button>
+                `;
+            });
+            
+            container.innerHTML = html;
+            resultsDiv.style.display = 'block';
+        }
+        
+        function applySuggestion(featureKey) {
+            const checkbox = document.querySelector(`input[data-feature="${featureKey}"]`);
+            if (checkbox) {
+                checkbox.checked = true;
+                // Visual feedback
+                const btn = event.target.closest('.ai-suggestion-btn');
+                if (btn) {
+                    btn.style.background = '#dcfce7';
+                    btn.style.borderColor = '#22c55e';
+                    btn.innerHTML = btn.innerHTML.replace('+ Add', '✓ Added');
+                    btn.disabled = true;
+                }
+            } else {
+                // It's a custom feature, add it
+                if (!customFeatures.includes(featureKey)) {
+                    customFeatures.push(featureKey);
+                    renderCustomFeatures();
+                }
+            }
         }
 
         // ══════════════════════════════════════════════════════════════
