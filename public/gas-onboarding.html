@@ -1253,7 +1253,7 @@
                 
                 // Replace placeholders
                 message = message.replace('{propertyName}', userData.propertyName || 'your property');
-                message = message.replace('{propertyCount}', document.getElementById('stat-properties').textContent);
+                message = message.replace('{propertyCount}', 'a growing number of');
 
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'chat-message ai';
