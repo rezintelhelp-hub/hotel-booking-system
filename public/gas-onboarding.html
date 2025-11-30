@@ -867,11 +867,14 @@
                     Now onboarding independent properties
                 </div>
                 <h1>
-                    Stop Paying<br>
-                    <span class="highlight">Crazy Commissions</span>
+                    Take Back<br>
+                    <span class="highlight">Control</span>
                 </h1>
+                <h2 style="font-size: 1.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 1.5rem; letter-spacing: -0.5px;">
+                    Pay Less. Keep More.
+                </h2>
                 <p>
-                    Join the network of independent hotels, hostels and vacation rental owners who are taking back control. List for free. Let travel agents find you. Set your own terms.
+                    Join the network of independent hotels, hostels and vacation rental owners who are taking back control. List for free. Let independent travel agents, tour operators and local tourist groups find you. Your rooms. Your terms.
                 </p>
                 <div class="hero-buttons">
                     <button class="btn btn-primary btn-large" onclick="openChat()">
@@ -883,16 +886,16 @@
                 </div>
                 <div class="hero-stats">
                     <div class="hero-stat">
-                        <div class="hero-stat-value" id="stat-properties">0</div>
-                        <div class="hero-stat-label">Properties</div>
+                        <div class="hero-stat-value">Free</div>
+                        <div class="hero-stat-label">To List</div>
                     </div>
                     <div class="hero-stat">
-                        <div class="hero-stat-value" id="stat-countries">0</div>
-                        <div class="hero-stat-label">Countries</div>
+                        <div class="hero-stat-value">0%</div>
+                        <div class="hero-stat-label">Commission</div>
                     </div>
                     <div class="hero-stat">
-                        <div class="hero-stat-value">£0</div>
-                        <div class="hero-stat-label">Commission to List</div>
+                        <div class="hero-stat-value">100%</div>
+                        <div class="hero-stat-label">Your Control</div>
                     </div>
                 </div>
             </div>
@@ -974,8 +977,8 @@
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🔄</div>
-                    <h3>Agents Come To You</h3>
-                    <p>Instead of paying to be found, travel agents actively search for properties like yours. They approach you.</p>
+                    <h3>They Come To You</h3>
+                    <p>Independent travel agents, tour operators and local tourist groups actively search for properties like yours. They approach you.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🤝</div>
@@ -985,7 +988,7 @@
                 <div class="feature-card">
                     <div class="feature-icon">🌍</div>
                     <h3>Global Network</h3>
-                    <p>Independent travel agents from around the world, looking for quality accommodation for their clients.</p>
+                    <p>Independent travel agents, tour operators and tourist organisations worldwide, looking for quality accommodation for their clients.</p>
                 </div>
                 <div class="feature-card">
                     <div class="feature-icon">🏠</div>
@@ -1004,8 +1007,8 @@
     <!-- CTA Section -->
     <section class="cta">
         <div class="section-container">
-            <h2>Ready to Pay Less Commission?</h2>
-            <p>Join hundreds of independent hotels, hostels and vacation rental owners who are building something different.</p>
+            <h2>Ready to Take Back Control?</h2>
+            <p>Join independent hotels, hostels and vacation rental owners who are doing things differently.</p>
             <button class="btn" onclick="openChat()">
                 Start Your Free Listing →
             </button>
@@ -1289,16 +1292,7 @@
 
         // Run on page load
         document.addEventListener('DOMContentLoaded', () => {
-            // Animate stats when they come into view
-            const observer = new IntersectionObserver((entries) => {
-                entries.forEach(entry => {
-                    if (entry.isIntersecting) {
-                        animateStats();
-                        observer.disconnect();
-                    }
-                });
-            });
-            observer.observe(document.querySelector('.hero-stats'));
+            // Page ready
         });
 
         // Smooth scroll for anchor links
