@@ -3,603 +3,747 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connect Hostaway - GAS</title>
+    <title>Connect Hostaway - GAS Booking</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
         body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            font-family: 'Inter', sans-serif;
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             min-height: 100vh;
-            padding: 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
         }
-        .container {
-            max-width: 800px;
-            margin: 0 auto;
+        
+        .wizard-container {
+            background: white;
+            border-radius: 24px;
+            box-shadow: 0 25px 80px rgba(0,0,0,0.15);
+            max-width: 600px;
+            width: 100%;
+            overflow: hidden;
         }
-        .header {
+        
+        .wizard-header {
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            padding: 40px;
             text-align: center;
-            margin-bottom: 2rem;
             color: white;
         }
-        .header h1 {
-            font-size: 2rem;
-            margin-bottom: 0.5rem;
+        
+        .wizard-header h1 {
+            font-size: 1.75rem;
+            font-weight: 700;
+            margin-bottom: 8px;
         }
-        .header p {
+        
+        .wizard-header p {
             opacity: 0.9;
+            font-size: 1rem;
         }
-        .card {
+        
+        .channel-logo {
+            width: 80px;
+            height: 80px;
             background: white;
-            border-radius: 12px;
-            padding: 2rem;
-            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
-            margin-bottom: 1.5rem;
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 20px;
+            font-weight: bold;
+            font-size: 0.8rem;
+            color: #7c3aed;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
         }
+        
+        .wizard-body {
+            padding: 40px;
+        }
+        
         .step {
             display: none;
         }
+        
         .step.active {
             display: block;
         }
-        .step-header {
+        
+        .step-indicators {
             display: flex;
-            align-items: center;
-            margin-bottom: 1.5rem;
-            padding-bottom: 1rem;
-            border-bottom: 2px solid #e5e7eb;
-        }
-        .step-number {
-            width: 36px;
-            height: 36px;
-            background: #1e3a5f;
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
             justify-content: center;
-            font-weight: bold;
-            margin-right: 1rem;
+            gap: 12px;
+            margin-bottom: 32px;
         }
+        
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            transition: all 0.3s;
+        }
+        
+        .step-dot.active {
+            background: #7c3aed;
+            transform: scale(1.2);
+        }
+        
+        .step-dot.completed {
+            background: #22c55e;
+        }
+        
         .step-title {
             font-size: 1.25rem;
             font-weight: 600;
-            color: #1f2937;
+            color: #1e293b;
+            margin-bottom: 8px;
         }
+        
+        .step-description {
+            color: #64748b;
+            margin-bottom: 24px;
+            line-height: 1.6;
+        }
+        
         .form-group {
-            margin-bottom: 1.5rem;
+            margin-bottom: 20px;
         }
+        
         .form-group label {
             display: block;
-            margin-bottom: 0.5rem;
-            font-weight: 500;
+            font-weight: 600;
             color: #374151;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
         }
+        
         .form-group input {
             width: 100%;
-            padding: 0.75rem 1rem;
+            padding: 14px 16px;
             border: 2px solid #e5e7eb;
-            border-radius: 8px;
+            border-radius: 12px;
             font-size: 1rem;
-            transition: border-color 0.2s;
-        }
-        .form-group input:focus {
-            outline: none;
-            border-color: #1e3a5f;
-        }
-        .help-text {
-            font-size: 0.85rem;
-            color: #6b7280;
-            margin-top: 0.5rem;
-        }
-        .btn {
-            padding: 0.75rem 1.5rem;
-            border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
-            cursor: pointer;
             transition: all 0.2s;
         }
+        
+        .form-group input:focus {
+            outline: none;
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+        }
+        
+        .help-text {
+            background: #f5f3ff;
+            border: 1px solid #c4b5fd;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 24px;
+            font-size: 0.9rem;
+            color: #5b21b6;
+        }
+        
+        .help-text a {
+            color: #7c3aed;
+            font-weight: 600;
+        }
+        
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 28px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: none;
+        }
+        
         .btn-primary {
-            background: #1e3a5f;
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
             color: white;
+            width: 100%;
         }
+        
         .btn-primary:hover {
-            background: #2d5a87;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4);
         }
-        .btn-secondary {
-            background: #e5e7eb;
-            color: #374151;
-        }
-        .btn-secondary:hover {
-            background: #d1d5db;
-        }
-        .btn:disabled {
-            opacity: 0.5;
+        
+        .btn-primary:disabled {
+            opacity: 0.6;
             cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
         }
-        .btn-group {
-            display: flex;
-            gap: 1rem;
-            margin-top: 1.5rem;
+        
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
         }
-        .status {
-            padding: 1rem;
-            border-radius: 8px;
-            margin-bottom: 1rem;
+        
+        .btn-secondary:hover {
+            background: #e2e8f0;
         }
-        .status.success {
-            background: #d1fae5;
-            color: #065f46;
+        
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
         }
-        .status.error {
-            background: #fee2e2;
-            color: #991b1b;
+        
+        .success-message {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            color: #16a34a;
+            padding: 14px 16px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-size: 0.9rem;
+            display: none;
         }
-        .status.info {
-            background: #dbeafe;
-            color: #1e40af;
-        }
-        .properties-list {
+        
+        .property-list {
             max-height: 400px;
             overflow-y: auto;
-            border: 1px solid #e5e7eb;
-            border-radius: 8px;
+            border: 2px solid #e5e7eb;
+            border-radius: 16px;
+            margin-bottom: 24px;
         }
+        
         .property-item {
             display: flex;
             align-items: center;
-            padding: 1rem;
-            border-bottom: 1px solid #e5e7eb;
+            gap: 16px;
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f5f9;
             cursor: pointer;
             transition: background 0.2s;
         }
-        .property-item:hover {
-            background: #f9fafb;
-        }
+        
         .property-item:last-child {
             border-bottom: none;
         }
-        .property-item input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            margin-right: 1rem;
+        
+        .property-item:hover {
+            background: #f8fafc;
         }
-        .property-info {
-            flex: 1;
+        
+        .property-item.selected {
+            background: #f5f3ff;
+            border-color: #c4b5fd;
         }
-        .property-name {
-            font-weight: 500;
-            color: #1f2937;
-        }
-        .property-details {
-            font-size: 0.85rem;
-            color: #6b7280;
-        }
-        .property-id {
-            font-size: 0.8rem;
-            color: #9ca3af;
-            background: #f3f4f6;
-            padding: 0.25rem 0.5rem;
-            border-radius: 4px;
-        }
-        .progress-steps {
-            display: flex;
-            justify-content: center;
-            margin-bottom: 2rem;
-        }
-        .progress-step {
+        
+        .property-checkbox {
+            width: 22px;
+            height: 22px;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
             display: flex;
             align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
         }
-        .progress-dot {
-            width: 12px;
-            height: 12px;
-            border-radius: 50%;
-            background: rgba(255,255,255,0.3);
+        
+        .property-item.selected .property-checkbox {
+            background: #7c3aed;
+            border-color: #7c3aed;
         }
-        .progress-dot.active {
-            background: white;
+        
+        .property-checkbox svg {
+            width: 14px;
+            height: 14px;
+            stroke: white;
+            stroke-width: 3;
+            opacity: 0;
+            transition: opacity 0.2s;
         }
-        .progress-dot.completed {
-            background: #10b981;
+        
+        .property-item.selected .property-checkbox svg {
+            opacity: 1;
         }
-        .progress-line {
-            width: 60px;
-            height: 2px;
-            background: rgba(255,255,255,0.3);
-            margin: 0 0.5rem;
+        
+        .property-info {
+            flex: 1;
+            min-width: 0;
         }
-        .progress-line.completed {
-            background: #10b981;
+        
+        .property-name {
+            font-weight: 600;
+            color: #1e293b;
+            margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
-        .logo {
-            font-size: 3rem;
-            margin-bottom: 1rem;
+        
+        .property-details {
+            font-size: 0.85rem;
+            color: #64748b;
         }
-        .webhook-url {
-            background: #f3f4f6;
-            padding: 1rem;
-            border-radius: 8px;
-            font-family: monospace;
-            font-size: 0.9rem;
-            word-break: break-all;
-            margin: 1rem 0;
+        
+        .selection-controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 16px;
         }
-        .copy-btn {
-            background: #1e3a5f;
-            color: white;
+        
+        .selection-controls button {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            background: #f1f5f9;
             border: none;
-            padding: 0.5rem 1rem;
-            border-radius: 4px;
+            border-radius: 8px;
+            color: #475569;
             cursor: pointer;
-            font-size: 0.85rem;
+            transition: background 0.2s;
         }
-        .copy-btn:hover {
-            background: #2d5a87;
+        
+        .selection-controls button:hover {
+            background: #e2e8f0;
         }
-        .rooms-list {
-            margin-top: 0.5rem;
-            padding-left: 2.5rem;
-            font-size: 0.85rem;
-            color: #6b7280;
+        
+        .progress-container {
+            margin-bottom: 32px;
+        }
+        
+        .progress-bar {
+            height: 12px;
+            background: #e5e7eb;
+            border-radius: 100px;
+            overflow: hidden;
+            margin-bottom: 12px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            border-radius: 100px;
+            transition: width 0.3s ease;
+            width: 0%;
+        }
+        
+        .progress-text {
+            text-align: center;
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .completion-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+        
+        .completion-icon svg {
+            width: 40px;
+            height: 40px;
+            stroke: white;
+            stroke-width: 3;
+        }
+        
+        .completion-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        
+        .completion-description {
+            color: #64748b;
+            text-align: center;
+            margin-bottom: 32px;
+        }
+        
+        .back-link {
+            display: block;
+            text-align: center;
+            margin-top: 20px;
+            color: #64748b;
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+        
+        .back-link:hover {
+            color: #7c3aed;
+        }
+        
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .loading-card {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #7c3aed;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <div class="logo">🏠</div>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <div class="channel-logo">Hostaway</div>
             <h1>Connect Hostaway</h1>
-            <p>Link your Hostaway account to sync properties, availability, and bookings</p>
+            <p>Import your properties from Hostaway</p>
         </div>
-
-        <div class="progress-steps">
-            <div class="progress-step">
-                <div class="progress-dot active" id="dot-1"></div>
-            </div>
-            <div class="progress-line" id="line-1"></div>
-            <div class="progress-step">
-                <div class="progress-dot" id="dot-2"></div>
-            </div>
-            <div class="progress-line" id="line-2"></div>
-            <div class="progress-step">
-                <div class="progress-dot" id="dot-3"></div>
-            </div>
-            <div class="progress-line" id="line-3"></div>
-            <div class="progress-step">
-                <div class="progress-dot" id="dot-4"></div>
-            </div>
-        </div>
-
-        <!-- Step 1: Enter Credentials -->
-        <div class="card step active" id="step-1">
-            <div class="step-header">
-                <div class="step-number">1</div>
-                <div class="step-title">Enter Hostaway Credentials</div>
+        
+        <div class="wizard-body">
+            <div class="step-indicators">
+                <div class="step-dot active" data-step="1"></div>
+                <div class="step-dot" data-step="2"></div>
+                <div class="step-dot" data-step="3"></div>
             </div>
             
-            <div id="step1-status"></div>
-            
-            <div class="form-group">
-                <label for="accountId">Account ID</label>
-                <input type="text" id="accountId" placeholder="e.g., 140206">
+            <!-- Step 1: Enter API Credentials -->
+            <div class="step active" id="step1">
+                <h2 class="step-title">Enter Your API Credentials</h2>
+                <p class="step-description">Connect your Hostaway account using your API credentials.</p>
+                
                 <div class="help-text">
-                    Find this in Hostaway Dashboard → Settings → Account
+                    <strong>How to get your API credentials:</strong><br>
+                    1. Log in to <a href="https://dashboard.hostaway.com" target="_blank">Hostaway Dashboard</a><br>
+                    2. Go to Settings → API<br>
+                    3. Copy your Account ID and API Key
                 </div>
-            </div>
-            
-            <div class="form-group">
-                <label for="clientSecret">Client Secret</label>
-                <input type="password" id="clientSecret" placeholder="Enter your API client secret">
-                <div class="help-text">
-                    Generate this in Hostaway Dashboard → Settings → API
+                
+                <div class="error-message" id="error1"></div>
+                <div class="success-message" id="success1"></div>
+                
+                <div class="form-group">
+                    <label for="accountId">Account ID</label>
+                    <input type="text" id="accountId" placeholder="Enter your Hostaway Account ID">
                 </div>
-            </div>
-            
-            <div class="btn-group">
-                <button class="btn btn-secondary" onclick="window.location.href='/gas-admin.html'">Cancel</button>
-                <button class="btn btn-primary" onclick="connectHostaway()">Connect to Hostaway</button>
-            </div>
-        </div>
-
-        <!-- Step 2: Select Properties -->
-        <div class="card step" id="step-2">
-            <div class="step-header">
-                <div class="step-number">2</div>
-                <div class="step-title">Select Properties to Import</div>
-            </div>
-            
-            <div id="step2-status"></div>
-            
-            <p style="margin-bottom: 1rem; color: #6b7280;">Select the properties you want to manage in GAS:</p>
-            
-            <div class="properties-list" id="properties-list">
-                <div style="padding: 2rem; text-align: center; color: #6b7280;">
-                    Loading properties...
+                
+                <div class="form-group">
+                    <label for="apiKey">API Key</label>
+                    <input type="text" id="apiKey" placeholder="Enter your Hostaway API Key">
                 </div>
+                
+                <button class="btn btn-primary" id="connectBtn" onclick="connectHostaway()">
+                    <span>Connect to Hostaway</span>
+                </button>
+                
+                <a href="/gas-admin-clean.html" class="back-link">← Back to Dashboard</a>
             </div>
             
-            <div class="btn-group">
-                <button class="btn btn-secondary" onclick="goToStep(1)">Back</button>
-                <button class="btn btn-primary" onclick="importProperties()" id="import-btn" disabled>Import Selected</button>
-            </div>
-        </div>
-
-        <!-- Step 3: Configure Webhook -->
-        <div class="card step" id="step-3">
-            <div class="step-header">
-                <div class="step-number">3</div>
-                <div class="step-title">Configure Webhook (Optional)</div>
-            </div>
-            
-            <div id="step3-status"></div>
-            
-            <p style="margin-bottom: 1rem; color: #374151;">
-                To receive real-time updates when bookings are created or modified in Hostaway, 
-                configure the webhook URL in your Hostaway dashboard:
-            </p>
-            
-            <div class="webhook-url" id="webhook-url">
-                https://hotel-booking-system-production-d6db.up.railway.app/api/webhooks/hostaway
-            </div>
-            
-            <button class="copy-btn" onclick="copyWebhookUrl()">📋 Copy URL</button>
-            
-            <div style="margin-top: 1.5rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
-                <strong>Setup Instructions:</strong>
-                <ol style="margin-top: 0.5rem; padding-left: 1.5rem; color: #92400e;">
-                    <li>Go to Hostaway Dashboard → Settings → Integrations</li>
-                    <li>Find "Unified Webhooks" section</li>
-                    <li>Add new webhook with the URL above</li>
-                    <li>Enable: reservation created, reservation updated</li>
-                </ol>
+            <!-- Step 2: Select Properties -->
+            <div class="step" id="step2">
+                <h2 class="step-title">Select Properties to Import</h2>
+                <p class="step-description">Choose which listings you want to import from Hostaway.</p>
+                
+                <div class="error-message" id="error2"></div>
+                
+                <div class="selection-controls">
+                    <button onclick="selectAll()">Select All</button>
+                    <button onclick="deselectAll()">Deselect All</button>
+                </div>
+                
+                <div class="property-list" id="propertyList">
+                    <!-- Properties will be loaded here -->
+                </div>
+                
+                <button class="btn btn-primary" id="importBtn" onclick="importProperties()" disabled>
+                    <span>Import Selected Properties</span>
+                </button>
+                
+                <a href="#" class="back-link" onclick="goToStep(1); return false;">← Back to Credentials</a>
             </div>
             
-            <div class="btn-group">
-                <button class="btn btn-secondary" onclick="goToStep(2)">Back</button>
-                <button class="btn btn-primary" onclick="goToStep(4)">Continue</button>
-            </div>
-        </div>
-
-        <!-- Step 4: Complete -->
-        <div class="card step" id="step-4">
-            <div class="step-header">
-                <div class="step-number">✓</div>
-                <div class="step-title">Setup Complete!</div>
-            </div>
-            
-            <div class="status success">
-                <strong>🎉 Hostaway Connected Successfully!</strong>
-                <p style="margin-top: 0.5rem;">Your properties have been imported and are ready to sync.</p>
-            </div>
-            
-            <div id="import-summary"></div>
-            
-            <div class="btn-group">
-                <button class="btn btn-primary" onclick="window.location.href='/gas-admin.html'">Go to Admin Dashboard</button>
-                <button class="btn btn-secondary" onclick="syncAvailability()">Sync Availability Now</button>
+            <!-- Step 3: Import Progress / Complete -->
+            <div class="step" id="step3">
+                <div id="importProgress">
+                    <h2 class="step-title">Importing Properties</h2>
+                    <p class="step-description">Please wait while we import your properties...</p>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar">
+                            <div class="progress-fill" id="progressFill"></div>
+                        </div>
+                        <div class="progress-text" id="progressText">Preparing import...</div>
+                    </div>
+                </div>
+                
+                <div id="importComplete" style="display: none;">
+                    <div class="completion-icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <h2 class="completion-title">Import Complete!</h2>
+                    <p class="completion-description" id="completionText">Your properties have been imported successfully.</p>
+                    
+                    <button class="btn btn-primary" onclick="window.location.href='/gas-admin-clean.html'">
+                        Go to Dashboard
+                    </button>
+                </div>
             </div>
         </div>
     </div>
-
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <p>Connecting to Hostaway...</p>
+        </div>
+    </div>
+    
     <script>
-        let currentStep = 1;
-        let hostawayToken = null;
-        let hostawayAccountId = null;
+        let accountId = '';
+        let apiKey = '';
+        let accessToken = '';
         let properties = [];
-        let connectionId = null;
-
+        let selectedProperties = [];
+        
+        function showError(stepNum, message) {
+            const errorEl = document.getElementById('error' + stepNum);
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+        
+        function hideError(stepNum) {
+            document.getElementById('error' + stepNum).style.display = 'none';
+        }
+        
+        function showSuccess(stepNum, message) {
+            const successEl = document.getElementById('success' + stepNum);
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+        }
+        
         function goToStep(step) {
             document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-            document.getElementById(`step-${step}`).classList.add('active');
+            document.getElementById('step' + step).classList.add('active');
             
-            // Update progress dots
-            for (let i = 1; i <= 4; i++) {
-                const dot = document.getElementById(`dot-${i}`);
-                const line = document.getElementById(`line-${i}`);
-                
+            document.querySelectorAll('.step-dot').forEach((dot, i) => {
                 dot.classList.remove('active', 'completed');
-                if (i < step) {
-                    dot.classList.add('completed');
-                } else if (i === step) {
-                    dot.classList.add('active');
-                }
-                
-                if (line) {
-                    line.classList.toggle('completed', i < step);
-                }
-            }
-            
-            currentStep = step;
+                if (i + 1 < step) dot.classList.add('completed');
+                if (i + 1 === step) dot.classList.add('active');
+            });
         }
-
+        
         async function connectHostaway() {
-            const accountId = document.getElementById('accountId').value.trim();
-            const clientSecret = document.getElementById('clientSecret').value.trim();
+            accountId = document.getElementById('accountId').value.trim();
+            apiKey = document.getElementById('apiKey').value.trim();
             
-            if (!accountId || !clientSecret) {
-                showStatus('step1-status', 'Please enter both Account ID and Client Secret', 'error');
+            if (!accountId || !apiKey) {
+                showError(1, 'Please enter both Account ID and API Key');
                 return;
             }
             
-            showStatus('step1-status', 'Connecting to Hostaway...', 'info');
+            hideError(1);
+            showLoading(true);
             
             try {
                 const response = await fetch('/api/hostaway/setup-connection', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accountId, clientSecret })
+                    body: JSON.stringify({ accountId, apiKey })
                 });
                 
                 const data = await response.json();
                 
-                if (data.success) {
-                    hostawayToken = data.accessToken;
-                    hostawayAccountId = accountId;
-                    connectionId = data.connectionId;
-                    
-                    showStatus('step1-status', '✓ Connected successfully!', 'success');
-                    
-                    // Load properties
-                    await loadProperties();
-                    
-                    setTimeout(() => goToStep(2), 500);
-                } else {
-                    showStatus('step1-status', data.error || 'Failed to connect', 'error');
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to connect');
                 }
+                
+                accessToken = data.accessToken;
+                
+                showSuccess(1, 'Connected to Hostaway successfully!');
+                
+                // Load properties
+                await loadProperties();
+                
+                setTimeout(() => {
+                    showLoading(false);
+                    goToStep(2);
+                }, 500);
+                
             } catch (error) {
-                showStatus('step1-status', 'Connection error: ' + error.message, 'error');
+                showLoading(false);
+                showError(1, error.message || 'Failed to connect to Hostaway');
             }
         }
-
+        
         async function loadProperties() {
-            try {
-                const response = await fetch('/api/hostaway/list-properties', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ token: hostawayToken, connectionId })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success && data.data) {
-                    properties = data.data;
-                    renderProperties();
-                } else {
-                    document.getElementById('properties-list').innerHTML = 
-                        `<div style="padding: 2rem; text-align: center; color: #991b1b;">
-                            Failed to load properties: ${data.error || 'Unknown error'}
-                        </div>`;
-                }
-            } catch (error) {
-                document.getElementById('properties-list').innerHTML = 
-                    `<div style="padding: 2rem; text-align: center; color: #991b1b;">
-                        Error: ${error.message}
-                    </div>`;
-            }
-        }
-
-        function renderProperties() {
-            if (properties.length === 0) {
-                document.getElementById('properties-list').innerHTML = 
-                    `<div style="padding: 2rem; text-align: center; color: #6b7280;">
-                        No properties found in your Hostaway account
-                    </div>`;
-                return;
-            }
-            
-            let html = '';
-            properties.forEach(prop => {
-                html += `
-                    <label class="property-item">
-                        <input type="checkbox" value="${prop.id}" onchange="updateImportButton()">
-                        <div class="property-info">
-                            <div class="property-name">${prop.name}</div>
-                            <div class="property-details">
-                                ${prop.city || ''} ${prop.country || ''} • 
-                                ${prop.bedroomsNumber || 0} bed • 
-                                ${prop.personCapacity || 0} guests
-                            </div>
-                        </div>
-                        <div class="property-id">ID: ${prop.id}</div>
-                    </label>
-                `;
+            const response = await fetch('/api/hostaway/list-properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accessToken })
             });
             
-            document.getElementById('properties-list').innerHTML = html;
-        }
-
-        function updateImportButton() {
-            const checked = document.querySelectorAll('#properties-list input:checked');
-            document.getElementById('import-btn').disabled = checked.length === 0;
-        }
-
-        async function importProperties() {
-            const checked = document.querySelectorAll('#properties-list input:checked');
-            const selectedIds = Array.from(checked).map(cb => cb.value);
+            const data = await response.json();
             
-            if (selectedIds.length === 0) {
-                showStatus('step2-status', 'Please select at least one property', 'error');
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load properties');
+            }
+            
+            properties = data.properties;
+            renderPropertyList();
+        }
+        
+        function renderPropertyList() {
+            const listEl = document.getElementById('propertyList');
+            
+            if (properties.length === 0) {
+                listEl.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No listings found in your Hostaway account.</div>';
                 return;
             }
             
-            showStatus('step2-status', `Importing ${selectedIds.length} properties...`, 'info');
+            listEl.innerHTML = properties.map(prop => `
+                <div class="property-item" data-id="${prop.id}" onclick="toggleProperty(${prop.id})">
+                    <div class="property-checkbox">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <div class="property-info">
+                        <div class="property-name">${prop.name}</div>
+                        <div class="property-details">
+                            ${prop.city || ''} ${prop.countryName || ''}
+                            ${prop.personCapacity ? '· ' + prop.personCapacity + ' guests' : ''}
+                            ${prop.bedrooms ? '· ' + prop.bedrooms + ' bed' : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
             
-            const selectedProperties = properties.filter(p => selectedIds.includes(String(p.id)));
+            updateImportButton();
+        }
+        
+        function toggleProperty(id) {
+            const item = document.querySelector(`.property-item[data-id="${id}"]`);
+            item.classList.toggle('selected');
+            
+            if (item.classList.contains('selected')) {
+                selectedProperties.push(id);
+            } else {
+                selectedProperties = selectedProperties.filter(p => p !== id);
+            }
+            
+            updateImportButton();
+        }
+        
+        function selectAll() {
+            document.querySelectorAll('.property-item').forEach(item => {
+                item.classList.add('selected');
+            });
+            selectedProperties = properties.map(p => p.id);
+            updateImportButton();
+        }
+        
+        function deselectAll() {
+            document.querySelectorAll('.property-item').forEach(item => {
+                item.classList.remove('selected');
+            });
+            selectedProperties = [];
+            updateImportButton();
+        }
+        
+        function updateImportButton() {
+            const btn = document.getElementById('importBtn');
+            const count = selectedProperties.length;
+            btn.disabled = count === 0;
+            btn.querySelector('span').textContent = count === 0 ? 'Select Properties to Import' : `Import ${count} Propert${count === 1 ? 'y' : 'ies'}`;
+        }
+        
+        async function importProperties() {
+            goToStep(3);
+            
+            const progressFill = document.getElementById('progressFill');
+            const progressText = document.getElementById('progressText');
+            
             let imported = 0;
             let failed = 0;
             
-            for (const prop of selectedProperties) {
+            for (let i = 0; i < selectedProperties.length; i++) {
+                const listingId = selectedProperties[i];
+                const prop = properties.find(p => p.id === listingId);
+                
+                progressText.textContent = `Importing "${prop.name}"...`;
+                
                 try {
                     const response = await fetch('/api/hostaway/import-property', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            property: prop, 
-                            token: hostawayToken,
-                            connectionId 
-                        })
+                        body: JSON.stringify({ accessToken, listingId })
                     });
                     
                     const data = await response.json();
+                    
                     if (data.success) {
                         imported++;
                     } else {
                         failed++;
-                        console.error(`Failed to import ${prop.name}:`, data.error);
                     }
                 } catch (error) {
                     failed++;
-                    console.error(`Error importing ${prop.name}:`, error);
                 }
+                
+                const progress = ((i + 1) / selectedProperties.length) * 100;
+                progressFill.style.width = progress + '%';
             }
             
-            if (imported > 0) {
-                showStatus('step2-status', `✓ Imported ${imported} properties`, 'success');
-                
-                document.getElementById('import-summary').innerHTML = `
-                    <div style="padding: 1rem; background: #f3f4f6; border-radius: 8px; margin-bottom: 1rem;">
-                        <strong>Import Summary:</strong>
-                        <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
-                            <li>${imported} properties imported successfully</li>
-                            ${failed > 0 ? `<li>${failed} properties failed</li>` : ''}
-                        </ul>
-                    </div>
-                `;
-                
-                setTimeout(() => goToStep(3), 500);
-            } else {
-                showStatus('step2-status', 'Failed to import properties', 'error');
-            }
-        }
-
-        function copyWebhookUrl() {
-            const url = document.getElementById('webhook-url').textContent;
-            navigator.clipboard.writeText(url);
-            showStatus('step3-status', '✓ URL copied to clipboard', 'success');
-        }
-
-        async function syncAvailability() {
-            showStatus('step4-status', 'Starting availability sync...', 'info');
-            
-            try {
-                const response = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
-                const data = await response.json();
-                
-                if (data.success) {
-                    showStatus('step4-status', `✓ Synced ${data.totalPricesFound} prices for ${data.roomsCount} rooms`, 'success');
-                } else {
-                    showStatus('step4-status', 'Sync failed: ' + data.error, 'error');
-                }
-            } catch (error) {
-                showStatus('step4-status', 'Sync error: ' + error.message, 'error');
-            }
-        }
-
-        function showStatus(elementId, message, type) {
-            const el = document.getElementById(elementId);
-            el.innerHTML = `<div class="status ${type}">${message}</div>`;
+            // Show completion
+            document.getElementById('importProgress').style.display = 'none';
+            document.getElementById('importComplete').style.display = 'block';
+            document.getElementById('completionText').textContent = `Successfully imported ${imported} propert${imported === 1 ? 'y' : 'ies'}${failed > 0 ? ` (${failed} failed)` : ''}.`;
         }
     </script>
 </body>
