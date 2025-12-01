@@ -14,7 +14,7 @@
         
         body {
             font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -25,14 +25,14 @@
         .wizard-container {
             background: white;
             border-radius: 24px;
-            box-shadow: 0 25px 80px rgba(0,0,0,0.3);
+            box-shadow: 0 25px 80px rgba(0,0,0,0.15);
             max-width: 600px;
             width: 100%;
             overflow: hidden;
         }
         
         .wizard-header {
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
             padding: 40px;
             text-align: center;
             color: white;
@@ -49,7 +49,7 @@
             font-size: 1rem;
         }
         
-        .smoobu-logo {
+        .channel-logo {
             width: 80px;
             height: 80px;
             background: white;
@@ -59,8 +59,8 @@
             justify-content: center;
             margin: 0 auto 20px;
             font-weight: bold;
-            font-size: 1.1rem;
-            color: #ff6b35;
+            font-size: 0.9rem;
+            color: #7c3aed;
             box-shadow: 0 8px 30px rgba(0,0,0,0.2);
         }
         
@@ -76,10 +76,34 @@
             display: block;
         }
         
+        .step-indicators {
+            display: flex;
+            justify-content: center;
+            gap: 12px;
+            margin-bottom: 32px;
+        }
+        
+        .step-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            transition: all 0.3s;
+        }
+        
+        .step-dot.active {
+            background: #7c3aed;
+            transform: scale(1.2);
+        }
+        
+        .step-dot.completed {
+            background: #22c55e;
+        }
+        
         .step-title {
             font-size: 1.25rem;
             font-weight: 600;
-            color: #1a1a2e;
+            color: #1e293b;
             margin-bottom: 8px;
         }
         
@@ -112,22 +136,22 @@
         
         .form-group input:focus {
             outline: none;
-            border-color: #ff6b35;
-            box-shadow: 0 0 0 4px rgba(255, 107, 53, 0.1);
+            border-color: #7c3aed;
+            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
         }
         
         .help-text {
-            background: #fef3cd;
-            border: 1px solid #ffc107;
+            background: #f5f3ff;
+            border: 1px solid #c4b5fd;
             border-radius: 12px;
             padding: 16px;
             margin-bottom: 24px;
             font-size: 0.9rem;
-            color: #856404;
+            color: #5b21b6;
         }
         
         .help-text a {
-            color: #ff6b35;
+            color: #7c3aed;
             font-weight: 600;
         }
         
@@ -146,14 +170,14 @@
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
             color: white;
             width: 100%;
         }
         
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(255, 107, 53, 0.4);
+            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4);
         }
         
         .btn-primary:disabled {
@@ -198,16 +222,16 @@
             max-height: 400px;
             overflow-y: auto;
             border: 2px solid #e5e7eb;
-            border-radius: 12px;
-            margin-bottom: 20px;
+            border-radius: 16px;
+            margin-bottom: 24px;
         }
         
         .property-item {
             display: flex;
             align-items: center;
             gap: 16px;
-            padding: 16px;
-            border-bottom: 1px solid #e5e7eb;
+            padding: 16px 20px;
+            border-bottom: 1px solid #f1f5f9;
             cursor: pointer;
             transition: background 0.2s;
         }
@@ -221,24 +245,52 @@
         }
         
         .property-item.selected {
-            background: #fff7ed;
-            border-left: 4px solid #ff6b35;
+            background: #f5f3ff;
+            border-color: #c4b5fd;
         }
         
-        .property-item input[type="checkbox"] {
-            width: 20px;
-            height: 20px;
-            accent-color: #ff6b35;
+        .property-checkbox {
+            width: 22px;
+            height: 22px;
+            border: 2px solid #d1d5db;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s;
+        }
+        
+        .property-item.selected .property-checkbox {
+            background: #7c3aed;
+            border-color: #7c3aed;
+        }
+        
+        .property-checkbox svg {
+            width: 14px;
+            height: 14px;
+            stroke: white;
+            stroke-width: 3;
+            opacity: 0;
+            transition: opacity 0.2s;
+        }
+        
+        .property-item.selected .property-checkbox svg {
+            opacity: 1;
         }
         
         .property-info {
             flex: 1;
+            min-width: 0;
         }
         
         .property-name {
             font-weight: 600;
-            color: #1a1a2e;
+            color: #1e293b;
             margin-bottom: 4px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
         
         .property-details {
@@ -246,50 +298,83 @@
             color: #64748b;
         }
         
-        .loading {
+        .selection-controls {
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            padding: 60px 20px;
-            text-align: center;
+            gap: 12px;
+            margin-bottom: 16px;
         }
         
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 4px solid #f3f4f6;
-            border-top-color: #ff6b35;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-            margin-bottom: 20px;
+        .selection-controls button {
+            padding: 8px 16px;
+            font-size: 0.85rem;
+            background: #f1f5f9;
+            border: none;
+            border-radius: 8px;
+            color: #475569;
+            cursor: pointer;
+            transition: background 0.2s;
         }
         
-        @keyframes spin {
-            to { transform: rotate(360deg); }
+        .selection-controls button:hover {
+            background: #e2e8f0;
         }
         
-        .import-progress {
-            margin-top: 20px;
+        .progress-container {
+            margin-bottom: 32px;
         }
         
         .progress-bar {
-            height: 8px;
+            height: 12px;
             background: #e5e7eb;
-            border-radius: 4px;
+            border-radius: 100px;
             overflow: hidden;
             margin-bottom: 12px;
         }
         
         .progress-fill {
             height: 100%;
-            background: linear-gradient(135deg, #ff6b35 0%, #f7931e 100%);
-            transition: width 0.3s;
+            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            border-radius: 100px;
+            transition: width 0.3s ease;
+            width: 0%;
         }
         
-        .import-status {
-            font-size: 0.9rem;
+        .progress-text {
+            text-align: center;
             color: #64748b;
+            font-size: 0.9rem;
+        }
+        
+        .completion-icon {
+            width: 80px;
+            height: 80px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 0 auto 24px;
+        }
+        
+        .completion-icon svg {
+            width: 40px;
+            height: 40px;
+            stroke: white;
+            stroke-width: 3;
+        }
+        
+        .completion-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e293b;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+        
+        .completion-description {
+            color: #64748b;
+            text-align: center;
+            margin-bottom: 32px;
         }
         
         .back-link {
@@ -302,139 +387,152 @@
         }
         
         .back-link:hover {
-            color: #ff6b35;
+            color: #7c3aed;
         }
         
-        .steps-indicator {
-            display: flex;
-            justify-content: center;
-            gap: 8px;
-            margin-bottom: 30px;
-        }
-        
-        .step-dot {
-            width: 10px;
-            height: 10px;
+        .spinner {
+            width: 20px;
+            height: 20px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
             border-radius: 50%;
-            background: #e5e7eb;
-            transition: all 0.3s;
+            animation: spin 0.8s linear infinite;
         }
         
-        .step-dot.active {
-            background: #ff6b35;
-            width: 30px;
-            border-radius: 5px;
+        @keyframes spin {
+            to { transform: rotate(360deg); }
         }
         
-        .step-dot.completed {
-            background: #10b981;
+        .loading-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            display: none;
+        }
+        
+        .loading-card {
+            background: white;
+            padding: 40px;
+            border-radius: 16px;
+            text-align: center;
+        }
+        
+        .loading-spinner {
+            width: 48px;
+            height: 48px;
+            border: 4px solid #e5e7eb;
+            border-top-color: #7c3aed;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 16px;
         }
     </style>
 </head>
 <body>
     <div class="wizard-container">
         <div class="wizard-header">
-            <div class="smoobu-logo">
-                <span>smoobu</span>
-            </div>
-            <h1>Connect Your Smoobu Account</h1>
-            <p>Import your properties in seconds</p>
+            <div class="channel-logo">Smoobu</div>
+            <h1>Connect Smoobu</h1>
+            <p>Import your properties from Smoobu</p>
         </div>
         
         <div class="wizard-body">
-            <div class="steps-indicator">
+            <div class="step-indicators">
                 <div class="step-dot active" data-step="1"></div>
                 <div class="step-dot" data-step="2"></div>
                 <div class="step-dot" data-step="3"></div>
             </div>
             
             <!-- Step 1: Enter API Key -->
-            <div id="step1" class="step active">
-                <h2 class="step-title">Enter Your Smoobu API Key</h2>
-                <p class="step-description">
-                    Find your API key in Smoobu under Settings → Connect to third party applications → For Developers
-                </p>
+            <div class="step active" id="step1">
+                <h2 class="step-title">Enter Your API Key</h2>
+                <p class="step-description">Connect your Smoobu account by entering your API key.</p>
                 
                 <div class="help-text">
-                    <strong>📍 Where to find your API Key:</strong><br>
-                    1. Log into <a href="https://login.smoobu.com" target="_blank">Smoobu</a><br>
-                    2. Go to Settings (left menu)<br>
-                    3. Click "Connect to third party applications"<br>
-                    4. Scroll to "For Developers" section<br>
-                    5. Copy your API-Key
+                    <strong>How to find your API Key:</strong><br>
+                    1. Log in to <a href="https://login.smoobu.com" target="_blank">Smoobu</a><br>
+                    2. Go to Settings → Connect to third party applications<br>
+                    3. Click "For Developers" section<br>
+                    4. Copy your API Key
                 </div>
                 
-                <div id="errorMessage" class="error-message"></div>
-                <div id="successMessage" class="success-message"></div>
+                <div class="error-message" id="error1"></div>
+                <div class="success-message" id="success1"></div>
                 
                 <div class="form-group">
-                    <label for="apiKey">Smoobu API Key *</label>
-                    <input type="text" id="apiKey" placeholder="Enter your Smoobu API key" autocomplete="off">
+                    <label for="apiKey">Smoobu API Key</label>
+                    <input type="text" id="apiKey" placeholder="Enter your Smoobu API key">
                 </div>
                 
-                <button class="btn btn-primary" onclick="connectSmoobu()">
-                    <span id="connectBtnText">Connect to Smoobu</span>
-                    <span id="connectSpinner" style="display: none;">⏳</span>
+                <button class="btn btn-primary" id="connectBtn" onclick="connectSmoobu()">
+                    <span>Connect to Smoobu</span>
                 </button>
+                
+                <a href="/gas-admin-clean.html" class="back-link">← Back to Dashboard</a>
             </div>
             
             <!-- Step 2: Select Properties -->
-            <div id="step2" class="step">
+            <div class="step" id="step2">
                 <h2 class="step-title">Select Properties to Import</h2>
-                <p class="step-description">
-                    Choose which properties you want to import into GAS Booking
-                </p>
+                <p class="step-description">Choose which properties you want to import from Smoobu.</p>
                 
-                <div id="propertyLoading" class="loading">
-                    <div class="spinner"></div>
-                    <p>Loading your properties from Smoobu...</p>
+                <div class="error-message" id="error2"></div>
+                
+                <div class="selection-controls">
+                    <button onclick="selectAll()">Select All</button>
+                    <button onclick="deselectAll()">Deselect All</button>
                 </div>
                 
-                <div id="propertyList" class="property-list" style="display: none;"></div>
-                
-                <div id="propertyActions" style="display: none;">
-                    <div style="display: flex; gap: 12px; margin-bottom: 12px;">
-                        <button class="btn btn-secondary" onclick="selectAll()">Select All</button>
-                        <button class="btn btn-secondary" onclick="deselectAll()">Deselect All</button>
-                    </div>
-                    <button class="btn btn-primary" onclick="importProperties()" id="importBtn" disabled>
-                        Import Selected Properties
-                    </button>
+                <div class="property-list" id="propertyList">
+                    <!-- Properties will be loaded here -->
                 </div>
                 
-                <button class="btn btn-secondary" onclick="goToStep(1)" style="margin-top: 12px; width: 100%;">
-                    ← Back
+                <button class="btn btn-primary" id="importBtn" onclick="importProperties()" disabled>
+                    <span>Import Selected Properties</span>
                 </button>
+                
+                <a href="#" class="back-link" onclick="goToStep(1); return false;">← Back to API Key</a>
             </div>
             
             <!-- Step 3: Import Progress / Complete -->
-            <div id="step3" class="step">
-                <div id="importingState">
-                    <h2 class="step-title">Importing Properties...</h2>
-                    <p class="step-description">Please wait while we import your properties from Smoobu</p>
+            <div class="step" id="step3">
+                <div id="importProgress">
+                    <h2 class="step-title">Importing Properties</h2>
+                    <p class="step-description">Please wait while we import your properties...</p>
                     
-                    <div class="import-progress">
+                    <div class="progress-container">
                         <div class="progress-bar">
-                            <div class="progress-fill" id="progressFill" style="width: 0%"></div>
+                            <div class="progress-fill" id="progressFill"></div>
                         </div>
-                        <p class="import-status" id="importStatus">Starting import...</p>
+                        <div class="progress-text" id="progressText">Preparing import...</div>
                     </div>
                 </div>
                 
-                <div id="completeState" style="display: none; text-align: center;">
-                    <div style="font-size: 64px; margin-bottom: 20px;">🎉</div>
-                    <h2 class="step-title">Import Complete!</h2>
-                    <p class="step-description" id="completeMessage">
-                        Your properties have been successfully imported
-                    </p>
+                <div id="importComplete" style="display: none;">
+                    <div class="completion-icon">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <h2 class="completion-title">Import Complete!</h2>
+                    <p class="completion-description" id="completionText">Your properties have been imported successfully.</p>
                     
-                    <a href="/admin" class="btn btn-primary" style="text-decoration: none; display: inline-flex;">
-                        Go to Admin Dashboard →
-                    </a>
+                    <button class="btn btn-primary" onclick="window.location.href='/gas-admin-clean.html'">
+                        Go to Dashboard
+                    </button>
                 </div>
             </div>
-            
-            <a href="/admin" class="back-link">← Back to Admin</a>
+        </div>
+    </div>
+    
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-card">
+            <div class="loading-spinner"></div>
+            <p>Connecting to Smoobu...</p>
         </div>
     </div>
     
@@ -442,61 +540,48 @@
         let apiKey = '';
         let properties = [];
         let selectedProperties = [];
-        let smoobuUser = null;
         
-        // Update step indicators
-        function updateStepIndicators(step) {
-            document.querySelectorAll('.step-dot').forEach((dot, index) => {
+        function showError(stepNum, message) {
+            const errorEl = document.getElementById('error' + stepNum);
+            errorEl.textContent = message;
+            errorEl.style.display = 'block';
+        }
+        
+        function hideError(stepNum) {
+            document.getElementById('error' + stepNum).style.display = 'none';
+        }
+        
+        function showSuccess(stepNum, message) {
+            const successEl = document.getElementById('success' + stepNum);
+            successEl.textContent = message;
+            successEl.style.display = 'block';
+        }
+        
+        function showLoading(show) {
+            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
+        }
+        
+        function goToStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById('step' + step).classList.add('active');
+            
+            document.querySelectorAll('.step-dot').forEach((dot, i) => {
                 dot.classList.remove('active', 'completed');
-                if (index + 1 < step) {
-                    dot.classList.add('completed');
-                } else if (index + 1 === step) {
-                    dot.classList.add('active');
-                }
+                if (i + 1 < step) dot.classList.add('completed');
+                if (i + 1 === step) dot.classList.add('active');
             });
         }
         
-        // Go to specific step
-        function goToStep(step) {
-            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-            document.getElementById(`step${step}`).classList.add('active');
-            updateStepIndicators(step);
-        }
-        
-        // Show error
-        function showError(message) {
-            const el = document.getElementById('errorMessage');
-            el.textContent = message;
-            el.style.display = 'block';
-            document.getElementById('successMessage').style.display = 'none';
-        }
-        
-        // Show success
-        function showSuccess(message) {
-            const el = document.getElementById('successMessage');
-            el.textContent = message;
-            el.style.display = 'block';
-            document.getElementById('errorMessage').style.display = 'none';
-        }
-        
-        // Hide messages
-        function hideMessages() {
-            document.getElementById('errorMessage').style.display = 'none';
-            document.getElementById('successMessage').style.display = 'none';
-        }
-        
-        // Connect to Smoobu
         async function connectSmoobu() {
-            hideMessages();
             apiKey = document.getElementById('apiKey').value.trim();
             
             if (!apiKey) {
-                showError('Please enter your Smoobu API key');
+                showError(1, 'Please enter your API key');
                 return;
             }
             
-            document.getElementById('connectBtnText').textContent = 'Connecting...';
-            document.getElementById('connectSpinner').style.display = 'inline';
+            hideError(1);
+            showLoading(true);
             
             try {
                 const response = await fetch('/api/smoobu/setup-connection', {
@@ -507,167 +592,128 @@
                 
                 const data = await response.json();
                 
-                if (!response.ok || !data.success) {
-                    throw new Error(data.error || 'Failed to connect to Smoobu');
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to connect');
                 }
                 
-                smoobuUser = data.user;
-                showSuccess(`Connected as ${data.user.firstName} ${data.user.lastName}`);
+                showSuccess(1, `Connected as ${data.user.firstName} ${data.user.lastName}`);
                 
-                // Move to step 2 after short delay
+                // Load properties
+                await loadProperties();
+                
                 setTimeout(() => {
+                    showLoading(false);
                     goToStep(2);
-                    loadProperties();
-                }, 1000);
+                }, 500);
                 
             } catch (error) {
-                showError(error.message || 'Failed to connect. Please check your API key.');
-            } finally {
-                document.getElementById('connectBtnText').textContent = 'Connect to Smoobu';
-                document.getElementById('connectSpinner').style.display = 'none';
+                showLoading(false);
+                showError(1, error.message || 'Failed to connect to Smoobu');
             }
         }
         
-        // Load properties from Smoobu
         async function loadProperties() {
-            document.getElementById('propertyLoading').style.display = 'flex';
-            document.getElementById('propertyList').style.display = 'none';
-            document.getElementById('propertyActions').style.display = 'none';
+            const response = await fetch('/api/smoobu/list-properties', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ apiKey })
+            });
             
-            try {
-                const response = await fetch('/api/smoobu/list-properties', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiKey })
-                });
-                
-                const data = await response.json();
-                
-                if (!response.ok || !data.success) {
-                    throw new Error(data.error || 'Failed to load properties');
-                }
-                
-                properties = data.properties;
-                renderProperties();
-                
-            } catch (error) {
-                document.getElementById('propertyLoading').innerHTML = `
-                    <div style="color: #dc2626;">
-                        <p style="font-size: 48px; margin-bottom: 20px;">❌</p>
-                        <p>${error.message}</p>
-                        <button class="btn btn-secondary" onclick="loadProperties()" style="margin-top: 20px;">
-                            Try Again
-                        </button>
-                    </div>
-                `;
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Failed to load properties');
             }
+            
+            properties = data.properties;
+            renderPropertyList();
         }
         
-        // Render property list
-        function renderProperties() {
-            const container = document.getElementById('propertyList');
+        function renderPropertyList() {
+            const listEl = document.getElementById('propertyList');
             
             if (properties.length === 0) {
-                container.innerHTML = `
-                    <div style="padding: 40px; text-align: center; color: #64748b;">
-                        <p style="font-size: 48px; margin-bottom: 16px;">🏠</p>
-                        <p>No properties found in your Smoobu account</p>
-                    </div>
-                `;
-            } else {
-                container.innerHTML = properties.map(prop => `
-                    <div class="property-item" onclick="toggleProperty(${prop.id})">
-                        <input type="checkbox" id="prop-${prop.id}" onchange="updateSelection()">
-                        <div class="property-info">
-                            <div class="property-name">${prop.name}</div>
-                            <div class="property-details">
-                                ${prop.location?.city ? prop.location.city + ', ' : ''}
-                                ${prop.location?.country || ''}
-                                ${prop.rooms?.maxOccupancy ? ' · Max ' + prop.rooms.maxOccupancy + ' guests' : ''}
-                                ${prop.rooms?.bedrooms ? ' · ' + prop.rooms.bedrooms + ' BR' : ''}
-                            </div>
-                        </div>
-                    </div>
-                `).join('');
+                listEl.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No properties found in your Smoobu account.</div>';
+                return;
             }
             
-            document.getElementById('propertyLoading').style.display = 'none';
-            container.style.display = 'block';
-            document.getElementById('propertyActions').style.display = 'block';
+            listEl.innerHTML = properties.map(prop => `
+                <div class="property-item" data-id="${prop.id}" onclick="toggleProperty(${prop.id})">
+                    <div class="property-checkbox">
+                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+                        </svg>
+                    </div>
+                    <div class="property-info">
+                        <div class="property-name">${prop.name}</div>
+                        <div class="property-details">
+                            ${prop.location?.city || ''} ${prop.location?.country || ''}
+                            ${prop.rooms?.maxOccupancy ? '· ' + prop.rooms.maxOccupancy + ' guests' : ''}
+                            ${prop.rooms?.bedrooms ? '· ' + prop.rooms.bedrooms + ' bed' : ''}
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+            
+            updateImportButton();
         }
         
-        // Toggle property selection
         function toggleProperty(id) {
-            const checkbox = document.getElementById(`prop-${id}`);
-            checkbox.checked = !checkbox.checked;
-            updateSelection();
-        }
-        
-        // Update selection state
-        function updateSelection() {
-            selectedProperties = [];
-            properties.forEach(prop => {
-                const checkbox = document.getElementById(`prop-${prop.id}`);
-                if (checkbox && checkbox.checked) {
-                    selectedProperties.push(prop);
-                }
-                
-                // Update visual state
-                const item = checkbox.closest('.property-item');
-                if (checkbox.checked) {
-                    item.classList.add('selected');
-                } else {
-                    item.classList.remove('selected');
-                }
-            });
+            const item = document.querySelector(`.property-item[data-id="${id}"]`);
+            item.classList.toggle('selected');
             
-            document.getElementById('importBtn').disabled = selectedProperties.length === 0;
-            document.getElementById('importBtn').textContent = selectedProperties.length > 0 
-                ? `Import ${selectedProperties.length} Properties`
-                : 'Import Selected Properties';
+            if (item.classList.contains('selected')) {
+                selectedProperties.push(id);
+            } else {
+                selectedProperties = selectedProperties.filter(p => p !== id);
+            }
+            
+            updateImportButton();
         }
         
-        // Select all
         function selectAll() {
-            properties.forEach(prop => {
-                const checkbox = document.getElementById(`prop-${prop.id}`);
-                if (checkbox) checkbox.checked = true;
+            document.querySelectorAll('.property-item').forEach(item => {
+                item.classList.add('selected');
             });
-            updateSelection();
+            selectedProperties = properties.map(p => p.id);
+            updateImportButton();
         }
         
-        // Deselect all
         function deselectAll() {
-            properties.forEach(prop => {
-                const checkbox = document.getElementById(`prop-${prop.id}`);
-                if (checkbox) checkbox.checked = false;
+            document.querySelectorAll('.property-item').forEach(item => {
+                item.classList.remove('selected');
             });
-            updateSelection();
+            selectedProperties = [];
+            updateImportButton();
         }
         
-        // Import selected properties
+        function updateImportButton() {
+            const btn = document.getElementById('importBtn');
+            const count = selectedProperties.length;
+            btn.disabled = count === 0;
+            btn.querySelector('span').textContent = count === 0 ? 'Select Properties to Import' : `Import ${count} Propert${count === 1 ? 'y' : 'ies'}`;
+        }
+        
         async function importProperties() {
-            if (selectedProperties.length === 0) return;
-            
             goToStep(3);
             
             const progressFill = document.getElementById('progressFill');
-            const importStatus = document.getElementById('importStatus');
+            const progressText = document.getElementById('progressText');
             
             let imported = 0;
             let failed = 0;
             
-            for (const prop of selectedProperties) {
-                importStatus.textContent = `Importing "${prop.name}"...`;
+            for (let i = 0; i < selectedProperties.length; i++) {
+                const propId = selectedProperties[i];
+                const prop = properties.find(p => p.id === propId);
+                
+                progressText.textContent = `Importing "${prop.name}"...`;
                 
                 try {
                     const response = await fetch('/api/smoobu/import-property', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            apiKey,
-                            apartmentId: prop.id
-                        })
+                        body: JSON.stringify({ apiKey, apartmentId: propId })
                     });
                     
                     const data = await response.json();
@@ -675,31 +721,21 @@
                     if (data.success) {
                         imported++;
                     } else {
-                        console.error('Import failed:', prop.name, data.error);
                         failed++;
                     }
                 } catch (error) {
-                    console.error('Import error:', prop.name, error);
                     failed++;
                 }
                 
-                const progress = ((imported + failed) / selectedProperties.length) * 100;
-                progressFill.style.width = `${progress}%`;
+                const progress = ((i + 1) / selectedProperties.length) * 100;
+                progressFill.style.width = progress + '%';
             }
             
             // Show completion
-            document.getElementById('importingState').style.display = 'none';
-            document.getElementById('completeState').style.display = 'block';
-            document.getElementById('completeMessage').textContent = 
-                `Successfully imported ${imported} properties${failed > 0 ? ` (${failed} failed)` : ''}`;
+            document.getElementById('importProgress').style.display = 'none';
+            document.getElementById('importComplete').style.display = 'block';
+            document.getElementById('completionText').textContent = `Successfully imported ${imported} propert${imported === 1 ? 'y' : 'ies'}${failed > 0 ? ` (${failed} failed)` : ''}.`;
         }
-        
-        // Allow Enter key to submit
-        document.getElementById('apiKey').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                connectSmoobu();
-            }
-        });
     </script>
 </body>
 </html>
