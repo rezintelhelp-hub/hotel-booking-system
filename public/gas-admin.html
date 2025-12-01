@@ -1290,10 +1290,15 @@
                 </div>
 
                 <!-- Content Type Tabs -->
-                <div class="filter-tabs" style="margin-bottom: 1.5rem;">
-                    <button class="filter-tab active" data-content-type="property" onclick="filterContent('property')">🏨 Property Content</button>
-                    <button class="filter-tab" data-content-type="room" onclick="filterContent('room')">🛏️ Room Content</button>
-                    <button class="filter-tab" data-content-type="policies" onclick="filterContent('policies')">📋 Policies & Terms</button>
+                <div class="filter-tabs" style="margin-bottom: 1.5rem; flex-wrap: wrap;">
+                    <button class="filter-tab active" data-content-type="property" onclick="filterContent('property')">🏨 Property</button>
+                    <button class="filter-tab" data-content-type="room" onclick="filterContent('room')">🛏️ Rooms</button>
+                    <button class="filter-tab" data-content-type="policies" onclick="filterContent('policies')">📋 Policies</button>
+                    <button class="filter-tab" data-content-type="pages" onclick="filterContent('pages')">📄 Website Pages</button>
+                    <button class="filter-tab" data-content-type="blog" onclick="filterContent('blog')">📝 Blog</button>
+                    <button class="filter-tab" data-content-type="attractions" onclick="filterContent('attractions')">🎯 Attractions</button>
+                    <button class="filter-tab" data-content-type="branding" onclick="filterContent('branding')">🎨 Branding</button>
+                    <button class="filter-tab" data-content-type="api" onclick="filterContent('api')">🔌 API</button>
                 </div>
 
                 <!-- Property Content Section -->
@@ -1427,6 +1432,300 @@
                             
                             <button class="btn" onclick="savePoliciesContent()">💾 Save Policies</button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Website Pages Section -->
+                <div id="content-pages" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">📄 Website Pages</h3>
+                        </div>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Manage your About, Contact, Terms, and Privacy pages</p>
+                        
+                        <!-- Page Type Tabs -->
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                            <button class="btn" style="background: var(--accent);" onclick="loadWebsitePage('about')" id="page-tab-about">About Us</button>
+                            <button class="btn" style="background: #64748b;" onclick="loadWebsitePage('contact')" id="page-tab-contact">Contact</button>
+                            <button class="btn" style="background: #64748b;" onclick="loadWebsitePage('terms')" id="page-tab-terms">Terms</button>
+                            <button class="btn" style="background: #64748b;" onclick="loadWebsitePage('privacy')" id="page-tab-privacy">Privacy</button>
+                        </div>
+                        
+                        <div id="website-page-form">
+                            <div class="form-group">
+                                <label class="form-label">Page Title</label>
+                                <input type="text" class="form-input" id="page-title" placeholder="Page title">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Subtitle (optional)</label>
+                                <input type="text" class="form-input" id="page-subtitle" placeholder="Brief subtitle or tagline">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label class="form-label">Content</label>
+                                <textarea class="form-input" id="page-content" rows="12" placeholder="Page content... HTML is supported"></textarea>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                                    💡 Tip: You can use HTML like &lt;h2&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;strong&gt;
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label class="form-label">Meta Title (SEO)</label>
+                                    <input type="text" class="form-input" id="page-meta-title" placeholder="SEO title">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Meta Description (SEO)</label>
+                                    <input type="text" class="form-input" id="page-meta-description" placeholder="SEO description">
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="page-published" checked>
+                                    <span>Published (visible on website)</span>
+                                </label>
+                            </div>
+                            
+                            <input type="hidden" id="page-type" value="about">
+                            
+                            <button class="btn" onclick="saveWebsitePage()">💾 Save Page</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Contact Info Card -->
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">📞 Contact Information</h3>
+                        </div>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">This appears on your contact page and website footer</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Business Name</label>
+                                <input type="text" class="form-input" id="contact-business-name" placeholder="Your Business Name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Tagline</label>
+                                <input type="text" class="form-input" id="contact-tagline" placeholder="Your tagline">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-input" id="contact-email" placeholder="contact@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone</label>
+                                <input type="text" class="form-input" id="contact-phone" placeholder="+1 234 567 8900">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label class="form-label">Address</label>
+                                <textarea class="form-input" id="contact-address" rows="2" placeholder="Full address"></textarea>
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin: 1.5rem 0 1rem; color: var(--text-primary);">Social Media Links</h4>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Facebook</label>
+                                <input type="url" class="form-input" id="contact-facebook" placeholder="https://facebook.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Instagram</label>
+                                <input type="url" class="form-input" id="contact-instagram" placeholder="https://instagram.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Twitter/X</label>
+                                <input type="url" class="form-input" id="contact-twitter" placeholder="https://twitter.com/...">
+                            </div>
+                        </div>
+                        
+                        <button class="btn" onclick="saveContactInfo()" style="margin-top: 1rem;">💾 Save Contact Info</button>
+                    </div>
+                </div>
+
+                <!-- Blog Section -->
+                <div id="content-blog" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="card-title">📝 Blog Posts</h3>
+                            <button class="btn" onclick="openBlogModal()">+ New Post</button>
+                        </div>
+                        <div id="blog-posts-list">
+                            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <div style="font-size: 3rem; margin-bottom: 1rem;">📝</div>
+                                <p>No blog posts yet</p>
+                                <button class="btn" style="margin-top: 1rem;" onclick="openBlogModal()">Create Your First Post</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Attractions Section -->
+                <div id="content-attractions" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="card-title">🎯 Local Attractions</h3>
+                            <button class="btn" onclick="openAttractionModal()">+ Add Attraction</button>
+                        </div>
+                        <div id="attractions-list">
+                            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <div style="font-size: 3rem; margin-bottom: 1rem;">🎯</div>
+                                <p>No attractions added yet</p>
+                                <button class="btn" style="margin-top: 1rem;" onclick="openAttractionModal()">Add Your First Attraction</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Branding Section -->
+                <div id="content-branding" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">🎨 Brand Colors</h3>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">Primary Color</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-primary-color" value="#2563eb" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-primary-color-text" value="#2563eb" style="flex: 1;" onchange="document.getElementById('brand-primary-color').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Secondary Color</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-secondary-color" value="#7c3aed" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-secondary-color-text" value="#7c3aed" style="flex: 1;" onchange="document.getElementById('brand-secondary-color').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Accent Color</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-accent-color" value="#f59e0b" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-accent-color-text" value="#f59e0b" style="flex: 1;" onchange="document.getElementById('brand-accent-color').value = this.value">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin: 2rem 0 1rem; color: var(--text-primary);">Footer Styling</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">Footer Background</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-footer-bg" value="#0f172a" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-footer-bg-text" value="#0f172a" style="flex: 1;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Footer Text Color</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-footer-text" value="#ffffff" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-footer-text-text" value="#ffffff" style="flex: 1;">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" style="margin-top: 1.5rem;">
+                            <label class="form-label">Copyright Text</label>
+                            <input type="text" class="form-input" id="brand-copyright" placeholder="© 2025 Your Business Name. All rights reserved.">
+                        </div>
+                        
+                        <button class="btn" onclick="saveBranding()" style="margin-top: 1.5rem;">💾 Save Branding</button>
+                    </div>
+                </div>
+
+                <!-- API Documentation Section -->
+                <div id="content-api" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                            <h3 class="card-title">🔌 API Documentation</h3>
+                            <button class="btn" style="background: #10b981;" onclick="testApiConnection()">Test Connection</button>
+                        </div>
+                        
+                        <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">API Base URL</label>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <input type="text" class="form-input" id="api-base-url" value="" readonly style="font-family: monospace;">
+                                    <button class="btn" style="background: #64748b;" onclick="copyApiUrl()">📋 Copy</button>
+                                </div>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label">Client ID</label>
+                                <input type="text" class="form-input" id="api-client-id" value="1" readonly style="font-family: monospace; max-width: 100px;">
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin-bottom: 1rem;">📚 Public Endpoints (no auth required)</h4>
+                        
+                        <div class="api-endpoint" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace;">/api/public/client/{clientId}/site-config</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">Get complete site config (contact, branding, navigation)</p>
+                        </div>
+                        
+                        <div class="api-endpoint" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace;">/api/public/client/{clientId}/rooms</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">Get all rooms/properties for display</p>
+                        </div>
+                        
+                        <div class="api-endpoint" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace;">/api/public/client/{clientId}/page/{pageType}</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">Get page content (about, contact, terms, privacy)</p>
+                        </div>
+                        
+                        <div class="api-endpoint" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace;">/api/public/client/{clientId}/blog</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">Get published blog posts</p>
+                        </div>
+                        
+                        <div class="api-endpoint" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.75rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace;">/api/public/client/{clientId}/attractions</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">Get local attractions</p>
+                        </div>
+                        
+                        <div class="api-endpoint" style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                                <code style="font-family: monospace;">/api/public/check-availability</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0;">Check room availability for dates</p>
+                        </div>
+                        
+                        <details style="margin-top: 1rem;">
+                            <summary style="cursor: pointer; font-weight: 600; color: var(--accent);">View Example Code</summary>
+                            <pre style="background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; margin-top: 0.5rem; font-size: 0.85rem;">
+// Fetch site configuration
+fetch('/api/public/client/1/site-config')
+  .then(res => res.json())
+  .then(data => {
+    console.log(data.contact);  // Contact info
+    console.log(data.branding); // Colors, logo
+    console.log(data.navigation); // Menu items
+  });
+
+// Fetch rooms
+fetch('/api/public/client/1/rooms')
+  .then(res => res.json())
+  .then(data => console.log(data.rooms));
+                            </pre>
+                        </details>
                     </div>
                 </div>
             </div>
@@ -5700,6 +5999,25 @@
             document.getElementById('content-property').style.display = type === 'property' ? 'block' : 'none';
             document.getElementById('content-room').style.display = type === 'room' ? 'block' : 'none';
             document.getElementById('content-policies').style.display = type === 'policies' ? 'block' : 'none';
+            document.getElementById('content-pages').style.display = type === 'pages' ? 'block' : 'none';
+            document.getElementById('content-blog').style.display = type === 'blog' ? 'block' : 'none';
+            document.getElementById('content-attractions').style.display = type === 'attractions' ? 'block' : 'none';
+            document.getElementById('content-branding').style.display = type === 'branding' ? 'block' : 'none';
+            document.getElementById('content-api').style.display = type === 'api' ? 'block' : 'none';
+            
+            // Load data for new sections
+            if (type === 'pages') {
+                loadWebsitePage('about');
+                loadContactInfo();
+            } else if (type === 'blog') {
+                loadBlogPosts();
+            } else if (type === 'attractions') {
+                loadAttractions();
+            } else if (type === 'branding') {
+                loadBranding();
+            } else if (type === 'api') {
+                document.getElementById('api-base-url').value = window.location.origin;
+            }
         }
         
         async function loadContentView() {
@@ -9604,6 +9922,346 @@
             } catch (error) {
                 alert('Error cleaning up: ' + error.message);
             }
+        }
+
+        // =====================================================
+        // WEBSITE PAGES FUNCTIONS
+        // =====================================================
+        
+        let currentPageType = 'about';
+
+        async function loadWebsitePage(pageType) {
+            currentPageType = pageType;
+            document.getElementById('page-type').value = pageType;
+            
+            // Update tab buttons
+            ['about', 'contact', 'terms', 'privacy'].forEach(type => {
+                const btn = document.getElementById('page-tab-' + type);
+                if (btn) {
+                    btn.style.background = type === pageType ? 'var(--accent)' : '#64748b';
+                }
+            });
+            
+            try {
+                const response = await fetch(`/api/admin/pages/${pageType}?client_id=1`);
+                const data = await response.json();
+                
+                if (data.success && data.page) {
+                    document.getElementById('page-title').value = data.page.title || '';
+                    document.getElementById('page-subtitle').value = data.page.subtitle || '';
+                    document.getElementById('page-content').value = data.page.content || '';
+                    document.getElementById('page-meta-title').value = data.page.meta_title || '';
+                    document.getElementById('page-meta-description').value = data.page.meta_description || '';
+                    document.getElementById('page-published').checked = data.page.is_published;
+                } else {
+                    // Clear form for new page
+                    const defaultTitles = { about: 'About Us', contact: 'Contact Us', terms: 'Terms & Conditions', privacy: 'Privacy Policy' };
+                    document.getElementById('page-title').value = defaultTitles[pageType] || '';
+                    document.getElementById('page-subtitle').value = '';
+                    document.getElementById('page-content').value = '';
+                    document.getElementById('page-meta-title').value = '';
+                    document.getElementById('page-meta-description').value = '';
+                    document.getElementById('page-published').checked = false;
+                }
+            } catch (error) {
+                console.error('Error loading page:', error);
+            }
+        }
+
+        async function saveWebsitePage() {
+            const pageData = {
+                client_id: 1,
+                page_type: currentPageType,
+                slug: currentPageType,
+                title: document.getElementById('page-title').value,
+                subtitle: document.getElementById('page-subtitle').value,
+                content: document.getElementById('page-content').value,
+                meta_title: document.getElementById('page-meta-title').value,
+                meta_description: document.getElementById('page-meta-description').value,
+                is_published: document.getElementById('page-published').checked
+            };
+            
+            try {
+                const response = await fetch('/api/admin/pages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pageData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Page saved successfully!');
+                } else {
+                    alert('Error saving page: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving page:', error);
+                alert('Error saving page');
+            }
+        }
+
+        async function loadContactInfo() {
+            try {
+                const response = await fetch('/api/admin/contact-info?client_id=1');
+                const data = await response.json();
+                
+                if (data.success && data.contact) {
+                    document.getElementById('contact-business-name').value = data.contact.business_name || '';
+                    document.getElementById('contact-tagline').value = data.contact.tagline || '';
+                    document.getElementById('contact-email').value = data.contact.email || '';
+                    document.getElementById('contact-phone').value = data.contact.phone || '';
+                    document.getElementById('contact-address').value = [
+                        data.contact.address_line1,
+                        data.contact.city,
+                        data.contact.country
+                    ].filter(Boolean).join(', ') || '';
+                    document.getElementById('contact-facebook').value = data.contact.facebook_url || '';
+                    document.getElementById('contact-instagram').value = data.contact.instagram_url || '';
+                    document.getElementById('contact-twitter').value = data.contact.twitter_url || '';
+                }
+            } catch (error) {
+                console.error('Error loading contact info:', error);
+            }
+        }
+
+        async function saveContactInfo() {
+            const addressParts = document.getElementById('contact-address').value.split(',').map(s => s.trim());
+            
+            const contactData = {
+                client_id: 1,
+                business_name: document.getElementById('contact-business-name').value,
+                tagline: document.getElementById('contact-tagline').value,
+                email: document.getElementById('contact-email').value,
+                phone: document.getElementById('contact-phone').value,
+                address_line1: addressParts[0] || '',
+                city: addressParts[1] || '',
+                country: addressParts[2] || '',
+                facebook_url: document.getElementById('contact-facebook').value,
+                instagram_url: document.getElementById('contact-instagram').value,
+                twitter_url: document.getElementById('contact-twitter').value
+            };
+            
+            try {
+                const response = await fetch('/api/admin/contact-info', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(contactData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Contact info saved successfully!');
+                } else {
+                    alert('Error saving contact info: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving contact info:', error);
+                alert('Error saving contact info');
+            }
+        }
+
+        // =====================================================
+        // BLOG FUNCTIONS
+        // =====================================================
+
+        async function loadBlogPosts() {
+            try {
+                const response = await fetch('/api/admin/blog?client_id=1');
+                const data = await response.json();
+                
+                const container = document.getElementById('blog-posts-list');
+                
+                if (data.success && data.posts && data.posts.length > 0) {
+                    container.innerHTML = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.posts.map(post => `
+                                    <tr>
+                                        <td><strong>${post.title}</strong></td>
+                                        <td>${post.category || '-'}</td>
+                                        <td><span class="badge ${post.is_published ? 'badge-success' : 'badge-secondary'}">${post.is_published ? 'Published' : 'Draft'}</span></td>
+                                        <td>${post.published_at ? new Date(post.published_at).toLocaleDateString() : '-'}</td>
+                                        <td>
+                                            <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editBlogPost(${post.id})">Edit</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">📝</div>
+                            <p>No blog posts yet</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="openBlogModal()">Create Your First Post</button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading blog posts:', error);
+            }
+        }
+
+        function openBlogModal(post = null) {
+            alert('Blog modal coming soon! The API endpoints are ready at /api/admin/blog');
+        }
+
+        async function editBlogPost(id) {
+            alert('Edit blog post ' + id + ' - Modal coming soon!');
+        }
+
+        // =====================================================
+        // ATTRACTIONS FUNCTIONS
+        // =====================================================
+
+        async function loadAttractions() {
+            try {
+                const response = await fetch('/api/admin/attractions?client_id=1');
+                const data = await response.json();
+                
+                const container = document.getElementById('attractions-list');
+                
+                if (data.success && data.attractions && data.attractions.length > 0) {
+                    container.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+                            ${data.attractions.map(attr => `
+                                <div style="border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer;" onclick="editAttraction(${attr.id})">
+                                    ${attr.featured_image_url ? 
+                                        `<img src="${attr.featured_image_url}" style="width: 100%; height: 150px; object-fit: cover;">` :
+                                        `<div style="width: 100%; height: 150px; background: var(--bg-primary); display: flex; align-items: center; justify-content: center; font-size: 3rem;">🎯</div>`
+                                    }
+                                    <div style="padding: 1rem;">
+                                        <h4 style="margin: 0 0 0.5rem;">${attr.name}</h4>
+                                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
+                                            ${attr.category ? `📍 ${attr.category}` : ''}
+                                            ${attr.distance_text ? ` • ${attr.distance_text}` : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🎯</div>
+                            <p>No attractions added yet</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="openAttractionModal()">Add Your First Attraction</button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading attractions:', error);
+            }
+        }
+
+        function openAttractionModal(attraction = null) {
+            alert('Attraction modal coming soon! The API endpoints are ready at /api/admin/attractions');
+        }
+
+        async function editAttraction(id) {
+            alert('Edit attraction ' + id + ' - Modal coming soon!');
+        }
+
+        // =====================================================
+        // BRANDING FUNCTIONS
+        // =====================================================
+
+        async function loadBranding() {
+            try {
+                const response = await fetch('/api/admin/branding?client_id=1');
+                const data = await response.json();
+                
+                if (data.success && data.branding) {
+                    const b = data.branding;
+                    document.getElementById('brand-primary-color').value = b.primary_color || '#2563eb';
+                    document.getElementById('brand-primary-color-text').value = b.primary_color || '#2563eb';
+                    document.getElementById('brand-secondary-color').value = b.secondary_color || '#7c3aed';
+                    document.getElementById('brand-secondary-color-text').value = b.secondary_color || '#7c3aed';
+                    document.getElementById('brand-accent-color').value = b.accent_color || '#f59e0b';
+                    document.getElementById('brand-accent-color-text').value = b.accent_color || '#f59e0b';
+                    document.getElementById('brand-footer-bg').value = b.footer_bg_color || '#0f172a';
+                    document.getElementById('brand-footer-bg-text').value = b.footer_bg_color || '#0f172a';
+                    document.getElementById('brand-footer-text').value = b.footer_text_color || '#ffffff';
+                    document.getElementById('brand-footer-text-text').value = b.footer_text_color || '#ffffff';
+                    document.getElementById('brand-copyright').value = b.copyright_text || '';
+                }
+            } catch (error) {
+                console.error('Error loading branding:', error);
+            }
+        }
+
+        async function saveBranding() {
+            const brandData = {
+                client_id: 1,
+                primary_color: document.getElementById('brand-primary-color').value,
+                secondary_color: document.getElementById('brand-secondary-color').value,
+                accent_color: document.getElementById('brand-accent-color').value,
+                footer_bg_color: document.getElementById('brand-footer-bg').value,
+                footer_text_color: document.getElementById('brand-footer-text').value,
+                copyright_text: document.getElementById('brand-copyright').value
+            };
+            
+            try {
+                const response = await fetch('/api/admin/branding', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(brandData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('Branding saved!');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving branding:', error);
+            }
+        }
+
+        // Sync color inputs with text fields
+        document.querySelectorAll('input[type="color"]').forEach(colorInput => {
+            colorInput.addEventListener('input', function() {
+                const textInput = document.getElementById(this.id + '-text');
+                if (textInput) textInput.value = this.value;
+            });
+        });
+
+        // =====================================================
+        // API FUNCTIONS
+        // =====================================================
+
+        async function testApiConnection() {
+            try {
+                const response = await fetch('/api/public/client/1/rooms');
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ API Connection Successful!\n\nFound ' + (data.rooms?.length || 0) + ' rooms.');
+                } else {
+                    alert('❌ API Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('❌ Connection Failed: ' + error.message);
+            }
+        }
+
+        function copyApiUrl() {
+            const input = document.getElementById('api-base-url');
+            input.select();
+            document.execCommand('copy');
+            alert('API URL copied!');
         }
 
         // Initial load
