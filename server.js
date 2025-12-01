@@ -7440,6 +7440,708 @@ app.post('/api/ai/generate-content', async (req, res) => {
 });
 
 // =====================================================
+// API KEY MANAGEMENT (Admin)
+// =====================================================
+
+// Generate a secure random API key
+function generateApiKey() {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let key = 'gas_';
+    for (let i = 0; i < 32; i++) {
+        key += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return key;
+}
+
+// Get all API keys for a client
+app.get('/api/admin/api-keys', async (req, res) => {
+    try {
+        const clientId = req.query.client_id || 1;
+        const result = await pool.query(`
+            SELECT id, key_name, api_key, permissions, rate_limit_per_minute, rate_limit_per_day,
+                   last_used_at, total_requests, is_active, expires_at, allowed_origins, created_at
+            FROM client_api_keys 
+            WHERE client_id = $1
+            ORDER BY created_at DESC
+        `, [clientId]);
+        
+        res.json({ success: true, api_keys: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Create new API key
+app.post('/api/admin/api-keys', async (req, res) => {
+    try {
+        const {
+            client_id = 1,
+            key_name,
+            permissions = ['read:rooms', 'read:availability', 'read:pricing', 'read:offers', 'read:content'],
+            rate_limit_per_minute = 60,
+            rate_limit_per_day = 10000,
+            allowed_origins = [],
+            expires_at = null
+        } = req.body;
+        
+        const api_key = generateApiKey();
+        
+        const result = await pool.query(`
+            INSERT INTO client_api_keys (
+                client_id, key_name, api_key, permissions, 
+                rate_limit_per_minute, rate_limit_per_day, allowed_origins, expires_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            RETURNING *
+        `, [client_id, key_name, api_key, JSON.stringify(permissions), rate_limit_per_minute, rate_limit_per_day, allowed_origins, expires_at]);
+        
+        res.json({ success: true, api_key: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Update API key
+app.put('/api/admin/api-keys/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { key_name, permissions, rate_limit_per_minute, rate_limit_per_day, is_active, allowed_origins, expires_at } = req.body;
+        
+        const result = await pool.query(`
+            UPDATE client_api_keys SET
+                key_name = COALESCE($2, key_name),
+                permissions = COALESCE($3, permissions),
+                rate_limit_per_minute = COALESCE($4, rate_limit_per_minute),
+                rate_limit_per_day = COALESCE($5, rate_limit_per_day),
+                is_active = COALESCE($6, is_active),
+                allowed_origins = COALESCE($7, allowed_origins),
+                expires_at = $8,
+                updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+        `, [id, key_name, permissions ? JSON.stringify(permissions) : null, rate_limit_per_minute, rate_limit_per_day, is_active, allowed_origins, expires_at]);
+        
+        res.json({ success: true, api_key: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Delete API key
+app.delete('/api/admin/api-keys/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query('DELETE FROM client_api_keys WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Regenerate API key
+app.post('/api/admin/api-keys/:id/regenerate', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const new_key = generateApiKey();
+        
+        const result = await pool.query(`
+            UPDATE client_api_keys SET api_key = $2, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+        `, [id, new_key]);
+        
+        res.json({ success: true, api_key: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
+// API KEY AUTHENTICATION MIDDLEWARE
+// =====================================================
+
+async function authenticateApiKey(req, res, next) {
+    const apiKey = req.headers['x-api-key'] || req.query.api_key;
+    
+    if (!apiKey) {
+        return res.status(401).json({ success: false, error: 'API key required. Include X-API-Key header or api_key query parameter.' });
+    }
+    
+    try {
+        const result = await pool.query(`
+            SELECT ak.*, c.id as client_id 
+            FROM client_api_keys ak
+            JOIN clients c ON ak.client_id = c.id
+            WHERE ak.api_key = $1 AND ak.is_active = true
+        `, [apiKey]);
+        
+        if (result.rows.length === 0) {
+            return res.status(401).json({ success: false, error: 'Invalid or inactive API key' });
+        }
+        
+        const keyData = result.rows[0];
+        
+        // Check expiration
+        if (keyData.expires_at && new Date(keyData.expires_at) < new Date()) {
+            return res.status(401).json({ success: false, error: 'API key has expired' });
+        }
+        
+        // Check origin if allowed_origins is set
+        const origin = req.headers.origin;
+        if (keyData.allowed_origins && keyData.allowed_origins.length > 0) {
+            if (!origin || !keyData.allowed_origins.includes(origin)) {
+                return res.status(403).json({ success: false, error: 'Origin not allowed for this API key' });
+            }
+        }
+        
+        // Update usage stats
+        await pool.query(`
+            UPDATE client_api_keys SET 
+                last_used_at = NOW(), 
+                total_requests = total_requests + 1 
+            WHERE id = $1
+        `, [keyData.id]);
+        
+        // Attach key data to request
+        req.apiKey = keyData;
+        req.clientId = keyData.client_id;
+        
+        next();
+    } catch (error) {
+        console.error('API auth error:', error);
+        res.status(500).json({ success: false, error: 'Authentication error' });
+    }
+}
+
+// Helper to check permissions
+function hasPermission(req, permission) {
+    if (!req.apiKey || !req.apiKey.permissions) return false;
+    const perms = typeof req.apiKey.permissions === 'string' 
+        ? JSON.parse(req.apiKey.permissions) 
+        : req.apiKey.permissions;
+    return perms.includes(permission) || perms.includes('*');
+}
+
+// =====================================================
+// SECURE API ENDPOINTS (Require API Key)
+// =====================================================
+
+// Get all rooms with full details and pricing
+app.get('/api/v1/rooms', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:rooms')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:rooms required' });
+    }
+    
+    try {
+        const rooms = await pool.query(`
+            SELECT r.*, p.name as property_name, p.currency, p.timezone,
+                   array_agg(DISTINCT ri.image_url) FILTER (WHERE ri.image_url IS NOT NULL) as images,
+                   array_agg(DISTINCT a.name) FILTER (WHERE a.name IS NOT NULL) as amenities
+            FROM rooms r
+            JOIN properties p ON r.property_id = p.id
+            LEFT JOIN room_images ri ON r.id = ri.room_id
+            LEFT JOIN room_amenities ra ON r.id = ra.room_id
+            LEFT JOIN amenities a ON ra.amenity_id = a.id
+            WHERE p.client_id = $1
+            GROUP BY r.id, p.name, p.currency, p.timezone
+            ORDER BY p.name, r.name
+        `, [req.clientId]);
+        
+        res.json({ success: true, rooms: rooms.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get room by ID with full details
+app.get('/api/v1/rooms/:roomId', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:rooms')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:rooms required' });
+    }
+    
+    try {
+        const { roomId } = req.params;
+        
+        const room = await pool.query(`
+            SELECT r.*, p.name as property_name, p.currency, p.timezone
+            FROM rooms r
+            JOIN properties p ON r.property_id = p.id
+            WHERE r.id = $1 AND p.client_id = $2
+        `, [roomId, req.clientId]);
+        
+        if (room.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Room not found' });
+        }
+        
+        // Get images
+        const images = await pool.query(`
+            SELECT image_url, caption, display_order FROM room_images WHERE room_id = $1 ORDER BY display_order
+        `, [roomId]);
+        
+        // Get amenities
+        const amenities = await pool.query(`
+            SELECT a.* FROM amenities a
+            JOIN room_amenities ra ON a.id = ra.amenity_id
+            WHERE ra.room_id = $1
+        `, [roomId]);
+        
+        res.json({ 
+            success: true, 
+            room: {
+                ...room.rows[0],
+                images: images.rows,
+                amenities: amenities.rows
+            }
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get availability for date range
+app.get('/api/v1/availability', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:availability')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:availability required' });
+    }
+    
+    try {
+        const { room_id, start_date, end_date } = req.query;
+        
+        if (!start_date || !end_date) {
+            return res.status(400).json({ success: false, error: 'start_date and end_date required' });
+        }
+        
+        let query = `
+            SELECT ra.*, r.name as room_name, r.base_price
+            FROM room_availability ra
+            JOIN rooms r ON ra.room_id = r.id
+            JOIN properties p ON r.property_id = p.id
+            WHERE p.client_id = $1 AND ra.date >= $2 AND ra.date <= $3
+        `;
+        const params = [req.clientId, start_date, end_date];
+        
+        if (room_id) {
+            query += ` AND ra.room_id = $4`;
+            params.push(room_id);
+        }
+        
+        query += ` ORDER BY ra.room_id, ra.date`;
+        
+        const result = await pool.query(query, params);
+        
+        // Group by room
+        const availabilityByRoom = {};
+        result.rows.forEach(row => {
+            if (!availabilityByRoom[row.room_id]) {
+                availabilityByRoom[row.room_id] = {
+                    room_id: row.room_id,
+                    room_name: row.room_name,
+                    base_price: row.base_price,
+                    dates: []
+                };
+            }
+            availabilityByRoom[row.room_id].dates.push({
+                date: row.date,
+                available: row.available,
+                price: row.price || row.base_price,
+                min_stay: row.min_stay,
+                check_in_allowed: row.check_in_allowed,
+                check_out_allowed: row.check_out_allowed
+            });
+        });
+        
+        res.json({ success: true, availability: Object.values(availabilityByRoom) });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Check specific availability
+app.post('/api/v1/availability/check', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:availability')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:availability required' });
+    }
+    
+    try {
+        const { room_id, check_in, check_out, guests } = req.body;
+        
+        if (!room_id || !check_in || !check_out) {
+            return res.status(400).json({ success: false, error: 'room_id, check_in, and check_out required' });
+        }
+        
+        // Verify room belongs to client
+        const roomCheck = await pool.query(`
+            SELECT r.*, p.currency FROM rooms r
+            JOIN properties p ON r.property_id = p.id
+            WHERE r.id = $1 AND p.client_id = $2
+        `, [room_id, req.clientId]);
+        
+        if (roomCheck.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Room not found' });
+        }
+        
+        const room = roomCheck.rows[0];
+        
+        // Check guest capacity
+        if (guests && guests > room.max_occupancy) {
+            return res.json({ 
+                success: true, 
+                available: false, 
+                reason: `Maximum occupancy is ${room.max_occupancy} guests` 
+            });
+        }
+        
+        // Check for existing bookings
+        const bookings = await pool.query(`
+            SELECT id FROM bookings 
+            WHERE room_id = $1 
+            AND status NOT IN ('cancelled', 'rejected')
+            AND (
+                (check_in_date <= $2 AND check_out_date > $2)
+                OR (check_in_date < $3 AND check_out_date >= $3)
+                OR (check_in_date >= $2 AND check_out_date <= $3)
+            )
+        `, [room_id, check_in, check_out]);
+        
+        if (bookings.rows.length > 0) {
+            return res.json({ 
+                success: true, 
+                available: false, 
+                reason: 'Room is already booked for these dates' 
+            });
+        }
+        
+        // Check availability table for blocked dates
+        const blocked = await pool.query(`
+            SELECT date FROM room_availability 
+            WHERE room_id = $1 AND date >= $2 AND date < $3 AND available = false
+        `, [room_id, check_in, check_out]);
+        
+        if (blocked.rows.length > 0) {
+            return res.json({ 
+                success: true, 
+                available: false, 
+                reason: 'Some dates are not available',
+                blocked_dates: blocked.rows.map(r => r.date)
+            });
+        }
+        
+        // Calculate price
+        const nights = Math.ceil((new Date(check_out) - new Date(check_in)) / (1000 * 60 * 60 * 24));
+        
+        const pricing = await pool.query(`
+            SELECT date, price FROM room_availability 
+            WHERE room_id = $1 AND date >= $2 AND date < $3
+        `, [room_id, check_in, check_out]);
+        
+        let totalPrice = 0;
+        const priceByDate = {};
+        pricing.rows.forEach(p => { priceByDate[p.date] = p.price; });
+        
+        for (let d = new Date(check_in); d < new Date(check_out); d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            totalPrice += priceByDate[dateStr] || room.base_price || 0;
+        }
+        
+        res.json({ 
+            success: true, 
+            available: true,
+            room: {
+                id: room.id,
+                name: room.name,
+                base_price: room.base_price,
+                max_occupancy: room.max_occupancy
+            },
+            pricing: {
+                nights: nights,
+                total: totalPrice,
+                average_per_night: totalPrice / nights,
+                currency: room.currency
+            }
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get pricing (seasonal rates, special dates)
+app.get('/api/v1/pricing', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:pricing')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:pricing required' });
+    }
+    
+    try {
+        const { room_id, start_date, end_date } = req.query;
+        
+        // Get base room prices
+        let roomQuery = `
+            SELECT r.id, r.name, r.base_price, r.weekend_price, p.currency
+            FROM rooms r
+            JOIN properties p ON r.property_id = p.id
+            WHERE p.client_id = $1
+        `;
+        const params = [req.clientId];
+        
+        if (room_id) {
+            roomQuery += ` AND r.id = $2`;
+            params.push(room_id);
+        }
+        
+        const rooms = await pool.query(roomQuery, params);
+        
+        // Get seasonal pricing if date range specified
+        let seasonalPricing = [];
+        if (start_date && end_date) {
+            const pricingResult = await pool.query(`
+                SELECT ra.room_id, ra.date, ra.price, ra.min_stay
+                FROM room_availability ra
+                JOIN rooms r ON ra.room_id = r.id
+                JOIN properties p ON r.property_id = p.id
+                WHERE p.client_id = $1 AND ra.date >= $2 AND ra.date <= $3
+                ${room_id ? 'AND ra.room_id = $4' : ''}
+                ORDER BY ra.room_id, ra.date
+            `, room_id ? [req.clientId, start_date, end_date, room_id] : [req.clientId, start_date, end_date]);
+            
+            seasonalPricing = pricingResult.rows;
+        }
+        
+        res.json({ 
+            success: true, 
+            rooms: rooms.rows,
+            seasonal_pricing: seasonalPricing
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get active offers
+app.get('/api/v1/offers', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:offers')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:offers required' });
+    }
+    
+    try {
+        const { active_only = true } = req.query;
+        
+        let query = `
+            SELECT o.*, p.name as property_name
+            FROM offers o
+            JOIN properties p ON o.property_id = p.id
+            WHERE p.client_id = $1
+        `;
+        
+        if (active_only === 'true' || active_only === true) {
+            query += ` AND o.is_active = true 
+                       AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
+                       AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)`;
+        }
+        
+        query += ` ORDER BY o.created_at DESC`;
+        
+        const result = await pool.query(query, [req.clientId]);
+        
+        res.json({ success: true, offers: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Validate and apply offer/voucher
+app.post('/api/v1/offers/validate', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:offers')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:offers required' });
+    }
+    
+    try {
+        const { code, room_id, check_in, check_out, subtotal } = req.body;
+        
+        if (!code) {
+            return res.status(400).json({ success: false, error: 'Offer code required' });
+        }
+        
+        // Check vouchers first
+        const voucher = await pool.query(`
+            SELECT v.* FROM vouchers v
+            JOIN properties p ON v.property_id = p.id
+            WHERE p.client_id = $1 AND v.code = $2 AND v.is_active = true
+        `, [req.clientId, code.toUpperCase()]);
+        
+        if (voucher.rows.length > 0) {
+            const v = voucher.rows[0];
+            
+            // Check validity
+            if (v.valid_from && new Date(v.valid_from) > new Date()) {
+                return res.json({ success: true, valid: false, reason: 'Voucher not yet valid' });
+            }
+            if (v.valid_until && new Date(v.valid_until) < new Date()) {
+                return res.json({ success: true, valid: false, reason: 'Voucher has expired' });
+            }
+            if (v.usage_limit && v.times_used >= v.usage_limit) {
+                return res.json({ success: true, valid: false, reason: 'Voucher usage limit reached' });
+            }
+            if (v.min_nights && check_in && check_out) {
+                const nights = Math.ceil((new Date(check_out) - new Date(check_in)) / (1000 * 60 * 60 * 24));
+                if (nights < v.min_nights) {
+                    return res.json({ success: true, valid: false, reason: `Minimum ${v.min_nights} nights required` });
+                }
+            }
+            
+            // Calculate discount
+            let discount = 0;
+            if (v.discount_type === 'percentage' && subtotal) {
+                discount = subtotal * (v.discount_value / 100);
+                if (v.max_discount && discount > v.max_discount) {
+                    discount = v.max_discount;
+                }
+            } else if (v.discount_type === 'fixed') {
+                discount = v.discount_value;
+            }
+            
+            return res.json({
+                success: true,
+                valid: true,
+                type: 'voucher',
+                voucher: {
+                    id: v.id,
+                    code: v.code,
+                    discount_type: v.discount_type,
+                    discount_value: v.discount_value,
+                    calculated_discount: discount
+                }
+            });
+        }
+        
+        // Check offers by promo code
+        const offer = await pool.query(`
+            SELECT o.* FROM offers o
+            JOIN properties p ON o.property_id = p.id
+            WHERE p.client_id = $1 AND o.promo_code = $2 AND o.is_active = true
+        `, [req.clientId, code.toUpperCase()]);
+        
+        if (offer.rows.length > 0) {
+            const o = offer.rows[0];
+            
+            let discount = 0;
+            if (o.discount_type === 'percentage' && subtotal) {
+                discount = subtotal * (o.discount_percentage / 100);
+            } else if (o.discount_type === 'fixed') {
+                discount = o.discount_amount;
+            }
+            
+            return res.json({
+                success: true,
+                valid: true,
+                type: 'offer',
+                offer: {
+                    id: o.id,
+                    name: o.name,
+                    discount_type: o.discount_type,
+                    calculated_discount: discount
+                }
+            });
+        }
+        
+        res.json({ success: true, valid: false, reason: 'Invalid code' });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get upsells
+app.get('/api/v1/upsells', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:offers')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:offers required' });
+    }
+    
+    try {
+        const { room_id } = req.query;
+        
+        let query = `
+            SELECT u.* FROM upsells u
+            JOIN properties p ON u.property_id = p.id
+            WHERE p.client_id = $1 AND u.is_active = true
+        `;
+        const params = [req.clientId];
+        
+        // If room_id provided, filter applicable upsells
+        if (room_id) {
+            query += ` AND (u.applicable_rooms IS NULL OR u.applicable_rooms @> ARRAY[$2]::integer[])`;
+            params.push(room_id);
+        }
+        
+        query += ` ORDER BY u.display_order, u.name`;
+        
+        const result = await pool.query(query, params);
+        
+        res.json({ success: true, upsells: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get taxes and fees
+app.get('/api/v1/taxes', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:pricing')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:pricing required' });
+    }
+    
+    try {
+        const taxes = await pool.query(`
+            SELECT t.* FROM taxes t
+            JOIN properties p ON t.property_id = p.id
+            WHERE p.client_id = $1 AND t.is_active = true
+            ORDER BY t.name
+        `, [req.clientId]);
+        
+        const fees = await pool.query(`
+            SELECT f.* FROM fees f
+            JOIN properties p ON f.property_id = p.id
+            WHERE p.client_id = $1 AND f.is_active = true
+            ORDER BY f.name
+        `, [req.clientId]);
+        
+        res.json({ 
+            success: true, 
+            taxes: taxes.rows,
+            fees: fees.rows
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get full content (pages, contact, branding) - authenticated version with all fields
+app.get('/api/v1/content', authenticateApiKey, async (req, res) => {
+    if (!hasPermission(req, 'read:content')) {
+        return res.status(403).json({ success: false, error: 'Permission denied: read:content required' });
+    }
+    
+    try {
+        const [pages, contact, branding, blog, attractions] = await Promise.all([
+            pool.query(`SELECT * FROM client_pages WHERE client_id = $1`, [req.clientId]),
+            pool.query(`SELECT * FROM client_contact_info WHERE client_id = $1`, [req.clientId]),
+            pool.query(`SELECT * FROM client_branding WHERE client_id = $1`, [req.clientId]),
+            pool.query(`SELECT * FROM blog_posts WHERE client_id = $1 AND is_published = true ORDER BY published_at DESC`, [req.clientId]),
+            pool.query(`SELECT * FROM attractions WHERE client_id = $1 AND is_published = true ORDER BY display_order`, [req.clientId])
+        ]);
+        
+        res.json({
+            success: true,
+            content: {
+                pages: pages.rows,
+                contact: contact.rows[0] || {},
+                branding: branding.rows[0] || {},
+                blog: blog.rows,
+                attractions: attractions.rows
+            }
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
 // PUBLIC API ENDPOINTS (for WordPress plugin & widgets)
 // =====================================================
 
