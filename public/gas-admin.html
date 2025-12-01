@@ -1642,59 +1642,329 @@
 
                 <!-- Branding Section -->
                 <div id="content-branding" class="content-section" style="display: none;">
+                    <!-- Logo & Identity -->
                     <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">🖼️ Logo & Identity</h3>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">Logo URL (light backgrounds)</label>
+                                <input type="url" class="form-input" id="brand-logo-url" placeholder="https://...">
+                                <div id="brand-logo-preview" style="margin-top: 0.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; display: none;">
+                                    <img src="" style="max-height: 60px; max-width: 200px;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Logo URL (dark backgrounds)</label>
+                                <input type="url" class="form-input" id="brand-logo-dark-url" placeholder="https://...">
+                                <div id="brand-logo-dark-preview" style="margin-top: 0.5rem; padding: 1rem; background: #1e293b; border-radius: 8px; display: none;">
+                                    <img src="" style="max-height: 60px; max-width: 200px;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Favicon URL</label>
+                                <input type="url" class="form-input" id="brand-favicon-url" placeholder="https://... (32x32 or 64x64 .ico/.png)">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Social Share Image (OG Image)</label>
+                                <input type="url" class="form-input" id="brand-og-image-url" placeholder="https://... (1200x630 recommended)">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Site Title (for SEO)</label>
+                                <input type="text" class="form-input" id="brand-site-title" placeholder="Your Business Name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Site Description (for SEO)</label>
+                                <input type="text" class="form-input" id="brand-site-description" placeholder="Brief description of your business">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Colors -->
+                    <div class="card" style="margin-top: 1.5rem;">
                         <div class="card-header">
                             <h3 class="card-title">🎨 Brand Colors</h3>
                         </div>
                         
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem; font-size: 0.9rem; color: var(--text-secondary);">Primary Palette</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Primary Color</label>
+                                <label class="form-label">Primary</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input type="color" id="brand-primary-color" value="#2563eb" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
-                                    <input type="text" class="form-input" id="brand-primary-color-text" value="#2563eb" style="flex: 1;" onchange="document.getElementById('brand-primary-color').value = this.value">
+                                    <input type="color" id="brand-primary-color" value="#2563eb" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-primary-color-text" value="#2563eb" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Secondary Color</label>
+                                <label class="form-label">Secondary</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input type="color" id="brand-secondary-color" value="#7c3aed" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
-                                    <input type="text" class="form-input" id="brand-secondary-color-text" value="#7c3aed" style="flex: 1;" onchange="document.getElementById('brand-secondary-color').value = this.value">
+                                    <input type="color" id="brand-secondary-color" value="#7c3aed" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-secondary-color-text" value="#7c3aed" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Accent Color</label>
+                                <label class="form-label">Accent</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input type="color" id="brand-accent-color" value="#f59e0b" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
-                                    <input type="text" class="form-input" id="brand-accent-color-text" value="#f59e0b" style="flex: 1;" onchange="document.getElementById('brand-accent-color').value = this.value">
+                                    <input type="color" id="brand-accent-color" value="#f59e0b" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-accent-color-text" value="#f59e0b" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
                                 </div>
                             </div>
                         </div>
                         
-                        <h4 style="margin: 2rem 0 1rem; color: var(--text-primary);">Footer Styling</h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem;">
+                        <h4 style="margin: 1.5rem 0 1rem; font-size: 0.9rem; color: var(--text-secondary);">Text & Background</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-text-color" value="#1e293b" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-text-color-text" value="#1e293b" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Light</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-text-light-color" value="#64748b" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-text-light-color-text" value="#64748b" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Background</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-background-color" value="#ffffff" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-background-color-text" value="#ffffff" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Surface</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-surface-color" value="#f8fafc" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-surface-color-text" value="#f8fafc" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Header Styling -->
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">📌 Header Styling</h3>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Header Background</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-header-bg" value="#ffffff" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-header-bg-text" value="#ffffff" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Header Text</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-header-text" value="#1e293b" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-header-text-text" value="#1e293b" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem; display: flex; gap: 2rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="brand-header-sticky" checked>
+                                <span>Sticky Header</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="brand-header-transparent">
+                                <span>Transparent on Homepage</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer Styling -->
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">🦶 Footer Styling</h3>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Footer Background</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input type="color" id="brand-footer-bg" value="#0f172a" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
-                                    <input type="text" class="form-input" id="brand-footer-bg-text" value="#0f172a" style="flex: 1;">
+                                    <input type="color" id="brand-footer-bg" value="#0f172a" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-footer-bg-text" value="#0f172a" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
                                 </div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Footer Text Color</label>
+                                <label class="form-label">Footer Text</label>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                    <input type="color" id="brand-footer-text" value="#ffffff" style="width: 50px; height: 40px; border: none; cursor: pointer; border-radius: 4px;">
-                                    <input type="text" class="form-input" id="brand-footer-text-text" value="#ffffff" style="flex: 1;">
+                                    <input type="color" id="brand-footer-text" value="#ffffff" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-footer-text-text" value="#ffffff" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Link Color</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-footer-link" value="#94a3b8" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-footer-link-text" value="#94a3b8" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Link Hover</label>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="color" id="brand-footer-link-hover" value="#ffffff" style="width: 45px; height: 36px; border: none; cursor: pointer; border-radius: 4px;">
+                                    <input type="text" class="form-input" id="brand-footer-link-hover-text" value="#ffffff" style="flex: 1; font-family: monospace; font-size: 0.85rem;">
                                 </div>
                             </div>
                         </div>
-                        
-                        <div class="form-group" style="margin-top: 1.5rem;">
+                        <div class="form-group" style="margin-top: 1rem;">
                             <label class="form-label">Copyright Text</label>
                             <input type="text" class="form-input" id="brand-copyright" placeholder="© 2025 Your Business Name. All rights reserved.">
                         </div>
+                    </div>
+                    
+                    <!-- Button Styling -->
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">🔘 Button Styling</h3>
+                        </div>
                         
-                        <button class="btn" onclick="saveBranding()" style="margin-top: 1.5rem;">💾 Save Branding</button>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                            <div>
+                                <h4 style="margin: 0 0 1rem; font-size: 0.9rem; color: var(--text-secondary);">Primary Button</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div class="form-group">
+                                        <label class="form-label">Background</label>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <input type="color" id="brand-btn-primary-bg" value="#2563eb" style="width: 40px; height: 32px; border: none; cursor: pointer; border-radius: 4px;">
+                                            <input type="text" class="form-input" id="brand-btn-primary-bg-text" value="#2563eb" style="flex: 1; font-family: monospace; font-size: 0.8rem;">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Text</label>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <input type="color" id="brand-btn-primary-text" value="#ffffff" style="width: 40px; height: 32px; border: none; cursor: pointer; border-radius: 4px;">
+                                            <input type="text" class="form-input" id="brand-btn-primary-text-text" value="#ffffff" style="flex: 1; font-family: monospace; font-size: 0.8rem;">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Hover</label>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <input type="color" id="brand-btn-primary-hover" value="#1d4ed8" style="width: 40px; height: 32px; border: none; cursor: pointer; border-radius: 4px;">
+                                            <input type="text" class="form-input" id="brand-btn-primary-hover-text" value="#1d4ed8" style="flex: 1; font-family: monospace; font-size: 0.8rem;">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Border Radius</label>
+                                        <select class="form-input" id="brand-btn-radius">
+                                            <option value="0px">Square (0px)</option>
+                                            <option value="4px">Slightly Rounded (4px)</option>
+                                            <option value="8px" selected>Rounded (8px)</option>
+                                            <option value="12px">More Rounded (12px)</option>
+                                            <option value="9999px">Pill Shape</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px; text-align: center;">
+                                    <button id="preview-btn-primary" style="padding: 0.75rem 1.5rem; border: none; cursor: pointer; font-weight: 600;">Book Now</button>
+                                </div>
+                            </div>
+                            
+                            <div>
+                                <h4 style="margin: 0 0 1rem; font-size: 0.9rem; color: var(--text-secondary);">Secondary Button</h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div class="form-group">
+                                        <label class="form-label">Text/Border</label>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <input type="color" id="brand-btn-secondary-text" value="#2563eb" style="width: 40px; height: 32px; border: none; cursor: pointer; border-radius: 4px;">
+                                            <input type="text" class="form-input" id="brand-btn-secondary-text-text" value="#2563eb" style="flex: 1; font-family: monospace; font-size: 0.8rem;">
+                                        </div>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Background</label>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <input type="color" id="brand-btn-secondary-bg" value="#ffffff" style="width: 40px; height: 32px; border: none; cursor: pointer; border-radius: 4px;">
+                                            <input type="text" class="form-input" id="brand-btn-secondary-bg-text" value="#ffffff" style="flex: 1; font-family: monospace; font-size: 0.8rem;">
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px; text-align: center;">
+                                    <button id="preview-btn-secondary" style="padding: 0.75rem 1.5rem; cursor: pointer; font-weight: 600;">Learn More</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Typography -->
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">🔤 Typography</h3>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Heading Font</label>
+                                <select class="form-input" id="brand-font-heading">
+                                    <option value="Inter">Inter</option>
+                                    <option value="Playfair Display">Playfair Display</option>
+                                    <option value="Poppins">Poppins</option>
+                                    <option value="Roboto">Roboto</option>
+                                    <option value="Montserrat">Montserrat</option>
+                                    <option value="Lora">Lora</option>
+                                    <option value="Open Sans">Open Sans</option>
+                                    <option value="Raleway">Raleway</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Body Font</label>
+                                <select class="form-input" id="brand-font-body">
+                                    <option value="Inter">Inter</option>
+                                    <option value="Poppins">Poppins</option>
+                                    <option value="Roboto">Roboto</option>
+                                    <option value="Open Sans">Open Sans</option>
+                                    <option value="Lato">Lato</option>
+                                    <option value="Source Sans Pro">Source Sans Pro</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Heading Weight</label>
+                                <select class="form-input" id="brand-font-heading-weight">
+                                    <option value="400">Regular (400)</option>
+                                    <option value="500">Medium (500)</option>
+                                    <option value="600">Semibold (600)</option>
+                                    <option value="700" selected>Bold (700)</option>
+                                    <option value="800">Extra Bold (800)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Body Weight</label>
+                                <select class="form-input" id="brand-font-body-weight">
+                                    <option value="300">Light (300)</option>
+                                    <option value="400" selected>Regular (400)</option>
+                                    <option value="500">Medium (500)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                            <h2 id="preview-heading" style="margin: 0 0 0.5rem;">Heading Preview</h2>
+                            <p id="preview-body" style="margin: 0; color: #64748b;">This is how your body text will look. The quick brown fox jumps over the lazy dog.</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Custom CSS -->
+                    <div class="card" style="margin-top: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title">💻 Custom CSS (Advanced)</h3>
+                        </div>
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">Add custom CSS that will be injected into your website. Use with caution.</p>
+                        <textarea class="form-input" id="brand-custom-css" rows="6" placeholder="/* Your custom CSS here */
+.my-class {
+    color: red;
+}" style="font-family: monospace; font-size: 0.85rem;"></textarea>
+                    </div>
+                    
+                    <div style="margin-top: 1.5rem; display: flex; gap: 1rem;">
+                        <button class="btn" onclick="saveBranding()">💾 Save Branding</button>
+                        <button class="btn" style="background: #64748b;" onclick="previewBranding()">👁️ Preview Theme</button>
                     </div>
                 </div>
 
@@ -10951,32 +11221,157 @@ const availability = await fetch('/api/public/check-availability', {
                 
                 if (data.success && data.branding) {
                     const b = data.branding;
-                    document.getElementById('brand-primary-color').value = b.primary_color || '#2563eb';
-                    document.getElementById('brand-primary-color-text').value = b.primary_color || '#2563eb';
-                    document.getElementById('brand-secondary-color').value = b.secondary_color || '#7c3aed';
-                    document.getElementById('brand-secondary-color-text').value = b.secondary_color || '#7c3aed';
-                    document.getElementById('brand-accent-color').value = b.accent_color || '#f59e0b';
-                    document.getElementById('brand-accent-color-text').value = b.accent_color || '#f59e0b';
-                    document.getElementById('brand-footer-bg').value = b.footer_bg_color || '#0f172a';
-                    document.getElementById('brand-footer-bg-text').value = b.footer_bg_color || '#0f172a';
-                    document.getElementById('brand-footer-text').value = b.footer_text_color || '#ffffff';
-                    document.getElementById('brand-footer-text-text').value = b.footer_text_color || '#ffffff';
+                    
+                    // Logo & Identity
+                    document.getElementById('brand-logo-url').value = b.logo_url || '';
+                    document.getElementById('brand-logo-dark-url').value = b.logo_dark_url || '';
+                    document.getElementById('brand-favicon-url').value = b.favicon_url || '';
+                    document.getElementById('brand-og-image-url').value = b.og_image_url || '';
+                    document.getElementById('brand-site-title').value = b.site_title || '';
+                    document.getElementById('brand-site-description').value = b.site_description || '';
+                    
+                    // Primary Colors
+                    setColorInput('brand-primary-color', b.primary_color || '#2563eb');
+                    setColorInput('brand-secondary-color', b.secondary_color || '#7c3aed');
+                    setColorInput('brand-accent-color', b.accent_color || '#f59e0b');
+                    
+                    // Text & Background
+                    setColorInput('brand-text-color', b.text_color || '#1e293b');
+                    setColorInput('brand-text-light-color', b.text_light_color || '#64748b');
+                    setColorInput('brand-background-color', b.background_color || '#ffffff');
+                    setColorInput('brand-surface-color', b.surface_color || '#f8fafc');
+                    
+                    // Header
+                    setColorInput('brand-header-bg', b.header_bg_color || '#ffffff');
+                    setColorInput('brand-header-text', b.header_text_color || '#1e293b');
+                    document.getElementById('brand-header-sticky').checked = b.header_sticky !== false;
+                    document.getElementById('brand-header-transparent').checked = b.header_transparent_home || false;
+                    
+                    // Footer
+                    setColorInput('brand-footer-bg', b.footer_bg_color || '#0f172a');
+                    setColorInput('brand-footer-text', b.footer_text_color || '#ffffff');
+                    setColorInput('brand-footer-link', b.footer_link_color || '#94a3b8');
+                    setColorInput('brand-footer-link-hover', b.footer_link_hover_color || '#ffffff');
                     document.getElementById('brand-copyright').value = b.copyright_text || '';
+                    
+                    // Buttons
+                    setColorInput('brand-btn-primary-bg', b.button_primary_bg || b.primary_color || '#2563eb');
+                    setColorInput('brand-btn-primary-text', b.button_primary_text || '#ffffff');
+                    setColorInput('brand-btn-primary-hover', b.button_primary_hover || '#1d4ed8');
+                    setColorInput('brand-btn-secondary-text', b.button_secondary_text || b.primary_color || '#2563eb');
+                    setColorInput('brand-btn-secondary-bg', b.button_secondary_bg || '#ffffff');
+                    document.getElementById('brand-btn-radius').value = b.button_border_radius || '8px';
+                    
+                    // Typography
+                    document.getElementById('brand-font-heading').value = b.font_heading || 'Inter';
+                    document.getElementById('brand-font-body').value = b.font_body || 'Inter';
+                    document.getElementById('brand-font-heading-weight').value = b.font_heading_weight || '700';
+                    document.getElementById('brand-font-body-weight').value = b.font_body_weight || '400';
+                    
+                    // Custom CSS
+                    document.getElementById('brand-custom-css').value = b.custom_css || '';
+                    
+                    // Update previews
+                    updateBrandingPreviews();
                 }
             } catch (error) {
                 console.error('Error loading branding:', error);
+            }
+        }
+        
+        function setColorInput(baseId, value) {
+            const colorInput = document.getElementById(baseId);
+            const textInput = document.getElementById(baseId + '-text');
+            if (colorInput) colorInput.value = value;
+            if (textInput) textInput.value = value;
+        }
+        
+        function updateBrandingPreviews() {
+            // Update button previews
+            const primaryBtn = document.getElementById('preview-btn-primary');
+            const secondaryBtn = document.getElementById('preview-btn-secondary');
+            const radius = document.getElementById('brand-btn-radius').value;
+            
+            if (primaryBtn) {
+                primaryBtn.style.background = document.getElementById('brand-btn-primary-bg').value;
+                primaryBtn.style.color = document.getElementById('brand-btn-primary-text').value;
+                primaryBtn.style.borderRadius = radius;
+            }
+            
+            if (secondaryBtn) {
+                const textColor = document.getElementById('brand-btn-secondary-text').value;
+                secondaryBtn.style.background = document.getElementById('brand-btn-secondary-bg').value;
+                secondaryBtn.style.color = textColor;
+                secondaryBtn.style.border = '2px solid ' + textColor;
+                secondaryBtn.style.borderRadius = radius;
+            }
+            
+            // Update typography preview
+            const headingPreview = document.getElementById('preview-heading');
+            const bodyPreview = document.getElementById('preview-body');
+            
+            if (headingPreview) {
+                headingPreview.style.fontFamily = document.getElementById('brand-font-heading').value;
+                headingPreview.style.fontWeight = document.getElementById('brand-font-heading-weight').value;
+            }
+            
+            if (bodyPreview) {
+                bodyPreview.style.fontFamily = document.getElementById('brand-font-body').value;
+                bodyPreview.style.fontWeight = document.getElementById('brand-font-body-weight').value;
             }
         }
 
         async function saveBranding() {
             const brandData = {
                 client_id: 1,
+                // Logo & Identity
+                logo_url: document.getElementById('brand-logo-url').value,
+                logo_dark_url: document.getElementById('brand-logo-dark-url').value,
+                favicon_url: document.getElementById('brand-favicon-url').value,
+                og_image_url: document.getElementById('brand-og-image-url').value,
+                site_title: document.getElementById('brand-site-title').value,
+                site_description: document.getElementById('brand-site-description').value,
+                
+                // Primary Colors
                 primary_color: document.getElementById('brand-primary-color').value,
                 secondary_color: document.getElementById('brand-secondary-color').value,
                 accent_color: document.getElementById('brand-accent-color').value,
+                
+                // Text & Background
+                text_color: document.getElementById('brand-text-color').value,
+                text_light_color: document.getElementById('brand-text-light-color').value,
+                background_color: document.getElementById('brand-background-color').value,
+                surface_color: document.getElementById('brand-surface-color').value,
+                
+                // Header
+                header_bg_color: document.getElementById('brand-header-bg').value,
+                header_text_color: document.getElementById('brand-header-text').value,
+                header_sticky: document.getElementById('brand-header-sticky').checked,
+                header_transparent_home: document.getElementById('brand-header-transparent').checked,
+                
+                // Footer
                 footer_bg_color: document.getElementById('brand-footer-bg').value,
                 footer_text_color: document.getElementById('brand-footer-text').value,
-                copyright_text: document.getElementById('brand-copyright').value
+                footer_link_color: document.getElementById('brand-footer-link').value,
+                footer_link_hover_color: document.getElementById('brand-footer-link-hover').value,
+                copyright_text: document.getElementById('brand-copyright').value,
+                
+                // Buttons
+                button_primary_bg: document.getElementById('brand-btn-primary-bg').value,
+                button_primary_text: document.getElementById('brand-btn-primary-text').value,
+                button_primary_hover: document.getElementById('brand-btn-primary-hover').value,
+                button_secondary_text: document.getElementById('brand-btn-secondary-text').value,
+                button_secondary_bg: document.getElementById('brand-btn-secondary-bg').value,
+                button_border_radius: document.getElementById('brand-btn-radius').value,
+                
+                // Typography
+                font_heading: document.getElementById('brand-font-heading').value,
+                font_body: document.getElementById('brand-font-body').value,
+                font_heading_weight: document.getElementById('brand-font-heading-weight').value,
+                font_body_weight: document.getElementById('brand-font-body-weight').value,
+                
+                // Custom CSS
+                custom_css: document.getElementById('brand-custom-css').value
             };
             
             try {
@@ -10996,12 +11391,26 @@ const availability = await fetch('/api/public/check-availability', {
                 console.error('Error saving branding:', error);
             }
         }
-
-        // Sync color inputs with text fields
-        document.querySelectorAll('input[type="color"]').forEach(colorInput => {
-            colorInput.addEventListener('input', function() {
-                const textInput = document.getElementById(this.id + '-text');
-                if (textInput) textInput.value = this.value;
+        
+        function previewBranding() {
+            alert('Theme preview coming soon! Your changes are saved and will appear on the website immediately.');
+        }
+        
+        // Add event listeners for live preview updates
+        document.addEventListener('DOMContentLoaded', function() {
+            // Color input sync
+            document.querySelectorAll('input[type="color"]').forEach(colorInput => {
+                colorInput.addEventListener('input', function() {
+                    const textInput = document.getElementById(this.id + '-text');
+                    if (textInput) textInput.value = this.value;
+                    updateBrandingPreviews();
+                });
+            });
+            
+            // Select change handlers for previews
+            ['brand-btn-radius', 'brand-font-heading', 'brand-font-body', 'brand-font-heading-weight', 'brand-font-body-weight'].forEach(id => {
+                const el = document.getElementById(id);
+                if (el) el.addEventListener('change', updateBrandingPreviews);
             });
         });
 
