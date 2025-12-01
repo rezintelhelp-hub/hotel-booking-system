@@ -23,6 +23,7 @@ CREATE TABLE IF NOT EXISTS client_pages (
     -- SEO
     meta_title VARCHAR(255),
     meta_description TEXT,
+    faq_schema TEXT, -- JSON array of FAQ items for structured data
     
     -- Status
     is_published BOOLEAN DEFAULT true,
