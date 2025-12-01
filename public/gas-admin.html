@@ -981,6 +981,30 @@
                 </div>
 
                 <div class="nav-section">
+                    <div class="nav-label">Apps</div>
+                    <a class="nav-item" data-view="app-blog">
+                        <span class="nav-icon">📝</span>
+                        <span>Blog</span>
+                    </a>
+                    <a class="nav-item" data-view="app-attractions">
+                        <span class="nav-icon">🎯</span>
+                        <span>Attractions</span>
+                    </a>
+                    <a class="nav-item" data-view="app-reviews">
+                        <span class="nav-icon">⭐</span>
+                        <span>Reviews</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-label">Developers</div>
+                    <a class="nav-item" data-view="api-docs">
+                        <span class="nav-icon">🔌</span>
+                        <span>API</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
                     <div class="nav-label">Website</div>
                     <a class="nav-item" data-view="wordpress">
                         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 122.5 122.5" fill="currentColor"><path d="M8.7 61.3c0 20.8 12.1 38.8 29.6 47.3L13 40.3c-2.8 6.5-4.3 13.7-4.3 21zm88.6-2.7c0-6.5-2.3-11-4.3-14.5-2.7-4.3-5.2-8-5.2-12.3 0-4.8 3.7-9.3 8.9-9.3h.7c-9.4-8.6-21.9-13.9-35.7-13.9-18.5 0-34.7 9.5-44.2 23.8h3.4c5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.8.3-6 .5l19.1 57 11.5-34.5-8.2-22.5c-2.8-.2-5.5-.5-5.5-.5-2.8-.2-2.5-4.5.3-4.3 0 0 8.7.7 13.9.7 5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.9.3-6 .5l19 56.5 5.2-17.5c2.3-7.3 4-12.5 4-17zm-36.3 7.6l-15.8 45.8c4.7 1.4 9.7 2.2 14.8 2.2 6.1 0 12-1.1 17.4-3-.1-.2-.3-.5-.4-.7l-16-43.3zm45.1-29.8c.5 3.4.7 7 .7 10.9 0 10.8-2 22.9-8 38l-21.8 63.1c21.2-12.4 35.5-35.5 35.5-62.1 0-17.9-6.2-34.3-16.4-47.9zM61.3 0C27.5 0 0 27.5 0 61.3c0 33.8 27.5 61.3 61.3 61.3 33.8 0 61.3-27.5 61.3-61.3C122.5 27.5 95 0 61.3 0zm0 119.7c-32.2 0-58.5-26.2-58.5-58.5 0-32.2 26.2-58.5 58.5-58.5 32.2 0 58.5 26.2 58.5 58.5-.1 32.3-26.3 58.5-58.5 58.5z"/></svg></span>
@@ -1295,10 +1319,7 @@
                     <button class="filter-tab" data-content-type="room" onclick="filterContent('room')">🛏️ Rooms</button>
                     <button class="filter-tab" data-content-type="policies" onclick="filterContent('policies')">📋 Policies</button>
                     <button class="filter-tab" data-content-type="pages" onclick="filterContent('pages')">📄 Website Pages</button>
-                    <button class="filter-tab" data-content-type="blog" onclick="filterContent('blog')">📝 Blog</button>
-                    <button class="filter-tab" data-content-type="attractions" onclick="filterContent('attractions')">🎯 Attractions</button>
                     <button class="filter-tab" data-content-type="branding" onclick="filterContent('branding')">🎨 Branding</button>
-                    <button class="filter-tab" data-content-type="api" onclick="filterContent('api')">🔌 API</button>
                 </div>
 
                 <!-- Property Content Section -->
@@ -2742,6 +2763,196 @@ fetch('/api/public/client/1/rooms')
                 <div class="card">
                     <h3 class="card-title">API Configuration</h3>
                     <p style="color: var(--text-secondary); margin-top: 0.5rem;">API keys, webhooks, and developer settings.</p>
+                </div>
+            </div>
+
+            <!-- Blog App View -->
+            <div id="app-blog" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📝 Blog</h2>
+                            <p>Manage your blog posts and articles</p>
+                        </div>
+                        <button class="btn" onclick="openBlogModal()">+ New Post</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="app-blog-posts-list">
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">📝</div>
+                            <h3 style="margin-bottom: 0.5rem;">No blog posts yet</h3>
+                            <p>Create your first blog post to engage your guests</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="openBlogModal()">Create Your First Post</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Attractions App View -->
+            <div id="app-attractions" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🎯 Attractions</h2>
+                            <p>Manage local attractions and things to do</p>
+                        </div>
+                        <button class="btn" onclick="openAttractionModal()">+ Add Attraction</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="app-attractions-list">
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">🎯</div>
+                            <h3 style="margin-bottom: 0.5rem;">No attractions yet</h3>
+                            <p>Add local attractions to help guests explore the area</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="openAttractionModal()">Add Your First Attraction</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Reviews App View -->
+            <div id="app-reviews" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>⭐ Reviews</h2>
+                            <p>Manage guest reviews and testimonials</p>
+                        </div>
+                        <button class="btn" onclick="openReviewModal()">+ Add Review</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="app-reviews-list">
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">⭐</div>
+                            <h3 style="margin-bottom: 0.5rem;">No reviews yet</h3>
+                            <p>Add guest reviews to build trust with potential guests</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="openReviewModal()">Add Your First Review</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Documentation View -->
+            <div id="api-docs" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🔌 API Documentation</h2>
+                            <p>Integrate GAS with your applications</p>
+                        </div>
+                        <button class="btn" style="background: #10b981;" onclick="testApiConnection()">Test Connection</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">🔑 Your API Credentials</h3>
+                    </div>
+                    
+                    <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">API Base URL</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <input type="text" class="form-input" id="api-docs-base-url" value="" readonly style="font-family: monospace;">
+                                <button class="btn" style="background: #64748b;" onclick="copyApiUrl()">📋 Copy</button>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Client ID</label>
+                            <input type="text" class="form-input" value="1" readonly style="font-family: monospace; max-width: 100px;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">📚 Public Endpoints</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">No authentication required - perfect for your website frontend</p>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/site-config</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Complete site configuration - contact info, branding, navigation</p>
+                        </div>
+                        
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/rooms</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">All rooms/properties with availability and pricing</p>
+                        </div>
+                        
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/page/{type}</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Page content (about, contact, terms, privacy)</p>
+                        </div>
+                        
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/blog</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Published blog posts</p>
+                        </div>
+                        
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/attractions</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Local attractions and things to do</p>
+                        </div>
+                        
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/check-availability</code>
+                            </div>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Check room availability for date range</p>
+                        </div>
+                    </div>
+                    
+                    <details style="margin-top: 1.5rem;">
+                        <summary style="cursor: pointer; font-weight: 600; color: var(--accent);">📖 View Example Code</summary>
+                        <pre style="background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; margin-top: 0.75rem; font-size: 0.85rem;">
+// Fetch all rooms
+const response = await fetch('/api/public/client/1/rooms');
+const data = await response.json();
+console.log(data.rooms);
+
+// Fetch site configuration
+const config = await fetch('/api/public/client/1/site-config');
+const siteData = await config.json();
+console.log(siteData.contact);   // Business name, email, phone
+console.log(siteData.branding);  // Colors, logo URLs
+console.log(siteData.navigation); // Auto-generated menu items
+
+// Check availability
+const availability = await fetch('/api/public/check-availability', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    room_id: 123,
+    checkin: '2025-01-15',
+    checkout: '2025-01-18'
+  })
+});
+                        </pre>
+                    </details>
                 </div>
             </div>
 
@@ -4426,6 +4637,14 @@ fetch('/api/public/client/1/rooms')
             if (viewName === 'taxes') loadTaxes();
             if (viewName === 'marketing') loadMarketingProperties();
             if (viewName === 'wordpress') loadWordPressView();
+            
+            // New sidebar views
+            if (viewName === 'app-blog') loadAppBlogPosts();
+            if (viewName === 'app-attractions') loadAppAttractions();
+            if (viewName === 'api-docs') {
+                const urlInput = document.getElementById('api-docs-base-url');
+                if (urlInput) urlInput.value = window.location.origin;
+            }
         }
 
         // =========================================================
@@ -6000,23 +6219,14 @@ fetch('/api/public/client/1/rooms')
             document.getElementById('content-room').style.display = type === 'room' ? 'block' : 'none';
             document.getElementById('content-policies').style.display = type === 'policies' ? 'block' : 'none';
             document.getElementById('content-pages').style.display = type === 'pages' ? 'block' : 'none';
-            document.getElementById('content-blog').style.display = type === 'blog' ? 'block' : 'none';
-            document.getElementById('content-attractions').style.display = type === 'attractions' ? 'block' : 'none';
             document.getElementById('content-branding').style.display = type === 'branding' ? 'block' : 'none';
-            document.getElementById('content-api').style.display = type === 'api' ? 'block' : 'none';
             
-            // Load data for new sections
+            // Load data for sections
             if (type === 'pages') {
                 loadWebsitePage('about');
                 loadContactInfo();
-            } else if (type === 'blog') {
-                loadBlogPosts();
-            } else if (type === 'attractions') {
-                loadAttractions();
             } else if (type === 'branding') {
                 loadBranding();
-            } else if (type === 'api') {
-                document.getElementById('api-base-url').value = window.location.origin;
             }
         }
         
@@ -10171,6 +10381,90 @@ fetch('/api/public/client/1/rooms')
 
         async function editAttraction(id) {
             alert('Edit attraction ' + id + ' - Modal coming soon!');
+        }
+
+        // =====================================================
+        // REVIEWS FUNCTIONS
+        // =====================================================
+
+        function openReviewModal() {
+            alert('Reviews modal coming soon! The API endpoints will be at /api/admin/reviews');
+        }
+
+        async function loadAppBlogPosts() {
+            // Reuse the same function but target different container
+            try {
+                const response = await fetch('/api/admin/blog?client_id=1');
+                const data = await response.json();
+                
+                const container = document.getElementById('app-blog-posts-list');
+                if (!container) return;
+                
+                if (data.success && data.posts && data.posts.length > 0) {
+                    container.innerHTML = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Status</th>
+                                    <th>Date</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.posts.map(post => `
+                                    <tr>
+                                        <td><strong>${post.title}</strong></td>
+                                        <td>${post.category || '-'}</td>
+                                        <td><span class="badge ${post.is_published ? 'badge-success' : 'badge-secondary'}">${post.is_published ? 'Published' : 'Draft'}</span></td>
+                                        <td>${post.published_at ? new Date(post.published_at).toLocaleDateString() : '-'}</td>
+                                        <td>
+                                            <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editBlogPost(${post.id})">Edit</button>
+                                        </td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading blog posts:', error);
+            }
+        }
+
+        async function loadAppAttractions() {
+            try {
+                const response = await fetch('/api/admin/attractions?client_id=1');
+                const data = await response.json();
+                
+                const container = document.getElementById('app-attractions-list');
+                if (!container) return;
+                
+                if (data.success && data.attractions && data.attractions.length > 0) {
+                    container.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem;">
+                            ${data.attractions.map(attr => `
+                                <div style="border: 1px solid var(--border); border-radius: 8px; overflow: hidden; cursor: pointer; background: white;" onclick="editAttraction(${attr.id})">
+                                    ${attr.featured_image_url ? 
+                                        `<img src="${attr.featured_image_url}" style="width: 100%; height: 150px; object-fit: cover;">` :
+                                        `<div style="width: 100%; height: 150px; background: var(--bg-primary); display: flex; align-items: center; justify-content: center; font-size: 3rem;">🎯</div>`
+                                    }
+                                    <div style="padding: 1rem;">
+                                        <h4 style="margin: 0 0 0.5rem;">${attr.name}</h4>
+                                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">
+                                            ${attr.category ? `📍 ${attr.category}` : ''}
+                                            ${attr.distance_text ? ` • ${attr.distance_text}` : ''}
+                                        </p>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading attractions:', error);
+            }
         }
 
         // =====================================================
