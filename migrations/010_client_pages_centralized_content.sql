@@ -430,6 +430,78 @@ WHERE NOT EXISTS (
     SELECT 1 FROM client_branding WHERE client_branding.client_id = clients.id
 );
 
+-- =====================================================
+-- API KEYS TABLE
+-- Secure API access for external integrations
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS client_api_keys (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+    
+    -- Key details
+    key_name VARCHAR(100) NOT NULL, -- e.g. "WordPress Site", "Mobile App"
+    api_key VARCHAR(64) NOT NULL UNIQUE, -- The actual key (hashed or plain depending on security needs)
+    api_secret VARCHAR(64), -- Optional secret for signature-based auth
+    
+    -- Permissions (what this key can access)
+    permissions JSONB DEFAULT '["read:rooms", "read:availability", "read:pricing", "read:offers", "read:content"]',
+    
+    -- Rate limiting
+    rate_limit_per_minute INTEGER DEFAULT 60,
+    rate_limit_per_day INTEGER DEFAULT 10000,
+    
+    -- Usage tracking
+    last_used_at TIMESTAMP,
+    total_requests INTEGER DEFAULT 0,
+    
+    -- Status
+    is_active BOOLEAN DEFAULT true,
+    expires_at TIMESTAMP, -- NULL = never expires
+    
+    -- Allowed origins (CORS)
+    allowed_origins TEXT[], -- e.g. ['https://mysite.com', 'https://app.mysite.com']
+    
+    -- Allowed IPs (optional whitelist)
+    allowed_ips TEXT[], -- e.g. ['192.168.1.1', '10.0.0.0/8']
+    
+    -- Timestamps
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_keys_client ON client_api_keys(client_id);
+CREATE INDEX IF NOT EXISTS idx_api_keys_key ON client_api_keys(api_key);
+CREATE INDEX IF NOT EXISTS idx_api_keys_active ON client_api_keys(client_id, is_active);
+
+-- =====================================================
+-- API REQUEST LOG TABLE
+-- Track API usage for analytics and debugging
+-- =====================================================
+
+CREATE TABLE IF NOT EXISTS api_request_log (
+    id SERIAL PRIMARY KEY,
+    api_key_id INTEGER REFERENCES client_api_keys(id) ON DELETE SET NULL,
+    client_id INTEGER REFERENCES clients(id) ON DELETE CASCADE,
+    
+    -- Request details
+    endpoint VARCHAR(255) NOT NULL,
+    method VARCHAR(10) NOT NULL,
+    status_code INTEGER,
+    response_time_ms INTEGER,
+    
+    -- Request metadata
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    
+    -- Timestamp
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_api_log_key ON api_request_log(api_key_id);
+CREATE INDEX IF NOT EXISTS idx_api_log_client ON api_request_log(client_id);
+CREATE INDEX IF NOT EXISTS idx_api_log_date ON api_request_log(created_at);
+
 COMMENT ON TABLE client_pages IS 'Centralized static pages (About, Contact, Terms, Privacy) managed in GAS';
 COMMENT ON TABLE client_contact_info IS 'Structured contact information for each client';
 COMMENT ON TABLE client_branding IS 'Logo, colors, and branding settings per client';
@@ -439,3 +511,5 @@ COMMENT ON TABLE attractions IS 'Local attractions managed centrally in GAS';
 COMMENT ON TABLE attraction_categories IS 'Attraction categories (restaurants, museums, etc.)';
 COMMENT ON TABLE attraction_images IS 'Multiple images per attraction';
 COMMENT ON TABLE client_navigation IS 'Custom navigation menu items';
+COMMENT ON TABLE client_api_keys IS 'API keys for secure external access';
+COMMENT ON TABLE api_request_log IS 'API usage logging for analytics';
