@@ -581,9 +581,11 @@ app.get('/api/setup-clients', async (req, res) => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS clients (
         id SERIAL PRIMARY KEY,
+        public_id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) NOT NULL UNIQUE,
         phone VARCHAR(50),
+        business_name VARCHAR(255),
         address_line1 VARCHAR(255),
         address_line2 VARCHAR(255),
         city VARCHAR(100),
@@ -614,12 +616,19 @@ app.get('/api/setup-clients', async (req, res) => {
       )
     `);
     
+    // Add public_id column if it doesn't exist (for existing databases)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS public_id UUID DEFAULT gen_random_uuid() UNIQUE`);
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS business_name VARCHAR(255)`);
+    
+    // Ensure all existing clients have a public_id
+    await pool.query(`UPDATE clients SET public_id = gen_random_uuid() WHERE public_id IS NULL`);
+    
     // Add new columns to clients if they don't exist
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS subscription_status VARCHAR(20) DEFAULT 'active'`);
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS features_enabled JSONB DEFAULT '{}'`);
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100)`);
     
-    console.log('✅ Created clients table');
+    console.log('✅ Created clients table with UUID public_id');
 
     // 2. Create client_users table
     await pool.query(`
@@ -935,7 +944,15 @@ app.post('/api/auth/login', async (req, res) => {
 
 app.get('/api/db/properties', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM properties ORDER BY created_at DESC');
+    const clientId = req.query.client_id;
+    let result;
+    
+    if (clientId) {
+      result = await pool.query('SELECT * FROM properties WHERE client_id = $1 ORDER BY created_at DESC', [clientId]);
+    } else {
+      result = await pool.query('SELECT * FROM properties ORDER BY created_at DESC');
+    }
+    
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -961,7 +978,20 @@ app.get('/api/db/properties/:id', async (req, res) => {
 // GET all bookable units/rooms
 app.get('/api/db/bookable-units', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM bookable_units ORDER BY property_id, created_at');
+    const clientId = req.query.client_id;
+    let result;
+    
+    if (clientId) {
+      result = await pool.query(`
+        SELECT bu.* FROM bookable_units bu
+        JOIN properties p ON bu.property_id = p.id
+        WHERE p.client_id = $1
+        ORDER BY bu.property_id, bu.created_at
+      `, [clientId]);
+    } else {
+      result = await pool.query('SELECT * FROM bookable_units ORDER BY property_id, created_at');
+    }
+    
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -4543,10 +4573,32 @@ app.post('/api/pricing/calculate', async (req, res) => {
 // Get dashboard statistics
 app.get('/api/admin/stats', async (req, res) => {
   try {
-    const propertiesCount = await pool.query('SELECT COUNT(*) FROM properties');
-    const unitsCount = await pool.query('SELECT COUNT(*) FROM bookable_units');
-    const bookingsCount = await pool.query('SELECT COUNT(*) FROM bookings');
-    const connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE status = $1', ['active']);
+    const clientId = req.query.client_id;
+    
+    let propertiesCount, unitsCount, bookingsCount, connectionsCount;
+    
+    if (clientId) {
+      // Client-specific stats
+      propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE client_id = $1', [clientId]);
+      unitsCount = await pool.query(`
+        SELECT COUNT(*) FROM bookable_units bu 
+        JOIN properties p ON bu.property_id = p.id 
+        WHERE p.client_id = $1
+      `, [clientId]);
+      bookingsCount = await pool.query(`
+        SELECT COUNT(*) FROM bookings b
+        JOIN bookable_units bu ON b.room_id = bu.id
+        JOIN properties p ON bu.property_id = p.id
+        WHERE p.client_id = $1
+      `, [clientId]);
+      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE client_id = $1 AND status = $2', [clientId, 'active']);
+    } else {
+      // All stats (admin view)
+      propertiesCount = await pool.query('SELECT COUNT(*) FROM properties');
+      unitsCount = await pool.query('SELECT COUNT(*) FROM bookable_units');
+      bookingsCount = await pool.query('SELECT COUNT(*) FROM bookings');
+      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE status = $1', ['active']);
+    }
     
     res.json({
       success: true,
