@@ -11850,7 +11850,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     loadApiKeys();
                     
                     // Show the new key
-                    alert('API Key Created!\\n\\nYour new key:\\n' + result.api_key.api_key + '\\n\\nCopy this key now - you won\\'t be able to see the full key again.');
+                    alert('API Key Created!\n\nYour new key:\n' + result.api_key.api_key + '\n\nCopy this key now - you won\'t be able to see the full key again.');
                 } else {
                     alert('Error: ' + result.error);
                 }
@@ -11934,7 +11934,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    alert('✅ API Connection Successful!\\n\\nFound ' + (data.rooms?.length || 0) + ' rooms.');
+                    alert('✅ API Connection Successful!\n\nFound ' + (data.rooms?.length || 0) + ' rooms.');
                 } else {
                     alert('❌ API Error: ' + data.error);
                 }
