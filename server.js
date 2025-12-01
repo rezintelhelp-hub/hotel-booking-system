@@ -9175,37 +9175,90 @@ app.post('/api/admin/branding', async (req, res) => {
     try {
         const {
             client_id = 1,
-            logo_url, logo_dark_url, favicon_url,
-            primary_color, secondary_color, accent_color, text_color, background_color,
-            footer_bg_color, footer_text_color, copyright_text
+            // Logo & Identity
+            logo_url, logo_dark_url, logo_alt_text, favicon_url, og_image_url,
+            site_title, site_description,
+            // Colors
+            primary_color, secondary_color, accent_color,
+            text_color, text_light_color, background_color, surface_color,
+            // Header
+            header_bg_color, header_text_color, header_sticky, header_transparent_home,
+            // Footer
+            footer_bg_color, footer_text_color, footer_link_color, footer_link_hover_color, copyright_text,
+            // Buttons
+            button_primary_bg, button_primary_text, button_primary_hover,
+            button_secondary_bg, button_secondary_text, button_secondary_border, button_border_radius,
+            // Typography
+            font_heading, font_body, font_heading_weight, font_body_weight,
+            // Custom
+            custom_css
         } = req.body;
         
         const result = await pool.query(`
             INSERT INTO client_branding (
-                client_id, logo_url, logo_dark_url, favicon_url,
-                primary_color, secondary_color, accent_color, text_color, background_color,
-                footer_bg_color, footer_text_color, copyright_text, updated_at
+                client_id,
+                logo_url, logo_dark_url, logo_alt_text, favicon_url, og_image_url,
+                site_title, site_description,
+                primary_color, secondary_color, accent_color,
+                text_color, text_light_color, background_color, surface_color,
+                header_bg_color, header_text_color, header_sticky, header_transparent_home,
+                footer_bg_color, footer_text_color, footer_link_color, footer_link_hover_color, copyright_text,
+                button_primary_bg, button_primary_text, button_primary_hover,
+                button_secondary_bg, button_secondary_text, button_secondary_border, button_border_radius,
+                font_heading, font_body, font_heading_weight, font_body_weight,
+                custom_css, updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34, $35, $36, NOW())
             ON CONFLICT (client_id) DO UPDATE SET
                 logo_url = EXCLUDED.logo_url,
                 logo_dark_url = EXCLUDED.logo_dark_url,
+                logo_alt_text = EXCLUDED.logo_alt_text,
                 favicon_url = EXCLUDED.favicon_url,
+                og_image_url = EXCLUDED.og_image_url,
+                site_title = EXCLUDED.site_title,
+                site_description = EXCLUDED.site_description,
                 primary_color = EXCLUDED.primary_color,
                 secondary_color = EXCLUDED.secondary_color,
                 accent_color = EXCLUDED.accent_color,
                 text_color = EXCLUDED.text_color,
+                text_light_color = EXCLUDED.text_light_color,
                 background_color = EXCLUDED.background_color,
+                surface_color = EXCLUDED.surface_color,
+                header_bg_color = EXCLUDED.header_bg_color,
+                header_text_color = EXCLUDED.header_text_color,
+                header_sticky = EXCLUDED.header_sticky,
+                header_transparent_home = EXCLUDED.header_transparent_home,
                 footer_bg_color = EXCLUDED.footer_bg_color,
                 footer_text_color = EXCLUDED.footer_text_color,
+                footer_link_color = EXCLUDED.footer_link_color,
+                footer_link_hover_color = EXCLUDED.footer_link_hover_color,
                 copyright_text = EXCLUDED.copyright_text,
+                button_primary_bg = EXCLUDED.button_primary_bg,
+                button_primary_text = EXCLUDED.button_primary_text,
+                button_primary_hover = EXCLUDED.button_primary_hover,
+                button_secondary_bg = EXCLUDED.button_secondary_bg,
+                button_secondary_text = EXCLUDED.button_secondary_text,
+                button_secondary_border = EXCLUDED.button_secondary_border,
+                button_border_radius = EXCLUDED.button_border_radius,
+                font_heading = EXCLUDED.font_heading,
+                font_body = EXCLUDED.font_body,
+                font_heading_weight = EXCLUDED.font_heading_weight,
+                font_body_weight = EXCLUDED.font_body_weight,
+                custom_css = EXCLUDED.custom_css,
                 updated_at = NOW()
             RETURNING *
         `, [
-            client_id, logo_url, logo_dark_url, favicon_url,
-            primary_color || '#2563eb', secondary_color || '#7c3aed', 
-            accent_color || '#f59e0b', text_color || '#1e293b', background_color || '#ffffff',
-            footer_bg_color || '#0f172a', footer_text_color || '#ffffff', copyright_text
+            client_id,
+            logo_url, logo_dark_url, logo_alt_text, favicon_url, og_image_url,
+            site_title, site_description,
+            primary_color || '#2563eb', secondary_color || '#7c3aed', accent_color || '#f59e0b',
+            text_color || '#1e293b', text_light_color || '#64748b', background_color || '#ffffff', surface_color || '#f8fafc',
+            header_bg_color || '#ffffff', header_text_color || '#1e293b', header_sticky !== false, header_transparent_home || false,
+            footer_bg_color || '#0f172a', footer_text_color || '#ffffff', footer_link_color || '#94a3b8', footer_link_hover_color || '#ffffff', copyright_text,
+            button_primary_bg, button_primary_text || '#ffffff', button_primary_hover,
+            button_secondary_bg, button_secondary_text, button_secondary_border, button_border_radius || '8px',
+            font_heading || 'Inter', font_body || 'Inter', font_heading_weight || '700', font_body_weight || '400',
+            custom_css
         ]);
         
         res.json({ success: true, branding: result.rows[0] });
@@ -9650,11 +9703,18 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         const { clientId } = req.params;
         
         // Get all data in parallel
-        const [pagesResult, contactResult, brandingResult, navigationResult] = await Promise.all([
-            pool.query(`SELECT page_type, slug, title, subtitle, is_published FROM client_pages WHERE client_id = $1 AND is_published = true`, [clientId]),
+        const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult] = await Promise.all([
+            pool.query(`SELECT * FROM client_pages WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_contact_info WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_branding WHERE client_id = $1`, [clientId]),
-            pool.query(`SELECT * FROM client_navigation WHERE client_id = $1 AND is_active = true ORDER BY menu_location, display_order`, [clientId])
+            pool.query(`SELECT * FROM client_navigation WHERE client_id = $1 AND is_active = true ORDER BY menu_location, display_order`, [clientId]),
+            pool.query(`SELECT * FROM properties WHERE client_id = $1`, [clientId]),
+            pool.query(`
+                SELECT r.*, p.name as property_name 
+                FROM rooms r 
+                JOIN properties p ON r.property_id = p.id 
+                WHERE p.client_id = $1
+            `, [clientId])
         ]);
         
         // Check if blog posts exist
@@ -9667,11 +9727,33 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
             SELECT COUNT(*) FROM attractions WHERE client_id = $1 AND is_published = true
         `, [clientId]);
         
-        // Build navigation from pages
+        // Build data objects
         const pages = pagesResult.rows;
         const contact = contactResult.rows[0] || {};
         const branding = brandingResult.rows[0] || {};
         const customNav = navigationResult.rows;
+        const properties = propertiesResult.rows;
+        const rooms = roomsResult.rows;
+        
+        // Build pages object with full content
+        const pagesObject = {};
+        pages.forEach(page => {
+            pagesObject[page.page_type] = {
+                id: page.id,
+                page_type: page.page_type,
+                slug: page.slug,
+                title: page.title,
+                subtitle: page.subtitle,
+                content: page.content,
+                meta_title: page.meta_title,
+                meta_description: page.meta_description,
+                faq_schema: page.faq_schema,
+                is_published: page.is_published,
+                display_order: page.display_order,
+                created_at: page.created_at,
+                updated_at: page.updated_at
+            };
+        });
         
         // Auto-generate footer links based on what exists
         const footerQuickLinks = [];
@@ -9710,46 +9792,130 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         res.json({
             success: true,
             config: {
+                // Full contact information
                 contact: {
+                    id: contact.id,
                     business_name: contact.business_name,
                     tagline: contact.tagline,
                     email: contact.email,
                     phone: contact.phone,
-                    address: [contact.address_line1, contact.address_line2, contact.city, contact.state_province, contact.postal_code, contact.country].filter(Boolean).join(', '),
+                    phone_secondary: contact.phone_secondary,
+                    whatsapp: contact.whatsapp,
+                    address_line1: contact.address_line1,
+                    address_line2: contact.address_line2,
+                    city: contact.city,
+                    state_province: contact.state_province,
+                    postal_code: contact.postal_code,
+                    country: contact.country,
+                    address_formatted: [contact.address_line1, contact.address_line2, contact.city, contact.state_province, contact.postal_code, contact.country].filter(Boolean).join(', '),
+                    latitude: contact.latitude,
+                    longitude: contact.longitude,
+                    google_maps_url: contact.google_maps_url,
+                    google_place_id: contact.google_place_id,
+                    timezone: contact.timezone,
+                    currency: contact.currency,
                     social: {
                         facebook: contact.facebook_url,
                         instagram: contact.instagram_url,
                         twitter: contact.twitter_url,
                         linkedin: contact.linkedin_url,
                         youtube: contact.youtube_url,
-                        tiktok: contact.tiktok_url
+                        tiktok: contact.tiktok_url,
+                        pinterest: contact.pinterest_url,
+                        tripadvisor: contact.tripadvisor_url
                     }
                 },
+                
+                // Full branding settings
                 branding: {
+                    id: branding.id,
                     logo_url: branding.logo_url,
                     logo_dark_url: branding.logo_dark_url,
+                    logo_alt_text: branding.logo_alt_text,
                     favicon_url: branding.favicon_url,
+                    og_image_url: branding.og_image_url,
                     colors: {
                         primary: branding.primary_color || '#2563eb',
                         secondary: branding.secondary_color || '#7c3aed',
-                        accent: branding.accent_color || '#f59e0b'
+                        accent: branding.accent_color || '#f59e0b',
+                        text: branding.text_color || '#1e293b',
+                        text_light: branding.text_light_color || '#64748b',
+                        background: branding.background_color || '#ffffff',
+                        surface: branding.surface_color || '#f8fafc'
+                    },
+                    header: {
+                        bg_color: branding.header_bg_color || '#ffffff',
+                        text_color: branding.header_text_color || '#1e293b',
+                        sticky: branding.header_sticky !== false,
+                        transparent_home: branding.header_transparent_home || false
                     },
                     footer: {
                         bg_color: branding.footer_bg_color || '#0f172a',
                         text_color: branding.footer_text_color || '#ffffff',
-                        copyright: branding.copyright_text
-                    }
+                        link_color: branding.footer_link_color || '#94a3b8',
+                        link_hover_color: branding.footer_link_hover_color || '#ffffff',
+                        copyright: branding.copyright_text || `© ${new Date().getFullYear()} ${contact.business_name || 'All rights reserved'}`
+                    },
+                    buttons: {
+                        primary_bg: branding.button_primary_bg || branding.primary_color || '#2563eb',
+                        primary_text: branding.button_primary_text || '#ffffff',
+                        primary_hover: branding.button_primary_hover || '#1d4ed8',
+                        secondary_bg: branding.button_secondary_bg || 'transparent',
+                        secondary_text: branding.button_secondary_text || branding.primary_color || '#2563eb',
+                        secondary_border: branding.button_secondary_border || branding.primary_color || '#2563eb',
+                        border_radius: branding.button_border_radius || '8px'
+                    },
+                    fonts: {
+                        heading: branding.font_heading || 'Inter',
+                        body: branding.font_body || 'Inter',
+                        heading_weight: branding.font_heading_weight || '700',
+                        body_weight: branding.font_body_weight || '400'
+                    },
+                    custom_css: branding.custom_css
                 },
+                
+                // All pages with full content
+                pages: pagesObject,
+                
+                // Navigation
                 navigation: {
+                    header: customNav.filter(n => n.menu_location === 'header'),
                     footer_quick_links: footerQuickLinks,
                     footer_legal: footerLegalLinks,
-                    custom: customNav
+                    footer_custom: customNav.filter(n => n.menu_location === 'footer'),
+                    all: customNav
                 },
+                
+                // Properties summary
+                properties: properties.map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    slug: p.slug,
+                    description: p.description,
+                    short_description: p.short_description,
+                    property_type: p.property_type,
+                    star_rating: p.star_rating,
+                    featured_image: p.featured_image,
+                    room_count: rooms.filter(r => r.property_id === p.id).length
+                })),
+                
+                // Feature flags
                 features: {
                     has_blog: parseInt(blogCountResult.rows[0].count) > 0,
                     has_attractions: parseInt(attractionsCountResult.rows[0].count) > 0,
+                    has_multiple_properties: properties.length > 1,
                     blog_count: parseInt(blogCountResult.rows[0].count),
-                    attractions_count: parseInt(attractionsCountResult.rows[0].count)
+                    attractions_count: parseInt(attractionsCountResult.rows[0].count),
+                    property_count: properties.length,
+                    room_count: rooms.length
+                },
+                
+                // SEO defaults (from branding or contact)
+                seo: {
+                    site_title: branding.site_title || contact.business_name,
+                    site_description: branding.site_description || contact.tagline,
+                    og_image: branding.og_image_url,
+                    twitter_handle: contact.twitter_url ? '@' + contact.twitter_url.split('/').pop() : null
                 }
             }
         });
