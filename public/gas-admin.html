@@ -5153,22 +5153,33 @@ const promo = await fetch('/api/v1/offers/validate', {
     </div>
 
     <script>
-        // Navigation
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', (e) => {
-                e.preventDefault();
-                const viewName = item.dataset.view;
-                showView(viewName);
-                
-                // Update active state
-                document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-                item.classList.add('active');
+        // Navigation - wait for DOM to be ready
+        document.addEventListener('DOMContentLoaded', function() {
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    const viewName = item.dataset.view;
+                    showView(viewName);
+                    
+                    // Update active state
+                    document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                });
             });
+            
+            // Load initial dashboard
+            loadDashboard();
         });
 
         function showView(viewName) {
             document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
-            document.getElementById(viewName).classList.add('active');
+            const viewEl = document.getElementById(viewName);
+            if (viewEl) {
+                viewEl.classList.add('active');
+            } else {
+                console.error('View not found:', viewName);
+                return;
+            }
             
             // Load data for specific views
             if (viewName === 'dashboard') loadDashboard();
