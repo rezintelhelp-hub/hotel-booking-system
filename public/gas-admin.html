@@ -3161,31 +3161,204 @@ fetch('/api/public/client/1/rooms')
                     </div>
                 </div>
 
+                <!-- API Keys Management -->
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">🔑 Your API Credentials</h3>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 class="card-title">🔑 API Keys</h3>
+                        <button class="btn" onclick="openApiKeyModal()">+ Create API Key</button>
                     </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        API keys are required for secure endpoints. Create separate keys for different applications.
+                    </p>
                     
-                    <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
-                        <div class="form-group" style="margin-bottom: 1rem;">
-                            <label class="form-label">API Base URL</label>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <input type="text" class="form-input" id="api-docs-base-url" value="" readonly style="font-family: monospace;">
-                                <button class="btn" style="background: #64748b;" onclick="copyApiUrl()">📋 Copy</button>
-                            </div>
-                        </div>
-                        <div class="form-group" style="margin: 0;">
-                            <label class="form-label">Client ID</label>
-                            <input type="text" class="form-input" value="1" readonly style="font-family: monospace; max-width: 100px;">
+                    <div id="api-keys-list">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔐</div>
+                            <p>No API keys yet. Create one to access secure endpoints.</p>
                         </div>
                     </div>
                 </div>
 
+                <!-- Base URL -->
                 <div class="card" style="margin-top: 1rem;">
                     <div class="card-header">
-                        <h3 class="card-title">📚 Public Endpoints</h3>
+                        <h3 class="card-title">🌐 API Base URL</h3>
                     </div>
-                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">No authentication required - perfect for your website frontend</p>
+                    <div style="background: #f8fafc; border-radius: 8px; padding: 1rem;">
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" class="form-input" id="api-docs-base-url" value="" readonly style="font-family: monospace;">
+                            <button class="btn" style="background: #64748b;" onclick="copyToClipboard(document.getElementById('api-docs-base-url').value)">📋 Copy</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Secure API Endpoints -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">🔒 Secure API Endpoints (v1)</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Require <code style="background: #fee2e2; padding: 0.125rem 0.375rem; border-radius: 4px;">X-API-Key</code> header. Full access to pricing, availability, offers.
+                    </p>
+                    
+                    <!-- Tabs for endpoint categories -->
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <button class="btn" style="background: var(--accent);" onclick="showApiTab('rooms')" id="api-tab-rooms">Rooms</button>
+                        <button class="btn" style="background: #64748b;" onclick="showApiTab('availability')" id="api-tab-availability">Availability</button>
+                        <button class="btn" style="background: #64748b;" onclick="showApiTab('pricing')" id="api-tab-pricing">Pricing</button>
+                        <button class="btn" style="background: #64748b;" onclick="showApiTab('offers')" id="api-tab-offers">Offers</button>
+                        <button class="btn" style="background: #64748b;" onclick="showApiTab('content')" id="api-tab-content">Content</button>
+                    </div>
+                    
+                    <!-- Rooms Endpoints -->
+                    <div id="api-endpoints-rooms" class="api-endpoints-section">
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/rooms</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Get all rooms with images, amenities, and base pricing</p>
+                            </div>
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/rooms/{roomId}</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Get single room with full details</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Availability Endpoints -->
+                    <div id="api-endpoints-availability" class="api-endpoints-section" style="display: none;">
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/availability?start_date=X&end_date=Y&room_id=Z</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Get availability calendar for date range</p>
+                            </div>
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/availability/check</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 0.5rem;">Check if room is available + calculate total price</p>
+                                <code style="font-size: 0.8rem; color: #64748b;">Body: { room_id, check_in, check_out, guests }</code>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pricing Endpoints -->
+                    <div id="api-endpoints-pricing" class="api-endpoints-section" style="display: none;">
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/pricing?room_id=X&start_date=Y&end_date=Z</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Get base prices and seasonal pricing</p>
+                            </div>
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/taxes</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Get all taxes and fees</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Offers Endpoints -->
+                    <div id="api-endpoints-offers" class="api-endpoints-section" style="display: none;">
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/offers</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Get active offers and promotions</p>
+                            </div>
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/offers/validate</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0 0 0.5rem;">Validate promo code or voucher</p>
+                                <code style="font-size: 0.8rem; color: #64748b;">Body: { code, room_id, check_in, check_out, subtotal }</code>
+                            </div>
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/upsells?room_id=X</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Get available upsells/add-ons</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Content Endpoints -->
+                    <div id="api-endpoints-content" class="api-endpoints-section" style="display: none;">
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
+                                    <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                                    <code style="font-family: monospace; font-size: 0.9rem;">/api/v1/content</code>
+                                </div>
+                                <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Get all content: pages, contact, branding, blog, attractions</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <details style="margin-top: 1.5rem;">
+                        <summary style="cursor: pointer; font-weight: 600; color: var(--accent);">📖 View Example Code (Secure API)</summary>
+                        <pre style="background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; margin-top: 0.75rem; font-size: 0.85rem;">
+// All secure endpoints require X-API-Key header
+const API_KEY = 'gas_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx';
+const headers = { 'X-API-Key': API_KEY };
+
+// Get all rooms with full details
+const rooms = await fetch('/api/v1/rooms', { headers });
+const roomsData = await rooms.json();
+
+// Check availability and get price
+const availability = await fetch('/api/v1/availability/check', {
+  method: 'POST',
+  headers: { ...headers, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    room_id: 123,
+    check_in: '2025-02-15',
+    check_out: '2025-02-18',
+    guests: 2
+  })
+});
+const availData = await availability.json();
+// Returns: { available: true, pricing: { nights: 3, total: 450, currency: 'USD' } }
+
+// Validate a promo code
+const promo = await fetch('/api/v1/offers/validate', {
+  method: 'POST',
+  headers: { ...headers, 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    code: 'SUMMER20',
+    subtotal: 450
+  })
+});
+// Returns: { valid: true, type: 'voucher', calculated_discount: 90 }
+                        </pre>
+                    </details>
+                </div>
+
+                <!-- Public Endpoints -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">🌍 Public Endpoints (No Auth)</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        No API key required. Limited data, safe for frontend JavaScript.
+                    </p>
                     
                     <div style="display: flex; flex-direction: column; gap: 0.75rem;">
                         <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
@@ -3193,77 +3366,76 @@ fetch('/api/public/client/1/rooms')
                                 <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
                                 <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/site-config</code>
                             </div>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Complete site configuration - contact info, branding, navigation</p>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Complete site config (contact, branding, navigation, pages)</p>
                         </div>
-                        
                         <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
                             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
                                 <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
                                 <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/rooms</code>
                             </div>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">All rooms/properties with availability and pricing</p>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Public room listing</p>
                         </div>
-                        
-                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
-                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/page/{type}</code>
-                            </div>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Page content (about, contact, terms, privacy)</p>
-                        </div>
-                        
-                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
-                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/blog</code>
-                            </div>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Published blog posts</p>
-                        </div>
-                        
-                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
-                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
-                                <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
-                                <code style="font-family: monospace; font-size: 0.9rem;">/api/public/client/{clientId}/attractions</code>
-                            </div>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Local attractions and things to do</p>
-                        </div>
-                        
                         <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
                             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.5rem;">
                                 <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
                                 <code style="font-family: monospace; font-size: 0.9rem;">/api/public/check-availability</code>
                             </div>
-                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Check room availability for date range</p>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0;">Basic availability check</p>
                         </div>
                     </div>
-                    
-                    <details style="margin-top: 1.5rem;">
-                        <summary style="cursor: pointer; font-weight: 600; color: var(--accent);">📖 View Example Code</summary>
-                        <pre style="background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; margin-top: 0.75rem; font-size: 0.85rem;">
-// Fetch all rooms
-const response = await fetch('/api/public/client/1/rooms');
-const data = await response.json();
-console.log(data.rooms);
+                </div>
+            </div>
 
-// Fetch site configuration
-const config = await fetch('/api/public/client/1/site-config');
-const siteData = await config.json();
-console.log(siteData.contact);   // Business name, email, phone
-console.log(siteData.branding);  // Colors, logo URLs
-console.log(siteData.navigation); // Auto-generated menu items
-
-// Check availability
-const availability = await fetch('/api/public/check-availability', {
-  method: 'POST',
-  headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({
-    room_id: 123,
-    checkin: '2025-01-15',
-    checkout: '2025-01-18'
-  })
-});
-                        </pre>
-                    </details>
+            <!-- API Key Modal -->
+            <div id="apiKeyModal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 500px;">
+                    <div class="modal-header">
+                        <h3 id="apiKeyModalTitle">Create API Key</h3>
+                        <button class="modal-close" onclick="closeApiKeyModal()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label class="form-label">Key Name *</label>
+                            <input type="text" class="form-input" id="api-key-name" placeholder="e.g., WordPress Site, Mobile App">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Permissions</label>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="perm-read-rooms" checked> Read Rooms
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="perm-read-availability" checked> Read Availability
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="perm-read-pricing" checked> Read Pricing
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="perm-read-offers" checked> Read Offers
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="perm-read-content" checked> Read Content
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Rate Limit (requests/minute)</label>
+                            <input type="number" class="form-input" id="api-key-rate-limit" value="60">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Allowed Origins (optional, comma-separated)</label>
+                            <input type="text" class="form-input" id="api-key-origins" placeholder="https://mysite.com, https://app.mysite.com">
+                        </div>
+                        
+                        <input type="hidden" id="api-key-edit-id" value="">
+                    </div>
+                    <div class="modal-footer">
+                        <button class="btn btn-secondary" onclick="closeApiKeyModal()">Cancel</button>
+                        <button class="btn" onclick="saveApiKey()">Create Key</button>
+                    </div>
                 </div>
             </div>
 
@@ -4955,6 +5127,7 @@ const availability = await fetch('/api/public/check-availability', {
             if (viewName === 'api-docs') {
                 const urlInput = document.getElementById('api-docs-base-url');
                 if (urlInput) urlInput.value = window.location.origin;
+                loadApiKeys();
             }
         }
 
@@ -11418,13 +11591,213 @@ const availability = await fetch('/api/public/check-availability', {
         // API FUNCTIONS
         // =====================================================
 
+        async function loadApiKeys() {
+            try {
+                const response = await fetch('/api/admin/api-keys?client_id=1');
+                const data = await response.json();
+                
+                const container = document.getElementById('api-keys-list');
+                if (!container) return;
+                
+                if (data.success && data.api_keys && data.api_keys.length > 0) {
+                    container.innerHTML = `
+                        <div style="overflow-x: auto;">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>API Key</th>
+                                        <th>Last Used</th>
+                                        <th>Requests</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.api_keys.map(key => `
+                                        <tr>
+                                            <td><strong>${key.key_name}</strong></td>
+                                            <td>
+                                                <code style="background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+                                                    ${key.api_key.substring(0, 12)}...
+                                                </code>
+                                                <button onclick="copyToClipboard('${key.api_key}')" style="background: none; border: none; cursor: pointer; margin-left: 0.25rem;">📋</button>
+                                            </td>
+                                            <td style="font-size: 0.85rem; color: var(--text-secondary);">
+                                                ${key.last_used_at ? new Date(key.last_used_at).toLocaleDateString() : 'Never'}
+                                            </td>
+                                            <td style="font-size: 0.85rem;">${key.total_requests?.toLocaleString() || 0}</td>
+                                            <td>
+                                                <span class="badge ${key.is_active ? 'badge-success' : 'badge-secondary'}">
+                                                    ${key.is_active ? 'Active' : 'Disabled'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="toggleApiKey(${key.id}, ${!key.is_active})">
+                                                    ${key.is_active ? 'Disable' : 'Enable'}
+                                                </button>
+                                                <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; background: #ef4444;" onclick="deleteApiKey(${key.id})">Delete</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            <div style="font-size: 2rem; margin-bottom: 0.5rem;">🔐</div>
+                            <p>No API keys yet. Create one to access secure endpoints.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading API keys:', error);
+            }
+        }
+
+        function openApiKeyModal() {
+            document.getElementById('api-key-name').value = '';
+            document.getElementById('api-key-rate-limit').value = '60';
+            document.getElementById('api-key-origins').value = '';
+            document.getElementById('api-key-edit-id').value = '';
+            document.getElementById('perm-read-rooms').checked = true;
+            document.getElementById('perm-read-availability').checked = true;
+            document.getElementById('perm-read-pricing').checked = true;
+            document.getElementById('perm-read-offers').checked = true;
+            document.getElementById('perm-read-content').checked = true;
+            document.getElementById('apiKeyModalTitle').textContent = 'Create API Key';
+            document.getElementById('apiKeyModal').style.display = 'flex';
+        }
+
+        function closeApiKeyModal() {
+            document.getElementById('apiKeyModal').style.display = 'none';
+        }
+
+        async function saveApiKey() {
+            const name = document.getElementById('api-key-name').value;
+            if (!name) {
+                alert('Please enter a key name');
+                return;
+            }
+            
+            const permissions = [];
+            if (document.getElementById('perm-read-rooms').checked) permissions.push('read:rooms');
+            if (document.getElementById('perm-read-availability').checked) permissions.push('read:availability');
+            if (document.getElementById('perm-read-pricing').checked) permissions.push('read:pricing');
+            if (document.getElementById('perm-read-offers').checked) permissions.push('read:offers');
+            if (document.getElementById('perm-read-content').checked) permissions.push('read:content');
+            
+            const originsText = document.getElementById('api-key-origins').value;
+            const allowed_origins = originsText ? originsText.split(',').map(s => s.trim()).filter(Boolean) : [];
+            
+            const keyData = {
+                client_id: 1,
+                key_name: name,
+                permissions: permissions,
+                rate_limit_per_minute: parseInt(document.getElementById('api-key-rate-limit').value) || 60,
+                allowed_origins: allowed_origins
+            };
+            
+            try {
+                const response = await fetch('/api/admin/api-keys', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(keyData)
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    closeApiKeyModal();
+                    loadApiKeys();
+                    
+                    // Show the new key
+                    alert('API Key Created!\\n\\nYour new key:\\n' + result.api_key.api_key + '\\n\\nCopy this key now - you won\\'t be able to see the full key again.');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error creating API key:', error);
+                alert('Error creating API key');
+            }
+        }
+
+        async function toggleApiKey(id, newState) {
+            try {
+                const response = await fetch(`/api/admin/api-keys/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_active: newState })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    loadApiKeys();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error toggling API key:', error);
+            }
+        }
+
+        async function deleteApiKey(id) {
+            if (!confirm('Are you sure you want to delete this API key? Any applications using it will stop working.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/api-keys/${id}`, {
+                    method: 'DELETE'
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    loadApiKeys();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error deleting API key:', error);
+            }
+        }
+
+        function showApiTab(tab) {
+            // Update buttons
+            ['rooms', 'availability', 'pricing', 'offers', 'content'].forEach(t => {
+                const btn = document.getElementById('api-tab-' + t);
+                if (btn) btn.style.background = t === tab ? 'var(--accent)' : '#64748b';
+            });
+            
+            // Show/hide sections
+            document.querySelectorAll('.api-endpoints-section').forEach(el => el.style.display = 'none');
+            const section = document.getElementById('api-endpoints-' + tab);
+            if (section) section.style.display = 'block';
+        }
+
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                alert('Copied to clipboard!');
+            }).catch(err => {
+                // Fallback for older browsers
+                const textarea = document.createElement('textarea');
+                textarea.value = text;
+                document.body.appendChild(textarea);
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('Copied!');
+            });
+        }
+
         async function testApiConnection() {
             try {
                 const response = await fetch('/api/public/client/1/rooms');
                 const data = await response.json();
                 
                 if (data.success) {
-                    alert('✅ API Connection Successful!\n\nFound ' + (data.rooms?.length || 0) + ' rooms.');
+                    alert('✅ API Connection Successful!\\n\\nFound ' + (data.rooms?.length || 0) + ' rooms.');
                 } else {
                     alert('❌ API Error: ' + data.error);
                 }
@@ -11434,10 +11807,7 @@ const availability = await fetch('/api/public/check-availability', {
         }
 
         function copyApiUrl() {
-            const input = document.getElementById('api-base-url');
-            input.select();
-            document.execCommand('copy');
-            alert('API URL copied!');
+            copyToClipboard(document.getElementById('api-docs-base-url').value);
         }
 
         // Initial load
