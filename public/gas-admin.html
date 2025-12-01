@@ -885,6 +885,58 @@
         ::-webkit-scrollbar-thumb:hover {
             background: var(--text-secondary);
         }
+        
+        /* Client Selector Styles */
+        .client-selector {
+            background: rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 0.75rem;
+            margin: 0 1rem 1rem;
+        }
+        
+        .client-selector label {
+            display: block;
+            font-size: 0.7rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 0.5rem;
+        }
+        
+        .client-selector select {
+            width: 100%;
+            padding: 0.5rem;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 0.9rem;
+            cursor: pointer;
+        }
+        
+        .client-selector select option {
+            background: #1e293b;
+            color: white;
+        }
+        
+        .client-indicator {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+            font-size: 0.8rem;
+        }
+        
+        .client-indicator .dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #10b981;
+        }
+        
+        .client-indicator.all-clients .dot {
+            background: #f59e0b;
+        }
     </style>
 </head>
 <body>
@@ -894,6 +946,18 @@
             <div class="logo">
                 <h1>GAS_ADMIN</h1>
                 <p>Property Management System</p>
+            </div>
+            
+            <!-- Client Selector -->
+            <div class="client-selector">
+                <label>👁️ Viewing Client</label>
+                <select id="globalClientSelector" onchange="switchClient(this.value)">
+                    <option value="">🌐 All Clients (Admin View)</option>
+                </select>
+                <div class="client-indicator" id="clientIndicator">
+                    <span class="dot"></span>
+                    <span id="clientIndicatorText">All clients</span>
+                </div>
             </div>
 
             <nav class="nav">
@@ -5229,6 +5293,77 @@ const promo = await fetch('/api/v1/offers/validate', {
     </div>
 
     <script>
+        // Global client tracking - uses public_id (UUID) for security
+        let currentClientPublicId = null; // UUID or null for all clients
+        let clientIdMap = {}; // Maps public_id -> internal id
+        
+        // Get current client internal ID for API calls
+        function getClientId() {
+            if (!currentClientPublicId) return null;
+            return clientIdMap[currentClientPublicId] || null;
+        }
+        
+        // Get client ID param for API URLs
+        function getClientParam() {
+            const clientId = getClientId();
+            return clientId ? `client_id=${clientId}` : '';
+        }
+        
+        // Load clients into the selector dropdown
+        async function loadClientSelector() {
+            try {
+                const response = await fetch('/api/admin/clients');
+                const data = await response.json();
+                
+                const selector = document.getElementById('globalClientSelector');
+                if (!selector) return;
+                
+                selector.innerHTML = '<option value="">🌐 All Clients (Admin View)</option>';
+                clientIdMap = {}; // Reset map
+                
+                if (data.success && data.clients) {
+                    data.clients.forEach(client => {
+                        const option = document.createElement('option');
+                        const publicId = client.public_id || client.id; // Fallback to id if no public_id
+                        option.value = publicId;
+                        option.textContent = `${client.business_name || client.name || 'Client'}`;
+                        selector.appendChild(option);
+                        
+                        // Store mapping
+                        clientIdMap[publicId] = client.id;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading clients:', error);
+            }
+        }
+        
+        // Switch to a different client
+        function switchClient(publicId) {
+            currentClientPublicId = publicId || null;
+            
+            // Update indicator
+            const indicator = document.getElementById('clientIndicator');
+            const indicatorText = document.getElementById('clientIndicatorText');
+            
+            if (!currentClientPublicId) {
+                indicator.className = 'client-indicator all-clients';
+                indicatorText.textContent = 'Viewing all clients';
+            } else {
+                indicator.className = 'client-indicator';
+                const selector = document.getElementById('globalClientSelector');
+                const selectedOption = selector.options[selector.selectedIndex];
+                indicatorText.textContent = selectedOption.textContent;
+            }
+            
+            // Reload current view with new client context
+            const activeNav = document.querySelector('.nav-item.active');
+            if (activeNav) {
+                const viewName = activeNav.dataset.view;
+                showView(viewName);
+            }
+        }
+        
         // Simple navigation click handler
         function navClick(el, viewName) {
             // Update active state
@@ -5673,7 +5808,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Data Loading
         async function loadDashboard() {
             try {
-                const response = await fetch('/api/admin/stats');
+                const clientId = getClientId();
+                const clientParam = clientId ? `?client_id=${clientId}` : '';
+                const response = await fetch(`/api/admin/stats${clientParam}`);
                 const stats = await response.json();
                 
                 if (stats.success) {
@@ -5690,7 +5827,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadProperties() {
             const container = document.getElementById('properties-list');
             try {
-                const response = await fetch('/api/db/properties');
+                const clientId = getClientId();
+                const clientParam = clientId ? `?client_id=${clientId}` : '';
+                const response = await fetch(`/api/db/properties${clientParam}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
@@ -10851,7 +10990,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             try {
-                const response = await fetch(`/api/admin/pages/${pageType}?client_id=1`);
+                const response = await fetch(`/api/admin/pages/${pageType}?client_id=${getClientId()}`);
                 const data = await response.json();
                 
                 if (data.success && data.page) {
@@ -11271,7 +11410,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function saveWebsitePage() {
             const pageData = {
-                client_id: 1,
+                client_id: getClientId(),
                 page_type: currentPageType,
                 slug: currentPageType,
                 title: document.getElementById('page-title').value,
@@ -11304,7 +11443,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadContactInfo() {
             try {
-                const response = await fetch('/api/admin/contact-info?client_id=1');
+                const response = await fetch(`/api/admin/contact-info?client_id=${getClientId()}`);
                 const data = await response.json();
                 
                 if (data.success && data.contact) {
@@ -11380,7 +11519,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             };
             
             const contactData = {
-                client_id: 1,
+                client_id: getClientId(),
                 business_name: getVal('contact-business-name'),
                 tagline: getVal('contact-tagline'),
                 email: getVal('contact-email'),
@@ -11430,7 +11569,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadBlogPosts() {
             try {
-                const response = await fetch('/api/admin/blog?client_id=1');
+                const response = await fetch(`/api/admin/blog?client_id=${getClientId()}`);
                 const data = await response.json();
                 
                 const container = document.getElementById('blog-posts-list');
@@ -11490,7 +11629,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadAttractions() {
             try {
-                const response = await fetch('/api/admin/attractions?client_id=1');
+                const response = await fetch(`/api/admin/attractions?client_id=${getClientId()}`);
                 const data = await response.json();
                 
                 const container = document.getElementById('attractions-list');
@@ -11548,7 +11687,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadAppBlogPosts() {
             // Reuse the same function but target different container
             try {
-                const response = await fetch('/api/admin/blog?client_id=1');
+                const response = await fetch(`/api/admin/blog?client_id=${getClientId()}`);
                 const data = await response.json();
                 
                 const container = document.getElementById('app-blog-posts-list');
@@ -11589,7 +11728,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadAppAttractions() {
             try {
-                const response = await fetch('/api/admin/attractions?client_id=1');
+                const response = await fetch(`/api/admin/attractions?client_id=${getClientId()}`);
                 const data = await response.json();
                 
                 const container = document.getElementById('app-attractions-list');
@@ -11627,7 +11766,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadBranding() {
             try {
-                const response = await fetch('/api/admin/branding?client_id=1');
+                const response = await fetch(`/api/admin/branding?client_id=${getClientId()}`);
                 const data = await response.json();
                 
                 if (data.success && data.branding) {
@@ -11734,7 +11873,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function saveBranding() {
             const brandData = {
-                client_id: 1,
+                client_id: getClientId(),
                 // Logo & Identity
                 logo_url: document.getElementById('brand-logo-url').value,
                 logo_dark_url: document.getElementById('brand-logo-dark-url').value,
@@ -11831,7 +11970,7 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadApiKeys() {
             try {
-                const response = await fetch('/api/admin/api-keys?client_id=1');
+                const response = await fetch(`/api/admin/api-keys?client_id=${getClientId()}`);
                 const data = await response.json();
                 
                 const container = document.getElementById('api-keys-list');
@@ -11940,7 +12079,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const allowed_origins = originsText ? originsText.split(',').map(s => s.trim()).filter(Boolean) : [];
             
             const keyData = {
-                client_id: 1,
+                client_id: getClientId(),
                 key_name: name,
                 permissions: permissions,
                 rate_limit_per_minute: parseInt(document.getElementById('api-key-rate-limit').value) || 60,
@@ -12058,6 +12197,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         // Initial load
+        loadClientSelector();
         loadDashboard();
     </script>
 </body>
