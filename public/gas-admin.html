@@ -1472,6 +1472,24 @@
                             <button class="btn" style="background: #64748b;" onclick="loadWebsitePage('privacy')" id="page-tab-privacy">Privacy</button>
                         </div>
                         
+                        <!-- AI Content Generator Panel -->
+                        <div id="page-ai-panel" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; color: white;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 1rem;">
+                                <span style="font-size: 1.5rem;">✨</span>
+                                <h4 style="margin: 0; font-weight: 600;">AI Content Generator</h4>
+                                <span id="page-ai-badge" style="background: rgba(255,255,255,0.2); padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem;">About Us</span>
+                            </div>
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <textarea id="page-ai-context" rows="2" placeholder="Tell us about your property... e.g. 'Victorian B&B in St Louis, family-run since 1995, known for gourmet breakfasts and historic charm'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                <button onclick="generatePageContent()" style="background: white; color: #667eea; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate Content</button>
+                                <button onclick="generatePageSEO()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">🔍 Generate SEO</button>
+                                <button onclick="generatePageFAQSchema()" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">📋 Generate FAQ Schema</button>
+                            </div>
+                            <div id="page-ai-status" style="margin-top: 0.75rem; font-size: 0.85rem; display: none;"></div>
+                        </div>
+                        
                         <div id="website-page-form">
                             <div class="form-group">
                                 <label class="form-label">Page Title</label>
@@ -1485,21 +1503,41 @@
                             
                             <div class="form-group">
                                 <label class="form-label">Content</label>
-                                <textarea class="form-input" id="page-content" rows="12" placeholder="Page content... HTML is supported"></textarea>
+                                <textarea class="form-input" id="page-content" rows="15" placeholder="Page content... HTML is supported. Use &lt;h2&gt; headers for FAQ schema generation."></textarea>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                                    💡 Tip: You can use HTML like &lt;h2&gt;, &lt;p&gt;, &lt;ul&gt;, &lt;strong&gt;
+                                    💡 Use &lt;h2&gt; and &lt;h3&gt; headers followed by paragraphs to auto-generate FAQ schema
                                 </div>
                             </div>
                             
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                                <div class="form-group">
-                                    <label class="form-label">Meta Title (SEO)</label>
-                                    <input type="text" class="form-input" id="page-meta-title" placeholder="SEO title">
+                            <!-- SEO Section -->
+                            <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                                <h4 style="margin: 0 0 1rem; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                                    🔍 SEO Settings
+                                    <button onclick="generatePageSEO()" style="background: var(--accent); color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">AI Suggest</button>
+                                </h4>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div class="form-group" style="margin: 0;">
+                                        <label class="form-label">Meta Title <span id="meta-title-count" style="color: var(--text-muted); font-weight: normal;">(0/60)</span></label>
+                                        <input type="text" class="form-input" id="page-meta-title" placeholder="SEO title - aim for 50-60 characters" maxlength="60" oninput="updateMetaCount()">
+                                    </div>
+                                    <div class="form-group" style="margin: 0;">
+                                        <label class="form-label">Meta Description <span id="meta-desc-count" style="color: var(--text-muted); font-weight: normal;">(0/160)</span></label>
+                                        <input type="text" class="form-input" id="page-meta-description" placeholder="SEO description - aim for 150-160 characters" maxlength="160" oninput="updateMetaCount()">
+                                    </div>
                                 </div>
-                                <div class="form-group">
-                                    <label class="form-label">Meta Description (SEO)</label>
-                                    <input type="text" class="form-input" id="page-meta-description" placeholder="SEO description">
+                            </div>
+                            
+                            <!-- FAQ Schema Section -->
+                            <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                                <h4 style="margin: 0 0 0.5rem; font-size: 0.95rem; display: flex; align-items: center; gap: 0.5rem;">
+                                    📋 FAQ Schema (Structured Data)
+                                    <button onclick="generatePageFAQSchema()" style="background: #10b981; color: white; border: none; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; cursor: pointer;">Generate from Headers</button>
+                                </h4>
+                                <p style="font-size: 0.8rem; color: #166534; margin-bottom: 0.75rem;">FAQ schema helps your pages appear in Google's rich results with expandable Q&A</p>
+                                <div id="faq-schema-preview" style="display: none; margin-bottom: 0.75rem;">
+                                    <div style="background: white; border-radius: 6px; padding: 0.75rem; max-height: 200px; overflow-y: auto;" id="faq-items-list"></div>
                                 </div>
+                                <textarea class="form-input" id="page-faq-schema" rows="4" placeholder='[{"question": "...", "answer": "..."}]' style="font-family: monospace; font-size: 0.85rem;"></textarea>
                             </div>
                             
                             <div class="form-group">
@@ -1511,7 +1549,10 @@
                             
                             <input type="hidden" id="page-type" value="about">
                             
-                            <button class="btn" onclick="saveWebsitePage()">💾 Save Page</button>
+                            <div style="display: flex; gap: 1rem;">
+                                <button class="btn" onclick="saveWebsitePage()">💾 Save Page</button>
+                                <button class="btn" style="background: #64748b;" onclick="previewPageContent()">👁️ Preview</button>
+                            </div>
                         </div>
                     </div>
                     
@@ -10139,6 +10180,25 @@ const availability = await fetch('/api/public/check-availability', {
         // =====================================================
         
         let currentPageType = 'about';
+        
+        const pageTemplates = {
+            about: {
+                title: 'About Us',
+                prompts: ['history', 'team', 'values', 'mission']
+            },
+            contact: {
+                title: 'Contact Us',
+                prompts: ['location', 'hours', 'directions']
+            },
+            terms: {
+                title: 'Terms & Conditions',
+                prompts: ['booking', 'cancellation', 'liability', 'payment']
+            },
+            privacy: {
+                title: 'Privacy Policy',
+                prompts: ['data collection', 'cookies', 'GDPR', 'rights']
+            }
+        };
 
         async function loadWebsitePage(pageType) {
             currentPageType = pageType;
@@ -10152,6 +10212,25 @@ const availability = await fetch('/api/public/check-availability', {
                 }
             });
             
+            // Update AI panel badge
+            const badge = document.getElementById('page-ai-badge');
+            if (badge) {
+                const titles = { about: 'About Us', contact: 'Contact', terms: 'Terms & Conditions', privacy: 'Privacy Policy' };
+                badge.textContent = titles[pageType] || pageType;
+            }
+            
+            // Update AI context placeholder based on page type
+            const contextInput = document.getElementById('page-ai-context');
+            if (contextInput) {
+                const placeholders = {
+                    about: "Tell us about your property... e.g. 'Victorian B&B in St Louis, family-run since 1995, known for gourmet breakfasts'",
+                    contact: "Your business details... e.g. 'Open 7 days, check-in from 3pm, located downtown near metro'",
+                    terms: "Your booking policies... e.g. '48-hour cancellation, no smoking, pets welcome with fee, 18+ only'",
+                    privacy: "Your data practices... e.g. 'We collect booking info, use Stripe for payments, based in USA'"
+                };
+                contextInput.placeholder = placeholders[pageType] || placeholders.about;
+            }
+            
             try {
                 const response = await fetch(`/api/admin/pages/${pageType}?client_id=1`);
                 const data = await response.json();
@@ -10163,6 +10242,9 @@ const availability = await fetch('/api/public/check-availability', {
                     document.getElementById('page-meta-title').value = data.page.meta_title || '';
                     document.getElementById('page-meta-description').value = data.page.meta_description || '';
                     document.getElementById('page-published').checked = data.page.is_published;
+                    document.getElementById('page-faq-schema').value = data.page.faq_schema || '';
+                    updateMetaCount();
+                    updateFAQPreview();
                 } else {
                     // Clear form for new page
                     const defaultTitles = { about: 'About Us', contact: 'Contact Us', terms: 'Terms & Conditions', privacy: 'Privacy Policy' };
@@ -10172,10 +10254,400 @@ const availability = await fetch('/api/public/check-availability', {
                     document.getElementById('page-meta-title').value = '';
                     document.getElementById('page-meta-description').value = '';
                     document.getElementById('page-published').checked = false;
+                    document.getElementById('page-faq-schema').value = '';
+                    updateMetaCount();
+                    document.getElementById('faq-schema-preview').style.display = 'none';
                 }
             } catch (error) {
                 console.error('Error loading page:', error);
             }
+        }
+        
+        function updateMetaCount() {
+            const title = document.getElementById('page-meta-title').value;
+            const desc = document.getElementById('page-meta-description').value;
+            
+            const titleCount = document.getElementById('meta-title-count');
+            const descCount = document.getElementById('meta-desc-count');
+            
+            if (titleCount) {
+                titleCount.textContent = `(${title.length}/60)`;
+                titleCount.style.color = title.length > 60 ? '#ef4444' : title.length > 50 ? '#f59e0b' : 'var(--text-muted)';
+            }
+            if (descCount) {
+                descCount.textContent = `(${desc.length}/160)`;
+                descCount.style.color = desc.length > 160 ? '#ef4444' : desc.length > 150 ? '#f59e0b' : 'var(--text-muted)';
+            }
+        }
+        
+        function updateFAQPreview() {
+            const schemaText = document.getElementById('page-faq-schema').value;
+            const preview = document.getElementById('faq-schema-preview');
+            const list = document.getElementById('faq-items-list');
+            
+            if (!schemaText || schemaText.trim() === '') {
+                preview.style.display = 'none';
+                return;
+            }
+            
+            try {
+                const faqs = JSON.parse(schemaText);
+                if (Array.isArray(faqs) && faqs.length > 0) {
+                    list.innerHTML = faqs.map((faq, i) => `
+                        <div style="padding: 0.5rem 0; ${i > 0 ? 'border-top: 1px solid #e2e8f0;' : ''}">
+                            <div style="font-weight: 600; font-size: 0.85rem; color: #1e293b;">Q: ${faq.question}</div>
+                            <div style="font-size: 0.8rem; color: #64748b; margin-top: 0.25rem;">A: ${faq.answer?.substring(0, 100)}${faq.answer?.length > 100 ? '...' : ''}</div>
+                        </div>
+                    `).join('');
+                    preview.style.display = 'block';
+                } else {
+                    preview.style.display = 'none';
+                }
+            } catch (e) {
+                preview.style.display = 'none';
+            }
+        }
+        
+        async function generatePageContent() {
+            const context = document.getElementById('page-ai-context').value;
+            const businessName = document.getElementById('contact-business-name')?.value || 'Our Property';
+            const statusEl = document.getElementById('page-ai-status');
+            
+            statusEl.style.display = 'block';
+            statusEl.innerHTML = '⏳ Generating content...';
+            
+            try {
+                const response = await fetch('/api/ai/generate-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'page_content',
+                        page_type: currentPageType,
+                        context: context,
+                        business_name: businessName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.content) {
+                    document.getElementById('page-content').value = data.content;
+                    if (data.title) document.getElementById('page-title').value = data.title;
+                    if (data.subtitle) document.getElementById('page-subtitle').value = data.subtitle;
+                    statusEl.innerHTML = '✅ Content generated! Review and edit as needed.';
+                } else {
+                    throw new Error(data.error || 'Generation failed');
+                }
+            } catch (error) {
+                console.error('Error generating content:', error);
+                statusEl.innerHTML = '❌ Error generating content. Using template instead...';
+                
+                // Fallback to local templates
+                setTimeout(() => {
+                    const template = getPageTemplate(currentPageType, context, businessName);
+                    document.getElementById('page-content').value = template;
+                    statusEl.innerHTML = '✅ Template applied! Customize it for your property.';
+                }, 500);
+            }
+            
+            setTimeout(() => { statusEl.style.display = 'none'; }, 5000);
+        }
+        
+        function getPageTemplate(pageType, context, businessName) {
+            const templates = {
+                about: `<h2>Welcome to ${businessName}</h2>
+<p>${context || 'We are delighted to welcome you to our property. Our commitment to exceptional hospitality ensures every guest enjoys a memorable stay.'}</p>
+
+<h2>Our Story</h2>
+<p>Founded with a passion for hospitality, ${businessName} has been providing comfortable accommodations and warm service to travelers from around the world.</p>
+
+<h2>What Makes Us Special</h2>
+<ul>
+    <li><strong>Prime Location</strong> - Perfectly situated for exploring the local area</li>
+    <li><strong>Comfortable Rooms</strong> - Thoughtfully designed for your relaxation</li>
+    <li><strong>Personal Service</strong> - Our team is dedicated to making your stay exceptional</li>
+    <li><strong>Local Experience</strong> - We love sharing our knowledge of the area</li>
+</ul>
+
+<h2>Our Commitment</h2>
+<p>We believe that great hospitality is about the details. From the moment you arrive until you check out, our goal is to exceed your expectations and create lasting memories.</p>`,
+
+                contact: `<h2>Get in Touch</h2>
+<p>We'd love to hear from you! Whether you have questions about your booking, need recommendations for local attractions, or want to arrange a special request, our team is here to help.</p>
+
+<h2>Contact Information</h2>
+<p>Feel free to reach out through any of the following channels:</p>
+
+<h2>Before Your Arrival</h2>
+<p>If you have any special requests or need to communicate arrival details, please don't hesitate to contact us. We're happy to help with:</p>
+<ul>
+    <li>Early check-in or late check-out requests</li>
+    <li>Special occasion arrangements</li>
+    <li>Dietary requirements</li>
+    <li>Transportation assistance</li>
+    <li>Local recommendations</li>
+</ul>
+
+<h2>During Your Stay</h2>
+<p>Our team is available to assist you with anything you need during your stay. Just ask!</p>`,
+
+                terms: `<h2>Booking Terms & Conditions</h2>
+<p>Please read these terms carefully before making a reservation at ${businessName}. By completing a booking, you agree to these terms and conditions.</p>
+
+<h2>Reservations & Payment</h2>
+<p>A valid credit card is required to secure your reservation. Payment terms vary by rate type:</p>
+<ul>
+    <li><strong>Standard Rate:</strong> Full payment due at check-in</li>
+    <li><strong>Non-Refundable Rate:</strong> Full payment charged at time of booking</li>
+    <li><strong>Deposit Required:</strong> Partial payment at booking, balance due at check-in</li>
+</ul>
+
+<h2>Cancellation Policy</h2>
+<p>Our standard cancellation policy is as follows:</p>
+<ul>
+    <li>Free cancellation up to 48 hours before check-in</li>
+    <li>Cancellations within 48 hours: First night charged</li>
+    <li>No-shows: Full stay charged</li>
+    <li>Non-refundable bookings: No refunds for any cancellation</li>
+</ul>
+
+<h2>Check-in & Check-out</h2>
+<ul>
+    <li><strong>Check-in:</strong> From 3:00 PM</li>
+    <li><strong>Check-out:</strong> By 11:00 AM</li>
+    <li>Early check-in and late check-out available upon request (subject to availability)</li>
+</ul>
+
+<h2>House Rules</h2>
+<ul>
+    <li>No smoking on the premises</li>
+    <li>Quiet hours: 10:00 PM - 8:00 AM</li>
+    <li>Pets policy: Please contact us for pet-friendly options</li>
+    <li>Additional guests must be registered at check-in</li>
+</ul>
+
+<h2>Liability</h2>
+<p>${businessName} is not responsible for loss or damage to guests' personal belongings. Valuables should be secured in provided safes where available.</p>
+
+<h2>Damages</h2>
+<p>Guests are responsible for any damage caused to the property during their stay. Costs for repairs or replacement will be charged to the card on file.</p>`,
+
+                privacy: `<h2>Privacy Policy</h2>
+<p>At ${businessName}, we are committed to protecting your privacy and personal data. This policy explains how we collect, use, and safeguard your information.</p>
+
+<h2>Information We Collect</h2>
+<p>We collect information necessary to provide our services:</p>
+<ul>
+    <li><strong>Booking Information:</strong> Name, email, phone, address</li>
+    <li><strong>Payment Details:</strong> Processed securely through our payment provider</li>
+    <li><strong>Stay Preferences:</strong> Special requests, dietary requirements</li>
+    <li><strong>Communication Records:</strong> Emails and messages exchanged with us</li>
+</ul>
+
+<h2>How We Use Your Information</h2>
+<ul>
+    <li>Process and manage your booking</li>
+    <li>Communicate about your reservation</li>
+    <li>Improve our services</li>
+    <li>Send marketing communications (with your consent)</li>
+    <li>Comply with legal obligations</li>
+</ul>
+
+<h2>Data Protection (GDPR)</h2>
+<p>If you are in the European Economic Area, you have rights under GDPR including:</p>
+<ul>
+    <li><strong>Right to Access:</strong> Request a copy of your personal data</li>
+    <li><strong>Right to Rectification:</strong> Correct inaccurate data</li>
+    <li><strong>Right to Erasure:</strong> Request deletion of your data</li>
+    <li><strong>Right to Portability:</strong> Receive your data in a portable format</li>
+    <li><strong>Right to Object:</strong> Object to processing of your data</li>
+</ul>
+
+<h2>Cookies</h2>
+<p>Our website uses cookies to improve your experience:</p>
+<ul>
+    <li><strong>Essential Cookies:</strong> Required for the website to function</li>
+    <li><strong>Analytics Cookies:</strong> Help us understand how visitors use our site</li>
+    <li><strong>Marketing Cookies:</strong> Used to deliver relevant advertisements</li>
+</ul>
+
+<h2>Data Security</h2>
+<p>We implement appropriate security measures to protect your personal information against unauthorized access, alteration, or destruction.</p>
+
+<h2>Third-Party Services</h2>
+<p>We may share data with trusted partners who assist in operating our business:</p>
+<ul>
+    <li>Payment processors</li>
+    <li>Booking platforms</li>
+    <li>Email service providers</li>
+</ul>
+
+<h2>Contact Us</h2>
+<p>For any privacy-related questions or to exercise your rights, please contact us.</p>
+
+<h2>Updates to This Policy</h2>
+<p>We may update this policy periodically. The latest version will always be available on our website.</p>
+
+<p><em>Last updated: ${new Date().toLocaleDateString()}</em></p>`
+            };
+            
+            return templates[pageType] || templates.about;
+        }
+        
+        async function generatePageSEO() {
+            const content = document.getElementById('page-content').value;
+            const title = document.getElementById('page-title').value;
+            const businessName = document.getElementById('contact-business-name')?.value || '';
+            const statusEl = document.getElementById('page-ai-status');
+            
+            if (!content) {
+                alert('Please add some content first, then generate SEO.');
+                return;
+            }
+            
+            statusEl.style.display = 'block';
+            statusEl.innerHTML = '⏳ Generating SEO suggestions...';
+            
+            try {
+                const response = await fetch('/api/ai/generate-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        type: 'seo',
+                        page_type: currentPageType,
+                        content: content.substring(0, 2000),
+                        title: title,
+                        business_name: businessName
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.meta_title) document.getElementById('page-meta-title').value = data.meta_title;
+                    if (data.meta_description) document.getElementById('page-meta-description').value = data.meta_description;
+                    updateMetaCount();
+                    statusEl.innerHTML = '✅ SEO generated!';
+                } else {
+                    throw new Error(data.error || 'Generation failed');
+                }
+            } catch (error) {
+                console.error('Error generating SEO:', error);
+                // Fallback to basic SEO generation
+                const seo = generateBasicSEO(currentPageType, title, businessName);
+                document.getElementById('page-meta-title').value = seo.title;
+                document.getElementById('page-meta-description').value = seo.description;
+                updateMetaCount();
+                statusEl.innerHTML = '✅ SEO suggestions applied!';
+            }
+            
+            setTimeout(() => { statusEl.style.display = 'none'; }, 3000);
+        }
+        
+        function generateBasicSEO(pageType, title, businessName) {
+            const seoTemplates = {
+                about: {
+                    title: `About ${businessName || 'Us'} | Our Story & Values`,
+                    description: `Learn about ${businessName || 'our property'}, our history, and what makes us special. Discover why guests choose us for their stay.`
+                },
+                contact: {
+                    title: `Contact ${businessName || 'Us'} | Get in Touch`,
+                    description: `Contact ${businessName || 'us'} for bookings, inquiries, or assistance. Find our address, phone number, email, and hours of operation.`
+                },
+                terms: {
+                    title: `Terms & Conditions | ${businessName || 'Booking Policies'}`,
+                    description: `Read our terms and conditions including booking policies, cancellation rules, check-in/out times, and house rules at ${businessName || 'our property'}.`
+                },
+                privacy: {
+                    title: `Privacy Policy | ${businessName || 'Data Protection'}`,
+                    description: `Our privacy policy explains how ${businessName || 'we'} collect, use, and protect your personal data. GDPR compliant.`
+                }
+            };
+            
+            return seoTemplates[pageType] || seoTemplates.about;
+        }
+        
+        function generatePageFAQSchema() {
+            const content = document.getElementById('page-content').value;
+            const statusEl = document.getElementById('page-ai-status');
+            
+            if (!content) {
+                alert('Please add content with headers (h2, h3) first.');
+                return;
+            }
+            
+            statusEl.style.display = 'block';
+            statusEl.innerHTML = '⏳ Extracting FAQ schema from headers...';
+            
+            // Parse headers and their following content
+            const faqs = [];
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            
+            const headers = tempDiv.querySelectorAll('h2, h3');
+            headers.forEach(header => {
+                const question = header.textContent.trim();
+                if (!question) return;
+                
+                // Get content until next header
+                let answer = '';
+                let sibling = header.nextElementSibling;
+                while (sibling && !['H1', 'H2', 'H3', 'H4'].includes(sibling.tagName)) {
+                    answer += sibling.textContent.trim() + ' ';
+                    sibling = sibling.nextElementSibling;
+                }
+                
+                answer = answer.trim();
+                if (answer && answer.length > 20) {
+                    // Convert header to question format if not already
+                    let q = question;
+                    if (!q.endsWith('?')) {
+                        q = 'What is ' + q.toLowerCase().replace(/^(our |the |about )/i, '') + '?';
+                    }
+                    
+                    faqs.push({
+                        question: q.charAt(0).toUpperCase() + q.slice(1),
+                        answer: answer.substring(0, 500) + (answer.length > 500 ? '...' : '')
+                    });
+                }
+            });
+            
+            if (faqs.length > 0) {
+                document.getElementById('page-faq-schema').value = JSON.stringify(faqs, null, 2);
+                updateFAQPreview();
+                statusEl.innerHTML = `✅ Generated ${faqs.length} FAQ items from headers!`;
+            } else {
+                statusEl.innerHTML = '⚠️ No headers found. Add &lt;h2&gt; or &lt;h3&gt; tags to your content.';
+            }
+            
+            setTimeout(() => { statusEl.style.display = 'none'; }, 4000);
+        }
+        
+        function previewPageContent() {
+            const content = document.getElementById('page-content').value;
+            const title = document.getElementById('page-title').value;
+            
+            const previewWindow = window.open('', '_blank');
+            previewWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <title>${title} - Preview</title>
+                    <style>
+                        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 40px auto; padding: 20px; line-height: 1.6; color: #1e293b; }
+                        h1 { color: #6366f1; border-bottom: 2px solid #6366f1; padding-bottom: 10px; }
+                        h2 { color: #1e293b; margin-top: 30px; }
+                        ul { padding-left: 20px; }
+                        li { margin-bottom: 8px; }
+                    </style>
+                </head>
+                <body>
+                    <h1>${title}</h1>
+                    ${content}
+                </body>
+                </html>
+            `);
+            previewWindow.document.close();
         }
 
         async function saveWebsitePage() {
@@ -10188,6 +10660,7 @@ const availability = await fetch('/api/public/check-availability', {
                 content: document.getElementById('page-content').value,
                 meta_title: document.getElementById('page-meta-title').value,
                 meta_description: document.getElementById('page-meta-description').value,
+                faq_schema: document.getElementById('page-faq-schema').value,
                 is_published: document.getElementById('page-published').checked
             };
             
