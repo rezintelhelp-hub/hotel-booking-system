@@ -140,179 +140,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
-// =====================================================
-// WORDPRESS DOWNLOADS
-// =====================================================
-app.get('/downloads/gas-booking-wp-plugin-v47.zip', (req, res) => {
-  const filePath = path.join(__dirname, 'public', 'downloads', 'gas-booking-wp-plugin-v47.zip');
-  if (fs.existsSync(filePath)) {
-    res.download(filePath);
-  } else {
-    res.status(404).json({ error: 'Plugin file not found. Please upload to public/downloads/' });
-  }
-});
-
-app.get('/downloads/gas-theme-developer.zip', (req, res) => {
-  const filePath = path.join(__dirname, 'public', 'downloads', 'gas-theme-developer.zip');
-  if (fs.existsSync(filePath)) {
-    res.download(filePath);
-  } else {
-    res.status(404).json({ error: 'Theme file not found. Please upload to public/downloads/' });
-  }
-});
-
 const BEDS24_TOKEN = process.env.BEDS24_TOKEN;
 const BEDS24_API = 'https://beds24.com/api/v2';
-
-// =====================================================
-// MIGRATION DEBUG ENDPOINT
-// =====================================================
-app.get('/api/debug/migrations', async (req, res) => {
-  try {
-    // Check what migrations have run
-    const migrations = await pool.query('SELECT * FROM schema_migrations ORDER BY executed_at');
-    
-    // Check if key tables exist
-    const tables = await pool.query(`
-      SELECT table_name 
-      FROM information_schema.tables 
-      WHERE table_schema = 'public' 
-      ORDER BY table_name
-    `);
-    
-    // Check if channel_managers table exists and has data
-    let channelManagers = { exists: false, count: 0 };
-    try {
-      const cmResult = await pool.query('SELECT COUNT(*) FROM channel_managers');
-      channelManagers = { exists: true, count: parseInt(cmResult.rows[0].count) };
-    } catch (e) {
-      channelManagers = { exists: false, error: e.message };
-    }
-    
-    res.json({
-      success: true,
-      migrations: migrations.rows,
-      tables: tables.rows.map(r => r.table_name),
-      channelManagers
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Fix stuck migrations
-app.get('/api/debug/fix-migrations', async (req, res) => {
-  try {
-    const fixes = [];
-    
-    // Create schema_migrations table if it doesn't exist
-    try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS schema_migrations (
-          id SERIAL PRIMARY KEY,
-          filename VARCHAR(255) NOT NULL UNIQUE,
-          executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      fixes.push('Created schema_migrations table');
-    } catch (e) {
-      fixes.push('schema_migrations: ' + e.message);
-    }
-    
-    // Drop and recreate channel_managers table properly
-    try {
-      await pool.query('DROP TABLE IF EXISTS channel_manager_requests CASCADE');
-      await pool.query('DROP TABLE IF EXISTS channel_managers CASCADE');
-      fixes.push('Dropped old channel_managers tables');
-    } catch (e) {
-      fixes.push('Drop tables: ' + e.message);
-    }
-    
-    // Create channel_managers table fresh
-    try {
-      await pool.query(`
-        CREATE TABLE channel_managers (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(100) NOT NULL,
-          slug VARCHAR(100) NOT NULL UNIQUE,
-          type VARCHAR(50) DEFAULT 'pms_cm',
-          status VARCHAR(50) DEFAULT 'not_started',
-          website_url VARCHAR(255),
-          api_docs_url VARCHAR(255),
-          logo_url VARCHAR(255),
-          description TEXT,
-          market_focus VARCHAR(100),
-          regions VARCHAR(255),
-          priority INTEGER DEFAULT 0,
-          request_count INTEGER DEFAULT 0,
-          notes TEXT,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-      `);
-      fixes.push('Created channel_managers table');
-    } catch (e) {
-      fixes.push('Create channel_managers: ' + e.message);
-    }
-    
-    // Insert seed data
-    try {
-      await pool.query(`
-        INSERT INTO channel_managers (name, slug, type, status, website_url, market_focus, regions, priority, description) VALUES
-        ('Beds24', 'beds24', 'pms_cm', 'live', 'https://beds24.com', 'All', 'Global', 100, 'PMS + channel manager'),
-        ('Hostaway', 'hostaway', 'vr_allinone', 'live', 'https://hostaway.com', 'VR', 'Global', 100, 'All-in-one vacation rental software'),
-        ('Guesty', 'guesty', 'vr_pms', 'not_started', 'https://guesty.com', 'VR', 'Global', 90, 'Large VR PMS'),
-        ('Cloudbeds', 'cloudbeds', 'pms_cm', 'not_started', 'https://cloudbeds.com', 'Hotels', 'Global', 88, 'PMS + channel manager'),
-        ('Lodgify', 'lodgify', 'vr_cm', 'not_started', 'https://lodgify.com', 'VR', 'Global', 86, 'VR software + website builder'),
-        ('Smoobu', 'smoobu', 'vr_pms', 'not_started', 'https://smoobu.com', 'VR', 'Europe', 84, 'VR PMS + channel manager'),
-        ('OwnerRez', 'ownerrez', 'vr_cm', 'not_started', 'https://ownerrez.com', 'VR', 'US', 83, 'Vacation rental software')
-      `);
-      fixes.push('Seeded channel managers data');
-    } catch (e) {
-      fixes.push('Seed data: ' + e.message);
-    }
-    
-    // Create channel_manager_requests table
-    try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS channel_manager_requests (
-          id SERIAL PRIMARY KEY,
-          user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
-          property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
-          channel_manager_id INTEGER REFERENCES channel_managers(id) ON DELETE SET NULL,
-          cm_name_other VARCHAR(100),
-          status VARCHAR(50) DEFAULT 'pending',
-          api_access_status VARCHAR(50) DEFAULT 'unknown',
-          notes TEXT,
-          admin_notes TEXT,
-          requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          completed_at TIMESTAMP
-        )
-      `);
-      fixes.push('Created channel_manager_requests table');
-    } catch (e) {
-      fixes.push('Create requests table: ' + e.message);
-    }
-    
-    // Mark migrations as executed
-    try {
-      await pool.query(`
-        INSERT INTO schema_migrations (filename) VALUES 
-        ('003-clients-multi-tenant.sql'),
-        ('008_channel_managers.sql')
-        ON CONFLICT (filename) DO NOTHING
-      `);
-      fixes.push('Marked migrations as executed');
-    } catch (e) {
-      fixes.push('Mark migrations: ' + e.message);
-    }
-    
-    res.json({ success: true, fixes });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
 
 async function beds24Request(endpoint, method = 'GET', data = null) {
   try {
@@ -3338,6 +3167,716 @@ app.get('/api/webhooks/hostaway', (req, res) => {
 });
 
 // =====================================================
+// SMOOBU API INTEGRATION
+// =====================================================
+
+// Smoobu API Base URL
+const SMOOBU_API_URL = 'https://login.smoobu.com/api';
+
+// Setup Smoobu connection - saves API key to database
+app.post('/api/smoobu/setup-connection', async (req, res) => {
+    try {
+        const { apiKey, clientId } = req.body;
+        
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API key is required' 
+            });
+        }
+        
+        // Test the connection by getting user info
+        const testResponse = await axios.get(`${SMOOBU_API_URL}/me`, {
+            headers: {
+                'Api-Key': apiKey,
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        if (testResponse.status !== 200) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Invalid API key. Please check your Smoobu API key.'
+            });
+        }
+        
+        const userData = testResponse.data;
+        
+        // Store the API key in database
+        const targetClientId = clientId || 1;
+        
+        // Update or insert client settings
+        await pool.query(`
+            INSERT INTO client_settings (client_id, setting_key, setting_value)
+            VALUES ($1, 'smoobu_api_key', $2)
+            ON CONFLICT (client_id, setting_key) 
+            DO UPDATE SET setting_value = $2, updated_at = NOW()
+        `, [targetClientId, apiKey]);
+        
+        // Also store the Smoobu user ID
+        await pool.query(`
+            INSERT INTO client_settings (client_id, setting_key, setting_value)
+            VALUES ($1, 'smoobu_user_id', $2)
+            ON CONFLICT (client_id, setting_key) 
+            DO UPDATE SET setting_value = $2, updated_at = NOW()
+        `, [targetClientId, userData.id.toString()]);
+        
+        res.json({ 
+            success: true, 
+            message: 'Smoobu connection established successfully',
+            user: {
+                id: userData.id,
+                firstName: userData.firstName,
+                lastName: userData.lastName,
+                email: userData.email
+            }
+        });
+        
+    } catch (error) {
+        console.error('Smoobu setup error:', error.response?.data || error.message);
+        if (error.response?.status === 401) {
+            return res.status(401).json({ 
+                success: false, 
+                error: 'Invalid API key. Please check your Smoobu API key.'
+            });
+        }
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// List all properties/apartments from Smoobu
+app.post('/api/smoobu/list-properties', async (req, res) => {
+    try {
+        const { apiKey } = req.body;
+        
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API key is required' 
+            });
+        }
+        
+        // Get apartments list
+        const response = await axios.get(`${SMOOBU_API_URL}/apartments`, {
+            headers: {
+                'Api-Key': apiKey,
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        const apartments = response.data.apartments || [];
+        
+        // Get detailed info for each apartment
+        const propertiesWithDetails = await Promise.all(
+            apartments.map(async (apt) => {
+                try {
+                    const detailResponse = await axios.get(`${SMOOBU_API_URL}/apartments/${apt.id}`, {
+                        headers: {
+                            'Api-Key': apiKey,
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
+                    return {
+                        id: apt.id,
+                        name: apt.name,
+                        ...detailResponse.data
+                    };
+                } catch (e) {
+                    return { id: apt.id, name: apt.name };
+                }
+            })
+        );
+        
+        res.json({ 
+            success: true, 
+            properties: propertiesWithDetails,
+            count: propertiesWithDetails.length
+        });
+        
+    } catch (error) {
+        console.error('Smoobu list properties error:', error.response?.data || error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Import a single property from Smoobu
+app.post('/api/smoobu/import-property', async (req, res) => {
+    const client = await pool.connect();
+    
+    try {
+        const { apiKey, apartmentId, clientId } = req.body;
+        
+        if (!apiKey || !apartmentId) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API key and apartment ID are required' 
+            });
+        }
+        
+        const targetClientId = clientId || 1;
+        
+        // Get apartment details
+        const detailResponse = await axios.get(`${SMOOBU_API_URL}/apartments/${apartmentId}`, {
+            headers: {
+                'Api-Key': apiKey,
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        const details = detailResponse.data;
+        
+        // Get apartment name from list
+        const listResponse = await axios.get(`${SMOOBU_API_URL}/apartments`, {
+            headers: {
+                'Api-Key': apiKey,
+                'Cache-Control': 'no-cache'
+            }
+        });
+        const apartment = listResponse.data.apartments?.find(a => a.id === parseInt(apartmentId));
+        const apartmentName = apartment?.name || `Smoobu Property ${apartmentId}`;
+        
+        await client.query('BEGIN');
+        
+        // Create or update property
+        const propertyResult = await client.query(`
+            INSERT INTO properties (
+                client_id, 
+                name, 
+                description,
+                address, 
+                city, 
+                country,
+                latitude,
+                longitude,
+                currency,
+                smoobu_id,
+                channel_manager
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'smoobu')
+            ON CONFLICT (smoobu_id) WHERE smoobu_id IS NOT NULL
+            DO UPDATE SET 
+                name = EXCLUDED.name,
+                address = EXCLUDED.address,
+                city = EXCLUDED.city,
+                country = EXCLUDED.country,
+                latitude = EXCLUDED.latitude,
+                longitude = EXCLUDED.longitude,
+                currency = EXCLUDED.currency,
+                updated_at = NOW()
+            RETURNING id
+        `, [
+            targetClientId,
+            apartmentName,
+            '',
+            details.location?.street || '',
+            details.location?.city || '',
+            details.location?.country || '',
+            details.location?.latitude || null,
+            details.location?.longitude || null,
+            details.currency || 'USD',
+            apartmentId.toString()
+        ]);
+        
+        const propertyId = propertyResult.rows[0].id;
+        
+        // Create a bookable unit for this apartment
+        const roomResult = await client.query(`
+            INSERT INTO bookable_units (
+                property_id,
+                name,
+                description,
+                max_occupancy,
+                bedrooms,
+                bathrooms,
+                base_price,
+                smoobu_id
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+            ON CONFLICT (smoobu_id) WHERE smoobu_id IS NOT NULL
+            DO UPDATE SET
+                name = EXCLUDED.name,
+                max_occupancy = EXCLUDED.max_occupancy,
+                bedrooms = EXCLUDED.bedrooms,
+                bathrooms = EXCLUDED.bathrooms,
+                base_price = EXCLUDED.base_price,
+                updated_at = NOW()
+            RETURNING id
+        `, [
+            propertyId,
+            apartmentName,
+            '',
+            details.rooms?.maxOccupancy || 2,
+            details.rooms?.bedrooms || 1,
+            details.rooms?.bathrooms || 1,
+            details.price?.minimal || 100,
+            apartmentId.toString()
+        ]);
+        
+        const roomId = roomResult.rows[0].id;
+        
+        await client.query('COMMIT');
+        
+        res.json({
+            success: true,
+            message: `Successfully imported "${apartmentName}"`,
+            property: {
+                id: propertyId,
+                name: apartmentName,
+                smoobu_id: apartmentId
+            },
+            room: {
+                id: roomId,
+                name: apartmentName
+            }
+        });
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Smoobu import error:', error.response?.data || error.message);
+        res.status(500).json({ success: false, error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
+// Get availability/rates from Smoobu for a property
+app.get('/api/smoobu/availability/:apartmentId', async (req, res) => {
+    try {
+        const { apartmentId } = req.params;
+        const { apiKey, startDate, endDate } = req.query;
+        
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API key is required' 
+            });
+        }
+        
+        const start = startDate || new Date().toISOString().split('T')[0];
+        const end = endDate || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const response = await axios.get(
+            `${SMOOBU_API_URL}/rates?apartments[]=${apartmentId}&start_date=${start}&end_date=${end}`,
+            {
+                headers: {
+                    'Api-Key': apiKey,
+                    'Cache-Control': 'no-cache'
+                }
+            }
+        );
+        
+        res.json({ 
+            success: true, 
+            availability: response.data.data?.[apartmentId] || {},
+            apartmentId
+        });
+        
+    } catch (error) {
+        console.error('Smoobu availability error:', error.response?.data || error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Check availability for booking
+app.post('/api/smoobu/check-availability', async (req, res) => {
+    try {
+        const { apiKey, apartmentId, arrivalDate, departureDate, guests } = req.body;
+        
+        if (!apiKey || !apartmentId || !arrivalDate || !departureDate) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Missing required fields'
+            });
+        }
+        
+        // Get Smoobu user ID
+        const userResponse = await axios.get(`${SMOOBU_API_URL}/me`, {
+            headers: {
+                'Api-Key': apiKey,
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        const userData = userResponse.data;
+        
+        const response = await axios.post(`https://login.smoobu.com/booking/checkApartmentAvailability`, {
+            arrivalDate,
+            departureDate,
+            apartments: [parseInt(apartmentId)],
+            customerId: userData.id,
+            guests: guests || 2
+        }, {
+            headers: {
+                'Api-Key': apiKey,
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        const data = response.data;
+        const isAvailable = data.availableApartments?.includes(parseInt(apartmentId));
+        const price = data.prices?.[apartmentId]?.price;
+        const currency = data.prices?.[apartmentId]?.currency;
+        const errorInfo = data.errorMessages?.[apartmentId];
+        
+        res.json({
+            success: true,
+            available: isAvailable,
+            price,
+            currency,
+            error: errorInfo
+        });
+        
+    } catch (error) {
+        console.error('Smoobu check availability error:', error.response?.data || error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Create booking in Smoobu
+app.post('/api/smoobu/create-booking', async (req, res) => {
+    try {
+        const { 
+            apiKey, 
+            apartmentId,
+            arrivalDate,
+            departureDate,
+            firstName,
+            lastName,
+            email,
+            phone,
+            adults,
+            children,
+            price,
+            notice
+        } = req.body;
+        
+        if (!apiKey || !apartmentId || !arrivalDate || !departureDate) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Missing required fields'
+            });
+        }
+        
+        const response = await axios.post(`${SMOOBU_API_URL}/reservations`, {
+            arrivalDate,
+            departureDate,
+            apartmentId: parseInt(apartmentId),
+            channelId: 13, // Direct booking
+            firstName: firstName || '',
+            lastName: lastName || '',
+            email: email || '',
+            phone: phone || '',
+            adults: adults || 1,
+            children: children || 0,
+            price: price || 0,
+            notice: notice || 'Booked via GAS Booking'
+        }, {
+            headers: {
+                'Api-Key': apiKey,
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        res.json({
+            success: true,
+            bookingId: response.data.id,
+            message: `Booking created successfully (ID: ${response.data.id})`
+        });
+        
+    } catch (error) {
+        console.error('Smoobu create booking error:', error.response?.data || error.message);
+        const errorDetail = error.response?.data?.detail || error.response?.data?.validation_messages?.error;
+        res.status(error.response?.status || 500).json({ 
+            success: false, 
+            error: errorDetail || error.message 
+        });
+    }
+});
+
+// Get bookings from Smoobu
+app.get('/api/smoobu/bookings', async (req, res) => {
+    try {
+        const { apiKey, apartmentId, from, to } = req.query;
+        
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API key is required' 
+            });
+        }
+        
+        let url = `${SMOOBU_API_URL}/reservations?`;
+        if (apartmentId) url += `apartmentId=${apartmentId}&`;
+        if (from) url += `from=${from}&`;
+        if (to) url += `to=${to}&`;
+        
+        const response = await axios.get(url, {
+            headers: {
+                'Api-Key': apiKey,
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        const data = response.data;
+        
+        // Transform to standard format
+        const bookings = (data.bookings || []).map(b => ({
+            id: b.id,
+            externalId: b['reference-id'],
+            type: b.type,
+            status: b.type === 'cancellation' ? 'cancelled' : 'confirmed',
+            arrivalDate: b.arrival,
+            departureDate: b.departure,
+            createdAt: b['created-at'],
+            apartment: b.apartment,
+            channel: b.channel,
+            guestName: b['guest-name'],
+            email: b.email,
+            phone: b.phone,
+            adults: b.adults,
+            children: b.children,
+            checkIn: b['check-in'],
+            checkOut: b['check-out'],
+            notes: b.notice,
+            price: b.price,
+            pricePaid: b['price-paid'],
+            language: b.language
+        }));
+        
+        res.json({
+            success: true,
+            bookings,
+            pagination: {
+                page: data.page,
+                pageSize: data.page_size,
+                totalItems: data.total_items,
+                pageCount: data.page_count
+            }
+        });
+        
+    } catch (error) {
+        console.error('Smoobu get bookings error:', error.response?.data || error.message);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Cancel a booking in Smoobu
+app.delete('/api/smoobu/bookings/:bookingId', async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const { apiKey } = req.query;
+        
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API key is required' 
+            });
+        }
+        
+        await axios.delete(`${SMOOBU_API_URL}/reservations/${bookingId}`, {
+            headers: {
+                'Api-Key': apiKey,
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        res.json({
+            success: true,
+            message: `Booking ${bookingId} cancelled successfully`
+        });
+        
+    } catch (error) {
+        console.error('Smoobu cancel booking error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({ 
+            success: false, 
+            error: error.response?.data?.detail || error.message 
+        });
+    }
+});
+
+// Update rates in Smoobu
+app.post('/api/smoobu/update-rates', async (req, res) => {
+    try {
+        const { apiKey, apartmentIds, operations } = req.body;
+        
+        if (!apiKey || !apartmentIds || !operations) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'Missing required fields'
+            });
+        }
+        
+        const response = await axios.post(`${SMOOBU_API_URL}/rates`, {
+            apartments: apartmentIds,
+            operations
+        }, {
+            headers: {
+                'Api-Key': apiKey,
+                'Content-Type': 'application/json',
+                'Cache-Control': 'no-cache'
+            }
+        });
+        
+        res.json({
+            success: true,
+            message: 'Rates updated successfully'
+        });
+        
+    } catch (error) {
+        console.error('Smoobu update rates error:', error.response?.data || error.message);
+        res.status(error.response?.status || 500).json({ 
+            success: false, 
+            error: error.response?.data?.detail || error.message 
+        });
+    }
+});
+
+// Sync availability from Smoobu to local database
+app.post('/api/admin/sync-smoobu-availability', async (req, res) => {
+    const dbClient = await pool.connect();
+    
+    try {
+        const { apiKey, clientId } = req.body;
+        
+        if (!apiKey) {
+            return res.status(400).json({ 
+                success: false, 
+                error: 'API key is required' 
+            });
+        }
+        
+        const targetClientId = clientId || 1;
+        
+        // Get all Smoobu properties for this client
+        const propertiesResult = await dbClient.query(`
+            SELECT bu.id as room_id, bu.smoobu_id, bu.name
+            FROM bookable_units bu
+            JOIN properties p ON bu.property_id = p.id
+            WHERE p.client_id = $1 AND bu.smoobu_id IS NOT NULL
+        `, [targetClientId]);
+        
+        if (propertiesResult.rows.length === 0) {
+            return res.json({
+                success: true,
+                message: 'No Smoobu properties found to sync',
+                synced: 0
+            });
+        }
+        
+        const apartmentIds = propertiesResult.rows.map(r => r.smoobu_id);
+        
+        // Get rates for next 365 days
+        const startDate = new Date().toISOString().split('T')[0];
+        const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const ratesResponse = await axios.get(
+            `${SMOOBU_API_URL}/rates?${apartmentIds.map(id => `apartments[]=${id}`).join('&')}&start_date=${startDate}&end_date=${endDate}`,
+            {
+                headers: {
+                    'Api-Key': apiKey,
+                    'Cache-Control': 'no-cache'
+                }
+            }
+        );
+        
+        const ratesData = ratesResponse.data;
+        
+        await dbClient.query('BEGIN');
+        
+        let totalSynced = 0;
+        
+        for (const room of propertiesResult.rows) {
+            const apartmentRates = ratesData.data?.[room.smoobu_id];
+            if (!apartmentRates) continue;
+            
+            // Clear existing availability
+            await dbClient.query(`
+                DELETE FROM room_availability 
+                WHERE room_id = $1 AND date >= $2
+            `, [room.room_id, startDate]);
+            
+            // Insert new availability
+            for (const [date, info] of Object.entries(apartmentRates)) {
+                await dbClient.query(`
+                    INSERT INTO room_availability (room_id, date, available, price, min_stay)
+                    VALUES ($1, $2, $3, $4, $5)
+                    ON CONFLICT (room_id, date) DO UPDATE SET
+                        available = EXCLUDED.available,
+                        price = EXCLUDED.price,
+                        min_stay = EXCLUDED.min_stay,
+                        updated_at = NOW()
+                `, [
+                    room.room_id,
+                    date,
+                    info.available > 0,
+                    info.price || null,
+                    info.min_length_of_stay || null
+                ]);
+                totalSynced++;
+            }
+        }
+        
+        await dbClient.query('COMMIT');
+        
+        res.json({
+            success: true,
+            message: `Synced ${totalSynced} availability records from Smoobu`,
+            synced: totalSynced,
+            properties: propertiesResult.rows.length
+        });
+        
+    } catch (error) {
+        await dbClient.query('ROLLBACK');
+        console.error('Smoobu sync error:', error.response?.data || error.message);
+        res.status(500).json({ success: false, error: error.message });
+    } finally {
+        dbClient.release();
+    }
+});
+
+// Webhook endpoint for Smoobu notifications
+app.post('/api/webhooks/smoobu', async (req, res) => {
+    try {
+        const { action, user, data } = req.body;
+        
+        console.log('Smoobu webhook received:', { action, user, dataKeys: Object.keys(data || {}) });
+        
+        switch (action) {
+            case 'newReservation':
+            case 'updateReservation':
+                console.log('Booking webhook:', data);
+                break;
+            case 'cancelReservation':
+            case 'deleteReservation':
+                console.log('Cancellation webhook:', data);
+                break;
+            case 'updateRates':
+                console.log('Rates updated:', data);
+                break;
+            default:
+                console.log('Unknown webhook action:', action);
+        }
+        
+        res.json({ success: true, received: action });
+        
+    } catch (error) {
+        console.error('Smoobu webhook error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Webhook verification endpoint
+app.get('/api/webhooks/smoobu', (req, res) => {
+    res.json({ 
+        status: 'active',
+        message: 'Smoobu webhook endpoint is ready',
+        timestamp: new Date().toISOString()
+    });
+});
+
+// =====================================================
 // OFFERS & VOUCHERS API ENDPOINTS
 // =====================================================
 
@@ -3607,433 +4146,6 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
-});
-
-// =====================================================
-// PROPERTY MARKETING FEATURES API
-// =====================================================
-
-// GET /api/properties/:id/features - Get all features for a property
-app.get('/api/properties/:id/features', async (req, res) => {
-    try {
-        const { id } = req.params;
-        
-        const result = await pool.query(
-            `SELECT id, feature_name, category, is_custom, excluded_room_ids, created_at
-             FROM property_features 
-             WHERE property_id = $1 
-             ORDER BY category, feature_name`,
-            [id]
-        );
-        
-        res.json({ 
-            success: true, 
-            features: result.rows 
-        });
-    } catch (error) {
-        console.error('Error fetching property features:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// POST /api/properties/:id/features - Save features for a property (replaces all)
-app.post('/api/properties/:id/features', async (req, res) => {
-    const client = await pool.connect();
-    
-    try {
-        const { id } = req.params;
-        const { features } = req.body; // Array of { feature_name, category, is_custom, excluded_room_ids }
-        
-        await client.query('BEGIN');
-        
-        // Delete existing features for this property
-        await client.query(
-            'DELETE FROM property_features WHERE property_id = $1',
-            [id]
-        );
-        
-        // Insert new features
-        if (features && features.length > 0) {
-            for (const feature of features) {
-                await client.query(
-                    `INSERT INTO property_features 
-                     (property_id, feature_name, category, is_custom, excluded_room_ids)
-                     VALUES ($1, $2, $3, $4, $5)`,
-                    [
-                        id,
-                        feature.feature_name,
-                        feature.category || 'custom',
-                        feature.is_custom || false,
-                        feature.excluded_room_ids || []
-                    ]
-                );
-            }
-        }
-        
-        await client.query('COMMIT');
-        
-        res.json({ 
-            success: true, 
-            message: `Saved ${features?.length || 0} features for property ${id}` 
-        });
-    } catch (error) {
-        await client.query('ROLLBACK');
-        console.error('Error saving property features:', error);
-        res.status(500).json({ success: false, error: error.message });
-    } finally {
-        client.release();
-    }
-});
-
-// GET /api/features/search - Search properties by features (for travel agents)
-app.get('/api/features/search', async (req, res) => {
-    try {
-        const { features, match } = req.query;
-        // features = comma-separated list of feature names
-        // match = 'all' (default) or 'any'
-        
-        if (!features) {
-            return res.status(400).json({ 
-                success: false, 
-                error: 'Please provide features parameter' 
-            });
-        }
-        
-        const featureList = features.split(',').map(f => f.trim().toLowerCase());
-        const matchAll = match !== 'any';
-        
-        let query;
-        if (matchAll) {
-            // Properties that have ALL specified features
-            query = `
-                SELECT DISTINCT p.id, p.name, p.description, p.address, p.city, p.country,
-                       array_agg(DISTINCT pf.feature_name) as features
-                FROM properties p
-                JOIN property_features pf ON p.id = pf.property_id
-                WHERE LOWER(pf.feature_name) = ANY($1)
-                GROUP BY p.id
-                HAVING COUNT(DISTINCT LOWER(pf.feature_name)) = $2
-            `;
-            
-            const result = await pool.query(query, [featureList, featureList.length]);
-            res.json({ success: true, properties: result.rows });
-        } else {
-            // Properties that have ANY of the specified features
-            query = `
-                SELECT DISTINCT p.id, p.name, p.description, p.address, p.city, p.country,
-                       array_agg(DISTINCT pf.feature_name) as features
-                FROM properties p
-                JOIN property_features pf ON p.id = pf.property_id
-                WHERE LOWER(pf.feature_name) = ANY($1)
-                GROUP BY p.id
-            `;
-            
-            const result = await pool.query(query, [featureList]);
-            res.json({ success: true, properties: result.rows });
-        }
-    } catch (error) {
-        console.error('Error searching by features:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// GET /api/features/list - Get all available features (for dropdowns/filters)
-app.get('/api/features/list', async (req, res) => {
-    try {
-        const result = await pool.query(
-            `SELECT feature_name, category, COUNT(*) as property_count
-             FROM property_features
-             GROUP BY feature_name, category
-             ORDER BY category, property_count DESC, feature_name`
-        );
-        
-        res.json({ 
-            success: true, 
-            features: result.rows 
-        });
-    } catch (error) {
-        console.error('Error fetching features list:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// =====================================================
-// CHANNEL MANAGERS API
-// =====================================================
-
-// GET /api/channel-managers - List all channel managers (for dropdown)
-app.get('/api/channel-managers', async (req, res) => {
-    try {
-        const { status } = req.query; // optional filter by status
-        
-        let query = `
-            SELECT id, name, slug, type, status, website_url, logo_url, 
-                   market_focus, regions, description, request_count
-            FROM channel_managers 
-        `;
-        
-        const params = [];
-        if (status) {
-            query += ' WHERE status = $1';
-            params.push(status);
-        }
-        
-        query += ' ORDER BY priority DESC, name ASC';
-        
-        const result = await pool.query(query, params);
-        
-        res.json({ 
-            success: true, 
-            data: result.rows,
-            integrated: result.rows.filter(cm => cm.status === 'live'),
-            pending: result.rows.filter(cm => cm.status !== 'live')
-        });
-    } catch (error) {
-        console.error('Error fetching channel managers:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// GET /api/channel-managers/:slug - Get single channel manager by slug
-app.get('/api/channel-managers/:slug', async (req, res) => {
-    try {
-        const { slug } = req.params;
-        
-        const result = await pool.query(
-            'SELECT * FROM channel_managers WHERE slug = $1',
-            [slug]
-        );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, error: 'Channel manager not found' });
-        }
-        
-        res.json({ success: true, data: result.rows[0] });
-    } catch (error) {
-        console.error('Error fetching channel manager:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// POST /api/channel-managers - Add new channel manager (admin)
-app.post('/api/channel-managers', async (req, res) => {
-    try {
-        const { name, slug, type, website_url, api_docs_url, market_focus, regions, description, notes } = req.body;
-        
-        const result = await pool.query(
-            `INSERT INTO channel_managers 
-             (name, slug, type, website_url, api_docs_url, market_focus, regions, description, notes)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-             RETURNING *`,
-            [name, slug || name.toLowerCase().replace(/\s+/g, '-'), type || 'pms_cm', 
-             website_url, api_docs_url, market_focus, regions, description, notes]
-        );
-        
-        res.json({ success: true, data: result.rows[0] });
-    } catch (error) {
-        console.error('Error creating channel manager:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// PUT /api/channel-managers/:id - Update channel manager status (admin)
-app.put('/api/channel-managers/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { status, api_docs_url, notes, priority } = req.body;
-        
-        const result = await pool.query(
-            `UPDATE channel_managers 
-             SET status = COALESCE($1, status),
-                 api_docs_url = COALESCE($2, api_docs_url),
-                 notes = COALESCE($3, notes),
-                 priority = COALESCE($4, priority),
-                 updated_at = CURRENT_TIMESTAMP
-             WHERE id = $5
-             RETURNING *`,
-            [status, api_docs_url, notes, priority, id]
-        );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, error: 'Channel manager not found' });
-        }
-        
-        res.json({ success: true, data: result.rows[0] });
-    } catch (error) {
-        console.error('Error updating channel manager:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// =====================================================
-// CHANNEL MANAGER REQUESTS API
-// =====================================================
-
-// POST /api/channel-manager-requests - User requests an integration
-app.post('/api/channel-manager-requests', async (req, res) => {
-    try {
-        const { user_id, property_id, channel_manager_id, cm_name_other, notes } = req.body;
-        
-        // Check if this user already requested this CM
-        if (channel_manager_id) {
-            const existing = await pool.query(
-                `SELECT id FROM channel_manager_requests 
-                 WHERE user_id = $1 AND channel_manager_id = $2 AND status != 'cancelled'`,
-                [user_id, channel_manager_id]
-            );
-            
-            if (existing.rows.length > 0) {
-                return res.json({ 
-                    success: true, 
-                    message: 'You have already requested this integration',
-                    existing: true 
-                });
-            }
-        }
-        
-        const result = await pool.query(
-            `INSERT INTO channel_manager_requests 
-             (user_id, property_id, channel_manager_id, cm_name_other, notes)
-             VALUES ($1, $2, $3, $4, $5)
-             RETURNING *`,
-            [user_id, property_id, channel_manager_id, cm_name_other, notes]
-        );
-        
-        res.json({ 
-            success: true, 
-            data: result.rows[0],
-            message: 'Integration request submitted! We\'ll be in touch soon.'
-        });
-    } catch (error) {
-        console.error('Error creating CM request:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// GET /api/channel-manager-requests - List all requests (admin)
-app.get('/api/channel-manager-requests', async (req, res) => {
-    try {
-        const { status } = req.query;
-        
-        let query = `
-            SELECT r.*, 
-                   cm.name as cm_name, 
-                   cm.status as cm_status,
-                   u.email as user_email,
-                   p.name as property_name
-            FROM channel_manager_requests r
-            LEFT JOIN channel_managers cm ON r.channel_manager_id = cm.id
-            LEFT JOIN users u ON r.user_id = u.id
-            LEFT JOIN properties p ON r.property_id = p.id
-        `;
-        
-        const params = [];
-        if (status) {
-            query += ' WHERE r.status = $1';
-            params.push(status);
-        }
-        
-        query += ' ORDER BY r.requested_at DESC';
-        
-        const result = await pool.query(query, params);
-        
-        res.json({ success: true, data: result.rows });
-    } catch (error) {
-        console.error('Error fetching CM requests:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// PUT /api/channel-manager-requests/:id - Update request status (admin)
-app.put('/api/channel-manager-requests/:id', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const { status, api_access_status, admin_notes } = req.body;
-        
-        const updates = [];
-        const params = [];
-        let paramCount = 1;
-        
-        if (status) {
-            updates.push(`status = $${paramCount++}`);
-            params.push(status);
-        }
-        if (api_access_status) {
-            updates.push(`api_access_status = $${paramCount++}`);
-            params.push(api_access_status);
-        }
-        if (admin_notes) {
-            updates.push(`admin_notes = $${paramCount++}`);
-            params.push(admin_notes);
-        }
-        
-        if (status === 'completed') {
-            updates.push(`completed_at = CURRENT_TIMESTAMP`);
-        }
-        
-        updates.push(`updated_at = CURRENT_TIMESTAMP`);
-        params.push(id);
-        
-        const result = await pool.query(
-            `UPDATE channel_manager_requests 
-             SET ${updates.join(', ')}
-             WHERE id = $${paramCount}
-             RETURNING *`,
-            params
-        );
-        
-        if (result.rows.length === 0) {
-            return res.status(404).json({ success: false, error: 'Request not found' });
-        }
-        
-        res.json({ success: true, data: result.rows[0] });
-    } catch (error) {
-        console.error('Error updating CM request:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
-});
-
-// GET /api/channel-manager-requests/stats - Dashboard stats (admin)
-app.get('/api/channel-manager-requests/stats', async (req, res) => {
-    try {
-        // Most requested CMs
-        const topRequested = await pool.query(`
-            SELECT cm.name, cm.slug, cm.status, COUNT(r.id) as request_count
-            FROM channel_managers cm
-            LEFT JOIN channel_manager_requests r ON cm.id = r.channel_manager_id
-            GROUP BY cm.id
-            ORDER BY request_count DESC
-            LIMIT 10
-        `);
-        
-        // Requests by status
-        const byStatus = await pool.query(`
-            SELECT status, COUNT(*) as count
-            FROM channel_manager_requests
-            GROUP BY status
-        `);
-        
-        // Unknown CMs requested
-        const unknownCMs = await pool.query(`
-            SELECT cm_name_other, COUNT(*) as count
-            FROM channel_manager_requests
-            WHERE channel_manager_id IS NULL AND cm_name_other IS NOT NULL
-            GROUP BY cm_name_other
-            ORDER BY count DESC
-        `);
-        
-        res.json({ 
-            success: true, 
-            data: {
-                top_requested: topRequested.rows,
-                by_status: byStatus.rows,
-                unknown_cms: unknownCMs.rows
-            }
-        });
-    } catch (error) {
-        console.error('Error fetching CM stats:', error);
-        res.status(500).json({ success: false, error: error.message });
-    }
 });
 
 // =====================================================
@@ -7387,9 +7499,8 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     
     // Try room_images first, fallback to bookable_unit_images
     let images = await pool.query(`
-      SELECT id, image_url as url, alt_text, is_primary, display_order
+      SELECT id, image_url as url, alt_text
       FROM room_images WHERE room_id = $1
-      ORDER BY is_primary DESC, display_order ASC
     `, [unitId]);
     
     // If no images in room_images, try bookable_unit_images
@@ -7398,7 +7509,6 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
         images = await pool.query(`
           SELECT id, url, alt_text
           FROM bookable_unit_images WHERE unit_id = $1
-          ORDER BY display_order ASC
         `, [unitId]);
       } catch (e) {
         // Table doesn't exist, that's fine
@@ -8013,7 +8123,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.name as property_name,
         p.city,
         p.currency,
-        (SELECT image_url FROM room_images WHERE room_id = bu.id ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url
+        (SELECT image_url FROM room_images WHERE room_id = bu.id LIMIT 1) as image_url
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       WHERE p.client_id = $1
