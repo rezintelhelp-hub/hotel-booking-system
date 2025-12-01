@@ -8985,6 +8985,912 @@ app.get('/api/v1/availability/:unitId', validateApiKey, async (req, res) => {
   }
 });
 
+// =====================================================
+// CENTRALIZED CONTENT MANAGEMENT API
+// Client Pages, Contact Info, Branding, Blog, Attractions
+// =====================================================
+
+// =========================================================
+// CLIENT PAGES (About, Contact, Terms, Privacy)
+// =========================================================
+
+// Get all pages for a client
+app.get('/api/admin/pages', async (req, res) => {
+    try {
+        const clientId = req.query.client_id || 1;
+        const result = await pool.query(`
+            SELECT * FROM client_pages 
+            WHERE client_id = $1 
+            ORDER BY display_order, page_type
+        `, [clientId]);
+        res.json({ success: true, pages: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get single page by type
+app.get('/api/admin/pages/:pageType', async (req, res) => {
+    try {
+        const { pageType } = req.params;
+        const clientId = req.query.client_id || 1;
+        const result = await pool.query(`
+            SELECT * FROM client_pages 
+            WHERE client_id = $1 AND page_type = $2
+        `, [clientId, pageType]);
+        res.json({ success: true, page: result.rows[0] || null });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Create or update page
+app.post('/api/admin/pages', async (req, res) => {
+    try {
+        const { 
+            client_id = 1, page_type, slug, title, subtitle, content,
+            meta_title, meta_description, is_published = true 
+        } = req.body;
+        
+        const result = await pool.query(`
+            INSERT INTO client_pages (
+                client_id, page_type, slug, title, subtitle, content,
+                meta_title, meta_description, is_published, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            ON CONFLICT (client_id, page_type) DO UPDATE SET
+                slug = EXCLUDED.slug,
+                title = EXCLUDED.title,
+                subtitle = EXCLUDED.subtitle,
+                content = EXCLUDED.content,
+                meta_title = EXCLUDED.meta_title,
+                meta_description = EXCLUDED.meta_description,
+                is_published = EXCLUDED.is_published,
+                updated_at = NOW()
+            RETURNING *
+        `, [client_id, page_type, slug || page_type, title, subtitle, content, meta_title, meta_description, is_published]);
+        
+        res.json({ success: true, page: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Delete page
+app.delete('/api/admin/pages/:pageType', async (req, res) => {
+    try {
+        const { pageType } = req.params;
+        const clientId = req.query.client_id || 1;
+        await pool.query(`
+            DELETE FROM client_pages WHERE client_id = $1 AND page_type = $2
+        `, [clientId, pageType]);
+        res.json({ success: true });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =========================================================
+// CLIENT CONTACT INFO
+// =========================================================
+
+// Get contact info
+app.get('/api/admin/contact-info', async (req, res) => {
+    try {
+        const clientId = req.query.client_id || 1;
+        const result = await pool.query(`
+            SELECT * FROM client_contact_info WHERE client_id = $1
+        `, [clientId]);
+        res.json({ success: true, contact: result.rows[0] || null });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Update contact info
+app.post('/api/admin/contact-info', async (req, res) => {
+    try {
+        const {
+            client_id = 1,
+            business_name, tagline,
+            email, phone, phone_secondary, whatsapp,
+            address_line1, address_line2, city, state_province, postal_code, country,
+            google_maps_embed, google_maps_url, latitude, longitude,
+            business_hours,
+            facebook_url, instagram_url, twitter_url, linkedin_url, youtube_url, tiktok_url
+        } = req.body;
+        
+        const result = await pool.query(`
+            INSERT INTO client_contact_info (
+                client_id, business_name, tagline,
+                email, phone, phone_secondary, whatsapp,
+                address_line1, address_line2, city, state_province, postal_code, country,
+                google_maps_embed, google_maps_url, latitude, longitude,
+                business_hours,
+                facebook_url, instagram_url, twitter_url, linkedin_url, youtube_url, tiktok_url,
+                updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, NOW())
+            ON CONFLICT (client_id) DO UPDATE SET
+                business_name = EXCLUDED.business_name,
+                tagline = EXCLUDED.tagline,
+                email = EXCLUDED.email,
+                phone = EXCLUDED.phone,
+                phone_secondary = EXCLUDED.phone_secondary,
+                whatsapp = EXCLUDED.whatsapp,
+                address_line1 = EXCLUDED.address_line1,
+                address_line2 = EXCLUDED.address_line2,
+                city = EXCLUDED.city,
+                state_province = EXCLUDED.state_province,
+                postal_code = EXCLUDED.postal_code,
+                country = EXCLUDED.country,
+                google_maps_embed = EXCLUDED.google_maps_embed,
+                google_maps_url = EXCLUDED.google_maps_url,
+                latitude = EXCLUDED.latitude,
+                longitude = EXCLUDED.longitude,
+                business_hours = EXCLUDED.business_hours,
+                facebook_url = EXCLUDED.facebook_url,
+                instagram_url = EXCLUDED.instagram_url,
+                twitter_url = EXCLUDED.twitter_url,
+                linkedin_url = EXCLUDED.linkedin_url,
+                youtube_url = EXCLUDED.youtube_url,
+                tiktok_url = EXCLUDED.tiktok_url,
+                updated_at = NOW()
+            RETURNING *
+        `, [
+            client_id, business_name, tagline,
+            email, phone, phone_secondary, whatsapp,
+            address_line1, address_line2, city, state_province, postal_code, country,
+            google_maps_embed, google_maps_url, latitude, longitude,
+            JSON.stringify(business_hours || {}),
+            facebook_url, instagram_url, twitter_url, linkedin_url, youtube_url, tiktok_url
+        ]);
+        
+        res.json({ success: true, contact: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =========================================================
+// CLIENT BRANDING
+// =========================================================
+
+// Get branding
+app.get('/api/admin/branding', async (req, res) => {
+    try {
+        const clientId = req.query.client_id || 1;
+        const result = await pool.query(`
+            SELECT * FROM client_branding WHERE client_id = $1
+        `, [clientId]);
+        res.json({ success: true, branding: result.rows[0] || null });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Update branding
+app.post('/api/admin/branding', async (req, res) => {
+    try {
+        const {
+            client_id = 1,
+            logo_url, logo_dark_url, favicon_url,
+            primary_color, secondary_color, accent_color, text_color, background_color,
+            footer_bg_color, footer_text_color, copyright_text
+        } = req.body;
+        
+        const result = await pool.query(`
+            INSERT INTO client_branding (
+                client_id, logo_url, logo_dark_url, favicon_url,
+                primary_color, secondary_color, accent_color, text_color, background_color,
+                footer_bg_color, footer_text_color, copyright_text, updated_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+            ON CONFLICT (client_id) DO UPDATE SET
+                logo_url = EXCLUDED.logo_url,
+                logo_dark_url = EXCLUDED.logo_dark_url,
+                favicon_url = EXCLUDED.favicon_url,
+                primary_color = EXCLUDED.primary_color,
+                secondary_color = EXCLUDED.secondary_color,
+                accent_color = EXCLUDED.accent_color,
+                text_color = EXCLUDED.text_color,
+                background_color = EXCLUDED.background_color,
+                footer_bg_color = EXCLUDED.footer_bg_color,
+                footer_text_color = EXCLUDED.footer_text_color,
+                copyright_text = EXCLUDED.copyright_text,
+                updated_at = NOW()
+            RETURNING *
+        `, [
+            client_id, logo_url, logo_dark_url, favicon_url,
+            primary_color || '#2563eb', secondary_color || '#7c3aed', 
+            accent_color || '#f59e0b', text_color || '#1e293b', background_color || '#ffffff',
+            footer_bg_color || '#0f172a', footer_text_color || '#ffffff', copyright_text
+        ]);
+        
+        res.json({ success: true, branding: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =========================================================
+// BLOG POSTS
+// =========================================================
+
+// Get all blog posts
+app.get('/api/admin/blog', async (req, res) => {
+    try {
+        const clientId = req.query.client_id || 1;
+        const { category, is_published, is_featured, limit, offset } = req.query;
+        
+        let query = `SELECT * FROM blog_posts WHERE client_id = $1`;
+        const params = [clientId];
+        let paramIndex = 2;
+        
+        if (category) {
+            query += ` AND category = $${paramIndex}`;
+            params.push(category);
+            paramIndex++;
+        }
+        
+        if (is_published !== undefined) {
+            query += ` AND is_published = $${paramIndex}`;
+            params.push(is_published === 'true');
+            paramIndex++;
+        }
+        
+        if (is_featured === 'true') {
+            query += ` AND is_featured = true`;
+        }
+        
+        query += ` ORDER BY published_at DESC NULLS LAST, created_at DESC`;
+        
+        if (limit) {
+            query += ` LIMIT $${paramIndex}`;
+            params.push(parseInt(limit));
+            paramIndex++;
+        }
+        
+        if (offset) {
+            query += ` OFFSET $${paramIndex}`;
+            params.push(parseInt(offset));
+        }
+        
+        const result = await pool.query(query, params);
+        
+        // Get total count
+        const countResult = await pool.query(`
+            SELECT COUNT(*) FROM blog_posts WHERE client_id = $1
+        `, [clientId]);
+        
+        res.json({ 
+            success: true, 
+            posts: result.rows,
+            total: parseInt(countResult.rows[0].count)
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get single blog post
+app.get('/api/admin/blog/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`SELECT * FROM blog_posts WHERE id = $1`, [id]);
+        res.json({ success: true, post: result.rows[0] || null });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Create blog post
+app.post('/api/admin/blog', async (req, res) => {
+    try {
+        const {
+            client_id = 1,
+            title, slug, excerpt, content, featured_image_url,
+            category, tags,
+            meta_title, meta_description,
+            author_name, author_image_url,
+            read_time_minutes, is_featured, is_published, published_at
+        } = req.body;
+        
+        // Generate slug if not provided
+        const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        
+        const result = await pool.query(`
+            INSERT INTO blog_posts (
+                client_id, title, slug, excerpt, content, featured_image_url,
+                category, tags, meta_title, meta_description,
+                author_name, author_image_url, read_time_minutes,
+                is_featured, is_published, published_at
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            RETURNING *
+        `, [
+            client_id, title, finalSlug, excerpt, content, featured_image_url,
+            category, tags || [], meta_title, meta_description,
+            author_name, author_image_url, read_time_minutes || 5,
+            is_featured || false, is_published !== false, published_at || new Date()
+        ]);
+        
+        res.json({ success: true, post: result.rows[0] });
+    } catch (error) {
+        if (error.code === '23505') {
+            res.json({ success: false, error: 'A post with this slug already exists' });
+        } else {
+            res.json({ success: false, error: error.message });
+        }
+    }
+});
+
+// Update blog post
+app.put('/api/admin/blog/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            title, slug, excerpt, content, featured_image_url,
+            category, tags,
+            meta_title, meta_description,
+            author_name, author_image_url,
+            read_time_minutes, is_featured, is_published, published_at
+        } = req.body;
+        
+        const result = await pool.query(`
+            UPDATE blog_posts SET
+                title = COALESCE($1, title),
+                slug = COALESCE($2, slug),
+                excerpt = $3,
+                content = $4,
+                featured_image_url = $5,
+                category = $6,
+                tags = COALESCE($7, tags),
+                meta_title = $8,
+                meta_description = $9,
+                author_name = $10,
+                author_image_url = $11,
+                read_time_minutes = COALESCE($12, read_time_minutes),
+                is_featured = COALESCE($13, is_featured),
+                is_published = COALESCE($14, is_published),
+                published_at = COALESCE($15, published_at),
+                updated_at = NOW()
+            WHERE id = $16
+            RETURNING *
+        `, [
+            title, slug, excerpt, content, featured_image_url,
+            category, tags, meta_title, meta_description,
+            author_name, author_image_url, read_time_minutes,
+            is_featured, is_published, published_at, id
+        ]);
+        
+        res.json({ success: true, post: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Delete blog post
+app.delete('/api/admin/blog/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query(`DELETE FROM blog_posts WHERE id = $1`, [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get blog categories
+app.get('/api/admin/blog-categories', async (req, res) => {
+    try {
+        const clientId = req.query.client_id || 1;
+        const result = await pool.query(`
+            SELECT * FROM blog_categories 
+            WHERE client_id = $1 
+            ORDER BY display_order, name
+        `, [clientId]);
+        res.json({ success: true, categories: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Create/update blog category
+app.post('/api/admin/blog-categories', async (req, res) => {
+    try {
+        const { client_id = 1, name, slug, description, display_order } = req.body;
+        const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        
+        const result = await pool.query(`
+            INSERT INTO blog_categories (client_id, name, slug, description, display_order)
+            VALUES ($1, $2, $3, $4, $5)
+            ON CONFLICT (client_id, slug) DO UPDATE SET
+                name = EXCLUDED.name,
+                description = EXCLUDED.description,
+                display_order = EXCLUDED.display_order
+            RETURNING *
+        `, [client_id, name, finalSlug, description, display_order || 0]);
+        
+        res.json({ success: true, category: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =========================================================
+// ATTRACTIONS
+// =========================================================
+
+// Get all attractions
+app.get('/api/admin/attractions', async (req, res) => {
+    try {
+        const clientId = req.query.client_id || 1;
+        const { category, property_id, is_published, is_featured, limit } = req.query;
+        
+        let query = `
+            SELECT a.*, 
+                (SELECT image_url FROM attraction_images WHERE attraction_id = a.id ORDER BY is_primary DESC, display_order LIMIT 1) as image_url
+            FROM attractions a 
+            WHERE a.client_id = $1
+        `;
+        const params = [clientId];
+        let paramIndex = 2;
+        
+        if (category) {
+            query += ` AND a.category = $${paramIndex}`;
+            params.push(category);
+            paramIndex++;
+        }
+        
+        if (property_id) {
+            query += ` AND a.property_id = $${paramIndex}`;
+            params.push(property_id);
+            paramIndex++;
+        }
+        
+        if (is_published !== undefined) {
+            query += ` AND a.is_published = $${paramIndex}`;
+            params.push(is_published === 'true');
+            paramIndex++;
+        }
+        
+        if (is_featured === 'true') {
+            query += ` AND a.is_featured = true`;
+        }
+        
+        query += ` ORDER BY a.display_order, a.name`;
+        
+        if (limit) {
+            query += ` LIMIT $${paramIndex}`;
+            params.push(parseInt(limit));
+        }
+        
+        const result = await pool.query(query, params);
+        res.json({ success: true, attractions: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get single attraction
+app.get('/api/admin/attractions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`SELECT * FROM attractions WHERE id = $1`, [id]);
+        
+        // Get images
+        const imagesResult = await pool.query(`
+            SELECT * FROM attraction_images 
+            WHERE attraction_id = $1 AND is_active = true
+            ORDER BY is_primary DESC, display_order
+        `, [id]);
+        
+        const attraction = result.rows[0];
+        if (attraction) {
+            attraction.images = imagesResult.rows;
+        }
+        
+        res.json({ success: true, attraction });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Create attraction
+app.post('/api/admin/attractions', async (req, res) => {
+    try {
+        const {
+            client_id = 1, property_id,
+            name, slug, description, short_description, featured_image_url,
+            address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
+            category, phone, website_url, opening_hours, price_range, rating,
+            meta_title, meta_description,
+            is_featured, is_published, display_order
+        } = req.body;
+        
+        const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        
+        const result = await pool.query(`
+            INSERT INTO attractions (
+                client_id, property_id, name, slug, description, short_description, featured_image_url,
+                address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
+                category, phone, website_url, opening_hours, price_range, rating,
+                meta_title, meta_description, is_featured, is_published, display_order
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
+            RETURNING *
+        `, [
+            client_id, property_id, name, finalSlug, description, short_description, featured_image_url,
+            address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
+            category, phone, website_url, opening_hours, price_range, rating,
+            meta_title, meta_description, is_featured || false, is_published !== false, display_order || 0
+        ]);
+        
+        res.json({ success: true, attraction: result.rows[0] });
+    } catch (error) {
+        if (error.code === '23505') {
+            res.json({ success: false, error: 'An attraction with this slug already exists' });
+        } else {
+            res.json({ success: false, error: error.message });
+        }
+    }
+});
+
+// Update attraction
+app.put('/api/admin/attractions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const {
+            property_id, name, slug, description, short_description, featured_image_url,
+            address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
+            category, phone, website_url, opening_hours, price_range, rating,
+            meta_title, meta_description, is_featured, is_published, display_order
+        } = req.body;
+        
+        const result = await pool.query(`
+            UPDATE attractions SET
+                property_id = $1,
+                name = COALESCE($2, name),
+                slug = COALESCE($3, slug),
+                description = $4,
+                short_description = $5,
+                featured_image_url = $6,
+                address = $7,
+                city = $8,
+                distance_text = $9,
+                distance_value = $10,
+                latitude = $11,
+                longitude = $12,
+                google_maps_url = $13,
+                category = $14,
+                phone = $15,
+                website_url = $16,
+                opening_hours = $17,
+                price_range = $18,
+                rating = $19,
+                meta_title = $20,
+                meta_description = $21,
+                is_featured = COALESCE($22, is_featured),
+                is_published = COALESCE($23, is_published),
+                display_order = COALESCE($24, display_order),
+                updated_at = NOW()
+            WHERE id = $25
+            RETURNING *
+        `, [
+            property_id, name, slug, description, short_description, featured_image_url,
+            address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
+            category, phone, website_url, opening_hours, price_range, rating,
+            meta_title, meta_description, is_featured, is_published, display_order, id
+        ]);
+        
+        res.json({ success: true, attraction: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Delete attraction
+app.delete('/api/admin/attractions/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query(`DELETE FROM attractions WHERE id = $1`, [id]);
+        res.json({ success: true });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get attraction categories
+app.get('/api/admin/attraction-categories', async (req, res) => {
+    try {
+        const clientId = req.query.client_id || 1;
+        const result = await pool.query(`
+            SELECT * FROM attraction_categories 
+            WHERE client_id = $1 
+            ORDER BY display_order, name
+        `, [clientId]);
+        res.json({ success: true, categories: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Create/update attraction category
+app.post('/api/admin/attraction-categories', async (req, res) => {
+    try {
+        const { client_id = 1, name, slug, icon, description, display_order } = req.body;
+        const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+        
+        const result = await pool.query(`
+            INSERT INTO attraction_categories (client_id, name, slug, icon, description, display_order)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            ON CONFLICT (client_id, slug) DO UPDATE SET
+                name = EXCLUDED.name,
+                icon = EXCLUDED.icon,
+                description = EXCLUDED.description,
+                display_order = EXCLUDED.display_order
+            RETURNING *
+        `, [client_id, name, finalSlug, icon, description, display_order || 0]);
+        
+        res.json({ success: true, category: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =========================================================
+// PUBLIC API - Site Configuration (for WordPress/External)
+// =========================================================
+
+// Get complete site config for a client (one API call for everything)
+app.get('/api/public/client/:clientId/site-config', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        
+        // Get all data in parallel
+        const [pagesResult, contactResult, brandingResult, navigationResult] = await Promise.all([
+            pool.query(`SELECT page_type, slug, title, subtitle, is_published FROM client_pages WHERE client_id = $1 AND is_published = true`, [clientId]),
+            pool.query(`SELECT * FROM client_contact_info WHERE client_id = $1`, [clientId]),
+            pool.query(`SELECT * FROM client_branding WHERE client_id = $1`, [clientId]),
+            pool.query(`SELECT * FROM client_navigation WHERE client_id = $1 AND is_active = true ORDER BY menu_location, display_order`, [clientId])
+        ]);
+        
+        // Check if blog posts exist
+        const blogCountResult = await pool.query(`
+            SELECT COUNT(*) FROM blog_posts WHERE client_id = $1 AND is_published = true
+        `, [clientId]);
+        
+        // Check if attractions exist
+        const attractionsCountResult = await pool.query(`
+            SELECT COUNT(*) FROM attractions WHERE client_id = $1 AND is_published = true
+        `, [clientId]);
+        
+        // Build navigation from pages
+        const pages = pagesResult.rows;
+        const contact = contactResult.rows[0] || {};
+        const branding = brandingResult.rows[0] || {};
+        const customNav = navigationResult.rows;
+        
+        // Auto-generate footer links based on what exists
+        const footerQuickLinks = [];
+        const footerLegalLinks = [];
+        
+        // Always add Home and Properties
+        footerQuickLinks.push({ label: 'Home', url: '/' });
+        footerQuickLinks.push({ label: 'Properties', url: '/book-now/' });
+        
+        // Add pages that exist and are published
+        pages.forEach(page => {
+            if (page.page_type === 'about' && page.is_published) {
+                footerQuickLinks.push({ label: page.title || 'About Us', url: '/about/' });
+            }
+            if (page.page_type === 'contact' && page.is_published) {
+                footerQuickLinks.push({ label: page.title || 'Contact', url: '/contact/' });
+            }
+            if (page.page_type === 'terms' && page.is_published) {
+                footerLegalLinks.push({ label: page.title || 'Terms & Conditions', url: '/terms/' });
+            }
+            if (page.page_type === 'privacy' && page.is_published) {
+                footerLegalLinks.push({ label: page.title || 'Privacy Policy', url: '/privacy/' });
+            }
+        });
+        
+        // Add blog if posts exist
+        if (parseInt(blogCountResult.rows[0].count) > 0) {
+            footerQuickLinks.push({ label: 'Blog', url: '/blog/' });
+        }
+        
+        // Add attractions if they exist
+        if (parseInt(attractionsCountResult.rows[0].count) > 0) {
+            footerQuickLinks.push({ label: 'Things To Do', url: '/attractions/' });
+        }
+        
+        res.json({
+            success: true,
+            config: {
+                contact: {
+                    business_name: contact.business_name,
+                    tagline: contact.tagline,
+                    email: contact.email,
+                    phone: contact.phone,
+                    address: [contact.address_line1, contact.address_line2, contact.city, contact.state_province, contact.postal_code, contact.country].filter(Boolean).join(', '),
+                    social: {
+                        facebook: contact.facebook_url,
+                        instagram: contact.instagram_url,
+                        twitter: contact.twitter_url,
+                        linkedin: contact.linkedin_url,
+                        youtube: contact.youtube_url,
+                        tiktok: contact.tiktok_url
+                    }
+                },
+                branding: {
+                    logo_url: branding.logo_url,
+                    logo_dark_url: branding.logo_dark_url,
+                    favicon_url: branding.favicon_url,
+                    colors: {
+                        primary: branding.primary_color || '#2563eb',
+                        secondary: branding.secondary_color || '#7c3aed',
+                        accent: branding.accent_color || '#f59e0b'
+                    },
+                    footer: {
+                        bg_color: branding.footer_bg_color || '#0f172a',
+                        text_color: branding.footer_text_color || '#ffffff',
+                        copyright: branding.copyright_text
+                    }
+                },
+                navigation: {
+                    footer_quick_links: footerQuickLinks,
+                    footer_legal: footerLegalLinks,
+                    custom: customNav
+                },
+                features: {
+                    has_blog: parseInt(blogCountResult.rows[0].count) > 0,
+                    has_attractions: parseInt(attractionsCountResult.rows[0].count) > 0,
+                    blog_count: parseInt(blogCountResult.rows[0].count),
+                    attractions_count: parseInt(attractionsCountResult.rows[0].count)
+                }
+            }
+        });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get single page content (public)
+app.get('/api/public/client/:clientId/page/:pageType', async (req, res) => {
+    try {
+        const { clientId, pageType } = req.params;
+        const result = await pool.query(`
+            SELECT * FROM client_pages 
+            WHERE client_id = $1 AND page_type = $2 AND is_published = true
+        `, [clientId, pageType]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Page not found' });
+        }
+        
+        res.json({ success: true, page: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get blog posts (public)
+app.get('/api/public/client/:clientId/blog', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const { category, limit = 10, offset = 0 } = req.query;
+        
+        let query = `
+            SELECT id, title, slug, excerpt, featured_image_url, category, 
+                   author_name, read_time_minutes, published_at
+            FROM blog_posts 
+            WHERE client_id = $1 AND is_published = true
+        `;
+        const params = [clientId];
+        let paramIndex = 2;
+        
+        if (category) {
+            query += ` AND category = $${paramIndex}`;
+            params.push(category);
+            paramIndex++;
+        }
+        
+        query += ` ORDER BY published_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        params.push(parseInt(limit), parseInt(offset));
+        
+        const result = await pool.query(query, params);
+        
+        res.json({ success: true, posts: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get single blog post (public)
+app.get('/api/public/client/:clientId/blog/:slug', async (req, res) => {
+    try {
+        const { clientId, slug } = req.params;
+        const result = await pool.query(`
+            SELECT * FROM blog_posts 
+            WHERE client_id = $1 AND slug = $2 AND is_published = true
+        `, [clientId, slug]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Post not found' });
+        }
+        
+        res.json({ success: true, post: result.rows[0] });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get attractions (public)
+app.get('/api/public/client/:clientId/attractions', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const { category, limit } = req.query;
+        
+        let query = `
+            SELECT id, name, slug, short_description, featured_image_url, category,
+                   address, city, distance_text, rating, price_range
+            FROM attractions 
+            WHERE client_id = $1 AND is_published = true
+        `;
+        const params = [clientId];
+        let paramIndex = 2;
+        
+        if (category) {
+            query += ` AND category = $${paramIndex}`;
+            params.push(category);
+            paramIndex++;
+        }
+        
+        query += ` ORDER BY display_order, name`;
+        
+        if (limit) {
+            query += ` LIMIT $${paramIndex}`;
+            params.push(parseInt(limit));
+        }
+        
+        const result = await pool.query(query, params);
+        res.json({ success: true, attractions: result.rows });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get single attraction (public)
+app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
+    try {
+        const { clientId, slug } = req.params;
+        const result = await pool.query(`
+            SELECT * FROM attractions 
+            WHERE client_id = $1 AND slug = $2 AND is_published = true
+        `, [clientId, slug]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Attraction not found' });
+        }
+        
+        // Get images
+        const imagesResult = await pool.query(`
+            SELECT image_url, alt_text, caption FROM attraction_images 
+            WHERE attraction_id = $1 AND is_active = true
+            ORDER BY is_primary DESC, display_order
+        `, [result.rows[0].id]);
+        
+        const attraction = result.rows[0];
+        attraction.images = imagesResult.rows;
+        
+        res.json({ success: true, attraction });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
