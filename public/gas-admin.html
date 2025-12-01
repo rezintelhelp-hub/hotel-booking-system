@@ -1316,6 +1316,7 @@
                 <!-- Content Type Tabs -->
                 <div class="filter-tabs" style="margin-bottom: 1.5rem; flex-wrap: wrap;">
                     <button class="filter-tab active" data-content-type="property" onclick="filterContent('property')">🏨 Property</button>
+                    <button class="filter-tab" data-content-type="contact" onclick="filterContent('contact')">📞 Contact</button>
                     <button class="filter-tab" data-content-type="room" onclick="filterContent('room')">🛏️ Rooms</button>
                     <button class="filter-tab" data-content-type="policies" onclick="filterContent('policies')">📋 Policies</button>
                     <button class="filter-tab" data-content-type="pages" onclick="filterContent('pages')">📄 Website Pages</button>
@@ -1369,6 +1370,121 @@
                             
                             <button class="btn" onclick="savePropertyContent()">💾 Save Property Content</button>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Contact Info Section -->
+                <div id="content-contact" class="content-section" style="display: none;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">📞 Contact Information</h3>
+                        </div>
+                        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">This information appears on your contact page, website footer, and across your site</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Business Name *</label>
+                                <input type="text" class="form-input" id="contact-business-name" placeholder="Your Business Name">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Tagline</label>
+                                <input type="text" class="form-input" id="contact-tagline" placeholder="Your tagline or slogan">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Email *</label>
+                                <input type="email" class="form-input" id="contact-email" placeholder="contact@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone *</label>
+                                <input type="text" class="form-input" id="contact-phone" placeholder="+1 234 567 8900">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Secondary Phone</label>
+                                <input type="text" class="form-input" id="contact-phone-secondary" placeholder="Alternative number">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">WhatsApp</label>
+                                <input type="text" class="form-input" id="contact-whatsapp" placeholder="+1 234 567 8900">
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin: 1.5rem 0 1rem; color: var(--text-primary);">📍 Address</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Address Line 1</label>
+                                <input type="text" class="form-input" id="contact-address1" placeholder="Street address">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Address Line 2</label>
+                                <input type="text" class="form-input" id="contact-address2" placeholder="Suite, floor, etc.">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">City</label>
+                                <input type="text" class="form-input" id="contact-city" placeholder="City">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">State / Province</label>
+                                <input type="text" class="form-input" id="contact-state" placeholder="State or Province">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Postal Code</label>
+                                <input type="text" class="form-input" id="contact-postal" placeholder="ZIP / Postal code">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Country</label>
+                                <input type="text" class="form-input" id="contact-country" placeholder="Country">
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin: 1.5rem 0 1rem; color: var(--text-primary);">🔗 Social Media Links</h4>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Facebook</label>
+                                <input type="url" class="form-input" id="contact-facebook" placeholder="https://facebook.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Instagram</label>
+                                <input type="url" class="form-input" id="contact-instagram" placeholder="https://instagram.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Twitter/X</label>
+                                <input type="url" class="form-input" id="contact-twitter" placeholder="https://twitter.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">LinkedIn</label>
+                                <input type="url" class="form-input" id="contact-linkedin" placeholder="https://linkedin.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">YouTube</label>
+                                <input type="url" class="form-input" id="contact-youtube" placeholder="https://youtube.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">TripAdvisor</label>
+                                <input type="url" class="form-input" id="contact-tripadvisor" placeholder="https://tripadvisor.com/...">
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin: 1.5rem 0 1rem; color: var(--text-primary);">🗺️ Map & Location</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Google Maps URL</label>
+                                <input type="url" class="form-input" id="contact-maps-url" placeholder="https://maps.google.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Google Place ID</label>
+                                <input type="text" class="form-input" id="contact-place-id" placeholder="ChIJ...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Latitude</label>
+                                <input type="text" class="form-input" id="contact-latitude" placeholder="51.5074">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Longitude</label>
+                                <input type="text" class="form-input" id="contact-longitude" placeholder="-0.1278">
+                            </div>
+                        </div>
+                        
+                        <button class="btn" onclick="saveContactInfo()" style="margin-top: 1.5rem;">💾 Save Contact Information</button>
                     </div>
                 </div>
 
@@ -1554,55 +1670,6 @@
                                 <button class="btn" style="background: #64748b;" onclick="previewPageContent()">👁️ Preview</button>
                             </div>
                         </div>
-                    </div>
-                    
-                    <!-- Contact Info Card -->
-                    <div class="card" style="margin-top: 1.5rem;">
-                        <div class="card-header">
-                            <h3 class="card-title">📞 Contact Information</h3>
-                        </div>
-                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">This appears on your contact page and website footer</p>
-                        
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Business Name</label>
-                                <input type="text" class="form-input" id="contact-business-name" placeholder="Your Business Name">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Tagline</label>
-                                <input type="text" class="form-input" id="contact-tagline" placeholder="Your tagline">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Email</label>
-                                <input type="email" class="form-input" id="contact-email" placeholder="contact@example.com">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Phone</label>
-                                <input type="text" class="form-input" id="contact-phone" placeholder="+1 234 567 8900">
-                            </div>
-                            <div class="form-group" style="grid-column: 1 / -1;">
-                                <label class="form-label">Address</label>
-                                <textarea class="form-input" id="contact-address" rows="2" placeholder="Full address"></textarea>
-                            </div>
-                        </div>
-                        
-                        <h4 style="margin: 1.5rem 0 1rem; color: var(--text-primary);">Social Media Links</h4>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Facebook</label>
-                                <input type="url" class="form-input" id="contact-facebook" placeholder="https://facebook.com/...">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Instagram</label>
-                                <input type="url" class="form-input" id="contact-instagram" placeholder="https://instagram.com/...">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Twitter/X</label>
-                                <input type="url" class="form-input" id="contact-twitter" placeholder="https://twitter.com/...">
-                            </div>
-                        </div>
-                        
-                        <button class="btn" onclick="saveContactInfo()" style="margin-top: 1rem;">💾 Save Contact Info</button>
                     </div>
                 </div>
 
@@ -6700,15 +6767,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Show/hide sections
             document.getElementById('content-property').style.display = type === 'property' ? 'block' : 'none';
+            document.getElementById('content-contact').style.display = type === 'contact' ? 'block' : 'none';
             document.getElementById('content-room').style.display = type === 'room' ? 'block' : 'none';
             document.getElementById('content-policies').style.display = type === 'policies' ? 'block' : 'none';
             document.getElementById('content-pages').style.display = type === 'pages' ? 'block' : 'none';
             document.getElementById('content-branding').style.display = type === 'branding' ? 'block' : 'none';
             
             // Load data for sections
-            if (type === 'pages') {
-                loadWebsitePage('about');
+            if (type === 'contact') {
                 loadContactInfo();
+            } else if (type === 'pages') {
+                loadWebsitePage('about');
             } else if (type === 'branding') {
                 loadBranding();
             }
@@ -11132,18 +11201,65 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success && data.contact) {
-                    document.getElementById('contact-business-name').value = data.contact.business_name || '';
-                    document.getElementById('contact-tagline').value = data.contact.tagline || '';
-                    document.getElementById('contact-email').value = data.contact.email || '';
-                    document.getElementById('contact-phone').value = data.contact.phone || '';
-                    document.getElementById('contact-address').value = [
-                        data.contact.address_line1,
-                        data.contact.city,
-                        data.contact.country
-                    ].filter(Boolean).join(', ') || '';
-                    document.getElementById('contact-facebook').value = data.contact.facebook_url || '';
-                    document.getElementById('contact-instagram').value = data.contact.instagram_url || '';
-                    document.getElementById('contact-twitter').value = data.contact.twitter_url || '';
+                    const c = data.contact;
+                    // Basic info
+                    document.getElementById('contact-business-name').value = c.business_name || '';
+                    document.getElementById('contact-tagline').value = c.tagline || '';
+                    document.getElementById('contact-email').value = c.email || '';
+                    document.getElementById('contact-phone').value = c.phone || '';
+                    
+                    // Optional fields with null checks
+                    const phoneSecondary = document.getElementById('contact-phone-secondary');
+                    if (phoneSecondary) phoneSecondary.value = c.phone_secondary || '';
+                    
+                    const whatsapp = document.getElementById('contact-whatsapp');
+                    if (whatsapp) whatsapp.value = c.whatsapp || '';
+                    
+                    // Address fields
+                    const addr1 = document.getElementById('contact-address1');
+                    if (addr1) addr1.value = c.address_line1 || '';
+                    
+                    const addr2 = document.getElementById('contact-address2');
+                    if (addr2) addr2.value = c.address_line2 || '';
+                    
+                    const city = document.getElementById('contact-city');
+                    if (city) city.value = c.city || '';
+                    
+                    const state = document.getElementById('contact-state');
+                    if (state) state.value = c.state_province || '';
+                    
+                    const postal = document.getElementById('contact-postal');
+                    if (postal) postal.value = c.postal_code || '';
+                    
+                    const country = document.getElementById('contact-country');
+                    if (country) country.value = c.country || '';
+                    
+                    // Social media
+                    document.getElementById('contact-facebook').value = c.facebook_url || '';
+                    document.getElementById('contact-instagram').value = c.instagram_url || '';
+                    document.getElementById('contact-twitter').value = c.twitter_url || '';
+                    
+                    const linkedin = document.getElementById('contact-linkedin');
+                    if (linkedin) linkedin.value = c.linkedin_url || '';
+                    
+                    const youtube = document.getElementById('contact-youtube');
+                    if (youtube) youtube.value = c.youtube_url || '';
+                    
+                    const tripadvisor = document.getElementById('contact-tripadvisor');
+                    if (tripadvisor) tripadvisor.value = c.tripadvisor_url || '';
+                    
+                    // Map fields
+                    const mapsUrl = document.getElementById('contact-maps-url');
+                    if (mapsUrl) mapsUrl.value = c.google_maps_url || '';
+                    
+                    const placeId = document.getElementById('contact-place-id');
+                    if (placeId) placeId.value = c.google_place_id || '';
+                    
+                    const lat = document.getElementById('contact-latitude');
+                    if (lat) lat.value = c.latitude || '';
+                    
+                    const lng = document.getElementById('contact-longitude');
+                    if (lng) lng.value = c.longitude || '';
                 }
             } catch (error) {
                 console.error('Error loading contact info:', error);
@@ -11151,20 +11267,35 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function saveContactInfo() {
-            const addressParts = document.getElementById('contact-address').value.split(',').map(s => s.trim());
+            const getVal = (id) => {
+                const el = document.getElementById(id);
+                return el ? el.value : '';
+            };
             
             const contactData = {
                 client_id: 1,
-                business_name: document.getElementById('contact-business-name').value,
-                tagline: document.getElementById('contact-tagline').value,
-                email: document.getElementById('contact-email').value,
-                phone: document.getElementById('contact-phone').value,
-                address_line1: addressParts[0] || '',
-                city: addressParts[1] || '',
-                country: addressParts[2] || '',
-                facebook_url: document.getElementById('contact-facebook').value,
-                instagram_url: document.getElementById('contact-instagram').value,
-                twitter_url: document.getElementById('contact-twitter').value
+                business_name: getVal('contact-business-name'),
+                tagline: getVal('contact-tagline'),
+                email: getVal('contact-email'),
+                phone: getVal('contact-phone'),
+                phone_secondary: getVal('contact-phone-secondary'),
+                whatsapp: getVal('contact-whatsapp'),
+                address_line1: getVal('contact-address1'),
+                address_line2: getVal('contact-address2'),
+                city: getVal('contact-city'),
+                state_province: getVal('contact-state'),
+                postal_code: getVal('contact-postal'),
+                country: getVal('contact-country'),
+                facebook_url: getVal('contact-facebook'),
+                instagram_url: getVal('contact-instagram'),
+                twitter_url: getVal('contact-twitter'),
+                linkedin_url: getVal('contact-linkedin'),
+                youtube_url: getVal('contact-youtube'),
+                tripadvisor_url: getVal('contact-tripadvisor'),
+                google_maps_url: getVal('contact-maps-url'),
+                google_place_id: getVal('contact-place-id'),
+                latitude: getVal('contact-latitude') || null,
+                longitude: getVal('contact-longitude') || null
             };
             
             try {
