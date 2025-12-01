@@ -104,22 +104,60 @@ CREATE TABLE IF NOT EXISTS client_branding (
     id SERIAL PRIMARY KEY,
     client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     
-    -- Logos
+    -- Logos & Images
     logo_url VARCHAR(500),
     logo_dark_url VARCHAR(500), -- For dark backgrounds
+    logo_alt_text VARCHAR(255),
     favicon_url VARCHAR(500),
+    og_image_url VARCHAR(500), -- Social sharing image
     
-    -- Colors
+    -- Site Identity
+    site_title VARCHAR(255),
+    site_description TEXT,
+    
+    -- Primary Colors
     primary_color VARCHAR(20) DEFAULT '#2563eb',
     secondary_color VARCHAR(20) DEFAULT '#7c3aed',
     accent_color VARCHAR(20) DEFAULT '#f59e0b',
-    text_color VARCHAR(20) DEFAULT '#1e293b',
-    background_color VARCHAR(20) DEFAULT '#ffffff',
     
-    -- Footer
+    -- Text Colors
+    text_color VARCHAR(20) DEFAULT '#1e293b',
+    text_light_color VARCHAR(20) DEFAULT '#64748b',
+    
+    -- Background Colors
+    background_color VARCHAR(20) DEFAULT '#ffffff',
+    surface_color VARCHAR(20) DEFAULT '#f8fafc',
+    
+    -- Header Styling
+    header_bg_color VARCHAR(20) DEFAULT '#ffffff',
+    header_text_color VARCHAR(20) DEFAULT '#1e293b',
+    header_sticky BOOLEAN DEFAULT true,
+    header_transparent_home BOOLEAN DEFAULT false,
+    
+    -- Footer Styling
     footer_bg_color VARCHAR(20) DEFAULT '#0f172a',
     footer_text_color VARCHAR(20) DEFAULT '#ffffff',
+    footer_link_color VARCHAR(20) DEFAULT '#94a3b8',
+    footer_link_hover_color VARCHAR(20) DEFAULT '#ffffff',
     copyright_text VARCHAR(500),
+    
+    -- Button Styling
+    button_primary_bg VARCHAR(20),
+    button_primary_text VARCHAR(20) DEFAULT '#ffffff',
+    button_primary_hover VARCHAR(20),
+    button_secondary_bg VARCHAR(20) DEFAULT 'transparent',
+    button_secondary_text VARCHAR(20),
+    button_secondary_border VARCHAR(20),
+    button_border_radius VARCHAR(20) DEFAULT '8px',
+    
+    -- Typography
+    font_heading VARCHAR(100) DEFAULT 'Inter',
+    font_body VARCHAR(100) DEFAULT 'Inter',
+    font_heading_weight VARCHAR(10) DEFAULT '700',
+    font_body_weight VARCHAR(10) DEFAULT '400',
+    
+    -- Custom CSS (advanced)
+    custom_css TEXT,
     
     -- Timestamps
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
