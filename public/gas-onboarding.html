@@ -1208,7 +1208,7 @@
             },
             {
                 message: "Perfect! Do you use a channel manager or property management system?",
-                quickReplies: ["Beds24", "Hostaway", "Guesty", "Lodgify", "Other", "I don't use one"],
+                quickReplies: ["Beds24", "Hostaway", "Smoobu", "Guesty", "Lodgify", "Other", "I don't use one"],
                 saveAs: 'channelManager'
             },
             {
@@ -1309,6 +1309,8 @@
                         window.location.href = '/beds24-wizard.html';
                     } else if (userData.channelManager === 'Hostaway') {
                         window.location.href = '/hostaway-wizard.html';
+                    } else if (userData.channelManager === 'Smoobu') {
+                        window.location.href = '/smoobu-wizard.html';
                     } else {
                         // Other or no CM - go to main admin
                         window.location.href = '/gas-admin.html';
