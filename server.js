@@ -6938,7 +6938,7 @@ app.get('/api/admin/properties/:id/images', async (req, res) => {
   try {
     const { id } = req.params;
     const result = await pool.query(
-      'SELECT * FROM property_images WHERE property_id = $1 AND is_active = true ORDER BY display_order',
+      'SELECT * FROM property_images WHERE property_id = $1 AND is_active = true ORDER BY is_primary DESC, display_order ASC',
       [id]
     );
     res.json({ success: true, images: result.rows });
@@ -6952,7 +6952,7 @@ app.get('/api/admin/rooms/:id/images', async (req, res) => {
   try {
     const { id} = req.params;
     const result = await pool.query(
-      'SELECT * FROM room_images WHERE room_id = $1 AND is_active = true ORDER BY display_order',
+      'SELECT * FROM room_images WHERE room_id = $1 AND is_active = true ORDER BY is_primary DESC, display_order ASC',
       [id]
     );
     res.json({ success: true, images: result.rows });
@@ -8123,7 +8123,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.name as property_name,
         p.city,
         p.currency,
-        (SELECT image_url FROM room_images WHERE room_id = bu.id LIMIT 1) as image_url
+        (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       WHERE p.client_id = $1
