@@ -864,6 +864,10 @@
                         <div class="cm-option-name">Hostaway</div>
                         <div class="cm-option-desc">Vacation Rental Software</div>
                     </div>
+                    <div class="cm-option supported" data-cm="smoobu" onclick="selectCM('smoobu')">
+                        <div class="cm-option-name">Smoobu</div>
+                        <div class="cm-option-desc">Channel Manager</div>
+                    </div>
                     <div class="cm-option" data-cm="guesty" onclick="selectCM('guesty')">
                         <div class="cm-option-name">Guesty</div>
                         <div class="cm-option-desc">Property Management</div>
@@ -875,10 +879,6 @@
                     <div class="cm-option" data-cm="lodgify" onclick="selectCM('lodgify')">
                         <div class="cm-option-name">Lodgify</div>
                         <div class="cm-option-desc">Vacation Rental</div>
-                    </div>
-                    <div class="cm-option" data-cm="smoobu" onclick="selectCM('smoobu')">
-                        <div class="cm-option-name">Smoobu</div>
-                        <div class="cm-option-desc">Channel Manager</div>
                     </div>
                     <div class="cm-option" data-cm="ownerrez" onclick="selectCM('ownerrez')">
                         <div class="cm-option-name">OwnerRez</div>
@@ -944,6 +944,12 @@
                 actionDiv.innerHTML = `
                     <button class="btn" onclick="window.location.href='/hostaway-wizard.html'">
                         Connect Hostaway →
+                    </button>
+                `;
+            } else if (cm === 'smoobu') {
+                actionDiv.innerHTML = `
+                    <button class="btn" onclick="window.location.href='/smoobu-wizard.html'" style="background: #00b4b4;">
+                        Connect Smoobu →
                     </button>
                 `;
             } else {
