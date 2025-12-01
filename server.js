@@ -9029,15 +9029,15 @@ app.post('/api/admin/pages', async (req, res) => {
     try {
         const { 
             client_id = 1, page_type, slug, title, subtitle, content,
-            meta_title, meta_description, is_published = true 
+            meta_title, meta_description, faq_schema, is_published = true 
         } = req.body;
         
         const result = await pool.query(`
             INSERT INTO client_pages (
                 client_id, page_type, slug, title, subtitle, content,
-                meta_title, meta_description, is_published, updated_at
+                meta_title, meta_description, faq_schema, is_published, updated_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
             ON CONFLICT (client_id, page_type) DO UPDATE SET
                 slug = EXCLUDED.slug,
                 title = EXCLUDED.title,
@@ -9045,10 +9045,11 @@ app.post('/api/admin/pages', async (req, res) => {
                 content = EXCLUDED.content,
                 meta_title = EXCLUDED.meta_title,
                 meta_description = EXCLUDED.meta_description,
+                faq_schema = EXCLUDED.faq_schema,
                 is_published = EXCLUDED.is_published,
                 updated_at = NOW()
             RETURNING *
-        `, [client_id, page_type, slug || page_type, title, subtitle, content, meta_title, meta_description, is_published]);
+        `, [client_id, page_type, slug || page_type, title, subtitle, content, meta_title, meta_description, faq_schema, is_published]);
         
         res.json({ success: true, page: result.rows[0] });
     } catch (error) {
