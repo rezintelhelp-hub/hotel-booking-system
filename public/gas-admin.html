@@ -497,6 +497,11 @@
             box-shadow: 0 20px 40px rgba(0,0,0,0.15);
         }
 
+        .channel-option:hover {
+            border-color: var(--accent) !important;
+            background: #f8fafc;
+        }
+
         .modal-header {
             display: flex;
             justify-content: space-between;
@@ -1024,7 +1029,7 @@
                             <h2>Dashboard Overview</h2>
                             <p>Welcome back! Here's what's happening with your properties.</p>
                         </div>
-                        <div style="display: flex; gap: 0.5rem;">
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                             <a href="/beds24-wizard.html" class="btn">
                                 <span>+</span>
                                 <span>Import from Beds24</span>
@@ -1032,6 +1037,10 @@
                             <a href="/hostaway-wizard.html" class="btn" style="background: #1e3a5f;">
                                 <span>+</span>
                                 <span>Import from Hostaway</span>
+                            </a>
+                            <a href="/smoobu-wizard.html" class="btn" style="background: #00b4b4;">
+                                <span>+</span>
+                                <span>Import from Smoobu</span>
                             </a>
                         </div>
                     </div>
@@ -2137,9 +2146,10 @@ fetch('/api/public/client/1/rooms')
                             <h2>Availability & Pricing</h2>
                             <p>View and manage all rooms in one place</p>
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap;">
                             <button class="btn" onclick="syncBeds24()" id="sync-beds24-btn" style="background: #f59e0b;">🔄 Beds24</button>
                             <button class="btn" onclick="syncHostaway()" id="sync-hostaway-btn" style="background: #1e3a5f;">🔄 Hostaway</button>
+                            <button class="btn" onclick="syncSmoobu()" id="sync-smoobu-btn" style="background: #00b4b4;">🔄 Smoobu</button>
                         </div>
                     </div>
                 </div>
@@ -3086,10 +3096,10 @@ fetch('/api/public/client/1/rooms')
                             <h2>Integrations</h2>
                             <p>Connected apps and services</p>
                         </div>
-                        <a href="/beds24-wizard.html" class="btn">
+                        <button class="btn" onclick="openChannelManagerModal()">
                             <span>+</span>
                             <span>Add Integration</span>
-                        </a>
+                        </button>
                     </div>
                 </div>
 
@@ -3118,6 +3128,72 @@ fetch('/api/public/client/1/rooms')
                         <button class="btn btn-secondary btn-small">Explore</button>
                     </div>
                     <p style="color: var(--text-secondary);">Payment gateways, analytics, marketing tools, and more...</p>
+                </div>
+            </div>
+
+            <!-- Channel Manager Selection Modal -->
+            <div id="channelManagerModal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 600px;">
+                    <div class="modal-header">
+                        <h3>Select Your Channel Manager</h3>
+                        <button class="modal-close" onclick="closeChannelManagerModal()">×</button>
+                    </div>
+                    <div class="modal-body">
+                        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Which channel manager do you use to manage your property?</p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <!-- Beds24 - Ready -->
+                            <a href="/beds24-wizard.html" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Beds24</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">PMS + Channel Manager</div>
+                            </a>
+                            
+                            <!-- Hostaway - Ready -->
+                            <a href="/hostaway-wizard.html" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Hostaway</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Vacation Rental Software</div>
+                            </a>
+                            
+                            <!-- Smoobu - Ready -->
+                            <a href="/smoobu-wizard.html" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Smoobu</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Channel Manager</div>
+                            </a>
+                            
+                            <!-- Guesty - Coming Soon -->
+                            <div class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; opacity: 0.6; cursor: not-allowed;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Guesty</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Property Management</div>
+                            </div>
+                            
+                            <!-- Cloudbeds - Coming Soon -->
+                            <div class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; opacity: 0.6; cursor: not-allowed;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Cloudbeds</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Hotel PMS</div>
+                            </div>
+                            
+                            <!-- Lodgify - Coming Soon -->
+                            <div class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; opacity: 0.6; cursor: not-allowed;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Lodgify</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Vacation Rental</div>
+                            </div>
+                            
+                            <!-- OwnerRez - Coming Soon -->
+                            <div class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; opacity: 0.6; cursor: not-allowed;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">OwnerRez</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Vacation Rental</div>
+                            </div>
+                            
+                            <!-- Other -->
+                            <div class="channel-option" onclick="alert('Contact us for custom integrations!')" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Other</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Not listed here</div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -7434,6 +7510,31 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             btn.disabled = false;
             btn.textContent = '🔄 Hostaway';
+            loadGridData();
+        }
+
+        async function syncSmoobu() {
+            if (!confirm('Sync availability and pricing from Smoobu?')) return;
+            
+            const btn = document.getElementById('sync-smoobu-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Syncing...';
+            
+            try {
+                const response = await fetch('/api/admin/sync-smoobu-availability', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ Smoobu Sync complete!\n\n${result.roomsSynced || result.apartmentsSynced || 0} apartments\n${result.totalPricesUpdated || 0} prices updated`);
+                } else {
+                    alert(`❌ Smoobu Sync failed: ${result.error}`);
+                }
+            } catch (error) {
+                alert(`❌ Error: ${error.message}`);
+            }
+            
+            btn.disabled = false;
+            btn.textContent = '🔄 Smoobu';
             loadGridData();
         }
 
@@ -11792,6 +11893,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error loading API keys:', error);
             }
+        }
+
+        // Channel Manager Modal
+        function openChannelManagerModal() {
+            document.getElementById('channelManagerModal').style.display = 'flex';
+        }
+
+        function closeChannelManagerModal() {
+            document.getElementById('channelManagerModal').style.display = 'none';
         }
 
         function openApiKeyModal() {
