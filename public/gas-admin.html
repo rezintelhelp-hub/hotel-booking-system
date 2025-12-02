@@ -5454,10 +5454,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <tr>
                                         <th>Client</th>
                                         <th>Properties</th>
-                                        <th>Rooms</th>
                                         <th>Plan</th>
                                         <th>Status</th>
-                                        <th>API Key</th>
+                                        <th>Setup Link</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
@@ -5465,32 +5464,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     ${data.clients.map(client => `
                                         <tr>
                                             <td>
-                                                <strong>${client.name}</strong>
+                                                <strong>${client.business_name || client.name}</strong>
                                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">${client.email}</div>
                                             </td>
                                             <td><span class="badge">${client.property_count || 0}</span></td>
-                                            <td><span class="badge">${client.room_count || 0}</span></td>
                                             <td>
                                                 <span class="badge ${client.plan === 'free' ? 'badge-secondary' : client.plan === 'agency' ? 'badge-success' : 'badge-warning'}">
                                                     ${client.plan}
                                                 </span>
                                             </td>
                                             <td>
-                                                <span class="badge ${client.status === 'active' ? 'badge-success' : client.status === 'trial' ? 'badge-warning' : 'badge-secondary'}">
+                                                <span class="badge ${client.status === 'active' ? 'badge-success' : client.status === 'pending' ? 'badge-warning' : 'badge-secondary'}">
                                                     ${client.status}
                                                 </span>
                                             </td>
                                             <td>
-                                                ${client.api_key ? `
-                                                    <code style="font-size: 0.7rem; background: var(--bg-primary); padding: 0.2rem 0.4rem; border-radius: 3px;">
-                                                        ${client.api_key.substring(0, 12)}...
-                                                    </code>
-                                                    <button onclick="copyShortcode('${client.api_key}')" style="background: none; border: none; cursor: pointer; font-size: 0.75rem;" title="Copy API Key">📋</button>
-                                                ` : '<span style="color: var(--text-secondary);">-</span>'}
+                                                <button class="btn btn-small" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background: #10b981;" onclick="copySetupLink('${client.public_id || client.id}')">
+                                                    📋 Copy Link
+                                                </button>
                                             </td>
                                             <td>
-                                                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="viewClient(${client.id})">View</button>
-                                                <button class="btn btn-secondary" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="editClient(${client.id})">Edit</button>
+                                                <button class="btn btn-secondary btn-small" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="viewClient(${client.id})">View</button>
+                                                <button class="btn btn-secondary btn-small" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="editClient(${client.id})">Edit</button>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -5505,6 +5500,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading clients:', error);
                 container.innerHTML = `<p style="color: var(--error); text-align: center; padding: 2rem;">Error loading clients: ${error.message}</p>`;
             }
+        }
+        
+        // Copy setup link for client
+        function copySetupLink(publicId) {
+            const baseUrl = window.location.origin;
+            const setupLink = `${baseUrl}/setup.html?c=${publicId}`;
+            
+            navigator.clipboard.writeText(setupLink).then(() => {
+                alert('✅ Setup link copied!\n\n' + setupLink);
+            }).catch(() => {
+                prompt('Copy this setup link:', setupLink);
+            });
         }
 
         function openAddClientModal() {
