@@ -9301,6 +9301,34 @@ app.get('/api/public/client/:clientId/max-guests', async (req, res) => {
 // CLIENT MANAGEMENT API
 // =========================================================
 
+// Get client info by public_id (for setup page - public endpoint)
+app.get('/api/client/setup/:publicId', async (req, res) => {
+  try {
+    const { publicId } = req.params;
+    
+    // Validate UUID format
+    const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!uuidRegex.test(publicId)) {
+      return res.json({ success: false, error: 'Invalid setup link' });
+    }
+    
+    const result = await pool.query(`
+      SELECT id, public_id, name, business_name, email, plan, status, created_at
+      FROM clients 
+      WHERE public_id = $1
+    `, [publicId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ success: true, client: result.rows[0] });
+  } catch (error) {
+    console.error('Client setup error:', error);
+    res.json({ success: false, error: 'Unable to load account' });
+  }
+});
+
 // Get all clients (admin view)
 app.get('/api/admin/clients', async (req, res) => {
   try {
