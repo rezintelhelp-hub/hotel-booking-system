@@ -9574,11 +9574,14 @@ app.post('/api/admin/fix-client-uuids', async (req, res) => {
 // Get all agencies
 app.get('/api/admin/agencies', async (req, res) => {
   try {
+    // Add agency_id column to properties if it doesn't exist
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS agency_id INTEGER REFERENCES agencies(id) ON DELETE SET NULL`);
+    
     const result = await pool.query(`
       SELECT 
         a.*,
         COUNT(DISTINCT c.id) as client_count,
-        (SELECT COUNT(*) FROM properties p JOIN clients c2 ON p.client_id = c2.id WHERE c2.agency_id = a.id) as property_count
+        (SELECT COUNT(*) FROM properties p WHERE p.agency_id = a.id) as property_count
       FROM agencies a
       LEFT JOIN clients c ON c.agency_id = a.id
       GROUP BY a.id
@@ -9900,6 +9903,33 @@ app.post('/api/admin/fix-agency-links', async (req, res) => {
     });
   } catch (error) {
     console.error('Fix agency links error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Assign property to agency
+app.post('/api/admin/properties/:id/assign-agency', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { agency_id } = req.body;
+    
+    // Add agency_id column to properties if it doesn't exist
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS agency_id INTEGER REFERENCES agencies(id) ON DELETE SET NULL`);
+    
+    const result = await pool.query(`
+      UPDATE properties 
+      SET agency_id = $1
+      WHERE id = $2
+      RETURNING *
+    `, [agency_id || null, id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    console.error('Assign property to agency error:', error);
     res.json({ success: false, error: error.message });
   }
 });
