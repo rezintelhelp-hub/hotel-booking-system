@@ -9502,6 +9502,31 @@ app.delete('/api/admin/clients/:id', async (req, res) => {
   }
 });
 
+// Fix clients without public_id (UUID)
+app.post('/api/admin/fix-client-uuids', async (req, res) => {
+  try {
+    // Add column if missing
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS public_id UUID DEFAULT gen_random_uuid() UNIQUE`);
+    
+    // Update any clients missing a public_id
+    const result = await pool.query(`
+      UPDATE clients 
+      SET public_id = gen_random_uuid() 
+      WHERE public_id IS NULL
+      RETURNING id, name, public_id
+    `);
+    
+    res.json({ 
+      success: true, 
+      message: `Fixed ${result.rows.length} clients`,
+      clients: result.rows
+    });
+  } catch (error) {
+    console.error('Fix UUIDs error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Regenerate API key
 app.post('/api/admin/clients/:id/regenerate-api-key', async (req, res) => {
   try {
