@@ -547,6 +547,10 @@
         let properties = [];
         let selectedProperties = [];
         
+        // Get client ID from URL if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientPublicId = urlParams.get('c');
+        
         function showError(stepNum, message) {
             const errorEl = document.getElementById('error' + stepNum);
             errorEl.textContent = message;
