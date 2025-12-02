@@ -10841,6 +10841,95 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
 });
 
 // =========================================================
+// WEBSITE BUILDER API
+// =========================================================
+
+// Create website_settings table if not exists
+pool.query(`
+  CREATE TABLE IF NOT EXISTS website_settings (
+    id SERIAL PRIMARY KEY,
+    client_id INTEGER REFERENCES clients(id),
+    section VARCHAR(50) NOT NULL,
+    settings JSONB DEFAULT '{}',
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(client_id, section)
+  )
+`).catch(err => console.log('Website settings table may already exist'));
+
+// Get website builder section settings
+app.get('/api/admin/website-builder/:section', async (req, res) => {
+  try {
+    const { section } = req.params;
+    const { client_id } = req.query;
+    
+    if (!client_id) {
+      return res.json({ success: false, error: 'Client ID required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT settings FROM website_settings
+      WHERE client_id = $1 AND section = $2
+    `, [client_id, section]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, settings: result.rows[0].settings });
+    } else {
+      res.json({ success: true, settings: {} });
+    }
+  } catch (error) {
+    console.error('Get website settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save website builder section settings
+app.post('/api/admin/website-builder/:section', async (req, res) => {
+  try {
+    const { section } = req.params;
+    const { client_id, settings } = req.body;
+    
+    if (!client_id) {
+      return res.json({ success: false, error: 'Client ID required' });
+    }
+    
+    // Upsert the settings
+    await pool.query(`
+      INSERT INTO website_settings (client_id, section, settings, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      ON CONFLICT (client_id, section)
+      DO UPDATE SET settings = $3, updated_at = CURRENT_TIMESTAMP
+    `, [client_id, section, JSON.stringify(settings)]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save website settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all website settings for a client (for WordPress sync)
+app.get('/api/v1/website-settings', validateApiKey, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT section, settings FROM website_settings
+      WHERE client_id = $1
+    `, [req.client.id]);
+    
+    // Convert to object keyed by section
+    const allSettings = {};
+    result.rows.forEach(row => {
+      allSettings[row.section] = row.settings;
+    });
+    
+    res.json({ success: true, settings: allSettings });
+  } catch (error) {
+    console.error('Get all website settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
 // AI CHAT ASSISTANT (GAS Support Bot)
 // =========================================================
 
@@ -10877,16 +10966,22 @@ HOW TO FIND API CREDENTIALS (IMPORTANT - GET THIS RIGHT):
 
 BEDS24 INVITE CODE:
 1. Log into your Beds24 account
-2. Go to Settings → Account → API
-3. Click "Invite Codes" tab
-4. Click "Generate New Invite Code"
-5. Copy the code and paste it into GAS
+2. Go to Settings (top menu)
+3. Click Marketplace in the left sidebar
+4. Click API
+5. You'll see "Invite Codes" section at the top
+6. Click the green "Generate invite code" button
+7. Copy the code and paste it into GAS
 
 HOSTAWAY API CREDENTIALS:
-1. Log into your Hostaway account
-2. Go to Settings → API
-3. Copy your Account ID and API Key
-4. Paste both into GAS
+1. Log into Hostaway Dashboard
+2. Go to Settings → Hostaway API
+3. Click "Create"
+4. Choose a Name and select "Hostaway Public API" as Partner
+5. Click Create
+6. IMPORTANT: Copy your Account ID and API Key immediately - they only show once!
+7. Paste both into GAS
+Note: Keep these safe - Hostaway won't show them again after you leave the page.
 
 SMOOBU API KEY:
 1. Log into your Smoobu account
