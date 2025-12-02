@@ -9595,7 +9595,7 @@ app.get('/api/admin/agencies', async (req, res) => {
   }
 });
 
-// Get single agency with clients
+// Get single agency with properties
 app.get('/api/admin/agencies/:id', async (req, res) => {
   try {
     const { id } = req.params;
@@ -9606,22 +9606,19 @@ app.get('/api/admin/agencies/:id', async (req, res) => {
       return res.json({ success: false, error: 'Agency not found' });
     }
     
-    // Get agency's clients
-    const clients = await pool.query(`
-      SELECT c.*, 
-        COUNT(DISTINCT p.id) as property_count,
-        (SELECT COUNT(*) FROM rooms r JOIN properties p2 ON r.property_id = p2.id WHERE p2.client_id = c.id) as room_count
-      FROM clients c
-      LEFT JOIN properties p ON p.client_id = c.id
-      WHERE c.agency_id = $1
-      GROUP BY c.id
-      ORDER BY c.created_at DESC
+    // Get agency's properties (directly assigned via agency_id)
+    const properties = await pool.query(`
+      SELECT p.*, 
+        (SELECT COUNT(*) FROM rooms r WHERE r.property_id = p.id) as room_count
+      FROM properties p
+      WHERE p.agency_id = $1
+      ORDER BY p.name
     `, [id]);
     
     res.json({ 
       success: true, 
       agency: agency.rows[0],
-      clients: clients.rows
+      properties: properties.rows
     });
   } catch (error) {
     console.error('Get agency error:', error);
