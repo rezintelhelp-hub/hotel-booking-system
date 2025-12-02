@@ -1061,6 +1061,10 @@
 
                 <div class="nav-section">
                     <div class="nav-label">Website Builder</div>
+                    <a class="nav-item" data-view="wb-header" href="#" onclick="navClick(this, 'wb-header'); return false;">
+                        <span class="nav-icon">📌</span>
+                        <span>Header & Logo</span>
+                    </a>
                     <a class="nav-item" data-view="wb-hero" href="#" onclick="navClick(this, 'wb-hero'); return false;">
                         <span class="nav-icon">🖼️</span>
                         <span>Hero Section</span>
@@ -3202,6 +3206,95 @@ fetch('/api/public/client/1/rooms')
                         <div class="empty-icon">📣</div>
                         <h3>Select a Property</h3>
                         <p>Choose a property above to manage its marketing features and tags</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Header & Logo -->
+            <div id="wb-header" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📌 Header & Logo</h2>
+                            <p>Site identity and navigation</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('header')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Logo</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Logo Image</label>
+                            <div id="wb-header-logo-preview" style="width: 200px; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0;">
+                                <span style="color: #94a3b8;">No logo uploaded</span>
+                            </div>
+                            <input type="file" id="wb-header-logo" accept="image/*" onchange="previewWebsiteImage('header-logo')">
+                            <small class="form-hint">Recommended: PNG with transparent background, max 400x150px</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Site Name (if no logo)</label>
+                            <input type="text" class="form-input" id="wb-header-site-name" placeholder="e.g., The Grand Hotel">
+                            <small class="form-hint">Displayed if no logo is uploaded</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tagline</label>
+                            <input type="text" class="form-input" id="wb-header-tagline" placeholder="e.g., Luxury Accommodation Since 1985">
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Navigation Menu</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-header-show-rooms" checked> Show "Rooms" link
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-header-show-about" checked> Show "About" link
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-header-show-contact" checked> Show "Contact" link
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-header-show-blog" checked> Show "Blog" link
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Book Now Button Text</label>
+                            <input type="text" class="form-input" id="wb-header-book-button" placeholder="e.g., Book Now">
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Header Style</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Header Background</label>
+                            <select class="form-select" id="wb-header-bg-style">
+                                <option value="transparent">Transparent (over hero)</option>
+                                <option value="white">White</option>
+                                <option value="dark">Dark</option>
+                                <option value="primary">Primary Color</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-header-sticky" checked> Sticky Header (stays at top when scrolling)
+                            </label>
+                        </div>
                     </div>
                 </div>
             </div>
