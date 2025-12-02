@@ -7187,8 +7187,18 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const clientId = getClientId();
                 const clientParam = clientId ? `?client_id=${clientId}` : '';
-                const response = await fetch(`/api/db/properties${clientParam}`);
-                const data = await response.json();
+                
+                // Fetch properties and agencies
+                const [propsRes, agenciesRes] = await Promise.all([
+                    fetch(`/api/db/properties${clientParam}`),
+                    fetch('/api/admin/agencies')
+                ]);
+                const data = await propsRes.json();
+                const agenciesData = await agenciesRes.json();
+                const agencies = agenciesData.agencies || [];
+                
+                // Build agency options for dropdown
+                const agencyOptions = agencies.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
                 
                 if (data.success && data.data && data.data.length > 0) {
                     const html = `
@@ -7199,20 +7209,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <th>Property Name</th>
                                         <th>Type</th>
                                         <th>Location</th>
+                                        <th>Agency</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${data.data.map(prop => `
+                                    ${data.data.map(prop => {
+                                        const currentAgency = agencies.find(a => a.id === prop.agency_id);
+                                        return `
                                         <tr>
                                             <td><strong>${prop.name || 'Unnamed Property'}</strong></td>
                                             <td>${prop.property_type || 'N/A'}</td>
                                             <td>${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
+                                            <td>
+                                                <select onchange="assignPropertyToAgency(${prop.id}, this.value)" style="padding: 0.3rem; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
+                                                    <option value="">-- None --</option>
+                                                    ${agencies.map(a => `<option value="${a.id}" ${prop.agency_id === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
+                                                </select>
+                                            </td>
                                             <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
                                             <td><button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button></td>
                                         </tr>
-                                    `).join('')}
+                                    `}).join('')}
                                 </tbody>
                             </table>
                         </div>
@@ -7231,6 +7250,24 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error loading properties:', error);
                 container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading properties</p>';
+            }
+        }
+        
+        async function assignPropertyToAgency(propertyId, agencyId) {
+            try {
+                const response = await fetch(`/api/admin/properties/${propertyId}/assign-agency`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agency_id: agencyId || null })
+                });
+                const result = await response.json();
+                if (!result.success) {
+                    alert('Error: ' + result.error);
+                    loadProperties();
+                }
+            } catch (error) {
+                alert('Error assigning agency: ' + error.message);
+                loadProperties();
             }
         }
 
