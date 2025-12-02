@@ -6082,8 +6082,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Load clients into the selector dropdown
         async function loadClientSelector() {
             try {
-                const response = await fetch('/api/admin/clients');
-                const data = await response.json();
+                const [clientsRes, agenciesRes] = await Promise.all([
+                    fetch('/api/admin/clients'),
+                    fetch('/api/admin/agencies')
+                ]);
+                const clientsData = await clientsRes.json();
+                const agenciesData = await agenciesRes.json();
                 
                 const selector = document.getElementById('globalClientSelector');
                 if (!selector) return;
@@ -6091,17 +6095,58 @@ const promo = await fetch('/api/v1/offers/validate', {
                 selector.innerHTML = '<option value="">🌐 All Clients (Admin View)</option>';
                 clientIdMap = {}; // Reset map
                 
-                if (data.success && data.clients) {
-                    data.clients.forEach(client => {
-                        const option = document.createElement('option');
-                        const publicId = client.public_id || client.id; // Fallback to id if no public_id
-                        option.value = publicId;
-                        option.textContent = `${client.business_name || client.name || 'Client'}`;
-                        selector.appendChild(option);
-                        
-                        // Store mapping
-                        clientIdMap[publicId] = client.id;
+                if (clientsData.success && clientsData.clients) {
+                    const clients = clientsData.clients;
+                    const agencies = agenciesData.agencies || [];
+                    
+                    // Separate direct clients (no agency) from agency clients
+                    const directClients = clients.filter(c => !c.agency_id);
+                    const agencyClients = clients.filter(c => c.agency_id);
+                    
+                    // Add agencies as optgroups with their clients
+                    agencies.forEach(agency => {
+                        const agencyClientsList = agencyClients.filter(c => c.agency_id === agency.id);
+                        if (agencyClientsList.length > 0 || true) { // Show agency even if no clients yet
+                            const optgroup = document.createElement('optgroup');
+                            optgroup.label = `🏢 ${agency.name}`;
+                            
+                            // Add agency-level option
+                            const agencyOption = document.createElement('option');
+                            agencyOption.value = `agency_${agency.id}`;
+                            agencyOption.textContent = `📊 All ${agency.name} clients`;
+                            agencyOption.style.fontWeight = 'bold';
+                            optgroup.appendChild(agencyOption);
+                            
+                            // Add clients under this agency
+                            agencyClientsList.forEach(client => {
+                                const option = document.createElement('option');
+                                const publicId = client.public_id || client.id;
+                                option.value = publicId;
+                                option.textContent = `  └ ${client.business_name || client.name || 'Client'}`;
+                                optgroup.appendChild(option);
+                                clientIdMap[publicId] = client.id;
+                            });
+                            
+                            selector.appendChild(optgroup);
+                        }
                     });
+                    
+                    // Add direct clients (not under any agency)
+                    if (directClients.length > 0) {
+                        const optgroup = document.createElement('optgroup');
+                        optgroup.label = '👤 Direct Clients';
+                        
+                        directClients.forEach(client => {
+                            const option = document.createElement('option');
+                            const publicId = client.public_id || client.id;
+                            option.value = publicId;
+                            option.textContent = client.business_name || client.name || 'Client';
+                            optgroup.appendChild(option);
+                            clientIdMap[publicId] = client.id;
+                        });
+                        
+                        selector.appendChild(optgroup);
+                    }
                     
                     // Check URL for client parameter and select it
                     const urlParams = new URLSearchParams(window.location.search);
@@ -6695,14 +6740,24 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadClients() {
             const container = document.getElementById('clients-list');
             try {
-                const response = await fetch('/api/admin/clients');
-                const data = await response.json();
-                
-                // Also get unassigned properties count
-                const unassignedRes = await fetch('/api/admin/properties/unassigned');
+                const [clientsRes, agenciesRes, unassignedRes] = await Promise.all([
+                    fetch('/api/admin/clients'),
+                    fetch('/api/admin/agencies'),
+                    fetch('/api/admin/properties/unassigned')
+                ]);
+                const data = await clientsRes.json();
+                const agenciesData = await agenciesRes.json();
                 const unassignedData = await unassignedRes.json();
                 
+                // Create agency lookup map
+                const agencyMap = {};
+                (agenciesData.agencies || []).forEach(a => agencyMap[a.id] = a.name);
+                
                 if (data.success && data.clients) {
+                    // Separate direct clients from agency-managed clients
+                    const directClients = data.clients.filter(c => !c.agency_id);
+                    const agencyClients = data.clients.filter(c => c.agency_id);
+                    
                     // Update stats
                     document.getElementById('stat-total-clients').textContent = data.clients.length;
                     document.getElementById('stat-active-clients').textContent = data.clients.filter(c => c.status === 'active').length;
@@ -6726,6 +6781,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <thead>
                                     <tr>
                                         <th>Client</th>
+                                        <th>Agency</th>
                                         <th>Properties</th>
                                         <th>Plan</th>
                                         <th>Status</th>
@@ -6739,6 +6795,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             <td>
                                                 <strong>${client.business_name || client.name}</strong>
                                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">${client.email}</div>
+                                            </td>
+                                            <td>
+                                                ${client.agency_id ? `
+                                                    <span class="badge badge-success" style="font-size: 0.7rem;">
+                                                        🏢 ${agencyMap[client.agency_id] || 'Unknown'}
+                                                    </span>
+                                                ` : `
+                                                    <span style="color: var(--text-muted); font-size: 0.8rem;">Direct</span>
+                                                `}
                                             </td>
                                             <td><span class="badge">${client.property_count || 0}</span></td>
                                             <td>
