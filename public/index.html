@@ -444,6 +444,76 @@
             color: var(--primary);
         }
 
+        .chat-input-area {
+            padding: 12px 16px;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 8px;
+            background: white;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 10px 14px;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: var(--primary);
+        }
+
+        .chat-send-btn {
+            padding: 10px 16px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            border: none;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, opacity 0.2s;
+        }
+
+        .chat-send-btn:hover {
+            transform: scale(1.05);
+        }
+
+        .chat-send-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .chat-typing {
+            display: flex;
+            gap: 4px;
+            padding: 12px 16px;
+            background: var(--bg-primary);
+            border-radius: 12px;
+            width: fit-content;
+            margin-bottom: 16px;
+        }
+
+        .chat-typing span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-secondary);
+            border-radius: 50%;
+            animation: typing 1.4s infinite ease-in-out;
+        }
+
+        .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+        .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-6px); }
+        }
+
         /* CM Selection Modal */
         .modal {
             display: none;
@@ -827,17 +897,23 @@
                 <div class="chat-avatar">🤖</div>
                 <div class="chat-header-info">
                     <h4>GAS Assistant</h4>
-                    <p>Here to help</p>
+                    <p>Online now</p>
                 </div>
             </div>
             <div class="chat-body" id="chatBody">
                 <div class="chat-message bot">
-                    👋 Welcome to GAS! I'm here to guide you through setup.
+                    👋 Hi! I'm the GAS Assistant. I can help you with:
                     <br><br>
-                    First, we need to connect your channel manager. This is required because we pull your rooms, pricing, and availability directly from your CM.
+                    • <strong>Property owners</strong> - Setting up your listing, connecting your channel manager, managing pricing & availability
                     <br><br>
-                    <strong>Click the Channel Manager card above to get started!</strong>
+                    • <strong>Travel agents</strong> - Finding properties, understanding how GAS works, getting started
+                    <br><br>
+                    What would you like to know?
                 </div>
+            </div>
+            <div class="chat-input-area">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Type your question..." onkeypress="handleChatKeypress(event)">
+                <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">Send</button>
             </div>
         </div>
         <button class="chat-bot-toggle" id="chatToggle" onclick="toggleChat()">
@@ -899,6 +975,8 @@
         // State
         let selectedCM = null;
         let chatOpen = true;
+        let conversationHistory = [];
+        let isSending = false;
 
         // Toggle chat
         function toggleChat() {
@@ -911,6 +989,94 @@
         window.addEventListener('DOMContentLoaded', () => {
             document.getElementById('chatWindow').classList.add('open');
         });
+
+        // Handle enter key in chat input
+        function handleChatKeypress(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendChatMessage();
+            }
+        }
+
+        // Send chat message
+        async function sendChatMessage() {
+            const input = document.getElementById('chatInput');
+            const sendBtn = document.getElementById('chatSendBtn');
+            const message = input.value.trim();
+            
+            if (!message || isSending) return;
+            
+            isSending = true;
+            sendBtn.disabled = true;
+            input.value = '';
+            
+            // Add user message to chat
+            addChatMessage(message, 'user');
+            
+            // Add to history
+            conversationHistory.push({ role: 'user', content: message });
+            
+            // Show typing indicator
+            const typingDiv = document.createElement('div');
+            typingDiv.className = 'chat-typing';
+            typingDiv.id = 'typingIndicator';
+            typingDiv.innerHTML = '<span></span><span></span><span></span>';
+            document.getElementById('chatBody').appendChild(typingDiv);
+            scrollChatToBottom();
+            
+            try {
+                const response = await fetch('/api/chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        message: message,
+                        conversationHistory: conversationHistory.slice(-10)
+                    })
+                });
+                
+                const data = await response.json();
+                
+                // Remove typing indicator
+                document.getElementById('typingIndicator')?.remove();
+                
+                if (data.success) {
+                    addChatMessage(data.message, 'bot');
+                    conversationHistory.push({ role: 'assistant', content: data.message });
+                } else {
+                    addChatMessage(data.error || 'Sorry, something went wrong. Please try again.', 'bot');
+                }
+            } catch (error) {
+                document.getElementById('typingIndicator')?.remove();
+                addChatMessage('Sorry, I couldn\'t connect. Please check your internet connection and try again.', 'bot');
+            }
+            
+            isSending = false;
+            sendBtn.disabled = false;
+            input.focus();
+        }
+
+        // Add message to chat body
+        function addChatMessage(text, type) {
+            const chatBody = document.getElementById('chatBody');
+            const msgDiv = document.createElement('div');
+            msgDiv.className = `chat-message ${type}`;
+            
+            // Convert line breaks and basic markdown
+            let formattedText = text
+                .replace(/\n/g, '<br>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+            
+            msgDiv.innerHTML = formattedText;
+            chatBody.appendChild(msgDiv);
+            scrollChatToBottom();
+        }
+
+        // Scroll chat to bottom
+        function scrollChatToBottom() {
+            const chatBody = document.getElementById('chatBody');
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
 
         // CM Modal
         function openCMModal() {
