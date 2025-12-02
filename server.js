@@ -577,11 +577,47 @@ app.get('/api/health', (req, res) => {
 // Run clients migration manually
 app.get('/api/setup-clients', async (req, res) => {
   try {
+    // 0. Create agencies table first (agencies manage multiple clients)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS agencies (
+        id SERIAL PRIMARY KEY,
+        public_id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        phone VARCHAR(50),
+        logo_url VARCHAR(500),
+        primary_color VARCHAR(20) DEFAULT '#6366f1',
+        secondary_color VARCHAR(20) DEFAULT '#8b5cf6',
+        custom_domain VARCHAR(255),
+        website_url VARCHAR(500),
+        address_line1 VARCHAR(255),
+        address_line2 VARCHAR(255),
+        city VARCHAR(100),
+        region VARCHAR(100),
+        postcode VARCHAR(20),
+        country VARCHAR(100) DEFAULT 'United Kingdom',
+        currency VARCHAR(3) DEFAULT 'GBP',
+        timezone VARCHAR(50) DEFAULT 'Europe/London',
+        plan VARCHAR(20) DEFAULT 'agency',
+        commission_percent DECIMAL(5,2) DEFAULT 0,
+        api_key VARCHAR(64) UNIQUE,
+        api_key_created_at TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'active',
+        settings JSONB DEFAULT '{}',
+        white_label_enabled BOOLEAN DEFAULT FALSE,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Created agencies table');
+
     // 1. Create clients table
     await pool.query(`
       CREATE TABLE IF NOT EXISTS clients (
         id SERIAL PRIMARY KEY,
         public_id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
+        agency_id INTEGER REFERENCES agencies(id) ON DELETE SET NULL,
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) NOT NULL UNIQUE,
         phone VARCHAR(50),
@@ -616,6 +652,9 @@ app.get('/api/setup-clients', async (req, res) => {
       )
     `);
     
+    // Add agency_id column if it doesn't exist (for existing databases)
+    await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS agency_id INTEGER REFERENCES agencies(id) ON DELETE SET NULL`);
+    
     // Add public_id column if it doesn't exist (for existing databases)
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS public_id UUID DEFAULT gen_random_uuid() UNIQUE`);
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS business_name VARCHAR(255)`);
@@ -628,7 +667,7 @@ app.get('/api/setup-clients', async (req, res) => {
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS features_enabled JSONB DEFAULT '{}'`);
     await pool.query(`ALTER TABLE clients ADD COLUMN IF NOT EXISTS stripe_subscription_id VARCHAR(100)`);
     
-    console.log('✅ Created clients table with UUID public_id');
+    console.log('✅ Created clients table with UUID public_id and agency_id');
 
     // 2. Create client_users table
     await pool.query(`
@@ -9523,6 +9562,255 @@ app.post('/api/admin/fix-client-uuids', async (req, res) => {
     });
   } catch (error) {
     console.error('Fix UUIDs error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// AGENCY ENDPOINTS
+// =====================================================
+
+// Get all agencies
+app.get('/api/admin/agencies', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        a.*,
+        COUNT(DISTINCT c.id) as client_count,
+        (SELECT COUNT(*) FROM properties p JOIN clients c2 ON p.client_id = c2.id WHERE c2.agency_id = a.id) as property_count
+      FROM agencies a
+      LEFT JOIN clients c ON c.agency_id = a.id
+      GROUP BY a.id
+      ORDER BY a.created_at DESC
+    `);
+    
+    res.json({ success: true, agencies: result.rows });
+  } catch (error) {
+    console.error('Get agencies error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single agency with clients
+app.get('/api/admin/agencies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const agency = await pool.query(`SELECT * FROM agencies WHERE id = $1`, [id]);
+    
+    if (agency.rows.length === 0) {
+      return res.json({ success: false, error: 'Agency not found' });
+    }
+    
+    // Get agency's clients
+    const clients = await pool.query(`
+      SELECT c.*, 
+        COUNT(DISTINCT p.id) as property_count,
+        (SELECT COUNT(*) FROM rooms r JOIN properties p2 ON r.property_id = p2.id WHERE p2.client_id = c.id) as room_count
+      FROM clients c
+      LEFT JOIN properties p ON p.client_id = c.id
+      WHERE c.agency_id = $1
+      GROUP BY c.id
+      ORDER BY c.created_at DESC
+    `, [id]);
+    
+    res.json({ 
+      success: true, 
+      agency: agency.rows[0],
+      clients: clients.rows
+    });
+  } catch (error) {
+    console.error('Get agency error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create agency
+app.post('/api/admin/agencies', async (req, res) => {
+  try {
+    const {
+      name, email, phone, logo_url,
+      primary_color, secondary_color,
+      website_url, custom_domain,
+      address_line1, address_line2, city, region, postcode, country,
+      currency, timezone, plan, notes
+    } = req.body;
+    
+    // Generate API key for agency
+    const apiKey = 'gas_agency_' + require('crypto').randomBytes(24).toString('hex');
+    
+    const result = await pool.query(`
+      INSERT INTO agencies (
+        name, email, phone, logo_url,
+        primary_color, secondary_color,
+        website_url, custom_domain,
+        address_line1, address_line2, city, region, postcode, country,
+        currency, timezone, plan, notes,
+        api_key, api_key_created_at, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, CURRENT_TIMESTAMP, 'active')
+      RETURNING *
+    `, [
+      name, email, phone, logo_url,
+      primary_color || '#6366f1', secondary_color || '#8b5cf6',
+      website_url, custom_domain,
+      address_line1, address_line2, city, region, postcode, country || 'United Kingdom',
+      currency || 'GBP', timezone || 'Europe/London', plan || 'agency', notes,
+      apiKey
+    ]);
+    
+    res.json({ success: true, agency: result.rows[0] });
+  } catch (error) {
+    console.error('Create agency error:', error);
+    if (error.code === '23505') {
+      res.json({ success: false, error: 'An agency with this email already exists' });
+    } else {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Update agency
+app.put('/api/admin/agencies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const {
+      name, email, phone, logo_url,
+      primary_color, secondary_color,
+      website_url, custom_domain,
+      address_line1, address_line2, city, region, postcode, country,
+      currency, timezone, plan, status, notes
+    } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE agencies SET
+        name = COALESCE($1, name),
+        email = COALESCE($2, email),
+        phone = COALESCE($3, phone),
+        logo_url = COALESCE($4, logo_url),
+        primary_color = COALESCE($5, primary_color),
+        secondary_color = COALESCE($6, secondary_color),
+        website_url = COALESCE($7, website_url),
+        custom_domain = COALESCE($8, custom_domain),
+        address_line1 = COALESCE($9, address_line1),
+        address_line2 = COALESCE($10, address_line2),
+        city = COALESCE($11, city),
+        region = COALESCE($12, region),
+        postcode = COALESCE($13, postcode),
+        country = COALESCE($14, country),
+        currency = COALESCE($15, currency),
+        timezone = COALESCE($16, timezone),
+        plan = COALESCE($17, plan),
+        status = COALESCE($18, status),
+        notes = COALESCE($19, notes),
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $20
+      RETURNING *
+    `, [
+      name, email, phone, logo_url,
+      primary_color, secondary_color,
+      website_url, custom_domain,
+      address_line1, address_line2, city, region, postcode, country,
+      currency, timezone, plan, status, notes,
+      id
+    ]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Agency not found' });
+    }
+    
+    res.json({ success: true, agency: result.rows[0] });
+  } catch (error) {
+    console.error('Update agency error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete agency
+app.delete('/api/admin/agencies/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Check for associated clients
+    const clients = await pool.query(`SELECT COUNT(*) FROM clients WHERE agency_id = $1`, [id]);
+    
+    if (parseInt(clients.rows[0].count) > 0) {
+      return res.json({ 
+        success: false, 
+        error: `Cannot delete agency with ${clients.rows[0].count} associated clients. Reassign or delete clients first.` 
+      });
+    }
+    
+    await pool.query(`DELETE FROM agencies WHERE id = $1`, [id]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete agency error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Assign client to agency
+app.post('/api/admin/agencies/:id/assign-client', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { client_id } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE clients SET agency_id = $1, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+      RETURNING *
+    `, [id, client_id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    res.json({ success: true, client: result.rows[0] });
+  } catch (error) {
+    console.error('Assign client error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Remove client from agency
+app.post('/api/admin/agencies/:id/remove-client', async (req, res) => {
+  try {
+    const { client_id } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE clients SET agency_id = NULL, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+      RETURNING *
+    `, [client_id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    
+    res.json({ success: true, client: result.rows[0] });
+  } catch (error) {
+    console.error('Remove client error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get agency dashboard stats
+app.get('/api/admin/agencies/:id/stats', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get counts
+    const stats = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM clients WHERE agency_id = $1) as client_count,
+        (SELECT COUNT(*) FROM properties p JOIN clients c ON p.client_id = c.id WHERE c.agency_id = $1) as property_count,
+        (SELECT COUNT(*) FROM rooms r JOIN properties p ON r.property_id = p.id JOIN clients c ON p.client_id = c.id WHERE c.agency_id = $1) as room_count,
+        (SELECT COUNT(*) FROM bookings b JOIN rooms r ON b.room_id = r.id JOIN properties p ON r.property_id = p.id JOIN clients c ON p.client_id = c.id WHERE c.agency_id = $1 AND b.status = 'confirmed') as active_bookings
+    `, [id]);
+    
+    res.json({ success: true, stats: stats.rows[0] });
+  } catch (error) {
+    console.error('Get agency stats error:', error);
     res.json({ success: false, error: error.message });
   }
 });
