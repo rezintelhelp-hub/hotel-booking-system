@@ -905,18 +905,29 @@
         
         .client-selector select {
             width: 100%;
-            padding: 0.5rem;
+            padding: 0.6rem 0.75rem;
             border-radius: 6px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.1);
+            border: 2px solid rgba(255,255,255,0.3);
+            background: rgba(0,0,0,0.2);
             color: white;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            font-weight: 500;
             cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' fill='white' viewBox='0 0 16 16'%3E%3Cpath d='M8 11L3 6h10l-5 5z'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.75rem center;
+        }
+        
+        .client-selector select:focus {
+            outline: none;
+            border-color: #6366f1;
         }
         
         .client-selector select option {
             background: #1e293b;
             color: white;
+            padding: 0.5rem;
         }
         
         .client-indicator {
@@ -925,6 +936,9 @@
             gap: 0.5rem;
             margin-top: 0.5rem;
             font-size: 0.8rem;
+            padding: 0.4rem 0.6rem;
+            background: rgba(0,0,0,0.2);
+            border-radius: 6px;
         }
         
         .client-indicator .dot {
@@ -932,10 +946,17 @@
             height: 8px;
             border-radius: 50%;
             background: #10b981;
+            flex-shrink: 0;
         }
         
         .client-indicator.all-clients .dot {
             background: #f59e0b;
+        }
+        
+        #clientIndicatorText {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
     </style>
 </head>
@@ -5332,6 +5353,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                         // Store mapping
                         clientIdMap[publicId] = client.id;
                     });
+                    
+                    // Check URL for client parameter and select it
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlClientId = urlParams.get('client');
+                    if (urlClientId && clientIdMap[urlClientId]) {
+                        selector.value = urlClientId;
+                        switchClient(urlClientId, false); // Don't update URL again
+                    }
                 }
             } catch (error) {
                 console.error('Error loading clients:', error);
@@ -5339,8 +5368,19 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         // Switch to a different client
-        function switchClient(publicId) {
+        function switchClient(publicId, updateUrl = true) {
             currentClientPublicId = publicId || null;
+            
+            // Update URL so it's bookmarkable/shareable
+            if (updateUrl) {
+                const url = new URL(window.location);
+                if (publicId) {
+                    url.searchParams.set('client', publicId);
+                } else {
+                    url.searchParams.delete('client');
+                }
+                window.history.pushState({}, '', url);
+            }
             
             // Update indicator
             const indicator = document.getElementById('clientIndicator');
@@ -5353,7 +5393,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 indicator.className = 'client-indicator';
                 const selector = document.getElementById('globalClientSelector');
                 const selectedOption = selector.options[selector.selectedIndex];
-                indicatorText.textContent = selectedOption.textContent;
+                indicatorText.textContent = '✓ ' + selectedOption.textContent;
             }
             
             // Reload current view with new client context
