@@ -1059,6 +1059,38 @@
                 </div>
 
                 <div class="nav-section">
+                    <div class="nav-label">Website Builder</div>
+                    <a class="nav-item" data-view="wb-hero" href="#" onclick="navClick(this, 'wb-hero'); return false;">
+                        <span class="nav-icon">🖼️</span>
+                        <span>Hero Section</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-intro" href="#" onclick="navClick(this, 'wb-intro'); return false;">
+                        <span class="nav-icon">📝</span>
+                        <span>Intro Section</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-featured" href="#" onclick="navClick(this, 'wb-featured'); return false;">
+                        <span class="nav-icon">🏨</span>
+                        <span>Featured Properties</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-reviews" href="#" onclick="navClick(this, 'wb-reviews'); return false;">
+                        <span class="nav-icon">⭐</span>
+                        <span>Reviews</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-cta" href="#" onclick="navClick(this, 'wb-cta'); return false;">
+                        <span class="nav-icon">🚀</span>
+                        <span>CTA Section</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-footer" href="#" onclick="navClick(this, 'wb-footer'); return false;">
+                        <span class="nav-icon">👣</span>
+                        <span>Footer</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-styles" href="#" onclick="navClick(this, 'wb-styles'); return false;">
+                        <span class="nav-icon">🎨</span>
+                        <span>Styles & Colors</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
                     <div class="nav-label">System</div>
                     <a class="nav-item" data-view="integrations" href="#" onclick="navClick(this, 'integrations'); return false;">
                         <span class="nav-icon">🔗</span>
@@ -3169,6 +3201,326 @@ fetch('/api/public/client/1/rooms')
                         <div class="empty-icon">📣</div>
                         <h3>Select a Property</h3>
                         <p>Choose a property above to manage its marketing features and tags</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Hero Section -->
+            <div id="wb-hero" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🖼️ Hero Section</h2>
+                            <p>The main banner at the top of your website</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('hero')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Hero Headline</label>
+                            <input type="text" class="form-input" id="wb-hero-headline" placeholder="e.g., Welcome to Paradise">
+                            <small class="form-hint">The main text visitors see first</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Hero Subheadline</label>
+                            <input type="text" class="form-input" id="wb-hero-subheadline" placeholder="e.g., Experience luxury in the heart of the countryside">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Button Text</label>
+                            <input type="text" class="form-input" id="wb-hero-button-text" placeholder="e.g., Book Now">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Button Link</label>
+                            <input type="text" class="form-input" id="wb-hero-button-link" placeholder="e.g., #booking or /rooms">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Background Image</label>
+                            <div id="wb-hero-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+                                <span style="color: #94a3b8;">No image selected</span>
+                            </div>
+                            <input type="file" id="wb-hero-image" accept="image/*" onchange="previewWebsiteImage('hero')">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Overlay Opacity</label>
+                            <input type="range" id="wb-hero-overlay" min="0" max="100" value="50" style="width: 100%;">
+                            <small class="form-hint">Darken the background to make text more readable</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Intro Section -->
+            <div id="wb-intro" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📝 Intro Section</h2>
+                            <p>Welcome text and feature highlights</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('intro')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-intro-title" placeholder="e.g., Why Choose Us">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Intro Text</label>
+                            <textarea class="form-textarea" id="wb-intro-text" rows="4" placeholder="Welcome text about your property..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Feature 1</label>
+                            <input type="text" class="form-input" id="wb-intro-feature1" placeholder="e.g., 🌊 Beachfront Location">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Feature 2</label>
+                            <input type="text" class="form-input" id="wb-intro-feature2" placeholder="e.g., 🍳 Award-winning Breakfast">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Feature 3</label>
+                            <input type="text" class="form-input" id="wb-intro-feature3" placeholder="e.g., 🚗 Free Parking">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Feature 4</label>
+                            <input type="text" class="form-input" id="wb-intro-feature4" placeholder="e.g., 📶 Fast WiFi">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Featured Properties -->
+            <div id="wb-featured" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🏨 Featured Properties</h2>
+                            <p>Choose which properties/rooms to highlight</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('featured')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-featured-title" placeholder="e.g., Our Rooms">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Section Subtitle</label>
+                            <input type="text" class="form-input" id="wb-featured-subtitle" placeholder="e.g., Choose your perfect stay">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Display Mode</label>
+                            <select class="form-select" id="wb-featured-mode">
+                                <option value="all">Show All Rooms</option>
+                                <option value="featured">Featured Only</option>
+                                <option value="selected">Select Specific</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Number to Display</label>
+                            <select class="form-select" id="wb-featured-count">
+                                <option value="3">3</option>
+                                <option value="4">4</option>
+                                <option value="6">6</option>
+                                <option value="all">All</option>
+                            </select>
+                        </div>
+                        <div id="wb-featured-rooms-list" style="margin-top: 1rem;">
+                            <!-- Populated dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Reviews -->
+            <div id="wb-reviews" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>⭐ Reviews Section</h2>
+                            <p>Customer testimonials and ratings</p>
+                        </div>
+                        <button class="btn" onclick="addWebsiteReview()">+ Add Review</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-reviews-title" placeholder="e.g., What Our Guests Say">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-reviews-show" checked> Show Reviews Section
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Reviews</h3>
+                    </div>
+                    <div class="card-body" id="wb-reviews-list">
+                        <div class="empty-state">
+                            <p>No reviews yet. Click "Add Review" to add testimonials.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: CTA Section -->
+            <div id="wb-cta" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🚀 Call to Action</h2>
+                            <p>Encourage visitors to book</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('cta')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">CTA Headline</label>
+                            <input type="text" class="form-input" id="wb-cta-headline" placeholder="e.g., Ready to Book Your Stay?">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">CTA Text</label>
+                            <textarea class="form-textarea" id="wb-cta-text" rows="2" placeholder="e.g., Book directly with us for the best rates and exclusive perks."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Button Text</label>
+                            <input type="text" class="form-input" id="wb-cta-button-text" placeholder="e.g., Check Availability">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Button Link</label>
+                            <input type="text" class="form-input" id="wb-cta-button-link" placeholder="e.g., #booking">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Background Color</label>
+                            <input type="color" id="wb-cta-bg-color" value="#6366f1" style="width: 100px; height: 40px;">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Footer -->
+            <div id="wb-footer" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>👣 Footer</h2>
+                            <p>Bottom section of your website</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('footer')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Copyright Text</label>
+                            <input type="text" class="form-input" id="wb-footer-copyright" placeholder="e.g., © 2025 Your Property Name. All rights reserved.">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Footer Tagline</label>
+                            <input type="text" class="form-input" id="wb-footer-tagline" placeholder="e.g., Experience the difference">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-footer-show-social" checked> Show Social Media Links
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Facebook URL</label>
+                            <input type="text" class="form-input" id="wb-footer-facebook" placeholder="https://facebook.com/yourpage">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Instagram URL</label>
+                            <input type="text" class="form-input" id="wb-footer-instagram" placeholder="https://instagram.com/yourpage">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Twitter/X URL</label>
+                            <input type="text" class="form-input" id="wb-footer-twitter" placeholder="https://twitter.com/yourpage">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Styles & Colors -->
+            <div id="wb-styles" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🎨 Styles & Colors</h2>
+                            <p>Customize your website appearance</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('styles')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Colors</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Primary Color</label>
+                                <input type="color" id="wb-style-primary" value="#6366f1" style="width: 100%; height: 50px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Secondary Color</label>
+                                <input type="color" id="wb-style-secondary" value="#8b5cf6" style="width: 100%; height: 50px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Accent Color</label>
+                                <input type="color" id="wb-style-accent" value="#10b981" style="width: 100%; height: 50px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <input type="color" id="wb-style-text" value="#1e293b" style="width: 100%; height: 50px; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Typography</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Heading Font</label>
+                            <select class="form-select" id="wb-style-heading-font">
+                                <option value="Playfair Display">Playfair Display (Elegant)</option>
+                                <option value="Montserrat">Montserrat (Modern)</option>
+                                <option value="Roboto">Roboto (Clean)</option>
+                                <option value="Lora">Lora (Classic)</option>
+                                <option value="Open Sans">Open Sans (Friendly)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Body Font</label>
+                            <select class="form-select" id="wb-style-body-font">
+                                <option value="Inter">Inter (Modern)</option>
+                                <option value="Roboto">Roboto (Clean)</option>
+                                <option value="Open Sans">Open Sans (Friendly)</option>
+                                <option value="Lato">Lato (Warm)</option>
+                                <option value="Source Sans Pro">Source Sans Pro (Professional)</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Button Style</label>
+                            <select class="form-select" id="wb-style-button">
+                                <option value="rounded">Rounded</option>
+                                <option value="pill">Pill</option>
+                                <option value="square">Square</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -5453,6 +5805,131 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (urlInput) urlInput.value = window.location.origin;
                 loadApiKeys();
             }
+            
+            // Website Builder views
+            if (viewName.startsWith('wb-')) loadWebsiteBuilderSection(viewName.replace('wb-', ''));
+        }
+
+        // =========================================================
+        // WEBSITE BUILDER FUNCTIONS
+        // =========================================================
+        
+        async function loadWebsiteBuilderSection(section) {
+            try {
+                const clientId = getClientId();
+                if (!clientId) return;
+                
+                const response = await fetch(`/api/admin/website-builder/${section}?client_id=${clientId}`);
+                const data = await response.json();
+                
+                if (data.success && data.settings) {
+                    // Populate form fields based on section
+                    Object.keys(data.settings).forEach(key => {
+                        const el = document.getElementById(`wb-${section}-${key}`);
+                        if (el) {
+                            if (el.type === 'checkbox') {
+                                el.checked = data.settings[key];
+                            } else if (el.type === 'color') {
+                                el.value = data.settings[key] || el.value;
+                            } else {
+                                el.value = data.settings[key] || '';
+                            }
+                        }
+                    });
+                    
+                    // Handle image preview
+                    if (data.settings.image) {
+                        const preview = document.getElementById(`wb-${section}-image-preview`);
+                        if (preview) {
+                            preview.innerHTML = `<img src="${data.settings.image}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading website builder section:', error);
+            }
+        }
+        
+        async function saveWebsiteSection(section) {
+            try {
+                const clientId = getClientId();
+                if (!clientId) {
+                    alert('Please select a client first');
+                    return;
+                }
+                
+                // Collect all form values for this section
+                const settings = {};
+                const prefix = `wb-${section}-`;
+                
+                document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
+                    const key = el.id.replace(prefix, '');
+                    if (el.type === 'checkbox') {
+                        settings[key] = el.checked;
+                    } else if (el.type === 'file') {
+                        // Handle file uploads separately
+                    } else {
+                        settings[key] = el.value;
+                    }
+                });
+                
+                const response = await fetch(`/api/admin/website-builder/${section}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, settings })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Saved! Your website will update automatically.');
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to save'));
+                }
+            } catch (error) {
+                console.error('Error saving website section:', error);
+                alert('Error saving. Please try again.');
+            }
+        }
+        
+        function previewWebsiteImage(section) {
+            const input = document.getElementById(`wb-${section}-image`);
+            const preview = document.getElementById(`wb-${section}-image-preview`);
+            
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+        
+        function addWebsiteReview() {
+            const container = document.getElementById('wb-reviews-list');
+            const reviewId = Date.now();
+            
+            container.innerHTML += `
+                <div class="review-item" id="review-${reviewId}" style="border: 1px solid #e5e7eb; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Guest Name</label>
+                        <input type="text" class="form-input review-name" placeholder="e.g., John D.">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Review Text</label>
+                        <textarea class="form-textarea review-text" rows="2" placeholder="Their testimonial..."></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Rating</label>
+                        <select class="form-select review-rating">
+                            <option value="5">⭐⭐⭐⭐⭐ (5 stars)</option>
+                            <option value="4">⭐⭐⭐⭐ (4 stars)</option>
+                            <option value="3">⭐⭐⭐ (3 stars)</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-secondary btn-small" onclick="document.getElementById('review-${reviewId}').remove()">🗑️ Remove</button>
+                </div>
+            `;
         }
 
         // =========================================================
