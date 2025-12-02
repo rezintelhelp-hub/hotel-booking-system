@@ -10485,7 +10485,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         const { clientId } = req.params;
         
         // Get all data in parallel
-        const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult] = await Promise.all([
+        const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult, websiteSettingsResult] = await Promise.all([
             pool.query(`SELECT * FROM client_pages WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_contact_info WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_branding WHERE client_id = $1`, [clientId]),
@@ -10496,7 +10496,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 FROM rooms r 
                 JOIN properties p ON r.property_id = p.id 
                 WHERE p.client_id = $1
-            `, [clientId])
+            `, [clientId]),
+            pool.query(`SELECT section, settings FROM website_settings WHERE client_id = $1`, [clientId])
         ]);
         
         // Check if blog posts exist
@@ -10516,6 +10517,12 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         const customNav = navigationResult.rows;
         const properties = propertiesResult.rows;
         const rooms = roomsResult.rows;
+        
+        // Build website settings object
+        const websiteSettings = {};
+        websiteSettingsResult.rows.forEach(row => {
+            websiteSettings[row.section] = row.settings;
+        });
         
         // Build pages object with full content
         const pagesObject = {};
@@ -10537,36 +10544,58 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
             };
         });
         
-        // Auto-generate footer links based on what exists
+        // Auto-generate footer links from website_settings or from what exists
         const footerQuickLinks = [];
         const footerLegalLinks = [];
+        const footerSettings = websiteSettings.footer || {};
         
-        // Always add Home and Properties
-        footerQuickLinks.push({ label: 'Home', url: '/' });
-        footerQuickLinks.push({ label: 'Properties', url: '/book-now/' });
-        
-        // Add pages that exist and are published
-        pages.forEach(page => {
-            if (page.page_type === 'about' && page.is_published) {
-                footerQuickLinks.push({ label: page.title || 'About Us', url: '/about/' });
+        // Check website builder settings for footer links (new method)
+        if (footerSettings['link-home'] !== false) {
+            footerQuickLinks.push({ label: 'Home', url: '/' });
+        }
+        if (footerSettings['link-rooms'] !== false) {
+            footerQuickLinks.push({ label: 'Rooms', url: '/book-now/' });
+        }
+        if (footerSettings['link-about'] !== false) {
+            const aboutPage = pages.find(p => p.page_type === 'about');
+            if (aboutPage && aboutPage.is_published) {
+                footerQuickLinks.push({ label: aboutPage.title || 'About Us', url: '/about/' });
+            } else {
+                footerQuickLinks.push({ label: 'About Us', url: '/about/' });
             }
-            if (page.page_type === 'contact' && page.is_published) {
-                footerQuickLinks.push({ label: page.title || 'Contact', url: '/contact/' });
+        }
+        if (footerSettings['link-contact'] !== false) {
+            const contactPage = pages.find(p => p.page_type === 'contact');
+            if (contactPage && contactPage.is_published) {
+                footerQuickLinks.push({ label: contactPage.title || 'Contact', url: '/contact/' });
+            } else {
+                footerQuickLinks.push({ label: 'Contact', url: '/contact/' });
             }
-            if (page.page_type === 'terms' && page.is_published) {
-                footerLegalLinks.push({ label: page.title || 'Terms & Conditions', url: '/terms/' });
-            }
-            if (page.page_type === 'privacy' && page.is_published) {
-                footerLegalLinks.push({ label: page.title || 'Privacy Policy', url: '/privacy/' });
-            }
-        });
-        
-        // Add blog if posts exist
-        if (parseInt(blogCountResult.rows[0].count) > 0) {
+        }
+        if (footerSettings['link-blog'] === true && parseInt(blogCountResult.rows[0].count) > 0) {
             footerQuickLinks.push({ label: 'Blog', url: '/blog/' });
         }
+        if (footerSettings['link-faq'] === true) {
+            footerQuickLinks.push({ label: 'FAQ', url: '/faq/' });
+        }
         
-        // Add attractions if they exist
+        // Legal links
+        if (footerSettings['link-terms'] !== false) {
+            const termsPage = pages.find(p => p.page_type === 'terms');
+            footerLegalLinks.push({ label: termsPage?.title || 'Terms & Conditions', url: '/terms/' });
+        }
+        if (footerSettings['link-privacy'] !== false) {
+            const privacyPage = pages.find(p => p.page_type === 'privacy');
+            footerLegalLinks.push({ label: privacyPage?.title || 'Privacy Policy', url: '/privacy/' });
+        }
+        if (footerSettings['link-cookies'] === true) {
+            footerLegalLinks.push({ label: 'Cookie Policy', url: '/cookies/' });
+        }
+        if (footerSettings['link-cancellation'] === true) {
+            footerLegalLinks.push({ label: 'Cancellation Policy', url: '/cancellation/' });
+        }
+        
+        // Add attractions if they exist and blog isn't manually enabled (fallback)
         if (parseInt(attractionsCountResult.rows[0].count) > 0) {
             footerQuickLinks.push({ label: 'Things To Do', url: '/attractions/' });
         }
@@ -10698,7 +10727,10 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     site_description: branding.site_description || contact.tagline,
                     og_image: branding.og_image_url,
                     twitter_handle: contact.twitter_url ? '@' + contact.twitter_url.split('/').pop() : null
-                }
+                },
+                
+                // Website Builder settings (hero, intro, footer, styles, etc.)
+                website: websiteSettings
             }
         });
     } catch (error) {
