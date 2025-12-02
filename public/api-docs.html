@@ -1,0 +1,837 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAS API Documentation</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+        .header {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            padding: 3rem 2rem;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.5rem; margin-bottom: 0.5rem; }
+        .header p { opacity: 0.9; font-size: 1.1rem; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        
+        .section { margin-bottom: 3rem; }
+        .section-title {
+            font-size: 1.5rem;
+            color: #a5b4fc;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #334155;
+        }
+        
+        .endpoint {
+            background: #1e293b;
+            border-radius: 12px;
+            margin-bottom: 1rem;
+            overflow: hidden;
+        }
+        .endpoint-header {
+            padding: 1rem 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .endpoint-header:hover { background: #334155; }
+        .method {
+            padding: 0.25rem 0.75rem;
+            border-radius: 6px;
+            font-weight: 700;
+            font-size: 0.8rem;
+            min-width: 60px;
+            text-align: center;
+        }
+        .method-get { background: #10b981; color: white; }
+        .method-post { background: #3b82f6; color: white; }
+        .method-put { background: #f59e0b; color: white; }
+        .method-delete { background: #ef4444; color: white; }
+        .endpoint-path {
+            font-family: 'Monaco', 'Menlo', monospace;
+            color: #f1f5f9;
+            flex: 1;
+        }
+        .endpoint-desc { color: #94a3b8; font-size: 0.9rem; }
+        .endpoint-body {
+            display: none;
+            padding: 1.5rem;
+            background: #0f172a;
+            border-top: 1px solid #334155;
+        }
+        .endpoint.open .endpoint-body { display: block; }
+        .endpoint.open .endpoint-header { background: #334155; }
+        
+        .code-block {
+            background: #020617;
+            border-radius: 8px;
+            padding: 1rem;
+            overflow-x: auto;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+            margin: 1rem 0;
+        }
+        .code-block pre { color: #e2e8f0; }
+        .code-label {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+        
+        .param-table { width: 100%; border-collapse: collapse; margin: 1rem 0; }
+        .param-table th, .param-table td {
+            padding: 0.75rem;
+            text-align: left;
+            border-bottom: 1px solid #334155;
+        }
+        .param-table th { color: #94a3b8; font-weight: 600; font-size: 0.85rem; }
+        .param-name { font-family: monospace; color: #a5b4fc; }
+        .param-type { color: #10b981; font-size: 0.85rem; }
+        .param-required { color: #ef4444; font-size: 0.75rem; }
+        
+        .auth-box {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #6366f1;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .auth-box h3 { color: #a5b4fc; margin-bottom: 1rem; }
+        
+        .base-url {
+            background: #020617;
+            padding: 1rem;
+            border-radius: 8px;
+            font-family: monospace;
+            color: #10b981;
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+        
+        .tag {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            background: #334155;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-left: 0.5rem;
+        }
+        .tag-public { background: #10b981; color: white; }
+        .tag-auth { background: #f59e0b; color: white; }
+        
+        .toc {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .toc h3 { margin-bottom: 1rem; color: #a5b4fc; }
+        .toc ul { list-style: none; }
+        .toc li { margin: 0.5rem 0; }
+        .toc a { color: #94a3b8; text-decoration: none; }
+        .toc a:hover { color: #e2e8f0; }
+        
+        .copy-btn {
+            background: #6366f1;
+            color: white;
+            border: none;
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            float: right;
+        }
+        .copy-btn:hover { background: #4f46e5; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🚀 GAS API Documentation</h1>
+        <p>Guest Accommodation System - REST API for Property Management</p>
+    </div>
+    
+    <div class="container">
+        <div class="base-url">
+            <strong>Base URL:</strong> https://hotel-booking-system-production-d6db.up.railway.app
+        </div>
+        
+        <div class="auth-box">
+            <h3>🔐 Authentication</h3>
+            <p>All authenticated endpoints require an API key in the header:</p>
+            <div class="code-block">
+                <pre>X-API-Key: your_api_key_here</pre>
+            </div>
+            <p style="color: #94a3b8; margin-top: 1rem;">API keys are provided when you create a client account. Contact your administrator for access.</p>
+        </div>
+        
+        <div class="toc">
+            <h3>📑 Table of Contents</h3>
+            <ul>
+                <li><a href="#properties">Properties</a></li>
+                <li><a href="#rooms">Rooms & Units</a></li>
+                <li><a href="#availability">Availability & Rates</a></li>
+                <li><a href="#bookings">Bookings</a></li>
+                <li><a href="#guests">Guests</a></li>
+                <li><a href="#content">Content & Pages</a></li>
+                <li><a href="#website">Website Settings</a></li>
+                <li><a href="#webhooks">Webhooks</a></li>
+            </ul>
+        </div>
+
+        <!-- PROPERTIES -->
+        <div class="section" id="properties">
+            <h2 class="section-title">🏨 Properties</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/properties</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">List all properties</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Returns all properties for the authenticated client.</p>
+                    <div class="code-label">Example Response</div>
+                    <div class="code-block">
+<pre>{
+  "success": true,
+  "properties": [
+    {
+      "id": 1,
+      "name": "Seaside Villa",
+      "slug": "seaside-villa",
+      "property_type": "villa",
+      "description": "Beautiful beachfront property...",
+      "address_line1": "123 Beach Road",
+      "city": "Miami",
+      "country": "USA",
+      "latitude": 25.7617,
+      "longitude": -80.1918,
+      "star_rating": 4,
+      "check_in_time": "15:00",
+      "check_out_time": "11:00",
+      "featured_image": "https://...",
+      "room_count": 5
+    }
+  ]
+}</pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/properties/{id}</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Get single property details</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Returns detailed information about a specific property including rooms and amenities.</p>
+                    <table class="param-table">
+                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                        <tr>
+                            <td class="param-name">id</td>
+                            <td class="param-type">integer</td>
+                            <td>Property ID <span class="param-required">required</span></td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/public/client/{clientId}/properties</span>
+                    <span class="tag tag-public">Public</span>
+                    <span class="endpoint-desc">List properties (public)</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Public endpoint for website integration. Returns published properties for a client.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- ROOMS -->
+        <div class="section" id="rooms">
+            <h2 class="section-title">🛏️ Rooms & Units</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/rooms</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">List all rooms</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Returns all rooms across all properties for the authenticated client.</p>
+                    <div class="code-label">Example Response</div>
+                    <div class="code-block">
+<pre>{
+  "success": true,
+  "rooms": [
+    {
+      "id": 1,
+      "property_id": 1,
+      "property_name": "Seaside Villa",
+      "name": "Ocean View Suite",
+      "slug": "ocean-view-suite",
+      "room_type": "suite",
+      "description": "Stunning ocean views...",
+      "base_price": 250.00,
+      "currency": "USD",
+      "max_guests": 4,
+      "bedrooms": 2,
+      "beds": 2,
+      "bathrooms": 1,
+      "size_sqm": 45,
+      "images": ["https://..."],
+      "amenities": ["wifi", "ac", "tv"]
+    }
+  ]
+}</pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/rooms/{id}</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Get room details</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Returns detailed information about a specific room including images and amenities.</p>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/rooms</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Create a new room</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="code-label">Request Body</div>
+                    <div class="code-block">
+<pre>{
+  "property_id": 1,
+  "name": "Deluxe Room",
+  "room_type": "double",
+  "description": "Comfortable room with city views",
+  "base_price": 150.00,
+  "max_guests": 2,
+  "bedrooms": 1,
+  "bathrooms": 1
+}</pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-put">PUT</span>
+                    <span class="endpoint-path">/api/v1/rooms/{id}</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Update a room</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Updates room details. Send only the fields you want to update.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- AVAILABILITY -->
+        <div class="section" id="availability">
+            <h2 class="section-title">📅 Availability & Rates</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/availability</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Get availability calendar</span>
+                </div>
+                <div class="endpoint-body">
+                    <table class="param-table">
+                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                        <tr>
+                            <td class="param-name">room_id</td>
+                            <td class="param-type">integer</td>
+                            <td>Filter by room ID</td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">start_date</td>
+                            <td class="param-type">string</td>
+                            <td>Start date (YYYY-MM-DD) <span class="param-required">required</span></td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">end_date</td>
+                            <td class="param-type">string</td>
+                            <td>End date (YYYY-MM-DD) <span class="param-required">required</span></td>
+                        </tr>
+                    </table>
+                    <div class="code-label">Example Response</div>
+                    <div class="code-block">
+<pre>{
+  "success": true,
+  "availability": [
+    {
+      "date": "2025-01-15",
+      "room_id": 1,
+      "available": true,
+      "price": 250.00,
+      "min_stay": 2
+    }
+  ]
+}</pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/availability</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Update availability/rates</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="code-label">Request Body</div>
+                    <div class="code-block">
+<pre>{
+  "room_id": 1,
+  "start_date": "2025-01-15",
+  "end_date": "2025-01-20",
+  "available": true,
+  "price": 275.00,
+  "min_stay": 3
+}</pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/public/client/{clientId}/check-availability</span>
+                    <span class="tag tag-public">Public</span>
+                    <span class="endpoint-desc">Check availability (website)</span>
+                </div>
+                <div class="endpoint-body">
+                    <table class="param-table">
+                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                        <tr>
+                            <td class="param-name">check_in</td>
+                            <td class="param-type">string</td>
+                            <td>Check-in date (YYYY-MM-DD)</td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">check_out</td>
+                            <td class="param-type">string</td>
+                            <td>Check-out date (YYYY-MM-DD)</td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">guests</td>
+                            <td class="param-type">integer</td>
+                            <td>Number of guests</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- BOOKINGS -->
+        <div class="section" id="bookings">
+            <h2 class="section-title">📋 Bookings</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/bookings</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">List all bookings</span>
+                </div>
+                <div class="endpoint-body">
+                    <table class="param-table">
+                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                        <tr>
+                            <td class="param-name">status</td>
+                            <td class="param-type">string</td>
+                            <td>Filter: confirmed, pending, cancelled, completed</td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">from_date</td>
+                            <td class="param-type">string</td>
+                            <td>Bookings from this date</td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">to_date</td>
+                            <td class="param-type">string</td>
+                            <td>Bookings until this date</td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">room_id</td>
+                            <td class="param-type">integer</td>
+                            <td>Filter by room</td>
+                        </tr>
+                    </table>
+                    <div class="code-label">Example Response</div>
+                    <div class="code-block">
+<pre>{
+  "success": true,
+  "bookings": [
+    {
+      "id": 123,
+      "booking_reference": "GAS-ABC123",
+      "room_id": 1,
+      "room_name": "Ocean View Suite",
+      "guest_name": "John Smith",
+      "guest_email": "john@example.com",
+      "check_in": "2025-01-15",
+      "check_out": "2025-01-18",
+      "nights": 3,
+      "guests": 2,
+      "total_price": 750.00,
+      "currency": "USD",
+      "status": "confirmed",
+      "source": "direct",
+      "created_at": "2025-01-10T14:30:00Z"
+    }
+  ]
+}</pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/bookings</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Create a booking</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="code-label">Request Body</div>
+                    <div class="code-block">
+<pre>{
+  "room_id": 1,
+  "check_in": "2025-01-15",
+  "check_out": "2025-01-18",
+  "guest_name": "John Smith",
+  "guest_email": "john@example.com",
+  "guest_phone": "+1234567890",
+  "guests": 2,
+  "total_price": 750.00,
+  "notes": "Late arrival expected",
+  "source": "api"
+}</pre>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-put">PUT</span>
+                    <span class="endpoint-path">/api/v1/bookings/{id}</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Update booking</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Update booking details or status.</p>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-delete">DELETE</span>
+                    <span class="endpoint-path">/api/v1/bookings/{id}</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Cancel booking</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Cancels a booking. The booking is not deleted but marked as cancelled.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- GUESTS -->
+        <div class="section" id="guests">
+            <h2 class="section-title">👤 Guests</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/guests</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">List all guests</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Returns all guests who have made bookings.</p>
+                    <div class="code-label">Example Response</div>
+                    <div class="code-block">
+<pre>{
+  "success": true,
+  "guests": [
+    {
+      "id": 1,
+      "name": "John Smith",
+      "email": "john@example.com",
+      "phone": "+1234567890",
+      "country": "USA",
+      "total_bookings": 3,
+      "total_spent": 2250.00,
+      "last_stay": "2025-01-18"
+    }
+  ]
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CONTENT -->
+        <div class="section" id="content">
+            <h2 class="section-title">📝 Content & Pages</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/public/client/{clientId}/site-config</span>
+                    <span class="tag tag-public">Public</span>
+                    <span class="endpoint-desc">Get full site configuration</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Returns complete site configuration including branding, contact info, pages, navigation, and more. Used by WordPress themes.</p>
+                    <div class="code-label">Response includes:</div>
+                    <ul style="margin: 1rem 0; padding-left: 1.5rem; color: #94a3b8;">
+                        <li>contact - Business name, email, phone, address, social links</li>
+                        <li>branding - Colors, fonts, logo, header/footer styles</li>
+                        <li>pages - About, Contact, Terms, Privacy content</li>
+                        <li>navigation - Header and footer menu items</li>
+                        <li>properties - Property list with room counts</li>
+                        <li>features - Feature flags (has_blog, has_attractions, etc.)</li>
+                        <li>website - Website builder settings (hero, intro, CTA, etc.)</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/public/client/{clientId}/page/{pageType}</span>
+                    <span class="tag tag-public">Public</span>
+                    <span class="endpoint-desc">Get single page content</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Returns content for a specific page type: about, contact, terms, privacy, faq</p>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/public/client/{clientId}/blog</span>
+                    <span class="tag tag-public">Public</span>
+                    <span class="endpoint-desc">Get blog posts</span>
+                </div>
+                <div class="endpoint-body">
+                    <table class="param-table">
+                        <tr><th>Parameter</th><th>Type</th><th>Description</th></tr>
+                        <tr>
+                            <td class="param-name">category</td>
+                            <td class="param-type">string</td>
+                            <td>Filter by category</td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">limit</td>
+                            <td class="param-type">integer</td>
+                            <td>Number of posts (default: 10)</td>
+                        </tr>
+                        <tr>
+                            <td class="param-name">offset</td>
+                            <td class="param-type">integer</td>
+                            <td>Pagination offset</td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- WEBSITE SETTINGS -->
+        <div class="section" id="website">
+            <h2 class="section-title">🎨 Website Settings</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/v1/website-settings</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Get all website builder settings</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Returns website builder settings organized by section: header, hero, intro, featured, reviews, cta, footer, styles.</p>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-get">GET</span>
+                    <span class="endpoint-path">/api/admin/website-builder/{section}</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Get section settings</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Sections: header, hero, intro, featured, reviews, cta, footer, styles</p>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/admin/website-builder/{section}</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Update section settings</span>
+                </div>
+                <div class="endpoint-body">
+                    <div class="code-label">Request Body</div>
+                    <div class="code-block">
+<pre>{
+  "client_id": 1,
+  "settings": {
+    "headline": "Welcome to Our Hotel",
+    "subheadline": "Experience luxury...",
+    "button_text": "Book Now"
+  }
+}</pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- WEBHOOKS -->
+        <div class="section" id="webhooks">
+            <h2 class="section-title">🔔 Webhooks</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/webhooks/smoobu</span>
+                    <span class="tag tag-public">Public</span>
+                    <span class="endpoint-desc">Smoobu webhook receiver</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Receives webhook events from Smoobu for booking updates, cancellations, and modifications.</p>
+                    <div class="code-label">Events Supported:</div>
+                    <ul style="margin: 1rem 0; padding-left: 1.5rem; color: #94a3b8;">
+                        <li>newReservation - New booking created</li>
+                        <li>cancelReservation - Booking cancelled</li>
+                        <li>updateReservation - Booking modified</li>
+                    </ul>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/webhooks/beds24</span>
+                    <span class="tag tag-public">Public</span>
+                    <span class="endpoint-desc">Beds24 webhook receiver</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Receives webhook events from Beds24 for real-time booking sync.</p>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/webhooks/hostaway</span>
+                    <span class="tag tag-public">Public</span>
+                    <span class="endpoint-desc">Hostaway webhook receiver</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Receives webhook events from Hostaway for real-time booking sync.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- CHANNEL MANAGER SYNC -->
+        <div class="section" id="sync">
+            <h2 class="section-title">🔄 Channel Manager Sync</h2>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/sync/smoobu</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Sync from Smoobu</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Manually trigger a full sync of properties, rooms, and bookings from Smoobu.</p>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/sync/beds24</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Sync from Beds24</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Manually trigger a full sync from Beds24.</p>
+                </div>
+            </div>
+            
+            <div class="endpoint">
+                <div class="endpoint-header" onclick="toggleEndpoint(this)">
+                    <span class="method method-post">POST</span>
+                    <span class="endpoint-path">/api/v1/sync/hostaway</span>
+                    <span class="tag tag-auth">Auth Required</span>
+                    <span class="endpoint-desc">Sync from Hostaway</span>
+                </div>
+                <div class="endpoint-body">
+                    <p>Manually trigger a full sync from Hostaway.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- SUPPORT -->
+        <div style="background: #1e293b; border-radius: 12px; padding: 2rem; margin-top: 3rem; text-align: center;">
+            <h3 style="color: #a5b4fc; margin-bottom: 1rem;">Need Help?</h3>
+            <p style="color: #94a3b8;">Contact us for API support, custom integrations, or to request additional endpoints.</p>
+            <p style="margin-top: 1rem;">
+                <a href="mailto:support@gas.travel" style="color: #6366f1;">support@gas.travel</a>
+            </p>
+        </div>
+    </div>
+
+    <script>
+        function toggleEndpoint(header) {
+            const endpoint = header.parentElement;
+            endpoint.classList.toggle('open');
+        }
+        
+        // Open first endpoint in each section by default
+        document.querySelectorAll('.section').forEach(section => {
+            const firstEndpoint = section.querySelector('.endpoint');
+            if (firstEndpoint) firstEndpoint.classList.add('open');
+        });
+    </script>
+</body>
+</html>
