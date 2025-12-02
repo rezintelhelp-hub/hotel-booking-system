@@ -6552,23 +6552,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success) {
                     const a = data.agency;
-                    const clients = data.clients || [];
+                    const properties = data.properties || [];
+                    const totalRooms = properties.reduce((sum, p) => sum + parseInt(p.room_count || 0), 0);
                     
                     document.getElementById('agency-detail-title').textContent = a.name;
-                    document.getElementById('agency-detail-subtitle').textContent = `${clients.length} clients · ${a.email}`;
+                    document.getElementById('agency-detail-subtitle').textContent = `${properties.length} properties · ${a.email}`;
                     
                     document.getElementById('agency-detail-content').innerHTML = `
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
                             <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent);">${clients.length}</div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Clients</div>
-                            </div>
-                            <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);">${clients.reduce((sum, c) => sum + parseInt(c.property_count || 0), 0)}</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);">${properties.length}</div>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Properties</div>
                             </div>
                             <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);">${clients.reduce((sum, c) => sum + parseInt(c.room_count || 0), 0)}</div>
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);">${totalRooms}</div>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Rooms</div>
                             </div>
                             <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; text-align: center;">
@@ -6577,46 +6574,42 @@ const promo = await fetch('/api/v1/offers/validate', {
                             </div>
                         </div>
                         
-                        <h4 style="margin: 1.5rem 0 1rem 0;">Agency Clients</h4>
-                        ${clients.length === 0 ? `
+                        <h4 style="margin: 1.5rem 0 1rem 0;">Agency Properties</h4>
+                        ${properties.length === 0 ? `
                             <div style="text-align: center; padding: 2rem; color: var(--text-secondary); background: var(--bg-primary); border-radius: 8px;">
-                                <p>No clients assigned to this agency yet.</p>
-                                <button class="btn btn-small" onclick="assignClientToAgency(${a.id})" style="margin-top: 1rem;">+ Assign Client</button>
+                                <p>No properties assigned to this agency yet.</p>
+                                <p style="font-size: 0.85rem; margin-top: 0.5rem;">Go to Properties and use the Agency dropdown to assign properties.</p>
                             </div>
                         ` : `
                             <div class="table-container">
                                 <table>
                                     <thead>
                                         <tr>
-                                            <th>Client</th>
-                                            <th>Properties</th>
+                                            <th>Property</th>
+                                            <th>Location</th>
                                             <th>Rooms</th>
                                             <th>Status</th>
                                             <th>Actions</th>
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        ${clients.map(c => `
+                                        ${properties.map(p => `
                                             <tr>
+                                                <td><strong>${p.name}</strong></td>
+                                                <td style="font-size: 0.85rem; color: var(--text-secondary);">${p.city || 'N/A'}, ${p.country || ''}</td>
+                                                <td><span class="badge">${p.room_count || 0}</span></td>
                                                 <td>
-                                                    <strong>${c.business_name || c.name}</strong>
-                                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">${c.email}</div>
-                                                </td>
-                                                <td><span class="badge">${c.property_count || 0}</span></td>
-                                                <td><span class="badge">${c.room_count || 0}</span></td>
-                                                <td>
-                                                    <span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-secondary'}">${c.status}</span>
+                                                    <span class="badge ${p.status === 'active' ? 'badge-success' : 'badge-secondary'}">${p.status || 'active'}</span>
                                                 </td>
                                                 <td>
-                                                    <button class="btn btn-secondary btn-small" onclick="selectClientAndClose(${c.id})" style="font-size: 0.75rem;">Manage</button>
-                                                    <button class="btn btn-secondary btn-small" onclick="removeClientFromAgency(${a.id}, ${c.id})" style="font-size: 0.75rem;">Remove</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="editProperty(${p.id}); closeModal('agencyDetailModal');" style="font-size: 0.75rem;">Edit</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="removePropertyFromAgency(${p.id}, ${a.id})" style="font-size: 0.75rem;">Remove</button>
                                                 </td>
                                             </tr>
                                         `).join('')}
                                     </tbody>
                                 </table>
                             </div>
-                            <button class="btn btn-secondary btn-small" onclick="assignClientToAgency(${a.id})" style="margin-top: 1rem;">+ Assign Another Client</button>
                         `}
                         
                         <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 1rem;">
@@ -6629,6 +6622,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (error) {
                 alert('Error loading agency: ' + error.message);
+            }
+        }
+        
+        async function removePropertyFromAgency(propertyId, agencyId) {
+            if (!confirm('Remove this property from the agency?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/properties/${propertyId}/assign-agency`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ agency_id: null })
+                });
+                const result = await response.json();
+                if (result.success) {
+                    viewAgency(agencyId);
+                    loadAgencies();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
             }
         }
 
