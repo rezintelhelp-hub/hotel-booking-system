@@ -970,8 +970,8 @@
                 <p>Property Management System</p>
             </div>
             
-            <!-- Client Selector -->
-            <div class="client-selector">
+            <!-- Client Selector - Hidden for now -->
+            <div class="client-selector" style="display: none;">
                 <label>👁️ Viewing Client</label>
                 <select id="globalClientSelector" onchange="switchClient(this.value)">
                     <option value="">🌐 All Clients (Admin View)</option>
@@ -980,6 +980,15 @@
                     <span class="dot"></span>
                     <span id="clientIndicatorText">All clients</span>
                 </div>
+            </div>
+            
+            <!-- Agency Filter Banner -->
+            <div id="agencyFilterBanner" style="display: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; border-radius: 8px; margin: 0 0.75rem 1rem 0.75rem; display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <span style="font-size: 0.75rem; opacity: 0.9;">VIEWING</span>
+                    <div id="agencyFilterName" style="font-weight: 600;"></div>
+                </div>
+                <button onclick="clearAgencyFilter()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">✕ Clear</button>
             </div>
 
             <nav class="nav">
@@ -6067,6 +6076,45 @@ const promo = await fetch('/api/v1/offers/validate', {
         let currentClientPublicId = null; // UUID or null for all clients
         let clientIdMap = {}; // Maps public_id -> internal id
         
+        // Agency filter - when set, all views filter by this agency
+        let selectedAgencyId = null;
+        let selectedAgencyName = null;
+        
+        // Set agency filter
+        function setAgencyFilter(agencyId, agencyName) {
+            selectedAgencyId = agencyId;
+            selectedAgencyName = agencyName;
+            
+            // Show banner
+            const banner = document.getElementById('agencyFilterBanner');
+            const nameEl = document.getElementById('agencyFilterName');
+            banner.style.display = 'flex';
+            nameEl.textContent = agencyName;
+            
+            // Reload current view with filter
+            const activeView = document.querySelector('.nav-item.active');
+            if (activeView) {
+                const viewName = activeView.getAttribute('data-view');
+                showView(viewName);
+            }
+        }
+        
+        // Clear agency filter
+        function clearAgencyFilter() {
+            selectedAgencyId = null;
+            selectedAgencyName = null;
+            
+            // Hide banner
+            document.getElementById('agencyFilterBanner').style.display = 'none';
+            
+            // Reload current view without filter
+            const activeView = document.querySelector('.nav-item.active');
+            if (activeView) {
+                const viewName = activeView.getAttribute('data-view');
+                showView(viewName);
+            }
+        }
+        
         // Get current client internal ID for API calls
         function getClientId() {
             if (!currentClientPublicId) return null;
@@ -6546,6 +6594,23 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
 
         async function viewAgency(agencyId) {
+            try {
+                const response = await fetch(`/api/admin/agencies/${agencyId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const a = data.agency;
+                    // Set the filter and navigate to dashboard
+                    setAgencyFilter(a.id, a.name);
+                    showView('dashboard');
+                }
+            } catch (error) {
+                alert('Error loading agency: ' + error.message);
+            }
+        }
+        
+        // View agency details in modal (for Edit button)
+        async function viewAgencyDetails(agencyId) {
             try {
                 const response = await fetch(`/api/admin/agencies/${agencyId}`);
                 const data = await response.json();
@@ -7199,22 +7264,33 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadProperties() {
             const container = document.getElementById('properties-list');
             try {
+                // Build query params
+                let queryParams = [];
+                if (selectedAgencyId) {
+                    queryParams.push(`agency_id=${selectedAgencyId}`);
+                }
                 const clientId = getClientId();
-                const clientParam = clientId ? `?client_id=${clientId}` : '';
+                if (clientId) {
+                    queryParams.push(`client_id=${clientId}`);
+                }
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
                 
                 // Fetch properties and agencies
                 const [propsRes, agenciesRes] = await Promise.all([
-                    fetch(`/api/db/properties${clientParam}`),
+                    fetch(`/api/db/properties${queryString}`),
                     fetch('/api/admin/agencies')
                 ]);
                 const data = await propsRes.json();
                 const agenciesData = await agenciesRes.json();
                 const agencies = agenciesData.agencies || [];
                 
-                // Build agency options for dropdown
-                const agencyOptions = agencies.map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+                // Filter properties by agency if filter is set
+                let properties = data.data || [];
+                if (selectedAgencyId && properties.length > 0) {
+                    properties = properties.filter(p => p.agency_id === selectedAgencyId);
+                }
                 
-                if (data.success && data.data && data.data.length > 0) {
+                if (properties.length > 0) {
                     const html = `
                         <div class="table-container">
                             <table>
@@ -7229,7 +7305,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${data.data.map(prop => {
+                                    ${properties.map(prop => {
                                         const currentAgency = agencies.find(a => a.id === prop.agency_id);
                                         return `
                                         <tr>
@@ -7255,9 +7331,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     container.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-icon">🏨</div>
-                            <h3>No Properties Yet</h3>
-                            <p>Import your first property from Beds24</p>
-                            <a href="/beds24-wizard.html" class="btn">Import Property</a>
+                            <h3>No Properties ${selectedAgencyId ? 'for this Agency' : 'Yet'}</h3>
+                            <p>${selectedAgencyId ? 'Assign properties to this agency from the Properties view.' : 'Import your first property from Beds24'}</p>
+                            ${!selectedAgencyId ? '<a href="/beds24-wizard.html" class="btn">Import Property</a>' : ''}
                         </div>
                     `;
                 }
