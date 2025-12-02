@@ -712,6 +712,21 @@ app.get('/api/setup-clients', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_client_id ON properties(client_id)`);
     console.log('✅ Created indexes');
 
+    // 5.5 Create client_settings table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS client_settings (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
+        setting_key VARCHAR(100) NOT NULL,
+        setting_value TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(client_id, setting_key)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_client_settings_client_id ON client_settings(client_id)`);
+    console.log('✅ Created client_settings table');
+
     // 6. Create default clients if none exist
     const existingClients = await pool.query('SELECT COUNT(*) FROM clients');
     if (parseInt(existingClients.rows[0].count) === 0) {
