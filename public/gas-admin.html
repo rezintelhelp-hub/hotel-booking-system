@@ -993,6 +993,10 @@
 
                 <div class="nav-section">
                     <div class="nav-label">Accounts</div>
+                    <a class="nav-item" data-view="agencies" href="#" onclick="navClick(this, 'agencies'); return false;">
+                        <span class="nav-icon">🏢</span>
+                        <span>Agencies</span>
+                    </a>
                     <a class="nav-item" data-view="clients" href="#" onclick="navClick(this, 'clients'); return false;">
                         <span class="nav-icon">👥</span>
                         <span>Clients</span>
@@ -1227,6 +1231,51 @@
                             <span>🧹</span>
                             <span>Remove Duplicates</span>
                         </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Agencies View -->
+            <div id="agencies" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🏢 Agencies</h2>
+                            <p>Manage agency partners who manage multiple clients</p>
+                        </div>
+                        <button class="btn" onclick="openAddAgencyModal()">
+                            <span>+</span>
+                            <span>Add Agency</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Stats -->
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-total-agencies">-</div>
+                        <div class="stat-label">Total Agencies</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-agency-clients">-</div>
+                        <div class="stat-label">Agency Clients</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-agency-properties">-</div>
+                        <div class="stat-label">Properties Managed</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-direct-clients">-</div>
+                        <div class="stat-label">Direct Clients</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="agencies-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading agencies...</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -4489,6 +4538,153 @@ const promo = await fetch('/api/v1/offers/validate', {
         </main>
     </div>
 
+    <!-- Add/Edit Agency Modal -->
+    <div id="agencyModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="agency-modal-title" style="margin: 0; font-size: 1.25rem;">🏢 Add New Agency</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Create an agency partner account</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('agencyModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="agency-form" onsubmit="saveAgency(event)">
+                    <input type="hidden" id="agency-id">
+                    <input type="hidden" id="agency-public-id">
+                    
+                    <!-- API Key Section (only shown when editing) -->
+                    <div id="agency-api-key-section" style="display: none; margin-bottom: 1.5rem; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); border-radius: 12px; padding: 1rem; color: white;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">🔑 Agency API Key</h4>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="agency-api-key-display" readonly style="flex: 1; padding: 0.6rem; border-radius: 6px; border: none; font-size: 0.8rem; background: rgba(255,255,255,0.95); color: #1e293b; font-family: monospace;">
+                            <button type="button" onclick="copyAgencyApiKey()" style="padding: 0.6rem 1rem; background: white; color: #4f46e5; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">📋 Copy</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Basic Info -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Basic Information</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Agency Name <span style="color: #ef4444;">*</span></label>
+                                <input type="text" id="agency-name" class="form-input" required placeholder="e.g., Elevate Schweiz GmbH">
+                            </div>
+                            <div class="form-group">
+                                <label>Email <span style="color: #ef4444;">*</span></label>
+                                <input type="email" id="agency-email" class="form-input" required placeholder="contact@agency.com">
+                            </div>
+                            <div class="form-group">
+                                <label>Phone</label>
+                                <input type="tel" id="agency-phone" class="form-input" placeholder="+41 58 590 99 91">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Website</label>
+                                <input type="url" id="agency-website" class="form-input" placeholder="https://www.agency.com">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Address -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Address</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Address Line 1</label>
+                                <input type="text" id="agency-address1" class="form-input" placeholder="Street address">
+                            </div>
+                            <div class="form-group">
+                                <label>City</label>
+                                <input type="text" id="agency-city" class="form-input" placeholder="City">
+                            </div>
+                            <div class="form-group">
+                                <label>Country</label>
+                                <input type="text" id="agency-country" class="form-input" value="Switzerland">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Branding (for future white-label) -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Branding</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label>Primary Color</label>
+                                <input type="color" id="agency-primary-color" class="form-input" value="#6366f1" style="height: 45px;">
+                            </div>
+                            <div class="form-group">
+                                <label>Secondary Color</label>
+                                <input type="color" id="agency-secondary-color" class="form-input" value="#8b5cf6" style="height: 45px;">
+                            </div>
+                            <div class="form-group" style="grid-column: 1 / -1;">
+                                <label>Logo URL</label>
+                                <input type="url" id="agency-logo" class="form-input" placeholder="https://...">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Settings -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.9rem; text-transform: uppercase; letter-spacing: 0.05em;">Settings</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label>Currency</label>
+                                <select id="agency-currency" class="form-input">
+                                    <option value="CHF">🇨🇭 CHF</option>
+                                    <option value="EUR">€ EUR</option>
+                                    <option value="GBP">£ GBP</option>
+                                    <option value="USD">$ USD</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Plan</label>
+                                <select id="agency-plan" class="form-input">
+                                    <option value="agency">Agency</option>
+                                    <option value="enterprise">Enterprise</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label>Status</label>
+                                <select id="agency-status" class="form-input">
+                                    <option value="active">Active</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="suspended">Suspended</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Notes -->
+                    <div class="form-group">
+                        <label>Internal Notes</label>
+                        <textarea id="agency-notes" class="form-input" rows="2" placeholder="Any internal notes about this agency..."></textarea>
+                    </div>
+
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('agencyModal')">Cancel</button>
+                        <button type="submit" class="btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">Save Agency</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Agency Detail Modal -->
+    <div id="agencyDetailModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="agency-detail-title" style="margin: 0; font-size: 1.25rem;">Agency Details</h3>
+                    <p id="agency-detail-subtitle" style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;"></p>
+                </div>
+                <button class="modal-close" onclick="closeModal('agencyDetailModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div id="agency-detail-content">Loading...</div>
+            </div>
+        </div>
+    </div>
+
     <!-- Add/Edit Client Modal -->
     <div id="clientModal" class="modal">
         <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
@@ -5982,6 +6178,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load data for specific views
             if (viewName === 'dashboard') loadDashboard();
+            if (viewName === 'agencies') loadAgencies();
             if (viewName === 'clients') loadClients();
             if (viewName === 'properties') loadProperties();
             if (viewName === 'rooms') loadRooms();
@@ -6131,6 +6328,364 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <button class="btn btn-secondary btn-small" onclick="document.getElementById('review-${reviewId}').remove()">🗑️ Remove</button>
                 </div>
             `;
+        }
+
+        // =========================================================
+        // AGENCY MANAGEMENT FUNCTIONS
+        // =========================================================
+
+        async function loadAgencies() {
+            const container = document.getElementById('agencies-list');
+            try {
+                const response = await fetch('/api/admin/agencies');
+                const data = await response.json();
+                
+                // Also get direct clients count (clients without agency)
+                const clientsRes = await fetch('/api/admin/clients');
+                const clientsData = await clientsRes.json();
+                const directClients = clientsData.clients?.filter(c => !c.agency_id) || [];
+                const agencyClients = clientsData.clients?.filter(c => c.agency_id) || [];
+                
+                if (data.success && data.agencies) {
+                    // Update stats
+                    document.getElementById('stat-total-agencies').textContent = data.agencies.length;
+                    document.getElementById('stat-agency-clients').textContent = agencyClients.length;
+                    document.getElementById('stat-agency-properties').textContent = data.agencies.reduce((sum, a) => sum + parseInt(a.property_count || 0), 0);
+                    document.getElementById('stat-direct-clients').textContent = directClients.length;
+                    
+                    if (data.agencies.length === 0) {
+                        container.innerHTML = `
+                            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <p style="font-size: 3rem; margin-bottom: 1rem;">🏢</p>
+                                <p>No agencies yet.</p>
+                                <p style="font-size: 0.9rem; margin-top: 0.5rem;">Agencies are partners who manage multiple property owners.</p>
+                                <button class="btn" onclick="openAddAgencyModal()" style="margin-top: 1rem;">Add Your First Agency</button>
+                            </div>
+                        `;
+                        return;
+                    }
+                    
+                    container.innerHTML = `
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Agency</th>
+                                        <th>Clients</th>
+                                        <th>Properties</th>
+                                        <th>Plan</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.agencies.map(agency => `
+                                        <tr>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                                    <div style="width: 40px; height: 40px; border-radius: 8px; background: linear-gradient(135deg, ${agency.primary_color || '#10b981'} 0%, ${agency.secondary_color || '#059669'} 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700;">
+                                                        ${agency.name.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <strong>${agency.name}</strong>
+                                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">${agency.email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td><span class="badge">${agency.client_count || 0}</span></td>
+                                            <td><span class="badge">${agency.property_count || 0}</span></td>
+                                            <td>
+                                                <span class="badge ${agency.plan === 'enterprise' ? 'badge-warning' : 'badge-success'}">
+                                                    ${agency.plan}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <span class="badge ${agency.status === 'active' ? 'badge-success' : agency.status === 'pending' ? 'badge-warning' : 'badge-secondary'}">
+                                                    ${agency.status}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-secondary btn-small" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="viewAgency(${agency.id})">View</button>
+                                                <button class="btn btn-secondary btn-small" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="editAgency(${agency.id})">Edit</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Error loading agencies. Run /api/setup-clients first.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading agencies:', error);
+                container.innerHTML = `<p style="color: var(--error); text-align: center; padding: 2rem;">Error loading agencies: ${error.message}</p>`;
+            }
+        }
+
+        function openAddAgencyModal() {
+            document.getElementById('agency-id').value = '';
+            document.getElementById('agency-public-id').value = '';
+            document.getElementById('agency-form').reset();
+            document.getElementById('agency-modal-title').textContent = '🏢 Add New Agency';
+            document.getElementById('agency-country').value = 'Switzerland';
+            document.getElementById('agency-primary-color').value = '#6366f1';
+            document.getElementById('agency-secondary-color').value = '#8b5cf6';
+            document.getElementById('agency-api-key-section').style.display = 'none';
+            openModal('agencyModal');
+        }
+
+        async function editAgency(agencyId) {
+            try {
+                const response = await fetch(`/api/admin/agencies/${agencyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.agency) {
+                    const a = data.agency;
+                    document.getElementById('agency-id').value = a.id;
+                    document.getElementById('agency-public-id').value = a.public_id || '';
+                    document.getElementById('agency-name').value = a.name || '';
+                    document.getElementById('agency-email').value = a.email || '';
+                    document.getElementById('agency-phone').value = a.phone || '';
+                    document.getElementById('agency-website').value = a.website_url || '';
+                    document.getElementById('agency-address1').value = a.address_line1 || '';
+                    document.getElementById('agency-city').value = a.city || '';
+                    document.getElementById('agency-country').value = a.country || 'Switzerland';
+                    document.getElementById('agency-primary-color').value = a.primary_color || '#6366f1';
+                    document.getElementById('agency-secondary-color').value = a.secondary_color || '#8b5cf6';
+                    document.getElementById('agency-logo').value = a.logo_url || '';
+                    document.getElementById('agency-currency').value = a.currency || 'CHF';
+                    document.getElementById('agency-plan').value = a.plan || 'agency';
+                    document.getElementById('agency-status').value = a.status || 'active';
+                    document.getElementById('agency-notes').value = a.notes || '';
+                    
+                    // Show API key
+                    if (a.api_key) {
+                        document.getElementById('agency-api-key-display').value = a.api_key;
+                        document.getElementById('agency-api-key-section').style.display = 'block';
+                    } else {
+                        document.getElementById('agency-api-key-section').style.display = 'none';
+                    }
+                    
+                    document.getElementById('agency-modal-title').textContent = '✏️ Edit Agency';
+                    openModal('agencyModal');
+                }
+            } catch (error) {
+                alert('Error loading agency: ' + error.message);
+            }
+        }
+
+        async function saveAgency(event) {
+            event.preventDefault();
+            
+            const agencyId = document.getElementById('agency-id').value;
+            const agencyData = {
+                name: document.getElementById('agency-name').value,
+                email: document.getElementById('agency-email').value,
+                phone: document.getElementById('agency-phone').value,
+                website_url: document.getElementById('agency-website').value,
+                address_line1: document.getElementById('agency-address1').value,
+                city: document.getElementById('agency-city').value,
+                country: document.getElementById('agency-country').value,
+                primary_color: document.getElementById('agency-primary-color').value,
+                secondary_color: document.getElementById('agency-secondary-color').value,
+                logo_url: document.getElementById('agency-logo').value,
+                currency: document.getElementById('agency-currency').value,
+                plan: document.getElementById('agency-plan').value,
+                status: document.getElementById('agency-status').value,
+                notes: document.getElementById('agency-notes').value
+            };
+            
+            try {
+                const url = agencyId ? `/api/admin/agencies/${agencyId}` : '/api/admin/agencies';
+                const method = agencyId ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method: method,
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(agencyData)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeModal('agencyModal');
+                    loadAgencies();
+                    // If new agency, show success with API key
+                    if (!agencyId && result.agency?.api_key) {
+                        alert(`✅ Agency created!\n\nAPI Key: ${result.agency.api_key}\n\nSave this key - it's needed for API access.`);
+                    }
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error saving agency: ' + error.message);
+            }
+        }
+
+        async function viewAgency(agencyId) {
+            try {
+                const response = await fetch(`/api/admin/agencies/${agencyId}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const a = data.agency;
+                    const clients = data.clients || [];
+                    
+                    document.getElementById('agency-detail-title').textContent = a.name;
+                    document.getElementById('agency-detail-subtitle').textContent = `${clients.length} clients · ${a.email}`;
+                    
+                    document.getElementById('agency-detail-content').innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                            <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--accent);">${clients.length}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Clients</div>
+                            </div>
+                            <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--success);">${clients.reduce((sum, c) => sum + parseInt(c.property_count || 0), 0)}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Properties</div>
+                            </div>
+                            <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);">${clients.reduce((sum, c) => sum + parseInt(c.room_count || 0), 0)}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Rooms</div>
+                            </div>
+                            <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; text-align: center;">
+                                <div style="font-size: 1.5rem; font-weight: 700;">${a.plan}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Plan</div>
+                            </div>
+                        </div>
+                        
+                        <h4 style="margin: 1.5rem 0 1rem 0;">Agency Clients</h4>
+                        ${clients.length === 0 ? `
+                            <div style="text-align: center; padding: 2rem; color: var(--text-secondary); background: var(--bg-primary); border-radius: 8px;">
+                                <p>No clients assigned to this agency yet.</p>
+                                <button class="btn btn-small" onclick="assignClientToAgency(${a.id})" style="margin-top: 1rem;">+ Assign Client</button>
+                            </div>
+                        ` : `
+                            <div class="table-container">
+                                <table>
+                                    <thead>
+                                        <tr>
+                                            <th>Client</th>
+                                            <th>Properties</th>
+                                            <th>Rooms</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        ${clients.map(c => `
+                                            <tr>
+                                                <td>
+                                                    <strong>${c.business_name || c.name}</strong>
+                                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">${c.email}</div>
+                                                </td>
+                                                <td><span class="badge">${c.property_count || 0}</span></td>
+                                                <td><span class="badge">${c.room_count || 0}</span></td>
+                                                <td>
+                                                    <span class="badge ${c.status === 'active' ? 'badge-success' : 'badge-secondary'}">${c.status}</span>
+                                                </td>
+                                                <td>
+                                                    <button class="btn btn-secondary btn-small" onclick="selectClientAndClose(${c.id})" style="font-size: 0.75rem;">Manage</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="removeClientFromAgency(${a.id}, ${c.id})" style="font-size: 0.75rem;">Remove</button>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                            <button class="btn btn-secondary btn-small" onclick="assignClientToAgency(${a.id})" style="margin-top: 1rem;">+ Assign Another Client</button>
+                        `}
+                        
+                        <div style="margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border); display: flex; gap: 1rem;">
+                            <button onclick="editAgency(${a.id}); closeModal('agencyDetailModal');" class="btn btn-secondary">Edit Agency</button>
+                            <button onclick="closeModal('agencyDetailModal')" class="btn">Close</button>
+                        </div>
+                    `;
+                    
+                    openModal('agencyDetailModal');
+                }
+            } catch (error) {
+                alert('Error loading agency: ' + error.message);
+            }
+        }
+
+        function copyAgencyApiKey() {
+            const keyInput = document.getElementById('agency-api-key-display');
+            keyInput.select();
+            navigator.clipboard.writeText(keyInput.value).then(() => {
+                alert('✅ API key copied!');
+            }).catch(() => {
+                document.execCommand('copy');
+                alert('✅ Copied!');
+            });
+        }
+
+        async function assignClientToAgency(agencyId) {
+            // Get unassigned clients
+            const response = await fetch('/api/admin/clients');
+            const data = await response.json();
+            const unassignedClients = data.clients?.filter(c => !c.agency_id) || [];
+            
+            if (unassignedClients.length === 0) {
+                alert('No unassigned clients available. Create a new client first.');
+                return;
+            }
+            
+            const clientOptions = unassignedClients.map(c => `${c.id}: ${c.business_name || c.name}`).join('\n');
+            const selectedId = prompt(`Enter client ID to assign:\n\n${clientOptions}`);
+            
+            if (selectedId) {
+                try {
+                    const res = await fetch(`/api/admin/agencies/${agencyId}/assign-client`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ client_id: parseInt(selectedId) })
+                    });
+                    const result = await res.json();
+                    if (result.success) {
+                        alert('✅ Client assigned to agency!');
+                        viewAgency(agencyId);
+                        loadAgencies();
+                    } else {
+                        alert('Error: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('Error: ' + error.message);
+                }
+            }
+        }
+
+        async function removeClientFromAgency(agencyId, clientId) {
+            if (!confirm('Remove this client from the agency? They will become a direct client.')) return;
+            
+            try {
+                const res = await fetch(`/api/admin/agencies/${agencyId}/remove-client`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId })
+                });
+                const result = await res.json();
+                if (result.success) {
+                    alert('✅ Client removed from agency');
+                    viewAgency(agencyId);
+                    loadAgencies();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+
+        function selectClientAndClose(clientId) {
+            closeModal('agencyDetailModal');
+            // Select the client in the dropdown and switch to their view
+            document.getElementById('client-selector').value = clientId;
+            clientId = clientId;
+            selectedClientId = clientId;
+            localStorage.setItem('selectedClientId', clientId);
+            showView('dashboard');
         }
 
         // =========================================================
