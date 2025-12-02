@@ -10840,6 +10840,154 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
     }
 });
 
+// =========================================================
+// AI CHAT ASSISTANT (GAS Support Bot)
+// =========================================================
+
+// Rate limiting for chat - simple in-memory store
+const chatRateLimits = new Map();
+const CHAT_RATE_LIMIT = 20; // messages per minute
+const CHAT_RATE_WINDOW = 60000; // 1 minute
+
+function checkChatRateLimit(ip) {
+  const now = Date.now();
+  const userLimits = chatRateLimits.get(ip) || { count: 0, resetAt: now + CHAT_RATE_WINDOW };
+  
+  if (now > userLimits.resetAt) {
+    userLimits.count = 0;
+    userLimits.resetAt = now + CHAT_RATE_WINDOW;
+  }
+  
+  userLimits.count++;
+  chatRateLimits.set(ip, userLimits);
+  
+  return userLimits.count <= CHAT_RATE_LIMIT;
+}
+
+// GAS Documentation context for the AI
+const GAS_SYSTEM_PROMPT = `You are the GAS Assistant - a helpful, friendly AI support bot for the Global Accommodation System (GAS).
+
+ABOUT GAS:
+- GAS is a FREE listing platform for independent hotels, B&Bs, and vacation rentals
+- GAS connects property owners with independent travel agents (NOT large OTAs)
+- GAS does NOT connect to Booking.com, Expedia, or Airbnb
+- GAS does NOT collect payments - payments happen on the owner's website
+- GAS philosophy: "Pay Less. Keep More." - helping owners escape 15-20% OTA commissions
+
+SUPPORTED CHANNEL MANAGERS:
+- Beds24 (Ready) - Connect via invite code from Settings → Account → API
+- Hostaway (Ready) - Connect via Account ID + API Key from Settings → API
+- Smoobu (Ready) - Connect via API Key from Settings → API
+- Guesty, Cloudbeds, Lodgify, OwnerRez - Coming soon
+
+FOR PROPERTY OWNERS - ONBOARDING STEPS:
+1. Create account or use setup link provided
+2. Connect channel manager (Beds24, Hostaway, or Smoobu)
+3. Import properties and rooms
+4. Add/verify images (must be landscape, min 1200x800px)
+5. Complete amenities
+6. Set up content pages (About, Contact, Terms)
+7. Configure pricing, offers, vouchers if desired
+8. Add upsells and tourist taxes if applicable
+9. Connect website via WordPress plugin or API
+10. Go live!
+
+FOR TRAVEL AGENTS:
+- Register for free to browse independent properties
+- Search by location, amenities, property type
+- Check real-time availability
+- Request bookings directly with properties
+- Earn commission on bookings (set by property owner)
+
+KEY FEATURES:
+- Vouchers: Private discount codes for specific customers
+- Offers: Public promotions visible to all
+- Upsells: Additional services at checkout (breakfast, transfers, etc.)
+- Tourist Taxes: Automatic tax calculation per night/person
+- Tags: Property categorization for search (family-friendly, eco, accessibility, etc.)
+
+COMMON ISSUES & SOLUTIONS:
+- "Can't connect CM" → Check API credentials, ensure subscription includes API access
+- "Prices not syncing" → Click manual sync button, verify prices exist in CM
+- "Images rejected" → Must be landscape orientation, minimum 1200x800 pixels
+- "Property not showing" → Check status is "Active" and all required fields complete
+
+IMPORTANT RULES FOR RESPONSES:
+1. Be helpful, concise, and friendly
+2. Never make up features that don't exist
+3. If unsure, say "I'm not certain about that - please contact support@gettingautomated.com"
+4. Guide users step-by-step when explaining processes
+5. Always clarify that GAS is NOT an OTA
+6. For technical issues, suggest contacting support
+7. You cannot access, modify, or view any user data - you are informational only
+8. Never share API keys, passwords, or sensitive information
+9. Keep responses focused on GAS - don't go off-topic`;
+
+// Chat endpoint
+app.post('/api/chat', async (req, res) => {
+  try {
+    // Rate limiting
+    const clientIp = req.ip || req.connection.remoteAddress;
+    if (!checkChatRateLimit(clientIp)) {
+      return res.status(429).json({ 
+        success: false, 
+        error: 'Too many messages. Please wait a moment before sending more.' 
+      });
+    }
+    
+    const { message, conversationHistory = [] } = req.body;
+    
+    if (!message || typeof message !== 'string') {
+      return res.status(400).json({ success: false, error: 'Message is required' });
+    }
+    
+    // Limit message length
+    if (message.length > 1000) {
+      return res.status(400).json({ success: false, error: 'Message too long (max 1000 characters)' });
+    }
+    
+    // Limit conversation history to last 10 messages to control token usage
+    const recentHistory = conversationHistory.slice(-10);
+    
+    // Build messages array for Claude
+    const messages = [
+      ...recentHistory.map(msg => ({
+        role: msg.role,
+        content: msg.content
+      })),
+      { role: 'user', content: message }
+    ];
+    
+    // Call Claude API
+    const response = await axios.post('https://api.anthropic.com/v1/messages', {
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 500,
+      system: GAS_SYSTEM_PROMPT,
+      messages: messages
+    }, {
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01'
+      }
+    });
+    
+    const assistantMessage = response.data.content[0].text;
+    
+    res.json({ 
+      success: true, 
+      message: assistantMessage 
+    });
+    
+  } catch (error) {
+    console.error('Chat error:', error.response?.data || error.message);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Sorry, I encountered an error. Please try again or contact support@gettingautomated.com' 
+    });
+  }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
