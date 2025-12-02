@@ -9831,7 +9831,14 @@ app.post('/api/admin/clients/:id/convert-to-agency', async (req, res) => {
     // Check if agency with this email already exists
     const existingAgency = await pool.query(`SELECT id FROM agencies WHERE email = $1`, [client.email]);
     if (existingAgency.rows.length > 0) {
-      return res.json({ success: false, error: 'Agency with this email already exists' });
+      // Agency already exists - just link the client to it
+      const agencyId = existingAgency.rows[0].id;
+      await pool.query(`UPDATE clients SET agency_id = $1 WHERE id = $2`, [agencyId, id]);
+      return res.json({ 
+        success: true, 
+        agency: existingAgency.rows[0],
+        message: `Client linked to existing agency.`
+      });
     }
     
     // Create the agency
@@ -9858,13 +9865,41 @@ app.post('/api/admin/clients/:id/convert-to-agency', async (req, res) => {
       apiKey
     ]);
     
+    const newAgencyId = agencyRes.rows[0].id;
+    
+    // Link the client to the new agency (so properties show under agency)
+    await pool.query(`UPDATE clients SET agency_id = $1 WHERE id = $2`, [newAgencyId, id]);
+    
     res.json({ 
       success: true, 
       agency: agencyRes.rows[0],
-      message: `Converted ${client.name} to agency. The client entry will no longer appear in Clients list.`
+      message: `Converted ${client.name} to agency. Properties are now linked.`
     });
   } catch (error) {
     console.error('Convert to agency error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fix agency-client links (link clients to agencies by matching email)
+app.post('/api/admin/fix-agency-links', async (req, res) => {
+  try {
+    // Find all clients whose email matches an agency email and link them
+    const result = await pool.query(`
+      UPDATE clients c
+      SET agency_id = a.id
+      FROM agencies a
+      WHERE c.email = a.email AND c.agency_id IS NULL
+      RETURNING c.id, c.name, c.email, a.id as agency_id, a.name as agency_name
+    `);
+    
+    res.json({ 
+      success: true, 
+      message: `Linked ${result.rows.length} clients to their agencies`,
+      linked: result.rows
+    });
+  } catch (error) {
+    console.error('Fix agency links error:', error);
     res.json({ success: false, error: error.message });
   }
 });
