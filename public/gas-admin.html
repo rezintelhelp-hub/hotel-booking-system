@@ -4502,6 +4502,18 @@ const promo = await fetch('/api/v1/offers/validate', {
             <div class="modal-body" style="padding: 1.5rem;">
                 <form id="client-form" onsubmit="saveClient(event)">
                     <input type="hidden" id="client-id">
+                    <input type="hidden" id="client-public-id">
+                    
+                    <!-- Setup Link Section (only shown when editing) -->
+                    <div id="client-setup-link-section" style="display: none; margin-bottom: 1.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); border-radius: 12px; padding: 1rem; color: white;">
+                        <h4 style="margin: 0 0 0.75rem 0; font-size: 0.9rem; display: flex; align-items: center; gap: 0.5rem;">🔗 Client Setup Link</h4>
+                        <p style="font-size: 0.8rem; margin: 0 0 0.75rem 0; opacity: 0.9;">Send this link to your client so they can connect their channel manager:</p>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="client-setup-link-display" readonly style="flex: 1; padding: 0.6rem; border-radius: 6px; border: none; font-size: 0.85rem; background: rgba(255,255,255,0.95); color: #1e293b;">
+                            <button type="button" onclick="copyClientSetupLink()" style="padding: 0.6rem 1rem; background: white; color: #059669; border: none; border-radius: 6px; font-weight: 600; cursor: pointer;">📋 Copy</button>
+                        </div>
+                        <p style="font-size: 0.75rem; margin: 0.5rem 0 0 0; opacity: 0.8;">UUID: <span id="client-uuid-display"></span></p>
+                    </div>
                     
                     <!-- Basic Info -->
                     <div style="margin-bottom: 1.5rem;">
@@ -6222,9 +6234,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function openAddClientModal() {
             document.getElementById('client-id').value = '';
+            document.getElementById('client-public-id').value = '';
             document.getElementById('client-form').reset();
             document.getElementById('client-modal-title').textContent = '👥 Add New Client';
             document.getElementById('client-country').value = 'United Kingdom';
+            document.getElementById('client-setup-link-section').style.display = 'none';
             openModal('clientModal');
         }
 
@@ -6236,6 +6250,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success && data.client) {
                     const c = data.client;
                     document.getElementById('client-id').value = c.id;
+                    document.getElementById('client-public-id').value = c.public_id || '';
                     document.getElementById('client-name').value = c.name || '';
                     document.getElementById('client-email').value = c.email || '';
                     document.getElementById('client-phone').value = c.phone || '';
@@ -6250,12 +6265,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('client-status').value = c.status || 'active';
                     document.getElementById('client-notes').value = c.notes || '';
                     
+                    // Show setup link section with UUID
+                    const setupLinkSection = document.getElementById('client-setup-link-section');
+                    if (c.public_id) {
+                        const setupLink = `${window.location.origin}/smoobu-wizard.html?c=${c.public_id}`;
+                        document.getElementById('client-setup-link-display').value = setupLink;
+                        document.getElementById('client-uuid-display').textContent = c.public_id;
+                        setupLinkSection.style.display = 'block';
+                    } else {
+                        setupLinkSection.style.display = 'none';
+                    }
+                    
                     document.getElementById('client-modal-title').textContent = '✏️ Edit Client';
                     openModal('clientModal');
                 }
             } catch (error) {
                 alert('Error loading client: ' + error.message);
             }
+        }
+        
+        function copyClientSetupLink() {
+            const linkInput = document.getElementById('client-setup-link-display');
+            linkInput.select();
+            navigator.clipboard.writeText(linkInput.value).then(() => {
+                alert('✅ Setup link copied!\n\n' + linkInput.value);
+            }).catch(() => {
+                document.execCommand('copy');
+                alert('✅ Copied!');
+            });
         }
 
         async function saveClient(event) {
