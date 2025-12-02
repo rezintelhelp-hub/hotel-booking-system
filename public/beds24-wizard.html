@@ -542,6 +542,10 @@
         let properties = [];
         let selectedProperties = [];
         
+        // Get client ID from URL if present
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientPublicId = urlParams.get('c');
+        
         function showError(stepNum, message) {
             const errorEl = document.getElementById('error' + stepNum);
             errorEl.textContent = message;
@@ -588,7 +592,7 @@
                 const response = await fetch('/api/beds24/setup-connection', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ inviteCode })
+                    body: JSON.stringify({ inviteCode, clientPublicId })
                 });
                 
                 const data = await response.json();
