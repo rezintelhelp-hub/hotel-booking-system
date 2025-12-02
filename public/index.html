@@ -444,6 +444,32 @@
             color: var(--primary);
         }
 
+        .chat-quick-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            margin-top: 12px;
+        }
+
+        .chat-quick-btn {
+            padding: 10px 14px;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-primary);
+            text-align: left;
+        }
+
+        .chat-quick-btn:hover {
+            border-color: var(--primary);
+            background: #f8f7ff;
+            color: var(--primary);
+        }
+
         .chat-input-area {
             padding: 12px 16px;
             border-top: 1px solid var(--border);
@@ -902,17 +928,17 @@
             </div>
             <div class="chat-body" id="chatBody">
                 <div class="chat-message bot">
-                    👋 Hi! I'm the GAS Assistant. I can help you with:
-                    <br><br>
-                    • <strong>Property owners</strong> - Setting up your listing, connecting your channel manager, managing pricing & availability
-                    <br><br>
-                    • <strong>Travel agents</strong> - Finding properties, understanding how GAS works, getting started
-                    <br><br>
-                    What would you like to know?
+                    👋 Hi! How can I help you today?
+                    <div class="chat-quick-actions">
+                        <button class="chat-quick-btn" onclick="sendQuickMessage('I want to list my property')">🏨 List my property</button>
+                        <button class="chat-quick-btn" onclick="sendQuickMessage('I am a travel agent')">✈️ I'm a travel agent</button>
+                        <button class="chat-quick-btn" onclick="sendQuickMessage('What is GAS?')">❓ What is GAS?</button>
+                        <button class="chat-quick-btn" onclick="sendQuickMessage('I need help connecting my channel manager')">🔗 Connect channel manager</button>
+                    </div>
                 </div>
             </div>
             <div class="chat-input-area">
-                <input type="text" class="chat-input" id="chatInput" placeholder="Type your question..." onkeypress="handleChatKeypress(event)">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Or type your question..." onkeypress="handleChatKeypress(event)">
                 <button class="chat-send-btn" id="chatSendBtn" onclick="sendChatMessage()">Send</button>
             </div>
         </div>
@@ -996,6 +1022,12 @@
                 event.preventDefault();
                 sendChatMessage();
             }
+        }
+
+        // Send a quick pre-set message
+        function sendQuickMessage(message) {
+            document.getElementById('chatInput').value = message;
+            sendChatMessage();
         }
 
         // Send chat message
