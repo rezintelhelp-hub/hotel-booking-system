@@ -6095,66 +6095,43 @@ const promo = await fetch('/api/v1/offers/validate', {
                 selector.innerHTML = '<option value="">🌐 All Clients (Admin View)</option>';
                 clientIdMap = {}; // Reset map
                 
-                if (clientsData.success && clientsData.clients) {
-                    const clients = clientsData.clients;
-                    const agencies = agenciesData.agencies || [];
-                    
-                    // Separate direct clients (no agency) from agency clients
-                    const directClients = clients.filter(c => !c.agency_id);
-                    const agencyClients = clients.filter(c => c.agency_id);
-                    
-                    // Add agencies as optgroups with their clients
+                const agencies = agenciesData.agencies || [];
+                const clients = clientsData.clients || [];
+                
+                // Add agencies first
+                if (agencies.length > 0) {
+                    const agencyGroup = document.createElement('optgroup');
+                    agencyGroup.label = '🏢 Agencies';
                     agencies.forEach(agency => {
-                        const agencyClientsList = agencyClients.filter(c => c.agency_id === agency.id);
-                        if (agencyClientsList.length > 0 || true) { // Show agency even if no clients yet
-                            const optgroup = document.createElement('optgroup');
-                            optgroup.label = `🏢 ${agency.name}`;
-                            
-                            // Add agency-level option
-                            const agencyOption = document.createElement('option');
-                            agencyOption.value = `agency_${agency.id}`;
-                            agencyOption.textContent = `📊 All ${agency.name} clients`;
-                            agencyOption.style.fontWeight = 'bold';
-                            optgroup.appendChild(agencyOption);
-                            
-                            // Add clients under this agency
-                            agencyClientsList.forEach(client => {
-                                const option = document.createElement('option');
-                                const publicId = client.public_id || client.id;
-                                option.value = publicId;
-                                option.textContent = `  └ ${client.business_name || client.name || 'Client'}`;
-                                optgroup.appendChild(option);
-                                clientIdMap[publicId] = client.id;
-                            });
-                            
-                            selector.appendChild(optgroup);
-                        }
+                        const option = document.createElement('option');
+                        option.value = `agency_${agency.id}`;
+                        option.textContent = agency.name;
+                        agencyGroup.appendChild(option);
                     });
-                    
-                    // Add direct clients (not under any agency)
-                    if (directClients.length > 0) {
-                        const optgroup = document.createElement('optgroup');
-                        optgroup.label = '👤 Direct Clients';
-                        
-                        directClients.forEach(client => {
-                            const option = document.createElement('option');
-                            const publicId = client.public_id || client.id;
-                            option.value = publicId;
-                            option.textContent = client.business_name || client.name || 'Client';
-                            optgroup.appendChild(option);
-                            clientIdMap[publicId] = client.id;
-                        });
-                        
-                        selector.appendChild(optgroup);
-                    }
-                    
-                    // Check URL for client parameter and select it
-                    const urlParams = new URLSearchParams(window.location.search);
-                    const urlClientId = urlParams.get('client');
-                    if (urlClientId && clientIdMap[urlClientId]) {
-                        selector.value = urlClientId;
-                        switchClient(urlClientId, false); // Don't update URL again
-                    }
+                    selector.appendChild(agencyGroup);
+                }
+                
+                // Add direct clients (API already filters out agencies)
+                if (clients.length > 0) {
+                    const clientGroup = document.createElement('optgroup');
+                    clientGroup.label = '👤 Direct Clients';
+                    clients.forEach(client => {
+                        const option = document.createElement('option');
+                        const publicId = client.public_id || client.id;
+                        option.value = publicId;
+                        option.textContent = client.business_name || client.name || 'Client';
+                        clientGroup.appendChild(option);
+                        clientIdMap[publicId] = client.id;
+                    });
+                    selector.appendChild(clientGroup);
+                }
+                
+                // Check URL for client parameter and select it
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlClientId = urlParams.get('client');
+                if (urlClientId && clientIdMap[urlClientId]) {
+                    selector.value = urlClientId;
+                    switchClient(urlClientId, false);
                 }
             } catch (error) {
                 console.error('Error loading clients:', error);
@@ -6740,24 +6717,14 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadClients() {
             const container = document.getElementById('clients-list');
             try {
-                const [clientsRes, agenciesRes, unassignedRes] = await Promise.all([
+                const [clientsRes, unassignedRes] = await Promise.all([
                     fetch('/api/admin/clients'),
-                    fetch('/api/admin/agencies'),
                     fetch('/api/admin/properties/unassigned')
                 ]);
                 const data = await clientsRes.json();
-                const agenciesData = await agenciesRes.json();
                 const unassignedData = await unassignedRes.json();
                 
-                // Create agency lookup map
-                const agencyMap = {};
-                (agenciesData.agencies || []).forEach(a => agencyMap[a.id] = a.name);
-                
                 if (data.success && data.clients) {
-                    // Separate direct clients from agency-managed clients
-                    const directClients = data.clients.filter(c => !c.agency_id);
-                    const agencyClients = data.clients.filter(c => c.agency_id);
-                    
                     // Update stats
                     document.getElementById('stat-total-clients').textContent = data.clients.length;
                     document.getElementById('stat-active-clients').textContent = data.clients.filter(c => c.status === 'active').length;
@@ -6768,8 +6735,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                         container.innerHTML = `
                             <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                                 <p style="font-size: 3rem; margin-bottom: 1rem;">👥</p>
-                                <p>No clients yet.</p>
-                                <button class="btn" onclick="openAddClientModal()" style="margin-top: 1rem;">Add Your First Client</button>
+                                <p>No direct clients. All accounts are agencies.</p>
+                                <button class="btn" onclick="openAddClientModal()" style="margin-top: 1rem;">Add Direct Client</button>
                             </div>
                         `;
                         return;
@@ -6781,7 +6748,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <thead>
                                     <tr>
                                         <th>Client</th>
-                                        <th>Agency</th>
                                         <th>Properties</th>
                                         <th>Plan</th>
                                         <th>Status</th>
@@ -6796,18 +6762,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                                                 <strong>${client.business_name || client.name}</strong>
                                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">${client.email}</div>
                                             </td>
-                                            <td>
-                                                ${client.agency_id ? `
-                                                    <span class="badge badge-success" style="font-size: 0.7rem;">
-                                                        🏢 ${agencyMap[client.agency_id] || 'Unknown'}
-                                                    </span>
-                                                ` : `
-                                                    <span style="color: var(--text-muted); font-size: 0.8rem;">Direct</span>
-                                                `}
-                                            </td>
                                             <td><span class="badge">${client.property_count || 0}</span></td>
                                             <td>
-                                                <span class="badge ${client.plan === 'free' ? 'badge-secondary' : client.plan === 'agency' ? 'badge-success' : 'badge-warning'}">
+                                                <span class="badge ${client.plan === 'free' ? 'badge-secondary' : 'badge-warning'}">
                                                     ${client.plan}
                                                 </span>
                                             </td>
@@ -6824,6 +6781,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                                             <td>
                                                 <button class="btn btn-secondary btn-small" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="viewClient(${client.id})">View</button>
                                                 <button class="btn btn-secondary btn-small" style="padding: 0.3rem 0.6rem; font-size: 0.75rem;" onclick="editClient(${client.id})">Edit</button>
+                                                ${parseInt(client.property_count) > 1 ? `
+                                                    <button class="btn btn-small" style="padding: 0.3rem 0.6rem; font-size: 0.75rem; background: #6366f1;" onclick="convertToAgency(${client.id}, '${client.name}')">
+                                                        🏢 Make Agency
+                                                    </button>
+                                                ` : ''}
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -6850,6 +6812,32 @@ const promo = await fetch('/api/v1/offers/validate', {
             }).catch(() => {
                 prompt('Copy this setup link:', setupLink);
             });
+        }
+
+        // Convert client to agency
+        async function convertToAgency(clientId, clientName) {
+            if (!confirm(`Convert "${clientName}" to an Agency?\n\nThis will:\n• Create an agency account for them\n• Remove them from the Clients list\n• They'll appear under Agencies instead`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/clients/${clientId}/convert-to-agency`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert(`✅ ${clientName} is now an Agency!\n\nAPI Key: ${result.agency.api_key}`);
+                    loadClients();
+                    loadAgencies();
+                    loadClientSelector();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error converting to agency: ' + error.message);
+            }
         }
 
         function openAddClientModal() {
