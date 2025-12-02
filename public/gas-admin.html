@@ -3516,6 +3516,101 @@ fetch('/api/public/client/1/rooms')
                     </div>
                 </div>
                 <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Quick Links</h3>
+                    </div>
+                    <div class="card-body">
+                        <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1rem;">Choose which links appear in your footer's Quick Links section</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-home" checked> Home
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-rooms" checked> Rooms
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-about" checked> About
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-contact" checked> Contact
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-blog"> Blog
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-faq"> FAQ
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Legal Links</h3>
+                    </div>
+                    <div class="card-body">
+                        <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1rem;">These appear in the Legal section of your footer</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-terms" checked> Terms & Conditions
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-privacy" checked> Privacy Policy
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-cookies"> Cookie Policy
+                                </label>
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="checkbox" id="wb-footer-link-cancellation"> Cancellation Policy
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Contact Info in Footer</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-footer-show-address" checked> Show Address
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-footer-show-phone" checked> Show Phone
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">
+                                <input type="checkbox" id="wb-footer-show-email" checked> Show Email
+                            </label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Social Media & Branding</h3>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Copyright Text</label>
@@ -3527,7 +3622,7 @@ fetch('/api/public/client/1/rooms')
                         </div>
                         <div class="form-group">
                             <label class="form-label">
-                                <input type="checkbox" id="wb-footer-show-social" checked> Show Social Media Links
+                                <input type="checkbox" id="wb-footer-show-social" checked> Show Social Media Icons
                             </label>
                         </div>
                         <div class="form-group">
