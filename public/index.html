@@ -1061,11 +1061,12 @@
             const msgDiv = document.createElement('div');
             msgDiv.className = `chat-message ${type}`;
             
-            // Convert line breaks and basic markdown
+            // Convert line breaks, markdown formatting, and links
             let formattedText = text
                 .replace(/\n/g, '<br>')
                 .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
-                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #6366f1; text-decoration: underline; font-weight: 500;">$1</a>');
             
             msgDiv.innerHTML = formattedText;
             chatBody.appendChild(msgDiv);
