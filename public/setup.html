@@ -1,1 +1,406 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Setup Your Account | GAS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .setup-container {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 500px;
+            width: 100%;
+            overflow: hidden;
+        }
+
+        .setup-header {
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .setup-header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .setup-header p {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+
+        .setup-body {
+            padding: 2rem;
+        }
+
+        .welcome-message {
+            background: #f0fdf4;
+            border: 1px solid #bbf7d0;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+            text-align: center;
+        }
+
+        .welcome-message .icon {
+            font-size: 2.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .welcome-message h2 {
+            color: #166534;
+            font-size: 1.1rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .welcome-message p {
+            color: #15803d;
+            font-size: 0.9rem;
+        }
+
+        .client-info {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .client-info h3 {
+            font-size: 0.85rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.75rem;
+        }
+
+        .client-info .detail {
+            display: flex;
+            justify-content: space-between;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .client-info .detail:last-child {
+            border-bottom: none;
+        }
+
+        .client-info .label {
+            color: #64748b;
+            font-size: 0.9rem;
+        }
+
+        .client-info .value {
+            font-weight: 600;
+            color: #1e293b;
+        }
+
+        .step-section {
+            margin-bottom: 1.5rem;
+        }
+
+        .step-section h3 {
+            font-size: 1rem;
+            color: #1e293b;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .step-number {
+            background: #6366f1;
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.8rem;
+            font-weight: 600;
+        }
+
+        .cm-options {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .cm-option {
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-decoration: none;
+            color: inherit;
+            position: relative;
+        }
+
+        .cm-option:hover {
+            border-color: #6366f1;
+            background: #f8fafc;
+        }
+
+        .cm-option.ready::after {
+            content: '✓ Ready';
+            position: absolute;
+            top: 0.5rem;
+            right: 0.5rem;
+            background: #10b981;
+            color: white;
+            font-size: 0.65rem;
+            padding: 0.15rem 0.4rem;
+            border-radius: 4px;
+        }
+
+        .cm-option .name {
+            font-weight: 600;
+            font-size: 0.95rem;
+            margin-bottom: 0.25rem;
+        }
+
+        .cm-option .desc {
+            font-size: 0.8rem;
+            color: #64748b;
+        }
+
+        .cm-option.disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 0.875rem 1.5rem;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn-secondary {
+            background: #f1f5f9;
+            color: #475569;
+        }
+
+        .btn-secondary:hover {
+            background: #e2e8f0;
+            box-shadow: none;
+            transform: none;
+        }
+
+        .help-text {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid #e2e8f0;
+            color: #64748b;
+            font-size: 0.85rem;
+        }
+
+        .help-text a {
+            color: #6366f1;
+            text-decoration: none;
+        }
+
+        .error-state {
+            text-align: center;
+            padding: 2rem;
+        }
+
+        .error-state .icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .error-state h2 {
+            color: #dc2626;
+            margin-bottom: 0.5rem;
+        }
+
+        .error-state p {
+            color: #64748b;
+            margin-bottom: 1.5rem;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 3rem;
+        }
+
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid #e2e8f0;
+            border-top-color: #6366f1;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="setup-container">
+        <div class="setup-header">
+            <h1>🚀 Welcome to GAS</h1>
+            <p>Guest Accommodation System</p>
+        </div>
+
+        <div class="setup-body" id="setupContent">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p>Loading your account...</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get client ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const clientPublicId = urlParams.get('c');
+
+        async function loadClientInfo() {
+            const container = document.getElementById('setupContent');
+
+            if (!clientPublicId) {
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="icon">🔗</div>
+                        <h2>Invalid Link</h2>
+                        <p>This setup link is missing or invalid. Please contact support for a new link.</p>
+                        <a href="/" class="btn btn-secondary">Go to Homepage</a>
+                    </div>
+                `;
+                return;
+            }
+
+            try {
+                // Fetch client info by public_id
+                const response = await fetch(`/api/client/setup/${clientPublicId}`);
+                const data = await response.json();
+
+                if (!data.success) {
+                    container.innerHTML = `
+                        <div class="error-state">
+                            <div class="icon">❌</div>
+                            <h2>Account Not Found</h2>
+                            <p>${data.error || 'This setup link may have expired or is invalid.'}</p>
+                            <a href="/" class="btn btn-secondary">Go to Homepage</a>
+                        </div>
+                    `;
+                    return;
+                }
+
+                const client = data.client;
+
+                container.innerHTML = `
+                    <div class="welcome-message">
+                        <div class="icon">👋</div>
+                        <h2>Welcome, ${client.business_name || client.name}!</h2>
+                        <p>Let's get your property connected</p>
+                    </div>
+
+                    <div class="client-info">
+                        <h3>Your Account</h3>
+                        <div class="detail">
+                            <span class="label">Business</span>
+                            <span class="value">${client.business_name || client.name}</span>
+                        </div>
+                        <div class="detail">
+                            <span class="label">Email</span>
+                            <span class="value">${client.email}</span>
+                        </div>
+                        <div class="detail">
+                            <span class="label">Plan</span>
+                            <span class="value" style="text-transform: capitalize;">${client.plan || 'Free'}</span>
+                        </div>
+                    </div>
+
+                    <div class="step-section">
+                        <h3><span class="step-number">1</span> Connect Your Channel Manager</h3>
+                        <p style="color: #64748b; font-size: 0.9rem; margin-bottom: 1rem;">
+                            Select your property management system to import your rooms and availability:
+                        </p>
+                        
+                        <div class="cm-options">
+                            <a href="/beds24-wizard.html?c=${clientPublicId}" class="cm-option ready">
+                                <div class="name">Beds24</div>
+                                <div class="desc">PMS + Channel Manager</div>
+                            </a>
+                            <a href="/hostaway-wizard.html?c=${clientPublicId}" class="cm-option ready">
+                                <div class="name">Hostaway</div>
+                                <div class="desc">Vacation Rental</div>
+                            </a>
+                            <a href="/smoobu-wizard.html?c=${clientPublicId}" class="cm-option ready">
+                                <div class="name">Smoobu</div>
+                                <div class="desc">Channel Manager</div>
+                            </a>
+                            <div class="cm-option disabled">
+                                <div class="name">Other</div>
+                                <div class="desc">Coming soon</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="help-text">
+                        <p>Don't use a channel manager? <a href="/gas-admin.html">Skip to dashboard</a></p>
+                        <p style="margin-top: 0.5rem;">Need help? Contact <a href="mailto:support@gettingautomated.com">support@gettingautomated.com</a></p>
+                    </div>
+                `;
+
+            } catch (error) {
+                console.error('Setup error:', error);
+                container.innerHTML = `
+                    <div class="error-state">
+                        <div class="icon">⚠️</div>
+                        <h2>Connection Error</h2>
+                        <p>Unable to load your account. Please try again or contact support.</p>
+                        <button class="btn btn-secondary" onclick="location.reload()">Try Again</button>
+                    </div>
+                `;
+            }
+        }
+
+        // Load on page ready
+        loadClientInfo();
+    </script>
+</body>
+</html>
