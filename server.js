@@ -9368,7 +9368,7 @@ app.get('/api/client/setup/:publicId', async (req, res) => {
   }
 });
 
-// Get all clients (admin view)
+// Get all clients (admin view) - excludes clients that are agencies
 app.get('/api/admin/clients', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -9379,6 +9379,7 @@ app.get('/api/admin/clients', async (req, res) => {
         0 as total_bookings
       FROM clients c
       LEFT JOIN properties p ON p.client_id = c.id
+      WHERE NOT EXISTS (SELECT 1 FROM agencies a WHERE a.email = c.email)
       GROUP BY c.id
       ORDER BY c.created_at DESC
     `);
@@ -9811,6 +9812,59 @@ app.get('/api/admin/agencies/:id/stats', async (req, res) => {
     res.json({ success: true, stats: stats.rows[0] });
   } catch (error) {
     console.error('Get agency stats error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Convert a client to an agency (for clients with multiple properties)
+app.post('/api/admin/clients/:id/convert-to-agency', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the client
+    const clientRes = await pool.query(`SELECT * FROM clients WHERE id = $1`, [id]);
+    if (clientRes.rows.length === 0) {
+      return res.json({ success: false, error: 'Client not found' });
+    }
+    const client = clientRes.rows[0];
+    
+    // Check if agency with this email already exists
+    const existingAgency = await pool.query(`SELECT id FROM agencies WHERE email = $1`, [client.email]);
+    if (existingAgency.rows.length > 0) {
+      return res.json({ success: false, error: 'Agency with this email already exists' });
+    }
+    
+    // Create the agency
+    const apiKey = 'gas_agency_' + require('crypto').randomBytes(24).toString('hex');
+    const agencyRes = await pool.query(`
+      INSERT INTO agencies (
+        name, email, phone, 
+        address_line1, address_line2, city, region, postcode, country,
+        currency, timezone, plan, api_key, api_key_created_at, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'agency', $12, CURRENT_TIMESTAMP, 'active')
+      RETURNING *
+    `, [
+      client.business_name || client.name,
+      client.email,
+      client.phone,
+      client.address_line1,
+      client.address_line2,
+      client.city,
+      client.region,
+      client.postcode,
+      client.country,
+      client.currency,
+      client.timezone,
+      apiKey
+    ]);
+    
+    res.json({ 
+      success: true, 
+      agency: agencyRes.rows[0],
+      message: `Converted ${client.name} to agency. The client entry will no longer appear in Clients list.`
+    });
+  } catch (error) {
+    console.error('Convert to agency error:', error);
     res.json({ success: false, error: error.message });
   }
 });
