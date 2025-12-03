@@ -804,6 +804,115 @@ app.post('/api/migrate-to-accounts', async (req, res) => {
   }
 });
 
+// Diagnostic: Check and fix property account_id linking
+app.get('/api/admin/fix-property-accounts', async (req, res) => {
+  try {
+    // Get unlinked properties
+    const unlinked = await pool.query(`
+      SELECT p.id, p.name, p.client_id, p.agency_id, p.account_id
+      FROM properties p
+      WHERE p.account_id IS NULL
+    `);
+    
+    // Get all properties with their account status
+    const allProps = await pool.query(`
+      SELECT p.id, p.name, p.client_id, p.agency_id, p.account_id, a.name as account_name
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      ORDER BY p.id
+    `);
+    
+    // Get account mapping info
+    const accountMap = await pool.query(`
+      SELECT a.id as account_id, a.name as account_name, a.role, c.id as client_id, c.name as client_name
+      FROM accounts a
+      LEFT JOIN clients c ON c.email = a.email OR c.name = a.name
+      ORDER BY a.id
+    `);
+    
+    res.json({
+      success: true,
+      unlinked_count: unlinked.rows.length,
+      unlinked_properties: unlinked.rows,
+      all_properties: allProps.rows,
+      account_client_mapping: accountMap.rows,
+      fix_url: '/api/admin/fix-property-accounts?apply=true'
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Actually apply the fix
+app.post('/api/admin/fix-property-accounts', async (req, res) => {
+  try {
+    const results = [];
+    
+    // Get unlinked properties
+    const unlinked = await pool.query(`
+      SELECT p.id, p.name, p.client_id, p.agency_id
+      FROM properties p
+      WHERE p.account_id IS NULL
+    `);
+    
+    for (const prop of unlinked.rows) {
+      let accountId = null;
+      let matchType = null;
+      
+      // Try to find matching account by client_id
+      if (prop.client_id) {
+        const clientMatch = await pool.query(`
+          SELECT a.id FROM accounts a
+          JOIN clients c ON (c.email = a.email OR c.name = a.name)
+          WHERE c.id = $1
+          LIMIT 1
+        `, [prop.client_id]);
+        
+        if (clientMatch.rows.length > 0) {
+          accountId = clientMatch.rows[0].id;
+          matchType = 'client_id';
+        }
+      }
+      
+      // Try by agency_id if no client match
+      if (!accountId && prop.agency_id) {
+        const agencyMatch = await pool.query(`
+          SELECT a.id FROM accounts a
+          JOIN agencies ag ON (ag.email = a.email OR ag.name = a.name)
+          WHERE ag.id = $1
+          LIMIT 1
+        `, [prop.agency_id]);
+        
+        if (agencyMatch.rows.length > 0) {
+          accountId = agencyMatch.rows[0].id;
+          matchType = 'agency_id';
+        }
+      }
+      
+      if (accountId) {
+        await pool.query(`UPDATE properties SET account_id = $1 WHERE id = $2`, [accountId, prop.id]);
+        results.push({ property_id: prop.id, name: prop.name, account_id: accountId, match_type: matchType, status: 'linked' });
+      } else {
+        results.push({ property_id: prop.id, name: prop.name, status: 'no_match_found' });
+      }
+    }
+    
+    // Get final counts
+    const linked = await pool.query(`SELECT COUNT(*) FROM properties WHERE account_id IS NOT NULL`);
+    const stillUnlinked = await pool.query(`SELECT COUNT(*) FROM properties WHERE account_id IS NULL`);
+    
+    res.json({
+      success: true,
+      processed: results.length,
+      results: results,
+      final_linked: parseInt(linked.rows[0].count),
+      final_unlinked: parseInt(stillUnlinked.rows[0].count)
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get all accounts (for admin view)
 app.get('/api/admin/accounts', async (req, res) => {
   try {
