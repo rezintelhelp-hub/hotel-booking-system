@@ -845,6 +845,31 @@ app.post('/api/accounts/logout', async (req, res) => {
   }
 });
 
+// TEMPORARY: Admin password reset - clears password so Set Password can be used
+// DELETE THIS ENDPOINT IN PRODUCTION after initial setup!
+app.get('/api/admin/reset-password/:email', async (req, res) => {
+  try {
+    const email = decodeURIComponent(req.params.email).toLowerCase().trim();
+    
+    const result = await pool.query(
+      'UPDATE accounts SET password_hash = NULL WHERE email = $1 RETURNING id, name, email',
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Password cleared for ${result.rows[0].name}. Go to /login.html and use "Set Password" tab.`,
+      account: result.rows[0]
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Set password for account (for accounts without password)
 app.post('/api/accounts/set-password', async (req, res) => {
   try {
