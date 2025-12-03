@@ -3503,7 +3503,7 @@ app.post('/api/smoobu/import-property', async (req, res) => {
             `, [
                 targetClientId,
                 apartmentName,
-                '',
+                JSON.stringify({ en: '' }),
                 details.location?.street || '',
                 details.location?.city || '',
                 details.location?.country || '',
