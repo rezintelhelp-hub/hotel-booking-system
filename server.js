@@ -3527,19 +3527,17 @@ app.post('/api/smoobu/import-property', async (req, res) => {
                 INSERT INTO bookable_units (
                     property_id,
                     name,
-                    description,
                     max_guests,
                     bedroom_count,
                     bathroom_count,
                     base_price,
                     smoobu_id
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                VALUES ($1, $2, $3, $4, $5, $6, $7)
                 RETURNING id
             `, [
                 propertyId,
                 apartmentName,
-                JSON.stringify({ en: '' }),
                 details.rooms?.maxOccupancy || 2,
                 details.rooms?.bedrooms || 1,
                 details.rooms?.bathrooms || 1,
