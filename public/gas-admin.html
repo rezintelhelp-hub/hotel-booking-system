@@ -6149,6 +6149,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (data.success) {
                     currentAccount = data.account;
                     updateUserProfile();
+                    applyRoleBasedAccess();
+                    // Reload dashboard with correct filters
+                    if (typeof loadDashboard === 'function') {
+                        loadDashboard();
+                    }
                     return true;
                 } else {
                     // Token invalid, clear and redirect
@@ -6164,11 +6169,57 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (cachedAccount) {
                     currentAccount = JSON.parse(cachedAccount);
                     updateUserProfile();
+                    applyRoleBasedAccess();
+                    if (typeof loadDashboard === 'function') {
+                        loadDashboard();
+                    }
                     return true;
                 }
                 window.location.href = '/login.html';
                 return false;
             }
+        }
+        
+        // Apply role-based access control
+        function applyRoleBasedAccess() {
+            if (!currentAccount) return;
+            
+            // Master admin sees everything
+            if (currentAccount.role === 'master_admin') {
+                return;
+            }
+            
+            // Non-master admins: auto-filter to their own account
+            selectedAccountId = currentAccount.id;
+            selectedAccountName = currentAccount.name;
+            
+            // Show the filter banner (but hide clear button)
+            const banner = document.getElementById('agencyFilterBanner');
+            const nameEl = document.getElementById('agencyFilterName');
+            if (banner && nameEl) {
+                banner.style.display = 'flex';
+                nameEl.textContent = currentAccount.name;
+                
+                // Hide the clear button for non-master-admins
+                const clearBtn = banner.querySelector('button');
+                if (clearBtn) {
+                    clearBtn.style.display = 'none';
+                }
+            }
+            
+            // Hide "All Accounts" nav item for non-master-admins
+            const accountsNavItem = document.querySelector('[data-view="accounts"]');
+            if (accountsNavItem) {
+                accountsNavItem.style.display = 'none';
+            }
+            
+            // Hide Agencies and Clients nav items
+            const agenciesNavItem = document.querySelector('[data-view="agencies"]');
+            const clientsNavItem = document.querySelector('[data-view="clients"]');
+            if (agenciesNavItem) agenciesNavItem.style.display = 'none';
+            if (clientsNavItem) clientsNavItem.style.display = 'none';
+            
+            console.log('Role-based access applied for:', currentAccount.role, '- filtering to account:', selectedAccountId);
         }
         
         function updateUserProfile() {
@@ -6218,9 +6269,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             return token ? { 'Authorization': 'Bearer ' + token } : {};
         }
         
-        // Run auth check immediately
-        checkAuth();
-        
         // =====================================================
         // GLOBAL STATE
         // =====================================================
@@ -6235,6 +6283,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Account filter (new unified system) - when set, all views filter by this account
         let selectedAccountId = null;
         let selectedAccountName = null;
+        
+        // Run auth check after global state is declared
+        checkAuth();
         
         // Helper function to get account query param
         function getAccountParam() {
@@ -6768,6 +6819,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function clearAccountFilter() {
+            // Only master_admin can clear the filter
+            if (currentAccount && currentAccount.role !== 'master_admin') {
+                console.log('Non-master admin cannot clear account filter');
+                return;
+            }
+            
             selectedAccountId = null;
             selectedAccountName = null;
             
