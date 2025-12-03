@@ -804,6 +804,8 @@ app.get('/api/setup-database', async (req, res) => {
     // Add pricing columns to room_availability
     await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS reference_price DECIMAL(10,2)`);
     await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS standard_price DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS available BOOLEAN DEFAULT true`);
+    await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS min_stay INTEGER DEFAULT 1`);
     
     // Create offers table
     await pool.query(`
