@@ -5102,8 +5102,8 @@ app.post('/api/pricing/calculate', async (req, res) => {
 // Get dashboard statistics
 app.get('/api/admin/stats', async (req, res) => {
   try {
-    const clientId = req.query.client_id;
-    const accountId = req.query.account_id;
+    const clientId = req.query.client_id ? parseInt(req.query.client_id) : null;
+    const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
     
     console.log('Stats request - accountId:', accountId, 'clientId:', clientId);
     
