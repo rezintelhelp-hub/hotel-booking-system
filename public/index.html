@@ -777,7 +777,17 @@
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- Top Navigation -->
+    <nav style="position: fixed; top: 0; left: 0; right: 0; z-index: 100; background: rgba(255,255,255,0.95); backdrop-filter: blur(10px); border-bottom: 1px solid var(--border); padding: 12px 24px;">
+        <div style="max-width: 1000px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center;">
+            <a href="/home.html" style="font-size: 1.25rem; font-weight: 800; background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-decoration: none;">GAS</a>
+            <div id="navUserArea" style="display: flex; align-items: center; gap: 16px;">
+                <a href="/login.html" class="btn" style="padding: 8px 16px; font-size: 0.85rem;">Sign In</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container" style="padding-top: 80px;">
         <div class="header">
             <div class="logo">GAS</div>
             <p class="tagline">Guest Accommodation System</p>
@@ -1003,6 +1013,8 @@
         let chatOpen = true;
         let conversationHistory = [];
         let isSending = false;
+        let currentUser = null;
+        let onboardingData = null;
 
         // Toggle chat
         function toggleChat() {
@@ -1011,9 +1023,292 @@
             document.getElementById('chatToggle').textContent = chatOpen ? '✕' : '💬';
         }
 
+        // Check if user is logged in
+        async function checkLoginStatus() {
+            const token = localStorage.getItem('gas_token');
+            if (!token) return null;
+            
+            try {
+                const response = await fetch('/api/accounts/me', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    currentUser = data.account;
+                    updateUIForLoggedInUser();
+                    return data.account;
+                }
+            } catch (e) {
+                console.error('Login check failed:', e);
+            }
+            return null;
+        }
+
+        // Update UI for logged in user
+        function updateUIForLoggedInUser() {
+            if (!currentUser) return;
+            
+            // Update nav to show user info
+            const navUserArea = document.getElementById('navUserArea');
+            navUserArea.innerHTML = `
+                <span style="font-size: 0.9rem; color: var(--text-secondary);">👤 ${currentUser.name}</span>
+                <a href="/gas-admin.html" class="btn" style="padding: 8px 16px; font-size: 0.85rem; background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); color: white;">Dashboard</a>
+                <button onclick="handleLogout()" style="padding: 8px 16px; font-size: 0.85rem; background: none; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;">Sign Out</button>
+            `;
+            
+            // Add welcome message in chat if not from onboarding
+            if (!onboardingData) {
+                const chatBody = document.getElementById('chatBody');
+                chatBody.innerHTML = `
+                    <div class="chat-message bot">
+                        👋 Welcome back, ${currentUser.name}!
+                        <div class="chat-quick-actions">
+                            <button class="chat-quick-btn" onclick="window.location.href='/gas-admin.html'">⚙️ Go to Dashboard</button>
+                            <button class="chat-quick-btn" onclick="openCMModal()">🔗 Connect another property</button>
+                            <button class="chat-quick-btn" onclick="sendQuickMessage('I need help')">❓ I need help</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // Handle logout
+        async function handleLogout() {
+            const token = localStorage.getItem('gas_token');
+            if (token) {
+                try {
+                    await fetch('/api/accounts/logout', {
+                        method: 'POST',
+                        headers: { 'Authorization': 'Bearer ' + token }
+                    });
+                } catch (e) {
+                    console.error('Logout error:', e);
+                }
+            }
+            localStorage.removeItem('gas_token');
+            localStorage.removeItem('gas_account');
+            window.location.reload();
+        }
+
+        // Load onboarding data from home.html
+        function loadOnboardingData() {
+            const savedData = localStorage.getItem('gas_onboarding_data');
+            if (!savedData) return null;
+            
+            try {
+                onboardingData = JSON.parse(savedData);
+                console.log('Loaded onboarding data:', onboardingData);
+                
+                // Show personalized welcome in chat
+                showOnboardingWelcome();
+                
+                // Clear the data after loading (one-time use)
+                localStorage.removeItem('gas_onboarding_data');
+                
+                return onboardingData;
+            } catch (e) {
+                console.error('Error loading onboarding data:', e);
+                return null;
+            }
+        }
+
+        // Show personalized welcome based on data from home.html chat
+        function showOnboardingWelcome() {
+            if (!onboardingData) return;
+            
+            const chatBody = document.getElementById('chatBody');
+            
+            // Build welcome message
+            let welcomeMsg = `🎉 Great to have you here`;
+            if (onboardingData.propertyName) {
+                welcomeMsg += `, ${onboardingData.propertyName}`;
+            }
+            welcomeMsg += `!<br><br>`;
+            
+            welcomeMsg += `Here's what you told me:<br>`;
+            if (onboardingData.propertyType) welcomeMsg += `• Property type: <strong>${onboardingData.propertyType}</strong><br>`;
+            if (onboardingData.location) welcomeMsg += `• Location: <strong>${onboardingData.location}</strong><br>`;
+            if (onboardingData.channelManager) welcomeMsg += `• Channel manager: <strong>${onboardingData.channelManager}</strong><br>`;
+            if (onboardingData.email) welcomeMsg += `• Email: <strong>${onboardingData.email}</strong><br>`;
+            
+            welcomeMsg += `<br>Let's get you set up! First, we need to create your account and connect your channel manager.`;
+            
+            chatBody.innerHTML = `
+                <div class="chat-message bot">
+                    ${welcomeMsg}
+                    <div class="chat-quick-actions">
+                        <button class="chat-quick-btn" onclick="startAccountCreation()">✅ Create my account</button>
+                        <button class="chat-quick-btn" onclick="sendQuickMessage('I have questions first')">❓ I have questions first</button>
+                    </div>
+                </div>
+            `;
+        }
+
+        // Start account creation flow
+        function startAccountCreation() {
+            const chatBody = document.getElementById('chatBody');
+            
+            // Check if we have email from onboarding
+            const email = onboardingData?.email || '';
+            const propertyName = onboardingData?.propertyName || '';
+            
+            const formHtml = `
+                <div class="chat-message bot">
+                    Perfect! Let's create your account. Just set a password and you're in.
+                    <div style="margin-top: 16px; background: white; padding: 16px; border-radius: 12px; border: 1px solid var(--border);">
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 4px;">Business Name</label>
+                            <input type="text" id="regBusinessName" value="${propertyName}" placeholder="Your property name" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem;">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 4px;">Email</label>
+                            <input type="email" id="regEmail" value="${email}" placeholder="you@example.com" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem;">
+                        </div>
+                        <div style="margin-bottom: 12px;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 4px;">Password</label>
+                            <input type="password" id="regPassword" placeholder="Minimum 8 characters" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem;">
+                        </div>
+                        <div style="margin-bottom: 16px;">
+                            <label style="display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 4px;">Confirm Password</label>
+                            <input type="password" id="regPasswordConfirm" placeholder="Confirm your password" style="width: 100%; padding: 10px; border: 1px solid var(--border); border-radius: 8px; font-size: 0.9rem;">
+                        </div>
+                        <button onclick="submitAccountCreation()" class="btn" style="width: 100%; padding: 12px; background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); color: white; border: none; border-radius: 8px; font-weight: 600; cursor: pointer;">
+                            Create Account & Continue →
+                        </button>
+                        <div id="regError" style="color: var(--error); font-size: 0.85rem; margin-top: 8px; display: none;"></div>
+                    </div>
+                </div>
+            `;
+            
+            chatBody.innerHTML += formHtml;
+            scrollChatToBottom();
+        }
+
+        // Submit account creation
+        async function submitAccountCreation() {
+            const businessName = document.getElementById('regBusinessName').value.trim();
+            const email = document.getElementById('regEmail').value.trim();
+            const password = document.getElementById('regPassword').value;
+            const passwordConfirm = document.getElementById('regPasswordConfirm').value;
+            const errorDiv = document.getElementById('regError');
+            
+            // Validation
+            if (!businessName) {
+                errorDiv.textContent = 'Please enter your business name';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (!email) {
+                errorDiv.textContent = 'Please enter your email';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (password.length < 8) {
+                errorDiv.textContent = 'Password must be at least 8 characters';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            if (password !== passwordConfirm) {
+                errorDiv.textContent = 'Passwords do not match';
+                errorDiv.style.display = 'block';
+                return;
+            }
+            
+            errorDiv.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/onboarding/create-account', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name: businessName,
+                        email: email,
+                        password: password,
+                        channel_manager: onboardingData?.channelManager || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Store session
+                    localStorage.setItem('gas_token', data.token);
+                    localStorage.setItem('gas_account', JSON.stringify(data.account));
+                    currentUser = data.account;
+                    
+                    // Show success and next step
+                    showAccountCreatedSuccess();
+                } else {
+                    errorDiv.textContent = data.error || 'Failed to create account';
+                    errorDiv.style.display = 'block';
+                }
+            } catch (e) {
+                errorDiv.textContent = 'Connection error. Please try again.';
+                errorDiv.style.display = 'block';
+            }
+        }
+
+        // Show success after account creation
+        function showAccountCreatedSuccess() {
+            const chatBody = document.getElementById('chatBody');
+            
+            let nextStepBtn = '';
+            const cm = onboardingData?.channelManager;
+            
+            if (cm === 'Beds24' || cm === 'Hostaway' || cm === 'Smoobu') {
+                nextStepBtn = `<button class="chat-quick-btn" onclick="openCMModal(); selectCM('${cm.toLowerCase()}')">🔗 Connect ${cm} now</button>`;
+            } else {
+                nextStepBtn = `<button class="chat-quick-btn" onclick="openCMModal()">🔗 Connect your channel manager</button>`;
+            }
+            
+            chatBody.innerHTML += `
+                <div class="chat-message bot">
+                    ✅ <strong>Account created!</strong> Welcome to GAS, ${currentUser.name}!<br><br>
+                    Next step: Let's connect your channel manager to import your properties.
+                    <div class="chat-quick-actions">
+                        ${nextStepBtn}
+                        <button class="chat-quick-btn" onclick="window.location.href='/gas-admin.html'">⚙️ Go to full dashboard</button>
+                    </div>
+                </div>
+            `;
+            scrollChatToBottom();
+            
+            // Update progress tracker
+            updateProgressTracker(1);
+        }
+
+        // Update progress tracker
+        function updateProgressTracker(completedSteps) {
+            const progressFill = document.getElementById('progressFill');
+            const steps = document.querySelectorAll('.progress-step');
+            
+            const percentage = (completedSteps / 5) * 100;
+            if (progressFill) progressFill.style.width = percentage + '%';
+            
+            steps.forEach((step, index) => {
+                step.classList.remove('complete', 'active');
+                if (index < completedSteps) {
+                    step.classList.add('complete');
+                } else if (index === completedSteps) {
+                    step.classList.add('active');
+                }
+            });
+            
+            const stepCount = document.getElementById('completedSteps');
+            if (stepCount) stepCount.textContent = completedSteps;
+        }
+
         // Open chat on load
-        window.addEventListener('DOMContentLoaded', () => {
+        window.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('chatWindow').classList.add('open');
+            
+            // Check if user is logged in
+            await checkLoginStatus();
+            
+            // Load data from home.html if present (only if not logged in)
+            if (!currentUser) {
+                loadOnboardingData();
+            }
         });
 
         // Handle enter key in chat input
