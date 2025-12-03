@@ -770,13 +770,19 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS channel_managers (
         id SERIAL PRIMARY KEY,
-        cm_code VARCHAR(50) UNIQUE NOT NULL,
-        cm_name VARCHAR(100) NOT NULL,
+        cm_code VARCHAR(50) UNIQUE,
+        cm_name VARCHAR(100),
         api_base_url VARCHAR(255),
         auth_type VARCHAR(50) DEFAULT 'oauth2',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
+    
+    // Add columns if they don't exist (for existing tables)
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS cm_code VARCHAR(50)`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS cm_name VARCHAR(100)`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS api_base_url VARCHAR(255)`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS auth_type VARCHAR(50) DEFAULT 'oauth2'`);
     
     // Insert default channel managers
     await pool.query(`
