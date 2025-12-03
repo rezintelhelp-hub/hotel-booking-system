@@ -988,7 +988,7 @@
                     <span style="font-size: 0.75rem; opacity: 0.9;">VIEWING</span>
                     <div id="agencyFilterName" style="font-weight: 600;"></div>
                 </div>
-                <button onclick="clearAgencyFilter()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">✕ Clear</button>
+                <button onclick="clearAccountFilter()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">✕ Clear</button>
             </div>
 
             <nav class="nav">
@@ -1002,13 +1002,9 @@
 
                 <div class="nav-section">
                     <div class="nav-label">Accounts</div>
-                    <a class="nav-item" data-view="agencies" href="#" onclick="navClick(this, 'agencies'); return false;">
-                        <span class="nav-icon">🏢</span>
-                        <span>Agencies</span>
-                    </a>
-                    <a class="nav-item" data-view="clients" href="#" onclick="navClick(this, 'clients'); return false;">
+                    <a class="nav-item" data-view="accounts" href="#" onclick="navClick(this, 'accounts'); return false;">
                         <span class="nav-icon">👥</span>
-                        <span>Clients</span>
+                        <span>All Accounts</span>
                     </a>
                 </div>
 
@@ -1245,16 +1241,16 @@
             </div>
 
             <!-- Agencies View -->
-            <div id="agencies" class="view">
+            <div id="accounts" class="view">
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🏢 Agencies</h2>
-                            <p>Manage agency partners who manage multiple clients</p>
+                            <h2>👥 Accounts</h2>
+                            <p>Manage all accounts - Master Admin, Agency Admins, Sub Masters, and Admins</p>
                         </div>
-                        <button class="btn" onclick="openAddAgencyModal()">
+                        <button class="btn" onclick="openAddAccountModal()">
                             <span>+</span>
-                            <span>Add Agency</span>
+                            <span>Add Account</span>
                         </button>
                     </div>
                 </div>
@@ -1262,77 +1258,46 @@
                 <!-- Stats -->
                 <div class="stats-grid" style="margin-bottom: 1.5rem;">
                     <div class="stat-card">
-                        <div class="stat-value" id="stat-total-agencies">-</div>
-                        <div class="stat-label">Total Agencies</div>
+                        <div class="stat-value" id="stat-total-accounts">-</div>
+                        <div class="stat-label">Total Accounts</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="stat-agency-clients">-</div>
-                        <div class="stat-label">Agency Clients</div>
+                        <div class="stat-value" id="stat-agency-admins">-</div>
+                        <div class="stat-label">Agency Admins</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="stat-agency-properties">-</div>
-                        <div class="stat-label">Properties Managed</div>
+                        <div class="stat-value" id="stat-submaster-admins">-</div>
+                        <div class="stat-label">Sub Masters</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="stat-direct-clients">-</div>
-                        <div class="stat-label">Direct Clients</div>
+                        <div class="stat-value" id="stat-admins">-</div>
+                        <div class="stat-label">Admins</div>
+                    </div>
+                </div>
+
+                <!-- Role Filter -->
+                <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button class="btn btn-secondary account-filter active" data-role="all" onclick="filterAccounts('all')">All</button>
+                        <button class="btn btn-secondary account-filter" data-role="agency_admin" onclick="filterAccounts('agency_admin')">🏢 Agency Admins</button>
+                        <button class="btn btn-secondary account-filter" data-role="submaster_admin" onclick="filterAccounts('submaster_admin')">📁 Sub Masters</button>
+                        <button class="btn btn-secondary account-filter" data-role="admin" onclick="filterAccounts('admin')">👤 Admins</button>
                     </div>
                 </div>
 
                 <div class="card">
-                    <div id="agencies-list">
+                    <div id="accounts-list">
                         <div class="loading">
                             <div class="spinner"></div>
-                            <p style="margin-top: 1rem;">Loading agencies...</p>
+                            <p style="margin-top: 1rem;">Loading accounts...</p>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <!-- Clients View -->
-            <div id="clients" class="view">
-                <div class="header">
-                    <div class="header-top">
-                        <div>
-                            <h2>Clients</h2>
-                            <p>Manage client accounts and API access</p>
-                        </div>
-                        <button class="btn" onclick="openAddClientModal()">
-                            <span>+</span>
-                            <span>Add Client</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Stats -->
-                <div class="stats-grid" style="margin-bottom: 1.5rem;">
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-total-clients">-</div>
-                        <div class="stat-label">Total Clients</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-active-clients">-</div>
-                        <div class="stat-label">Active</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-paid-clients">-</div>
-                        <div class="stat-label">Paid Plans</div>
-                    </div>
-                    <div class="stat-card">
-                        <div class="stat-value" id="stat-unassigned-props">-</div>
-                        <div class="stat-label">Unassigned Properties</div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div id="clients-list">
-                        <div class="loading">
-                            <div class="spinner"></div>
-                            <p style="margin-top: 1rem;">Loading clients...</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            <!-- Keep old views hidden for backward compatibility -->
+            <div id="agencies" class="view" style="display:none;"></div>
+            <div id="clients" class="view" style="display:none;"></div>
 
             <!-- Properties View -->
             <div id="properties" class="view">
@@ -6248,6 +6213,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load data for specific views
             if (viewName === 'dashboard') loadDashboard();
+            if (viewName === 'accounts') loadAccounts();
             if (viewName === 'agencies') loadAgencies();
             if (viewName === 'clients') loadClients();
             if (viewName === 'properties') loadProperties();
@@ -6403,6 +6369,254 @@ const promo = await fetch('/api/v1/offers/validate', {
         // =========================================================
         // AGENCY MANAGEMENT FUNCTIONS
         // =========================================================
+
+        // =====================================================
+        // ACCOUNTS MANAGEMENT (New unified system)
+        // =====================================================
+        
+        let allAccounts = [];
+        let currentAccountFilter = 'all';
+        
+        async function loadAccounts() {
+            const container = document.getElementById('accounts-list');
+            try {
+                const response = await fetch('/api/admin/accounts');
+                const data = await response.json();
+                
+                if (data.success && data.accounts) {
+                    allAccounts = data.accounts;
+                    
+                    // Update stats
+                    const masterAdmins = data.accounts.filter(a => a.role === 'master_admin');
+                    const agencyAdmins = data.accounts.filter(a => a.role === 'agency_admin');
+                    const subMasters = data.accounts.filter(a => a.role === 'submaster_admin');
+                    const admins = data.accounts.filter(a => a.role === 'admin');
+                    
+                    document.getElementById('stat-total-accounts').textContent = data.accounts.length;
+                    document.getElementById('stat-agency-admins').textContent = agencyAdmins.length;
+                    document.getElementById('stat-submaster-admins').textContent = subMasters.length;
+                    document.getElementById('stat-admins').textContent = admins.length;
+                    
+                    renderAccountsTable(data.accounts);
+                } else {
+                    container.innerHTML = `<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading accounts</p>`;
+                }
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+                container.innerHTML = `<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading accounts: ${error.message}</p>`;
+            }
+        }
+        
+        function filterAccounts(role) {
+            currentAccountFilter = role;
+            
+            // Update button states
+            document.querySelectorAll('.account-filter').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.role === role) btn.classList.add('active');
+            });
+            
+            // Filter and render
+            let filtered = allAccounts;
+            if (role !== 'all') {
+                filtered = allAccounts.filter(a => a.role === role);
+            }
+            renderAccountsTable(filtered);
+        }
+        
+        function getRoleBadge(role) {
+            const badges = {
+                'master_admin': '<span class="badge" style="background: linear-gradient(135deg, #9333ea, #7c3aed); color: white;">👑 Master Admin</span>',
+                'agency_admin': '<span class="badge" style="background: linear-gradient(135deg, #2563eb, #1d4ed8); color: white;">🏢 Agency Admin</span>',
+                'submaster_admin': '<span class="badge" style="background: linear-gradient(135deg, #0891b2, #0e7490); color: white;">📁 Sub Master</span>',
+                'admin': '<span class="badge" style="background: linear-gradient(135deg, #16a34a, #15803d); color: white;">👤 Admin</span>'
+            };
+            return badges[role] || `<span class="badge">${role}</span>`;
+        }
+        
+        function renderAccountsTable(accounts) {
+            const container = document.getElementById('accounts-list');
+            
+            if (accounts.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <p style="font-size: 3rem; margin-bottom: 1rem;">👥</p>
+                        <p>No accounts found.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Role</th>
+                                <th>Parent</th>
+                                <th>Properties</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${accounts.map(account => `
+                                <tr>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                            <div style="width: 40px; height: 40px; border-radius: 8px; background: linear-gradient(135deg, ${account.primary_color || '#6366f1'} 0%, ${account.secondary_color || '#8b5cf6'} 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700;">
+                                                ${account.name.charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <strong>${account.name}</strong>
+                                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${account.email}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>${getRoleBadge(account.role)}</td>
+                                    <td>
+                                        ${account.parent_name 
+                                            ? `<span style="color: var(--text-secondary);">↳ ${account.parent_name}</span>` 
+                                            : '<span style="color: #9ca3af;">—</span>'}
+                                    </td>
+                                    <td><span class="badge">${account.property_count || 0}</span></td>
+                                    <td>
+                                        <span class="badge ${account.status === 'active' ? 'badge-success' : account.status === 'pending' ? 'badge-warning' : 'badge-secondary'}">
+                                            ${account.status}
+                                        </span>
+                                    </td>
+                                    <td>
+                                        <div style="display: flex; gap: 0.5rem;">
+                                            <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
+                                            ${account.role !== 'master_admin' ? `
+                                                <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', '${account.name}')">Role</button>
+                                            ` : ''}
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function viewAccount(accountId) {
+            const account = allAccounts.find(a => a.id === accountId);
+            if (!account) return;
+            
+            // Set the filter to this account and navigate to dashboard
+            setAccountFilter(accountId, account.name);
+            showView('dashboard');
+        }
+        
+        // Account filter (like the old agency filter)
+        let selectedAccountId = null;
+        let selectedAccountName = null;
+        
+        function setAccountFilter(accountId, accountName) {
+            selectedAccountId = accountId;
+            selectedAccountName = accountName;
+            
+            // Show banner
+            const banner = document.getElementById('agencyFilterBanner');
+            const nameEl = document.getElementById('agencyFilterName');
+            if (banner && nameEl) {
+                banner.style.display = 'flex';
+                nameEl.textContent = accountName;
+            }
+            
+            // Reload current view with filter
+            const activeView = document.querySelector('.nav-item.active');
+            if (activeView) {
+                const viewName = activeView.getAttribute('data-view');
+                showView(viewName);
+            }
+        }
+        
+        function clearAccountFilter() {
+            selectedAccountId = null;
+            selectedAccountName = null;
+            
+            // Also clear old agency filter
+            selectedAgencyId = null;
+            selectedAgencyName = null;
+            
+            // Hide banner
+            const banner = document.getElementById('agencyFilterBanner');
+            if (banner) banner.style.display = 'none';
+            
+            // Reload current view without filter
+            const activeView = document.querySelector('.nav-item.active');
+            if (activeView) {
+                const viewName = activeView.getAttribute('data-view');
+                showView(viewName);
+            }
+        }
+        
+        function openChangeRoleModal(accountId, currentRole, accountName) {
+            const roles = ['admin', 'submaster_admin', 'agency_admin'];
+            const roleLabels = {
+                'admin': '👤 Admin',
+                'submaster_admin': '📁 Sub Master Admin',
+                'agency_admin': '🏢 Agency Admin'
+            };
+            
+            const options = roles.map(r => 
+                `<option value="${r}" ${r === currentRole ? 'selected' : ''}>${roleLabels[r]}</option>`
+            ).join('');
+            
+            const modalHtml = `
+                <div class="modal-overlay" id="changeRoleModal" style="display: flex;">
+                    <div class="modal" style="max-width: 400px;">
+                        <div class="modal-header">
+                            <h3>Change Role</h3>
+                            <button class="modal-close" onclick="closeModal('changeRoleModal')">&times;</button>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <p style="margin-bottom: 1rem;">Change role for <strong>${accountName}</strong>:</p>
+                            <select id="newRoleSelect" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
+                                ${options}
+                            </select>
+                            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                                <button class="btn btn-secondary" onclick="closeModal('changeRoleModal')" style="flex: 1;">Cancel</button>
+                                <button class="btn" onclick="saveAccountRole(${accountId})" style="flex: 1;">Save</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        async function saveAccountRole(accountId) {
+            const newRole = document.getElementById('newRoleSelect').value;
+            
+            try {
+                const response = await fetch(`/api/admin/accounts/${accountId}/update-role`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeModal('changeRoleModal');
+                    loadAccounts();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        function openAddAccountModal() {
+            // TODO: Implement add account modal
+            alert('Add Account feature coming soon. For now, accounts are created when they sign up.');
+        }
 
         async function loadAgencies() {
             const container = document.getElementById('agencies-list');
