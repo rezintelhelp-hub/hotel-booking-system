@@ -3497,11 +3497,10 @@ app.post('/api/smoobu/import-property', async (req, res) => {
                     country,
                     latitude,
                     longitude,
-                    currency,
                     smoobu_id,
                     channel_manager
                 )
-                VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'smoobu')
+                VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, 'smoobu')
                 RETURNING id
             `, [
                 targetClientId,
@@ -3512,7 +3511,6 @@ app.post('/api/smoobu/import-property', async (req, res) => {
                 details.location?.country || '',
                 details.location?.latitude || null,
                 details.location?.longitude || null,
-                details.currency || 'USD',
                 apartmentId.toString()
             ]);
             propertyId = propertyResult.rows[0].id;
