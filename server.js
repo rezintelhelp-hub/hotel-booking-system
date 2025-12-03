@@ -575,6 +575,280 @@ app.get('/api/health', (req, res) => {
 });
 
 // Run clients migration manually
+// =====================================================
+// ACCOUNTS SYSTEM - New unified account structure
+// =====================================================
+
+app.get('/api/setup-accounts', async (req, res) => {
+  try {
+    // Create the unified accounts table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS accounts (
+        id SERIAL PRIMARY KEY,
+        public_id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
+        parent_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        role VARCHAR(20) NOT NULL DEFAULT 'admin',
+        name VARCHAR(255) NOT NULL,
+        email VARCHAR(255) NOT NULL UNIQUE,
+        password_hash VARCHAR(255),
+        phone VARCHAR(50),
+        business_name VARCHAR(255),
+        logo_url VARCHAR(500),
+        primary_color VARCHAR(20) DEFAULT '#6366f1',
+        secondary_color VARCHAR(20) DEFAULT '#8b5cf6',
+        address_line1 VARCHAR(255),
+        address_line2 VARCHAR(255),
+        city VARCHAR(100),
+        region VARCHAR(100),
+        postcode VARCHAR(20),
+        country VARCHAR(100) DEFAULT 'United Kingdom',
+        currency VARCHAR(3) DEFAULT 'GBP',
+        timezone VARCHAR(50) DEFAULT 'Europe/London',
+        plan VARCHAR(20) DEFAULT 'free',
+        commission_percent DECIMAL(5,2) DEFAULT 0,
+        api_key VARCHAR(64) UNIQUE,
+        api_key_created_at TIMESTAMP,
+        status VARCHAR(20) DEFAULT 'active',
+        settings JSONB DEFAULT '{}',
+        notes TEXT,
+        last_login_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT valid_role CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin'))
+      )
+    `);
+    console.log('✅ Created accounts table');
+
+    // Create indexes
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_parent ON accounts(parent_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_role ON accounts(role)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_api_key ON accounts(api_key)`);
+    console.log('✅ Created accounts indexes');
+
+    // Add account_id to properties if not exists
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_account ON properties(account_id)`);
+    console.log('✅ Added account_id to properties');
+
+    res.json({ 
+      success: true, 
+      message: 'Accounts table created successfully!'
+    });
+  } catch (error) {
+    console.error('Setup accounts error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create Master Admin account
+app.post('/api/setup-master-admin', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.json({ success: false, error: 'Name, email, and password required' });
+    }
+    
+    // Check if master admin already exists
+    const existing = await pool.query(`SELECT id FROM accounts WHERE role = 'master_admin'`);
+    if (existing.rows.length > 0) {
+      return res.json({ success: false, error: 'Master Admin already exists' });
+    }
+    
+    // Hash password using crypto (built-in)
+    const crypto = require('crypto');
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    
+    // Generate API key
+    const apiKey = 'gas_master_' + crypto.randomBytes(24).toString('hex');
+    
+    // Create master admin
+    const result = await pool.query(`
+      INSERT INTO accounts (name, email, password_hash, role, api_key, api_key_created_at, status)
+      VALUES ($1, $2, $3, 'master_admin', $4, NOW(), 'active')
+      RETURNING id, public_id, name, email, role
+    `, [name, email, passwordHash, apiKey]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Master Admin created!',
+      account: result.rows[0],
+      api_key: apiKey
+    });
+  } catch (error) {
+    console.error('Create master admin error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Migrate existing agencies and clients to accounts
+app.post('/api/migrate-to-accounts', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    let agenciesMigrated = 0;
+    let clientsMigrated = 0;
+    
+    // Get master admin ID (or null if not created yet)
+    const masterResult = await client.query(`SELECT id FROM accounts WHERE role = 'master_admin' LIMIT 1`);
+    const masterAdminId = masterResult.rows.length > 0 ? masterResult.rows[0].id : null;
+    
+    // Migrate agencies -> accounts (role = agency_admin)
+    const agencies = await client.query(`SELECT * FROM agencies`);
+    for (const agency of agencies.rows) {
+      // Check if already migrated (by email)
+      const exists = await client.query(`SELECT id FROM accounts WHERE email = $1`, [agency.email]);
+      if (exists.rows.length > 0) {
+        // Update properties to use this account
+        await client.query(`UPDATE properties SET account_id = $1 WHERE agency_id = $2`, [exists.rows[0].id, agency.id]);
+        continue;
+      }
+      
+      const result = await client.query(`
+        INSERT INTO accounts (
+          public_id, parent_id, role, name, email, phone, business_name,
+          logo_url, primary_color, secondary_color,
+          address_line1, address_line2, city, region, postcode, country,
+          currency, timezone, plan, commission_percent, api_key, api_key_created_at,
+          status, settings, notes, created_at, updated_at
+        ) VALUES (
+          $1, $2, 'agency_admin', $3, $4, $5, $3,
+          $6, $7, $8,
+          $9, $10, $11, $12, $13, $14,
+          $15, $16, $17, $18, $19, $20,
+          $21, $22, $23, $24, $25
+        ) RETURNING id
+      `, [
+        agency.public_id, masterAdminId, agency.name, agency.email, agency.phone,
+        agency.logo_url, agency.primary_color, agency.secondary_color,
+        agency.address_line1, agency.address_line2, agency.city, agency.region, agency.postcode, agency.country,
+        agency.currency, agency.timezone, agency.plan, agency.commission_percent, agency.api_key, agency.api_key_created_at,
+        agency.status, agency.settings, agency.notes, agency.created_at, agency.updated_at
+      ]);
+      
+      // Update properties that belonged to this agency
+      await client.query(`UPDATE properties SET account_id = $1 WHERE agency_id = $2`, [result.rows[0].id, agency.id]);
+      agenciesMigrated++;
+    }
+    
+    // Migrate clients -> accounts (role = admin)
+    const clients = await client.query(`SELECT * FROM clients`);
+    for (const cl of clients.rows) {
+      // Skip if email matches an agency (already migrated as agency_admin)
+      const agencyMatch = await client.query(`SELECT id FROM accounts WHERE email = $1`, [cl.email]);
+      if (agencyMatch.rows.length > 0) {
+        // Update properties to use this account
+        await client.query(`UPDATE properties SET account_id = $1 WHERE client_id = $2`, [agencyMatch.rows[0].id, cl.id]);
+        continue;
+      }
+      
+      // Find parent (if client had agency_id, find that agency's account)
+      let parentId = masterAdminId;
+      if (cl.agency_id) {
+        const parentAgency = await client.query(`
+          SELECT a.id FROM accounts a 
+          JOIN agencies ag ON ag.email = a.email 
+          WHERE ag.id = $1
+        `, [cl.agency_id]);
+        if (parentAgency.rows.length > 0) {
+          parentId = parentAgency.rows[0].id;
+        }
+      }
+      
+      const result = await client.query(`
+        INSERT INTO accounts (
+          public_id, parent_id, role, name, email, phone, business_name,
+          address_line1, address_line2, city, region, postcode, country,
+          currency, timezone, plan, api_key, api_key_created_at,
+          status, notes, created_at, updated_at
+        ) VALUES (
+          $1, $2, 'admin', $3, $4, $5, $6,
+          $7, $8, $9, $10, $11, $12,
+          $13, $14, $15, $16, $17,
+          $18, $19, $20, $21
+        ) RETURNING id
+      `, [
+        cl.public_id, parentId, cl.name, cl.email, cl.phone, cl.business_name,
+        cl.address_line1, cl.address_line2, cl.city, cl.region, cl.postcode, cl.country,
+        cl.currency, cl.timezone, cl.plan, cl.api_key, cl.api_key_created_at,
+        cl.status, cl.notes, cl.created_at, cl.updated_at
+      ]);
+      
+      // Update properties that belonged to this client
+      await client.query(`UPDATE properties SET account_id = $1 WHERE client_id = $2`, [result.rows[0].id, cl.id]);
+      clientsMigrated++;
+    }
+    
+    await client.query('COMMIT');
+    
+    // Get final counts
+    const accountCount = await pool.query(`SELECT COUNT(*) FROM accounts`);
+    const propsLinked = await pool.query(`SELECT COUNT(*) FROM properties WHERE account_id IS NOT NULL`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Migration complete!',
+      agencies_migrated: agenciesMigrated,
+      clients_migrated: clientsMigrated,
+      total_accounts: parseInt(accountCount.rows[0].count),
+      properties_linked: parseInt(propsLinked.rows[0].count)
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Get all accounts (for admin view)
+app.get('/api/admin/accounts', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        a.*,
+        p.name as parent_name,
+        (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+        (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+      FROM accounts a
+      LEFT JOIN accounts p ON a.parent_id = p.id
+      ORDER BY 
+        CASE a.role 
+          WHEN 'master_admin' THEN 1 
+          WHEN 'agency_admin' THEN 2 
+          WHEN 'submaster_admin' THEN 3 
+          WHEN 'admin' THEN 4 
+        END,
+        a.name
+    `);
+    
+    res.json({ success: true, accounts: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update account role
+app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { role } = req.body;
+    
+    if (!['agency_admin', 'submaster_admin', 'admin'].includes(role)) {
+      return res.json({ success: false, error: 'Invalid role' });
+    }
+    
+    await pool.query(`UPDATE accounts SET role = $1, updated_at = NOW() WHERE id = $2`, [role, id]);
+    
+    res.json({ success: true, message: 'Role updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/setup-clients', async (req, res) => {
   try {
     // 0. Create agencies table first (agencies manage multiple clients)
