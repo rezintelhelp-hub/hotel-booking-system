@@ -6538,12 +6538,17 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function viewAccount(accountId) {
-            const account = allAccounts.find(a => a.id === accountId);
-            if (!account) return;
+            const account = allAccounts.find(a => a.id === accountId || a.id === parseInt(accountId));
+            if (!account) {
+                console.error('Account not found:', accountId);
+                return;
+            }
             
-            // Set the filter variables
-            selectedAccountId = accountId;
+            // Set the filter variables (ensure integer)
+            selectedAccountId = parseInt(account.id);
             selectedAccountName = account.name;
+            
+            console.log('viewAccount - set selectedAccountId to:', selectedAccountId);
             
             // Show banner
             const banner = document.getElementById('agencyFilterBanner');
@@ -6612,12 +6617,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                 `<option value="${r}" ${r === currentRole ? 'selected' : ''}>${roleLabels[r]}</option>`
             ).join('');
             
+            // Remove existing modal if any
+            const existing = document.getElementById('changeRoleModal');
+            if (existing) existing.remove();
+            
             const modalHtml = `
-                <div class="modal-overlay" id="changeRoleModal" style="display: flex;">
-                    <div class="modal" style="max-width: 400px;">
+                <div id="changeRoleModal" class="modal active">
+                    <div class="modal-content" style="max-width: 400px;">
                         <div class="modal-header">
-                            <h3>Change Role</h3>
-                            <button class="modal-close" onclick="closeModal('changeRoleModal')">&times;</button>
+                            <h3 class="modal-title">🔄 Change Role</h3>
+                            <button class="modal-close" onclick="closeChangeRoleModal()">&times;</button>
                         </div>
                         <div style="padding: 1.5rem;">
                             <p style="margin-bottom: 1rem;">Change role for <strong>${accountName}</strong>:</p>
@@ -6625,7 +6634,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${options}
                             </select>
                             <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                                <button class="btn btn-secondary" onclick="closeModal('changeRoleModal')" style="flex: 1;">Cancel</button>
+                                <button class="btn btn-secondary" onclick="closeChangeRoleModal()" style="flex: 1;">Cancel</button>
                                 <button class="btn" onclick="saveAccountRole(${accountId})" style="flex: 1;">Save</button>
                             </div>
                         </div>
@@ -6634,6 +6643,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             `;
             
             document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function closeChangeRoleModal() {
+            const modal = document.getElementById('changeRoleModal');
+            if (modal) modal.remove();
         }
         
         async function saveAccountRole(accountId) {
@@ -6648,7 +6662,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const result = await response.json();
                 
                 if (result.success) {
-                    closeModal('changeRoleModal');
+                    closeChangeRoleModal();
                     loadAccounts();
                 } else {
                     alert('Error: ' + result.error);
@@ -7507,7 +7521,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Build query params - prioritize account_id (new system)
                 let queryParams = [];
                 if (selectedAccountId) {
-                    queryParams.push(`account_id=${selectedAccountId}`);
+                    // Ensure it's an integer
+                    queryParams.push(`account_id=${parseInt(selectedAccountId)}`);
                 } else {
                     const clientId = getClientId();
                     if (clientId) {
@@ -7521,7 +7536,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const response = await fetch(`/api/admin/stats${queryString}`);
                 const stats = await response.json();
                 
-                console.log('loadDashboard - stats:', stats);
+                console.log('loadDashboard - stats response:', stats);
                 
                 if (stats.success) {
                     document.getElementById('stat-properties').textContent = stats.properties || 0;
