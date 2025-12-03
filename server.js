@@ -777,6 +777,13 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
+    // Add smoobu columns
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS channel_manager VARCHAR(50)`);
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)`);
+    // Create unique index for smoobu_id if not exists
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_properties_smoobu_id ON properties(smoobu_id) WHERE smoobu_id IS NOT NULL`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_bookable_units_smoobu_id ON bookable_units(smoobu_id) WHERE smoobu_id IS NOT NULL`);
     // Add access_token column to channel_connections
     await pool.query(`ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS access_token TEXT`);
     
