@@ -790,6 +790,9 @@ app.get('/api/setup-database', async (req, res) => {
     // Fix currency column length (should be VARCHAR(3) not VARCHAR(2))
     await pool.query(`ALTER TABLE properties ALTER COLUMN currency TYPE VARCHAR(3)`);
     
+    // Fix timezone column length if needed
+    await pool.query(`ALTER TABLE properties ALTER COLUMN timezone TYPE VARCHAR(50)`);
+    
     // Add tourist tax columns to properties
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_enabled BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_type VARCHAR(20) DEFAULT 'per_guest_per_night'`); // per_guest_per_night, per_night, per_booking, percentage
@@ -3471,9 +3474,8 @@ app.post('/api/smoobu/import-property', async (req, res) => {
                     country = $4,
                     latitude = $5,
                     longitude = $6,
-                    currency = $7,
                     updated_at = NOW()
-                WHERE id = $8
+                WHERE id = $7
             `, [
                 apartmentName,
                 details.location?.street || '',
@@ -3481,7 +3483,6 @@ app.post('/api/smoobu/import-property', async (req, res) => {
                 details.location?.country || '',
                 details.location?.latitude || null,
                 details.location?.longitude || null,
-                details.currency || 'USD',
                 propertyId
             ]);
         } else {
