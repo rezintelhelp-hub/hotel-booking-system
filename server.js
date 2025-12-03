@@ -3469,49 +3469,27 @@ app.post('/api/smoobu/import-property', async (req, res) => {
             await client.query(`
                 UPDATE properties SET
                     name = $1,
-                    address = $2,
-                    city = $3,
-                    country = $4,
-                    latitude = $5,
-                    longitude = $6,
                     updated_at = NOW()
-                WHERE id = $7
+                WHERE id = $2
             `, [
                 apartmentName,
-                details.location?.street || '',
-                details.location?.city || '',
-                details.location?.country || '',
-                details.location?.latitude || null,
-                details.location?.longitude || null,
                 propertyId
             ]);
         } else {
-            // Insert new
+            // Insert new - minimal columns only
             const propertyResult = await client.query(`
                 INSERT INTO properties (
                     user_id,
                     client_id, 
-                    name, 
-                    description,
-                    address, 
-                    city, 
-                    country,
-                    latitude,
-                    longitude,
+                    name,
                     smoobu_id,
                     channel_manager
                 )
-                VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, 'smoobu')
+                VALUES (1, $1, $2, $3, 'smoobu')
                 RETURNING id
             `, [
                 targetClientId,
                 apartmentName,
-                JSON.stringify({ en: '' }),
-                details.location?.street || '',
-                details.location?.city || '',
-                details.location?.country || '',
-                details.location?.latitude || null,
-                details.location?.longitude || null,
                 apartmentId.toString()
             ]);
             propertyId = propertyResult.rows[0].id;
