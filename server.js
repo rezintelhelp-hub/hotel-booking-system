@@ -682,6 +682,206 @@ app.post('/api/setup-master-admin', async (req, res) => {
   }
 });
 
+// =====================================================
+// ACCOUNTS AUTHENTICATION
+// =====================================================
+const crypto = require('crypto');
+
+// Generate a secure session token
+function generateSessionToken() {
+  return crypto.randomBytes(32).toString('hex');
+}
+
+// Login endpoint for accounts
+app.post('/api/accounts/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.json({ success: false, error: 'Email and password required' });
+    }
+    
+    // Hash the password
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    
+    // Find account by email
+    const result = await pool.query(`
+      SELECT id, public_id, name, email, role, business_name, logo_url, 
+             primary_color, secondary_color, status, api_key
+      FROM accounts 
+      WHERE email = $1
+    `, [email.toLowerCase().trim()]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid email or password' });
+    }
+    
+    const account = result.rows[0];
+    
+    // Check password
+    const storedHash = await pool.query('SELECT password_hash FROM accounts WHERE id = $1', [account.id]);
+    if (storedHash.rows[0].password_hash !== passwordHash) {
+      return res.json({ success: false, error: 'Invalid email or password' });
+    }
+    
+    // Check if account is active
+    if (account.status !== 'active') {
+      return res.json({ success: false, error: 'Account is not active. Please contact support.' });
+    }
+    
+    // Generate session token
+    const sessionToken = generateSessionToken();
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    
+    // Store session token (we'll use a simple approach - store in account or sessions table)
+    // For now, we'll create a sessions table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_sessions (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address VARCHAR(45),
+        user_agent TEXT
+      )
+    `);
+    
+    // Clean up old sessions for this account (keep max 5)
+    await pool.query(`
+      DELETE FROM account_sessions 
+      WHERE account_id = $1 
+      AND id NOT IN (
+        SELECT id FROM account_sessions 
+        WHERE account_id = $1 
+        ORDER BY created_at DESC 
+        LIMIT 4
+      )
+    `, [account.id]);
+    
+    // Insert new session
+    await pool.query(`
+      INSERT INTO account_sessions (account_id, token, expires_at, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [account.id, sessionToken, expiresAt, req.ip, req.get('User-Agent')]);
+    
+    // Update last login
+    await pool.query(`
+      UPDATE accounts SET last_login_at = NOW() WHERE id = $1
+    `, [account.id]);
+    
+    res.json({
+      success: true,
+      message: 'Login successful',
+      account: {
+        id: account.id,
+        public_id: account.public_id,
+        name: account.name,
+        email: account.email,
+        role: account.role,
+        business_name: account.business_name,
+        logo_url: account.logo_url,
+        primary_color: account.primary_color,
+        secondary_color: account.secondary_color
+      },
+      token: sessionToken,
+      expires_at: expiresAt
+    });
+  } catch (error) {
+    console.error('Login error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get current account from session token
+app.get('/api/accounts/me', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'No token provided' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    
+    // Find valid session
+    const session = await pool.query(`
+      SELECT s.account_id, s.expires_at
+      FROM account_sessions s
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    
+    if (session.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired session' });
+    }
+    
+    // Get account details
+    const account = await pool.query(`
+      SELECT id, public_id, name, email, role, business_name, logo_url,
+             primary_color, secondary_color, status, currency, timezone
+      FROM accounts WHERE id = $1
+    `, [session.rows[0].account_id]);
+    
+    if (account.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ success: true, account: account.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Logout endpoint
+app.post('/api/accounts/logout', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      await pool.query('DELETE FROM account_sessions WHERE token = $1', [token]);
+    }
+    res.json({ success: true, message: 'Logged out successfully' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Set password for account (for accounts without password)
+app.post('/api/accounts/set-password', async (req, res) => {
+  try {
+    const { email, password, confirm_password } = req.body;
+    
+    if (!email || !password || !confirm_password) {
+      return res.json({ success: false, error: 'All fields required' });
+    }
+    
+    if (password !== confirm_password) {
+      return res.json({ success: false, error: 'Passwords do not match' });
+    }
+    
+    if (password.length < 8) {
+      return res.json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    
+    // Check if account exists and doesn't have password
+    const account = await pool.query('SELECT id, password_hash FROM accounts WHERE email = $1', [email.toLowerCase().trim()]);
+    if (account.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    if (account.rows[0].password_hash) {
+      return res.json({ success: false, error: 'Password already set. Use forgot password to reset.' });
+    }
+    
+    // Hash and set password
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    await pool.query('UPDATE accounts SET password_hash = $1 WHERE id = $2', [passwordHash, account.rows[0].id]);
+    
+    res.json({ success: true, message: 'Password set successfully. You can now log in.' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Migrate existing agencies and clients to accounts
 app.post('/api/migrate-to-accounts', async (req, res) => {
   const client = await pool.connect();
@@ -801,115 +1001,6 @@ app.post('/api/migrate-to-accounts', async (req, res) => {
     res.json({ success: false, error: error.message });
   } finally {
     client.release();
-  }
-});
-
-// Diagnostic: Check and fix property account_id linking
-app.get('/api/admin/fix-property-accounts', async (req, res) => {
-  try {
-    // Get unlinked properties
-    const unlinked = await pool.query(`
-      SELECT p.id, p.name, p.client_id, p.agency_id, p.account_id
-      FROM properties p
-      WHERE p.account_id IS NULL
-    `);
-    
-    // Get all properties with their account status
-    const allProps = await pool.query(`
-      SELECT p.id, p.name, p.client_id, p.agency_id, p.account_id, a.name as account_name
-      FROM properties p
-      LEFT JOIN accounts a ON p.account_id = a.id
-      ORDER BY p.id
-    `);
-    
-    // Get account mapping info
-    const accountMap = await pool.query(`
-      SELECT a.id as account_id, a.name as account_name, a.role, c.id as client_id, c.name as client_name
-      FROM accounts a
-      LEFT JOIN clients c ON c.email = a.email OR c.name = a.name
-      ORDER BY a.id
-    `);
-    
-    res.json({
-      success: true,
-      unlinked_count: unlinked.rows.length,
-      unlinked_properties: unlinked.rows,
-      all_properties: allProps.rows,
-      account_client_mapping: accountMap.rows,
-      fix_url: '/api/admin/fix-property-accounts?apply=true'
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Actually apply the fix
-app.post('/api/admin/fix-property-accounts', async (req, res) => {
-  try {
-    const results = [];
-    
-    // Get unlinked properties
-    const unlinked = await pool.query(`
-      SELECT p.id, p.name, p.client_id, p.agency_id
-      FROM properties p
-      WHERE p.account_id IS NULL
-    `);
-    
-    for (const prop of unlinked.rows) {
-      let accountId = null;
-      let matchType = null;
-      
-      // Try to find matching account by client_id
-      if (prop.client_id) {
-        const clientMatch = await pool.query(`
-          SELECT a.id FROM accounts a
-          JOIN clients c ON (c.email = a.email OR c.name = a.name)
-          WHERE c.id = $1
-          LIMIT 1
-        `, [prop.client_id]);
-        
-        if (clientMatch.rows.length > 0) {
-          accountId = clientMatch.rows[0].id;
-          matchType = 'client_id';
-        }
-      }
-      
-      // Try by agency_id if no client match
-      if (!accountId && prop.agency_id) {
-        const agencyMatch = await pool.query(`
-          SELECT a.id FROM accounts a
-          JOIN agencies ag ON (ag.email = a.email OR ag.name = a.name)
-          WHERE ag.id = $1
-          LIMIT 1
-        `, [prop.agency_id]);
-        
-        if (agencyMatch.rows.length > 0) {
-          accountId = agencyMatch.rows[0].id;
-          matchType = 'agency_id';
-        }
-      }
-      
-      if (accountId) {
-        await pool.query(`UPDATE properties SET account_id = $1 WHERE id = $2`, [accountId, prop.id]);
-        results.push({ property_id: prop.id, name: prop.name, account_id: accountId, match_type: matchType, status: 'linked' });
-      } else {
-        results.push({ property_id: prop.id, name: prop.name, status: 'no_match_found' });
-      }
-    }
-    
-    // Get final counts
-    const linked = await pool.query(`SELECT COUNT(*) FROM properties WHERE account_id IS NOT NULL`);
-    const stillUnlinked = await pool.query(`SELECT COUNT(*) FROM properties WHERE account_id IS NULL`);
-    
-    res.json({
-      success: true,
-      processed: results.length,
-      results: results,
-      final_linked: parseInt(linked.rows[0].count),
-      final_unlinked: parseInt(stillUnlinked.rows[0].count)
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
   }
 });
 
@@ -5211,8 +5302,8 @@ app.post('/api/pricing/calculate', async (req, res) => {
 // Get dashboard statistics
 app.get('/api/admin/stats', async (req, res) => {
   try {
-    const clientId = req.query.client_id ? parseInt(req.query.client_id) : null;
-    const accountId = req.query.account_id ? parseInt(req.query.account_id) : null;
+    const clientId = req.query.client_id;
+    const accountId = req.query.account_id;
     
     console.log('Stats request - accountId:', accountId, 'clientId:', clientId);
     
