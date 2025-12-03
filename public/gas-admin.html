@@ -6413,7 +6413,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Update button states
             document.querySelectorAll('.account-filter').forEach(btn => {
                 btn.classList.remove('active');
-                if (btn.dataset.role === role) btn.classList.add('active');
+                btn.style.background = '';
+                btn.style.color = '';
+                if (btn.dataset.role === role) {
+                    btn.classList.add('active');
+                    btn.style.background = '#6366f1';
+                    btn.style.color = 'white';
+                }
             });
             
             // Filter and render
@@ -6421,6 +6427,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (role !== 'all') {
                 filtered = allAccounts.filter(a => a.role === role);
             }
+            // Don't show master_admin in filtered views unless specifically viewing "all"
+            if (role === 'all') {
+                // Show everyone
+            } else {
+                filtered = allAccounts.filter(a => a.role === role);
+            }
+            
             renderAccountsTable(filtered);
         }
         
