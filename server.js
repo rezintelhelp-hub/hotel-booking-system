@@ -3428,82 +3428,126 @@ app.post('/api/smoobu/import-property', async (req, res) => {
         
         await client.query('BEGIN');
         
-        // Create or update property
-        const propertyResult = await client.query(`
-            INSERT INTO properties (
-                client_id, 
-                name, 
-                description,
-                address, 
-                city, 
-                country,
-                latitude,
-                longitude,
-                currency,
-                smoobu_id,
-                channel_manager
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'smoobu')
-            ON CONFLICT (smoobu_id) WHERE smoobu_id IS NOT NULL
-            DO UPDATE SET 
-                name = EXCLUDED.name,
-                address = EXCLUDED.address,
-                city = EXCLUDED.city,
-                country = EXCLUDED.country,
-                latitude = EXCLUDED.latitude,
-                longitude = EXCLUDED.longitude,
-                currency = EXCLUDED.currency,
-                updated_at = NOW()
-            RETURNING id
-        `, [
-            targetClientId,
-            apartmentName,
-            '',
-            details.location?.street || '',
-            details.location?.city || '',
-            details.location?.country || '',
-            details.location?.latitude || null,
-            details.location?.longitude || null,
-            details.currency || 'USD',
-            apartmentId.toString()
-        ]);
+        // Check if property already exists
+        const existingProp = await client.query(
+            'SELECT id FROM properties WHERE smoobu_id = $1',
+            [apartmentId.toString()]
+        );
         
-        const propertyId = propertyResult.rows[0].id;
+        let propertyId;
         
-        // Create a bookable unit for this apartment
-        const roomResult = await client.query(`
-            INSERT INTO bookable_units (
-                property_id,
-                name,
-                description,
-                max_occupancy,
-                bedrooms,
-                bathrooms,
-                base_price,
-                smoobu_id
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            ON CONFLICT (smoobu_id) WHERE smoobu_id IS NOT NULL
-            DO UPDATE SET
-                name = EXCLUDED.name,
-                max_occupancy = EXCLUDED.max_occupancy,
-                bedrooms = EXCLUDED.bedrooms,
-                bathrooms = EXCLUDED.bathrooms,
-                base_price = EXCLUDED.base_price,
-                updated_at = NOW()
-            RETURNING id
-        `, [
-            propertyId,
-            apartmentName,
-            '',
-            details.rooms?.maxOccupancy || 2,
-            details.rooms?.bedrooms || 1,
-            details.rooms?.bathrooms || 1,
-            details.price?.minimal || 100,
-            apartmentId.toString()
-        ]);
+        if (existingProp.rows.length > 0) {
+            // Update existing
+            propertyId = existingProp.rows[0].id;
+            await client.query(`
+                UPDATE properties SET
+                    name = $1,
+                    address = $2,
+                    city = $3,
+                    country = $4,
+                    latitude = $5,
+                    longitude = $6,
+                    currency = $7,
+                    updated_at = NOW()
+                WHERE id = $8
+            `, [
+                apartmentName,
+                details.location?.street || '',
+                details.location?.city || '',
+                details.location?.country || '',
+                details.location?.latitude || null,
+                details.location?.longitude || null,
+                details.currency || 'USD',
+                propertyId
+            ]);
+        } else {
+            // Insert new
+            const propertyResult = await client.query(`
+                INSERT INTO properties (
+                    client_id, 
+                    name, 
+                    description,
+                    address, 
+                    city, 
+                    country,
+                    latitude,
+                    longitude,
+                    currency,
+                    smoobu_id,
+                    channel_manager
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'smoobu')
+                RETURNING id
+            `, [
+                targetClientId,
+                apartmentName,
+                '',
+                details.location?.street || '',
+                details.location?.city || '',
+                details.location?.country || '',
+                details.location?.latitude || null,
+                details.location?.longitude || null,
+                details.currency || 'USD',
+                apartmentId.toString()
+            ]);
+            propertyId = propertyResult.rows[0].id;
+        }
         
-        const roomId = roomResult.rows[0].id;
+        // Check if bookable unit already exists
+        const existingUnit = await client.query(
+            'SELECT id FROM bookable_units WHERE smoobu_id = $1',
+            [apartmentId.toString()]
+        );
+        
+        let roomId;
+        
+        if (existingUnit.rows.length > 0) {
+            // Update existing
+            roomId = existingUnit.rows[0].id;
+            await client.query(`
+                UPDATE bookable_units SET
+                    name = $1,
+                    max_occupancy = $2,
+                    bedrooms = $3,
+                    bathrooms = $4,
+                    base_price = $5,
+                    updated_at = NOW()
+                WHERE id = $6
+            `, [
+                apartmentName,
+                details.rooms?.maxOccupancy || 2,
+                details.rooms?.bedrooms || 1,
+                details.rooms?.bathrooms || 1,
+                details.price?.minimal || 100,
+                roomId
+            ]);
+        } else {
+            // Insert new
+            const roomResult = await client.query(`
+                INSERT INTO bookable_units (
+                    property_id,
+                    name,
+                    description,
+                    max_occupancy,
+                    bedrooms,
+                    bathrooms,
+                    base_price,
+                    smoobu_id
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                RETURNING id
+            `, [
+                propertyId,
+                apartmentName,
+                '',
+                details.rooms?.maxOccupancy || 2,
+                details.rooms?.bedrooms || 1,
+                details.rooms?.bathrooms || 1,
+                details.price?.minimal || 100,
+                apartmentId.toString()
+            ]);
+            roomId = roomResult.rows[0].id;
+        }
         
         await client.query('COMMIT');
         
