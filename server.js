@@ -894,7 +894,7 @@ app.post('/api/accounts/set-password', async (req, res) => {
     }
     
     if (account.rows[0].password_hash) {
-      return res.json({ success: false, error: 'Password already set. Use forgot password to reset.' });
+      return res.json({ success: false, error: 'Password already set. Use "Forgot Password" to reset it.' });
     }
     
     // Hash and set password
@@ -902,6 +902,34 @@ app.post('/api/accounts/set-password', async (req, res) => {
     await pool.query('UPDATE accounts SET password_hash = $1 WHERE id = $2', [passwordHash, account.rows[0].id]);
     
     res.json({ success: true, message: 'Password set successfully. You can now log in.' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Forgot password - clears password so user can set a new one
+app.post('/api/accounts/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.json({ success: false, error: 'Email required' });
+    }
+    
+    // Check if account exists
+    const account = await pool.query('SELECT id, name FROM accounts WHERE email = $1', [email.toLowerCase().trim()]);
+    if (account.rows.length === 0) {
+      // Don't reveal if account exists or not for security
+      return res.json({ success: true, message: 'If an account exists with this email, the password has been reset.' });
+    }
+    
+    // Clear the password so they can set a new one
+    await pool.query('UPDATE accounts SET password_hash = NULL WHERE id = $1', [account.rows[0].id]);
+    
+    // Also clear any active sessions for security
+    await pool.query('DELETE FROM account_sessions WHERE account_id = $1', [account.rows[0].id]);
+    
+    res.json({ success: true, message: 'Password reset. You can now set a new password.' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
