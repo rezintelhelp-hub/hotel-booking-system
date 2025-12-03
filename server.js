@@ -770,7 +770,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS channel_managers (
         id SERIAL PRIMARY KEY,
-        cm_code VARCHAR(50) UNIQUE,
+        cm_code VARCHAR(50),
         cm_name VARCHAR(100),
         api_base_url VARCHAR(255),
         auth_type VARCHAR(50) DEFAULT 'oauth2',
@@ -784,15 +784,24 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS api_base_url VARCHAR(255)`);
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS auth_type VARCHAR(50) DEFAULT 'oauth2'`);
     
-    // Insert default channel managers
-    await pool.query(`
-      INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type)
-      VALUES 
-        ('beds24', 'Beds24', 'https://beds24.com/api/v2', 'oauth2'),
-        ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1', 'oauth2'),
-        ('smoobu', 'Smoobu', 'https://login.smoobu.com/api', 'api_key')
-      ON CONFLICT (cm_code) DO NOTHING
-    `);
+    // Create unique index if not exists
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cm_code ON channel_managers(cm_code) WHERE cm_code IS NOT NULL`);
+    
+    // Insert default channel managers (check if exists first)
+    const beds24Exists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'beds24'`);
+    if (beds24Exists.rows.length === 0) {
+      await pool.query(`INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type) VALUES ('beds24', 'Beds24', 'https://beds24.com/api/v2', 'oauth2')`);
+    }
+    
+    const hostawayExists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'hostaway'`);
+    if (hostawayExists.rows.length === 0) {
+      await pool.query(`INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type) VALUES ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1', 'oauth2')`);
+    }
+    
+    const smoobuExists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'smoobu'`);
+    if (smoobuExists.rows.length === 0) {
+      await pool.query(`INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type) VALUES ('smoobu', 'Smoobu', 'https://login.smoobu.com/api', 'api_key')`);
+    }
     
     // Create channel_connections table
     await pool.query(`
