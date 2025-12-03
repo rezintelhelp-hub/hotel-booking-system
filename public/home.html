@@ -4,75 +4,82 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GAS - Global Accommodation System | Join the Network</title>
-    <meta name="description" content="Join thousands of independent hotels, hostels and vacation rental owners. List for free. Let independent travel agents, tour operators and local tourist groups find you.">
+    <meta name="description" content="Join thousands of independent hotels, hostels and vacation rental owners. List for free. Pay less commission. Take back control.">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        :root {
-            --primary: #7c5cff;
-            --primary-dark: #6344e0;
-            --primary-light: #ede9ff;
-            --secondary: #10b981;
-            --text-primary: #1a1a2e;
-            --text-secondary: #64748b;
-            --text-muted: #94a3b8;
-            --bg-white: #ffffff;
-            --bg-cream: #fafaf9;
-            --bg-light: #f8fafc;
-            --border: #e2e8f0;
-            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
-            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
-            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
-            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
-            --radius: 12px;
-            --radius-lg: 20px;
-        }
-
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
 
-        body {
-            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            color: var(--text-primary);
-            line-height: 1.6;
-            background: var(--bg-white);
-            -webkit-font-smoothing: antialiased;
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --primary-light: #a5b4fc;
+            --accent: #8b5cf6;
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --bg-white: #ffffff;
+            --bg-light: #f8fafc;
+            --bg-subtle: #f1f5f9;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
         }
 
-        /* =====================================================
-           HEADER
-        ===================================================== */
-        header {
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-white);
+            color: var(--text-primary);
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Navigation */
+        .nav {
             position: fixed;
             top: 0;
             left: 0;
             right: 0;
             z-index: 100;
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
+            background: rgba(255,255,255,0.9);
+            backdrop-filter: blur(20px);
             border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            transition: all 0.3s;
         }
 
-        .header-container {
+        .nav-container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 1rem 2rem;
             display: flex;
             justify-content: space-between;
             align-items: center;
         }
 
         .logo {
-            font-family: 'Fraunces', serif;
-            font-size: 1.75rem;
-            font-weight: 700;
-            color: var(--primary);
-            text-decoration: none;
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
             letter-spacing: -0.5px;
+        }
+
+        .logo span {
+            font-weight: 400;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            -webkit-text-fill-color: var(--text-secondary);
+            margin-left: 0.5rem;
         }
 
         .nav-links {
@@ -97,26 +104,26 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
+            gap: 0.5rem;
             padding: 0.75rem 1.5rem;
-            border-radius: var(--radius);
+            border-radius: 8px;
             font-weight: 600;
             font-size: 0.95rem;
-            text-decoration: none;
             cursor: pointer;
+            transition: all 0.2s;
             border: none;
-            transition: all 0.2s ease;
+            text-decoration: none;
         }
 
         .btn-primary {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
             color: white;
-            box-shadow: var(--shadow-md), 0 0 0 0 rgba(124, 92, 255, 0.3);
+            box-shadow: var(--shadow-md), 0 0 0 0 rgba(99, 102, 241, 0.3);
         }
 
         .btn-primary:hover {
-            background: var(--primary-dark);
-            transform: translateY(-1px);
-            box-shadow: var(--shadow-lg), 0 0 0 4px rgba(124, 92, 255, 0.15);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg), 0 0 0 4px rgba(99, 102, 241, 0.15);
         }
 
         .btn-secondary {
@@ -126,22 +133,36 @@
         }
 
         .btn-secondary:hover {
-            background: var(--bg-cream);
-            border-color: var(--text-muted);
+            background: var(--bg-subtle);
+            border-color: var(--primary);
         }
 
         .btn-large {
-            padding: 1rem 2rem;
-            font-size: 1.05rem;
+            padding: 1rem 2.5rem;
+            font-size: 1.1rem;
+            border-radius: 12px;
         }
 
-        /* =====================================================
-           HERO SECTION
-        ===================================================== */
+        /* Hero Section */
         .hero {
-            padding: 8rem 2rem 5rem;
-            background: linear-gradient(180deg, var(--bg-white) 0%, var(--bg-cream) 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            padding: 8rem 2rem 4rem;
+            background: linear-gradient(180deg, var(--bg-white) 0%, var(--bg-light) 100%);
+            position: relative;
             overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 80%;
+            height: 150%;
+            background: radial-gradient(ellipse, rgba(99, 102, 241, 0.08) 0%, transparent 70%);
+            pointer-events: none;
         }
 
         .hero-container {
@@ -153,25 +174,60 @@
             align-items: center;
         }
 
-        .hero-content h1 {
-            font-family: 'Fraunces', serif;
-            font-size: 3.25rem;
-            font-weight: 700;
-            line-height: 1.15;
-            color: var(--text-primary);
-            margin-bottom: 1.5rem;
-            letter-spacing: -1px;
+        .hero-content {
+            position: relative;
+            z-index: 1;
         }
 
-        .hero-content h1 span {
+        .hero-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
             color: var(--primary);
+            padding: 0.5rem 1rem;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(99, 102, 241, 0.2);
         }
 
-        .hero-content p {
-            font-size: 1.2rem;
+        .hero-badge::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: var(--success);
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.2); }
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            line-height: 1.1;
+            letter-spacing: -1.5px;
+            margin-bottom: 1.5rem;
+            color: var(--text-primary);
+        }
+
+        .hero h1 .highlight {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero p {
+            font-size: 1.25rem;
             color: var(--text-secondary);
             margin-bottom: 2rem;
-            max-width: 480px;
+            max-width: 500px;
             line-height: 1.7;
         }
 
@@ -179,108 +235,87 @@
             display: flex;
             gap: 1rem;
             flex-wrap: wrap;
-            margin-bottom: 3rem;
         }
 
-        .trust-badges {
+        .hero-stats {
             display: flex;
-            align-items: center;
-            gap: 1.5rem;
-            padding-top: 1rem;
+            gap: 2.5rem;
+            margin-top: 3rem;
+            padding-top: 2rem;
             border-top: 1px solid var(--border);
         }
 
-        .trust-badge {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            color: var(--text-muted);
+        .hero-stat {
+            text-align: left;
+        }
+
+        .hero-stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .hero-stat-label {
             font-size: 0.9rem;
+            color: var(--text-muted);
         }
 
-        .trust-badge svg {
-            width: 20px;
-            height: 20px;
-            color: var(--secondary);
-        }
-
-        /* =====================================================
-           CHAT PREVIEW
-        ===================================================== */
+        /* Chat Preview Card */
         .chat-preview {
-            background: white;
-            border-radius: var(--radius-lg);
+            background: var(--bg-white);
+            border-radius: 24px;
             box-shadow: var(--shadow-xl);
-            overflow: hidden;
+            padding: 2rem;
             border: 1px solid var(--border);
-            animation: float 6s ease-in-out infinite;
-        }
-
-        @keyframes float {
-            0%, 100% { transform: translateY(0px); }
-            50% { transform: translateY(-10px); }
+            position: relative;
         }
 
         .chat-preview-header {
-            background: var(--primary);
-            padding: 1rem 1.25rem;
             display: flex;
             align-items: center;
-            gap: 0.75rem;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border);
         }
 
         .chat-avatar {
-            width: 44px;
-            height: 44px;
-            background: rgba(255,255,255,0.2);
-            border-radius: 50%;
+            width: 48px;
+            height: 48px;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 1.25rem;
+            font-size: 1.5rem;
         }
 
         .chat-preview-title {
-            color: white;
             font-weight: 600;
-            font-size: 1rem;
+            color: var(--text-primary);
         }
 
         .chat-preview-subtitle {
-            color: rgba(255,255,255,0.8);
-            font-size: 0.8rem;
-            display: flex;
-            align-items: center;
-            gap: 0.35rem;
-        }
-
-        .chat-preview-subtitle::before {
-            content: '';
-            width: 8px;
-            height: 8px;
-            background: #34d399;
-            border-radius: 50%;
+            font-size: 0.85rem;
+            color: var(--text-muted);
         }
 
         .chat-messages {
-            padding: 1.5rem;
             display: flex;
             flex-direction: column;
             gap: 1rem;
-            background: var(--bg-light);
-            min-height: 240px;
         }
 
         .chat-message {
             max-width: 85%;
-            padding: 0.875rem 1rem;
-            border-radius: var(--radius);
+            padding: 1rem 1.25rem;
+            border-radius: 16px;
             font-size: 0.95rem;
             line-height: 1.5;
-            animation: messageIn 0.4s ease-out;
+            animation: fadeInUp 0.5s ease-out;
         }
 
-        @keyframes messageIn {
+        @keyframes fadeInUp {
             from {
                 opacity: 0;
                 transform: translateY(10px);
@@ -292,155 +327,98 @@
         }
 
         .chat-message.ai {
-            background: white;
+            background: var(--bg-light);
             color: var(--text-primary);
-            align-self: flex-start;
-            border: 1px solid var(--border);
-            box-shadow: var(--shadow-sm);
+            border-bottom-left-radius: 4px;
         }
 
         .chat-message.user {
-            background: var(--primary);
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
             color: white;
-            align-self: flex-end;
+            margin-left: auto;
+            border-bottom-right-radius: 4px;
         }
 
-        .chat-preview-footer {
-            padding: 1rem 1.5rem 1.5rem;
-            background: white;
-            border-top: 1px solid var(--border);
+        .chat-typing {
+            display: flex;
+            gap: 4px;
+            padding: 1rem;
         }
 
-        .chat-preview-footer .btn {
-            width: 100%;
+        .chat-typing span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
         }
 
-        /* =====================================================
-           HOW IT WORKS
-        ===================================================== */
-        .how-it-works {
+        .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
+        .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-5px); }
+        }
+
+        /* Why GAS Section */
+        .section {
             padding: 6rem 2rem;
-            background: var(--bg-white);
+        }
+
+        .section-dark {
+            background: var(--bg-light);
         }
 
         .section-container {
-            max-width: 1100px;
+            max-width: 1200px;
             margin: 0 auto;
         }
 
         .section-header {
             text-align: center;
-            margin-bottom: 4rem;
+            max-width: 700px;
+            margin: 0 auto 4rem;
         }
 
         .section-header h2 {
-            font-family: 'Fraunces', serif;
             font-size: 2.5rem;
             font-weight: 700;
-            color: var(--text-primary);
             margin-bottom: 1rem;
             letter-spacing: -0.5px;
         }
 
         .section-header p {
-            font-size: 1.1rem;
+            font-size: 1.15rem;
             color: var(--text-secondary);
-            max-width: 600px;
-            margin: 0 auto;
         }
 
-        .steps {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 2rem;
-        }
-
-        .step {
-            text-align: center;
-            padding: 2rem 1.5rem;
-            background: var(--bg-light);
-            border-radius: var(--radius-lg);
-            border: 1px solid var(--border);
-            transition: all 0.3s ease;
-            position: relative;
-        }
-
-        .step:hover {
-            transform: translateY(-4px);
-            box-shadow: var(--shadow-lg);
-            border-color: var(--primary-light);
-        }
-
-        .step-number {
-            width: 48px;
-            height: 48px;
-            background: var(--primary);
-            color: white;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-weight: 700;
-            font-size: 1.25rem;
-            margin: 0 auto 1.25rem;
-        }
-
-        .step h3 {
-            font-size: 1.1rem;
-            font-weight: 600;
-            margin-bottom: 0.75rem;
-            color: var(--text-primary);
-        }
-
-        .step p {
-            font-size: 0.9rem;
-            color: var(--text-secondary);
-            line-height: 1.6;
-        }
-
-        /* Arrow connectors */
-        .step:not(:last-child)::after {
-            content: '→';
-            position: absolute;
-            right: -1.25rem;
-            top: 50%;
-            transform: translateY(-50%);
-            color: var(--text-muted);
-            font-size: 1.25rem;
-        }
-
-        /* =====================================================
-           WHY GAS SECTION
-        ===================================================== */
-        .why-gas {
-            padding: 6rem 2rem;
-            background: var(--bg-cream);
-        }
-
-        .benefits-grid {
+        /* Features Grid */
+        .features-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
             gap: 2rem;
         }
 
-        .benefit-card {
-            background: white;
+        .feature-card {
+            background: var(--bg-white);
+            border-radius: 16px;
             padding: 2rem;
-            border-radius: var(--radius-lg);
             border: 1px solid var(--border);
-            transition: all 0.3s ease;
+            transition: all 0.3s;
         }
 
-        .benefit-card:hover {
+        .feature-card:hover {
+            transform: translateY(-4px);
             box-shadow: var(--shadow-lg);
-            transform: translateY(-2px);
+            border-color: var(--primary-light);
         }
 
-        .benefit-icon {
+        .feature-icon {
             width: 56px;
             height: 56px;
-            background: var(--primary-light);
-            border-radius: var(--radius);
+            background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
+            border-radius: 12px;
             display: flex;
             align-items: center;
             justify-content: center;
@@ -448,98 +426,167 @@
             margin-bottom: 1.25rem;
         }
 
-        .benefit-card h3 {
-            font-size: 1.15rem;
+        .feature-card h3 {
+            font-size: 1.25rem;
             font-weight: 600;
             margin-bottom: 0.75rem;
-            color: var(--text-primary);
         }
 
-        .benefit-card p {
-            font-size: 0.95rem;
+        .feature-card p {
             color: var(--text-secondary);
+            font-size: 0.95rem;
             line-height: 1.6;
         }
 
-        /* =====================================================
-           CTA SECTION
-        ===================================================== */
-        .cta-section {
+        /* How It Works */
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            position: relative;
+        }
+
+        .steps::before {
+            content: '';
+            position: absolute;
+            top: 40px;
+            left: 12.5%;
+            right: 12.5%;
+            height: 2px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            z-index: 0;
+        }
+
+        .step {
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .step-number {
+            width: 80px;
+            height: 80px;
+            background: var(--bg-white);
+            border: 3px solid var(--primary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 0 auto 1.5rem;
+        }
+
+        .step h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+        }
+
+        .step p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* CTA Section */
+        .cta {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
             padding: 6rem 2rem;
-            background: var(--primary);
             text-align: center;
         }
 
-        .cta-section h2 {
-            font-family: 'Fraunces', serif;
+        .cta h2 {
             font-size: 2.5rem;
             font-weight: 700;
-            color: white;
             margin-bottom: 1rem;
         }
 
-        .cta-section p {
-            font-size: 1.15rem;
-            color: rgba(255,255,255,0.85);
+        .cta p {
+            font-size: 1.25rem;
+            opacity: 0.9;
             margin-bottom: 2rem;
-            max-width: 500px;
+            max-width: 600px;
             margin-left: auto;
             margin-right: auto;
         }
 
-        .cta-section .btn-primary {
+        .cta .btn {
             background: white;
             color: var(--primary);
+            font-size: 1.1rem;
+            padding: 1rem 2.5rem;
         }
 
-        .cta-section .btn-primary:hover {
-            background: var(--bg-cream);
+        .cta .btn:hover {
             transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
         }
 
-        /* =====================================================
-           FOOTER
-        ===================================================== */
-        footer {
-            padding: 3rem 2rem;
+        /* Footer */
+        .footer {
             background: var(--text-primary);
-            color: rgba(255,255,255,0.7);
+            color: white;
+            padding: 4rem 2rem 2rem;
         }
 
         .footer-container {
             max-width: 1200px;
             margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 3rem;
+        }
+
+        .footer-brand {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-bottom: 1rem;
+        }
+
+        .footer-tagline {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+            line-height: 1.6;
+        }
+
+        .footer-column h4 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+        }
+
+        .footer-column a {
+            display: block;
+            color: white;
+            text-decoration: none;
+            font-size: 0.95rem;
+            margin-bottom: 0.75rem;
+            opacity: 0.8;
+            transition: opacity 0.2s;
+        }
+
+        .footer-column a:hover {
+            opacity: 1;
+        }
+
+        .footer-bottom {
+            max-width: 1200px;
+            margin: 3rem auto 0;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
             display: flex;
             justify-content: space-between;
             align-items: center;
+            font-size: 0.85rem;
+            color: var(--text-muted);
         }
 
-        .footer-logo {
-            font-family: 'Fraunces', serif;
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: white;
-        }
-
-        .footer-links {
-            display: flex;
-            gap: 2rem;
-        }
-
-        .footer-links a {
-            color: rgba(255,255,255,0.7);
-            text-decoration: none;
-            font-size: 0.9rem;
-            transition: color 0.2s;
-        }
-
-        .footer-links a:hover {
-            color: white;
-        }
-
-        /* =====================================================
-           CHAT MODAL
-        ===================================================== */
+        /* Chat Modal */
         .chat-modal {
             display: none;
             position: fixed;
@@ -548,10 +595,11 @@
             right: 0;
             bottom: 0;
             background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(4px);
             z-index: 1000;
             align-items: center;
             justify-content: center;
-            backdrop-filter: blur(4px);
+            padding: 1rem;
         }
 
         .chat-modal.active {
@@ -559,68 +607,135 @@
         }
 
         .chat-modal-content {
-            background: white;
-            border-radius: var(--radius-lg);
+            background: var(--bg-white);
+            border-radius: 24px;
             width: 100%;
-            max-width: 440px;
-            max-height: 85vh;
-            overflow: hidden;
-            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
-            animation: modalIn 0.3s ease-out;
+            max-width: 600px;
+            max-height: 80vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: var(--shadow-xl);
+            animation: slideUp 0.3s ease-out;
         }
 
-        @keyframes modalIn {
+        @keyframes slideUp {
             from {
                 opacity: 0;
-                transform: scale(0.95) translateY(20px);
+                transform: translateY(20px);
             }
             to {
                 opacity: 1;
-                transform: scale(1) translateY(0);
+                transform: translateY(0);
             }
         }
 
         .chat-modal-header {
-            background: var(--primary);
-            padding: 1.25rem 1.5rem;
             display: flex;
             align-items: center;
             justify-content: space-between;
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
         }
 
         .chat-modal-header h3 {
-            color: white;
-            font-weight: 600;
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            font-size: 1.1rem;
         }
 
         .chat-close {
-            background: rgba(255,255,255,0.2);
+            width: 36px;
+            height: 36px;
             border: none;
-            color: white;
-            width: 32px;
-            height: 32px;
-            border-radius: 50%;
+            background: var(--bg-light);
+            border-radius: 8px;
             cursor: pointer;
             font-size: 1.25rem;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: background 0.2s;
+            color: var(--text-secondary);
+            transition: all 0.2s;
         }
 
         .chat-close:hover {
-            background: rgba(255,255,255,0.3);
+            background: var(--bg-subtle);
+            color: var(--text-primary);
         }
 
+        .chat-modal-body {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        .chat-modal-footer {
+            padding: 1rem 1.5rem;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 0.875rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 0.95rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: var(--primary);
+        }
+
+        .chat-send {
+            padding: 0.875rem 1.5rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chat-send:hover {
+            transform: scale(1.02);
+        }
+
+        /* Quick Replies */
+        .quick-replies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .quick-reply {
+            padding: 0.5rem 1rem;
+            background: var(--bg-light);
+            border: 1px solid var(--border);
+            border-radius: 100px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-reply:hover {
+            background: var(--primary);
+            color: white;
+            border-color: var(--primary);
+        }
+
+        /* Progress Bar */
         .chat-progress {
             display: flex;
             gap: 0.5rem;
-            padding: 1rem 1.5rem;
-            background: var(--bg-light);
-            border-bottom: 1px solid var(--border);
+            padding: 0 1.5rem 1rem;
         }
 
         .chat-progress-step {
@@ -636,120 +751,27 @@
         }
 
         .chat-progress-step.complete {
-            background: var(--secondary);
+            background: var(--success);
         }
 
-        .chat-modal-body {
-            padding: 1.5rem;
-            max-height: 400px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 1rem;
-            background: var(--bg-light);
-        }
-
-        .chat-modal-footer {
-            padding: 1rem 1.5rem;
-            background: white;
-            border-top: 1px solid var(--border);
-            display: flex;
-            gap: 0.75rem;
-        }
-
-        .chat-input {
-            flex: 1;
-            padding: 0.875rem 1rem;
-            border: 1px solid var(--border);
-            border-radius: var(--radius);
-            font-size: 0.95rem;
-            font-family: inherit;
-            outline: none;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-
-        .chat-input:focus {
-            border-color: var(--primary);
-            box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.1);
-        }
-
-        .chat-send {
-            padding: 0.875rem 1.25rem;
-            background: var(--primary);
-            color: white;
-            border: none;
-            border-radius: var(--radius);
-            font-weight: 600;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .chat-send:hover {
-            background: var(--primary-dark);
-        }
-
-        .quick-replies {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.5rem;
-            margin-top: 0.5rem;
-        }
-
-        .quick-reply {
-            padding: 0.5rem 1rem;
-            background: white;
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .quick-reply:hover {
-            border-color: var(--primary);
-            background: var(--primary-light);
-        }
-
-        .typing-indicator {
-            display: flex;
-            gap: 4px;
-            padding: 1rem;
-            background: white;
-            border-radius: var(--radius);
-            width: fit-content;
-            border: 1px solid var(--border);
-        }
-
-        .typing-indicator span {
-            width: 8px;
-            height: 8px;
-            background: var(--text-muted);
-            border-radius: 50%;
-            animation: typing 1.4s infinite;
-        }
-
-        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
-        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
-
-        @keyframes typing {
-            0%, 60%, 100% { transform: translateY(0); }
-            30% { transform: translateY(-4px); }
-        }
-
-        /* =====================================================
-           RESPONSIVE
-        ===================================================== */
+        /* Responsive */
         @media (max-width: 1024px) {
             .hero-container {
                 grid-template-columns: 1fr;
-                gap: 3rem;
-            }
-
-            .hero-content {
                 text-align: center;
             }
 
-            .hero-content p {
+            .hero-content {
+                order: 1;
+            }
+
+            .chat-preview {
+                order: 2;
+                max-width: 500px;
+                margin: 0 auto;
+            }
+
+            .hero p {
                 margin-left: auto;
                 margin-right: auto;
             }
@@ -758,89 +780,135 @@
                 justify-content: center;
             }
 
-            .trust-badges {
+            .hero-stats {
                 justify-content: center;
             }
 
-            .chat-preview {
-                max-width: 420px;
-                margin: 0 auto;
+            .features-grid {
+                grid-template-columns: 1fr;
             }
 
             .steps {
-                grid-template-columns: repeat(2, 1fr);
+                grid-template-columns: 1fr 1fr;
             }
 
-            .step:not(:last-child)::after {
+            .steps::before {
                 display: none;
             }
 
-            .benefits-grid {
-                grid-template-columns: repeat(2, 1fr);
+            .footer-container {
+                grid-template-columns: 1fr 1fr;
             }
         }
 
-        @media (max-width: 768px) {
+        @media (max-width: 640px) {
+            .nav {
+                padding: 1rem;
+            }
+
             .nav-links {
                 display: none;
             }
 
-            .hero-content h1 {
-                font-size: 2.25rem;
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .hero-stats {
+                flex-direction: column;
+                gap: 1.5rem;
+                align-items: center;
             }
 
             .steps {
                 grid-template-columns: 1fr;
             }
 
-            .benefits-grid {
-                grid-template-columns: 1fr;
+            .section-header h2 {
+                font-size: 2rem;
+            }
+
+            .cta h2 {
+                font-size: 2rem;
             }
 
             .footer-container {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-bottom {
                 flex-direction: column;
-                gap: 1.5rem;
+                gap: 1rem;
                 text-align: center;
             }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
-    <header>
-        <div class="header-container">
-            <a href="/" class="logo">GAS</a>
-            <nav class="nav-links">
-                <a href="#how-it-works">How It Works</a>
+    <!-- Navigation -->
+    <nav class="nav">
+        <div class="nav-container">
+            <div class="logo">GAS<span>Global Accommodation System</span></div>
+            <div class="nav-links">
+                <a href="#how-it-works">How it Works</a>
                 <a href="#why-gas">Why GAS</a>
-                <a href="gas-onboarding.html">Property Owners</a>
-                <button class="btn btn-primary" onclick="openChat()">Get Started</button>
-            </nav>
+                <a href="#" onclick="openChat(); return false;">Contact</a>
+                <button class="btn btn-primary" onclick="openChat()">Join Now</button>
+            </div>
         </div>
-    </header>
+    </nav>
 
     <!-- Hero Section -->
     <section class="hero">
         <div class="hero-container">
             <div class="hero-content">
-                <h1>Stop Paying <span>High Commissions</span></h1>
-                <p>Join the network of independent hotels, hostels and vacation rental owners who are taking back control. List for free. Let independent travel agents, tour operators and local tourist groups find you. Set your own terms.</p>
-                <div class="hero-buttons">
-                    <button class="btn btn-primary btn-large" onclick="openChat()">Get Started Free →</button>
-                    <a href="#how-it-works" class="btn btn-secondary btn-large">Learn More</a>
+                <div class="hero-badge">
+                    <span></span>
+                    Become a GAS Certified Member
                 </div>
-                <div class="trust-badges">
-                    <div class="trust-badge">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                        Free to list
+                <h1>
+                    Take Back<br>
+                    <span class="highlight">Control</span>
+                </h1>
+                <h2 style="font-size: 1.75rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 1.5rem; letter-spacing: -0.5px;">
+                    Pay Less. Keep More.
+                </h2>
+                <p>
+                    Join the network of independent hotels, hostels and vacation rental owners who are taking back control. List for free. Let independent travel agents, tour operators and local tourist groups find you. Your rooms. Your terms.
+                </p>
+                <div class="hero-buttons">
+                    <a href="#how-it-works" class="btn btn-secondary btn-large">
+                        Learn More
+                    </a>
+                </div>
+                <div class="hero-stats" style="flex-direction: column; gap: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%; max-width: 400px;">
+                        <div class="hero-stat" style="text-align: left;">
+                            <div class="hero-stat-value">Free</div>
+                            <div class="hero-stat-label">To List</div>
+                        </div>
+                        <div class="hero-stat" style="text-align: right;">
+                            <div class="hero-stat-value">You Decide</div>
+                            <div class="hero-stat-label">Commission</div>
+                        </div>
                     </div>
-                    <div class="trust-badge">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                        No subscription
-                    </div>
-                    <div class="trust-badge">
-                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
-                        You control pricing
+                    <div style="width: 100%; max-width: 400px;">
+                        <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">
+                            <span>OTAs charge</span>
+                            <span>You could pay</span>
+                        </div>
+                        <div style="position: relative; height: 8px; background: linear-gradient(90deg, #ef4444 0%, #f59e0b 50%, #10b981 100%); border-radius: 4px;">
+                            <div id="commission-thumb" style="position: absolute; top: 50%; transform: translate(-50%, -50%); width: 24px; height: 24px; background: white; border: 3px solid var(--primary); border-radius: 50%; cursor: pointer; box-shadow: var(--shadow-md); left: 80%;"></div>
+                        </div>
+                        <div style="display: flex; justify-content: space-between; font-size: 0.9rem; font-weight: 600; margin-top: 0.5rem;">
+                            <span style="color: #ef4444;">15%</span>
+                            <span style="color: #f59e0b;">10%</span>
+                            <span style="color: #10b981;">5%</span>
+                            <span style="color: #059669;">0%</span>
+                        </div>
+                        <p style="text-align: center; font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.75rem;">
+                            Negotiate directly with agents. Your property, your rates.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -864,8 +932,8 @@
                         That's thousands going to platforms that don't really care about your property. Want to hear about a different way?
                     </div>
                 </div>
-                <div class="chat-preview-footer">
-                    <button class="btn btn-primary" onclick="openChat()">
+                <div style="margin-top: 1rem;">
+                    <button class="btn btn-primary" style="width: 100%;" onclick="openChat()">
                         Continue this conversation →
                     </button>
                 </div>
@@ -874,100 +942,201 @@
     </section>
 
     <!-- How It Works Section -->
-    <section class="how-it-works" id="how-it-works">
+    <section class="section section-dark" id="how-it-works">
         <div class="section-container">
             <div class="section-header">
                 <h2>How It Works</h2>
-                <p>Four simple steps to join the network and start getting discovered by travel professionals worldwide</p>
+                <p>Four simple steps to join the network and start getting discovered by travel agents worldwide</p>
             </div>
 
             <div class="steps">
                 <div class="step">
                     <div class="step-number">1</div>
                     <h3>Chat With Us</h3>
-                    <p>Tell us about your property. Our assistant will guide you through the process in minutes.</p>
+                    <p>Tell us about your property. Our AI assistant guides you through setup in minutes.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">2</div>
-                    <h3>Connect Your CM</h3>
-                    <p>Link your channel manager (Beds24, Hostaway, or Smoobu) to sync availability automatically.</p>
+                    <h3>Add Your Inventory</h3>
+                    <p>Connect your channel manager or add rooms manually. We sync with Beds24, Hostaway & more.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">3</div>
-                    <h3>Add Your Content</h3>
-                    <p>Upload photos, write descriptions, and set your rates. Make your property shine.</p>
+                    <h3>Tell Your Story</h3>
+                    <p>What makes you special? Dog-friendly? Great for walkers? Romantic escapes? Let agents find you.</p>
                 </div>
                 <div class="step">
                     <div class="step-number">4</div>
                     <h3>Get Discovered</h3>
-                    <p>Travel agents find you through our network. You approve bookings on your terms.</p>
+                    <p>Independent travel agents worldwide can now find and book your property. You set the terms.</p>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- Why GAS Section -->
-    <section class="why-gas" id="why-gas">
+    <section class="section" id="why-gas">
         <div class="section-container">
             <div class="section-header">
-                <h2>Why Choose GAS?</h2>
-                <p>Built by hospitality professionals who understand what independent properties really need</p>
+                <h2>Why Independent Owners Choose GAS</h2>
+                <p>Built by property owners, for property owners. We've been where you are.</p>
             </div>
 
-            <div class="benefits-grid">
-                <div class="benefit-card">
-                    <div class="benefit-icon">💰</div>
+            <div class="features-grid">
+                <div class="feature-card">
+                    <div class="feature-icon">💰</div>
                     <h3>Zero Listing Fees</h3>
-                    <p>No subscription. No percentage. List your property completely free and keep more of what you earn.</p>
+                    <p>No subscription. No percentage. List your property completely free. We're building this together.</p>
                 </div>
-                <div class="benefit-card">
-                    <div class="benefit-icon">🤝</div>
-                    <h3>Direct Relationships</h3>
-                    <p>Connect directly with independent travel agents, tour operators and tourist groups. Build lasting partnerships.</p>
+                <div class="feature-card">
+                    <div class="feature-icon">🔄</div>
+                    <h3>They Come To You</h3>
+                    <p>Independent travel agents, tour operators and local tourist groups actively search for properties like yours. They approach you.</p>
                 </div>
-                <div class="benefit-card">
-                    <div class="benefit-icon">⚡</div>
-                    <h3>Automatic Sync</h3>
-                    <p>Your availability, rates and content sync automatically from your channel manager. No double-entry.</p>
-                </div>
-                <div class="benefit-card">
-                    <div class="benefit-icon">🎯</div>
+                <div class="feature-card">
+                    <div class="feature-icon">🤝</div>
                     <h3>You Set The Terms</h3>
-                    <p>Create special rates for agents, set your own commission levels, and approve every booking.</p>
+                    <p>Negotiate commissions directly with agents. Form local groups. Build relationships that work for you.</p>
                 </div>
-                <div class="benefit-card">
-                    <div class="benefit-icon">🌍</div>
-                    <h3>Global Reach</h3>
-                    <p>Get discovered by travel professionals worldwide who are looking for authentic, independent properties.</p>
+                <div class="feature-card">
+                    <div class="feature-icon">🌍</div>
+                    <h3>Global Network</h3>
+                    <p>Independent travel agents, tour operators and tourist organisations worldwide, looking for quality accommodation for their clients.</p>
                 </div>
-                <div class="benefit-card">
-                    <div class="benefit-icon">🛡️</div>
-                    <h3>Stay Independent</h3>
-                    <p>No algorithms controlling your visibility. No penalties. No race to the bottom on price.</p>
+                <div class="feature-card">
+                    <div class="feature-icon">🏠</div>
+                    <h3>Your Own Website Too</h3>
+                    <p>Use our tools to build your own booking website. WordPress, Wix, Squarespace – your brand, your bookings.</p>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🚀</div>
+                    <h3>Be Part of Something</h3>
+                    <p>This isn't another listing site. It's a movement. Independents uniting to take back control.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- GAS Certified Badge Section -->
+    <section class="section section-dark" id="certified">
+        <div class="section-container">
+            <div class="section-header">
+                <h2>Display Your Badge</h2>
+                <p>Show guests you're part of something bigger</p>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 4rem; align-items: center; max-width: 1000px; margin: 0 auto;">
+                <!-- Badge Previews -->
+                <div style="display: flex; flex-direction: column; gap: 2rem; align-items: center;">
+                    <!-- Light badge -->
+                    <div style="background: white; border-radius: 16px; padding: 2.5rem 3rem; box-shadow: var(--shadow-lg);">
+                        <div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; background: linear-gradient(135deg, var(--primary) 0%, var(--accent) 100%); border-radius: 6px; color: white; font-family: 'Inter', sans-serif;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                            <span style="font-weight: 600; font-size: 0.9rem; letter-spacing: 0.3px;">Powered by</span>
+                            <span style="font-weight: 800; font-size: 1rem;">GAS</span>
+                        </div>
+                        <p style="margin: 1rem 0 0; color: var(--text-muted); font-size: 0.8rem;">Light background</p>
+                    </div>
+                    
+                    <!-- Dark badge -->
+                    <div style="background: #1e293b; border-radius: 16px; padding: 2.5rem 3rem; box-shadow: var(--shadow-lg);">
+                        <div style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.6rem 1rem; background: white; border-radius: 6px; color: var(--primary); font-family: 'Inter', sans-serif;">
+                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                                <polyline points="22 4 12 14.01 9 11.01"/>
+                            </svg>
+                            <span style="font-weight: 600; font-size: 0.9rem; letter-spacing: 0.3px;">Powered by</span>
+                            <span style="font-weight: 800; font-size: 1rem;">GAS</span>
+                        </div>
+                        <p style="margin: 1rem 0 0; color: #94a3b8; font-size: 0.8rem;">Dark background</p>
+                    </div>
+                </div>
+
+                <!-- Benefits -->
+                <div>
+                    <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">✓</div>
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Build Trust</h4>
+                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Show visitors you're part of a verified network of quality independents</p>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">🔗</div>
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Direct Link</h4>
+                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Badge links to your GAS profile for instant verification</p>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">📈</div>
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">Grow Together</h4>
+                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Every badge spreads the word - help other independents find GAS</p>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(139, 92, 246, 0.1)); border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0;">⚡</div>
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem; font-weight: 600;">One Click Add</h4>
+                                <p style="margin: 0; color: var(--text-secondary); font-size: 0.95rem;">Simple embed code for WordPress, Wix, Squarespace, or any site</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </section>
 
     <!-- CTA Section -->
-    <section class="cta-section">
-        <h2>Ready to Take Back Control?</h2>
-        <p>Join the growing network of independent properties. It takes just 5 minutes to get started.</p>
-        <button class="btn btn-primary btn-large" onclick="openChat()">Get Started Free →</button>
+    <section class="cta">
+        <div class="section-container">
+            <h2>Ready to Take Back Control?</h2>
+            <p>Join independent hotels, hostels and vacation rental owners who are doing things differently.</p>
+            <button class="btn" onclick="openChat()">
+                Become GAS Certified →
+            </button>
+        </div>
     </section>
 
     <!-- Footer -->
-    <footer>
+    <footer class="footer">
         <div class="footer-container">
-            <div class="footer-logo">GAS</div>
-            <div class="footer-links">
-                <a href="#">About</a>
-                <a href="#">For Travel Agents</a>
-                <a href="#">Support</a>
-                <a href="#">Privacy</a>
+            <div>
+                <div class="footer-brand">GAS</div>
+                <p class="footer-tagline">
+                    Global Accommodation System.<br>
+                    Built by independents, for independents.<br>
+                    Join the movement.
+                </p>
             </div>
-            <div style="font-size: 0.85rem;">
-                © 2025 Global Accommodation System. All rights reserved.
+            <div class="footer-column">
+                <h4>Platform</h4>
+                <a href="#how-it-works">How it Works</a>
+                <a href="#why-gas">Why GAS</a>
+                <a href="#">For Travel Agents</a>
+            </div>
+            <div class="footer-column">
+                <h4>Resources</h4>
+                <a href="#">Help Centre</a>
+                <a href="#">API Docs</a>
+                <a href="#">WordPress Plugin</a>
+            </div>
+            <div class="footer-column">
+                <h4>Company</h4>
+                <a href="#">About</a>
+                <a href="#">Contact</a>
+                <a href="#">Privacy Policy</a>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <div>© 2025 Global Accommodation System. All rights reserved.</div>
+            <div>
+                <a href="https://gas.travel" style="color: var(--text-muted);">gas.travel</a>
             </div>
         </div>
     </footer>
@@ -1019,11 +1188,11 @@
                 quickReplies: ["Too much!", "Around 15-20%", "I'd rather not say"]
             },
             {
-                message: "Yeah, thought so. Here's the thing – GAS is completely free to list. No subscription. No percentage.\n\nWe're building a global network where independent travel agents, tour operators and local tourist groups find YOU. Not the other way around.\n\nWant in?",
+                message: "Yeah, thought so. Here's the thing – GAS is completely free to list. No subscription. No percentage.\n\nWe're building a global network where travel agents find YOU. Not the other way around.\n\nWant in?",
                 quickReplies: ["Tell me more", "I'm interested!", "How does it work?"]
             },
             {
-                message: "Brilliant! Let's get you set up. It takes about 5 minutes.\n\nFirst – what's your property called?",
+                message: "Brilliant! Let's get you set up. It takes about 5 minutes.\n\nFirst – what's your property or business called?",
                 quickReplies: null,
                 saveAs: 'propertyName'
             },
@@ -1033,31 +1202,31 @@
                 saveAs: 'propertyType'
             },
             {
-                message: "Great! Where is {propertyName} located? (City, Country)",
+                message: "Great! Where are you located? Just the town/city and country is fine for now.",
                 quickReplies: null,
                 saveAs: 'location'
             },
             {
-                message: "Perfect! Last technical question – which channel manager do you use?",
-                quickReplies: ["Beds24", "Hostaway", "Smoobu", "Other / None"],
+                message: "Perfect! Do you use a channel manager or property management system?",
+                quickReplies: ["Beds24", "Hostaway", "Smoobu", "Guesty", "Lodgify", "Other", "I don't use one"],
                 saveAs: 'channelManager'
             },
             {
-                message: "Excellent! Almost done. What's the best email to reach you?",
+                message: "Nearly there! What's the best email to reach you on?\n\nWe'll send your login details and next steps.",
                 quickReplies: null,
                 saveAs: 'email'
             },
             {
-                message: "You're all set! 🎉\n\nWe'll send setup instructions to {email}.\n\nIn the meantime, click below to start connecting your property:",
-                quickReplies: null,
-                action: 'redirect'
+                message: "🎉 You're in!\n\nWe've created your account. Check your email for login details.\n\nYou're now part of a growing network of {propertyCount}+ independent properties. Welcome to the movement!",
+                quickReplies: ["Take me to my dashboard", "I have questions"],
+                final: true
             }
         ];
 
         function openChat() {
             document.getElementById('chatModal').classList.add('active');
             if (currentStep === 0) {
-                setTimeout(() => addAIMessage(chatFlow[0].message, chatFlow[0].quickReplies), 500);
+                setTimeout(() => addAIMessage(chatFlow[0]), 500);
             }
         }
 
@@ -1065,105 +1234,103 @@
             document.getElementById('chatModal').classList.remove('active');
         }
 
-        function addAIMessage(text, quickReplies = null) {
+        function addAIMessage(step) {
             const chatBody = document.getElementById('chatBody');
             
-            // Show typing indicator
+            // Add typing indicator
             const typing = document.createElement('div');
-            typing.className = 'typing-indicator';
+            typing.className = 'chat-typing';
             typing.innerHTML = '<span></span><span></span><span></span>';
             chatBody.appendChild(typing);
             chatBody.scrollTop = chatBody.scrollHeight;
 
             setTimeout(() => {
-                // Remove typing indicator
+                // Remove typing
                 typing.remove();
 
-                // Replace placeholders in text
-                let processedText = text;
-                for (const [key, value] of Object.entries(userData)) {
-                    processedText = processedText.replace(`{${key}}`, value);
-                }
-
                 // Add message
-                const msg = document.createElement('div');
-                msg.className = 'chat-message ai';
-                msg.innerHTML = processedText.replace(/\n/g, '<br>');
-                chatBody.appendChild(msg);
+                let message = step.message;
+                
+                // Replace placeholders
+                message = message.replace('{propertyName}', userData.propertyName || 'your property');
+                message = message.replace('{propertyCount}', 'a growing number of');
+
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'chat-message ai';
+                msgDiv.innerHTML = message.replace(/\n/g, '<br>');
+                chatBody.appendChild(msgDiv);
 
                 // Add quick replies if any
-                if (quickReplies) {
-                    const qr = document.createElement('div');
-                    qr.className = 'quick-replies';
-                    quickReplies.forEach(reply => {
+                if (step.quickReplies) {
+                    const repliesDiv = document.createElement('div');
+                    repliesDiv.className = 'quick-replies';
+                    step.quickReplies.forEach(reply => {
                         const btn = document.createElement('button');
                         btn.className = 'quick-reply';
                         btn.textContent = reply;
-                        btn.onclick = () => handleUserReply(reply);
-                        qr.appendChild(btn);
+                        btn.onclick = () => handleQuickReply(reply, step.saveAs);
+                        repliesDiv.appendChild(btn);
                     });
-                    chatBody.appendChild(qr);
-                }
-
-                // Add redirect button if action
-                if (chatFlow[currentStep] && chatFlow[currentStep].action === 'redirect') {
-                    const btnContainer = document.createElement('div');
-                    btnContainer.style.marginTop = '1rem';
-                    const btn = document.createElement('button');
-                    btn.className = 'btn btn-primary';
-                    btn.style.width = '100%';
-                    btn.textContent = 'Start Setup →';
-                    btn.onclick = () => window.location.href = 'gas-onboarding.html';
-                    btnContainer.appendChild(btn);
-                    chatBody.appendChild(btnContainer);
+                    chatBody.appendChild(repliesDiv);
                 }
 
                 chatBody.scrollTop = chatBody.scrollHeight;
-            }, 1000);
+
+                // Update progress
+                updateProgress();
+            }, 1000 + Math.random() * 500);
         }
 
         function addUserMessage(text) {
             const chatBody = document.getElementById('chatBody');
-            const msg = document.createElement('div');
-            msg.className = 'chat-message user';
-            msg.textContent = text;
-            chatBody.appendChild(msg);
+            const msgDiv = document.createElement('div');
+            msgDiv.className = 'chat-message user';
+            msgDiv.textContent = text;
+            chatBody.appendChild(msgDiv);
             chatBody.scrollTop = chatBody.scrollHeight;
+
+            // Remove quick replies
+            const replies = chatBody.querySelectorAll('.quick-replies');
+            replies.forEach(r => r.remove());
         }
 
-        function handleUserReply(text) {
-            // Remove quick replies
-            const qr = document.querySelector('.quick-replies');
-            if (qr) qr.remove();
-
-            addUserMessage(text);
-
-            // Save data if needed
-            const step = chatFlow[currentStep];
-            if (step && step.saveAs) {
-                userData[step.saveAs] = text;
-            }
-
-            // Update progress
-            const progressStep = document.getElementById(`progress-${currentStep + 1}`);
-            if (progressStep) {
-                progressStep.classList.remove('active');
-                progressStep.classList.add('complete');
-            }
-
-            // Move to next step
-            currentStep++;
+        function handleQuickReply(reply, saveAs) {
+            addUserMessage(reply);
             
-            const nextProgressStep = document.getElementById(`progress-${currentStep + 1}`);
-            if (nextProgressStep) {
-                nextProgressStep.classList.add('active');
+            if (saveAs) {
+                userData[saveAs] = reply;
             }
 
-            // Show next message
-            if (currentStep < chatFlow.length) {
+            // Handle final step redirects
+            if (reply === "Take me to my dashboard") {
+                // Redirect based on channel manager selection
                 setTimeout(() => {
-                    addAIMessage(chatFlow[currentStep].message, chatFlow[currentStep].quickReplies);
-                }, 500);
+                    if (userData.channelManager === 'Beds24') {
+                        window.location.href = '/beds24-wizard.html';
+                    } else if (userData.channelManager === 'Hostaway') {
+                        window.location.href = '/hostaway-wizard.html';
+                    } else if (userData.channelManager === 'Smoobu') {
+                        window.location.href = '/smoobu-wizard.html';
+                    } else {
+                        // Other or no CM - go to main admin
+                        window.location.href = '/gas-admin.html';
+                    }
+                }, 1000);
+                return;
+            }
+            
+            if (reply === "I have questions") {
+                // Show contact info or open support
+                addAIMessage({
+                    message: "No problem! You can reach us at hello@gas.travel or just reply here with your question. We're here to help! 💬",
+                    quickReplies: ["Take me to my dashboard", "I'll email you"]
+                });
+                return;
+            }
+
+            currentStep++;
+            if (currentStep < chatFlow.length) {
+                setTimeout(() => addAIMessage(chatFlow[currentStep]), 500);
             }
         }
 
@@ -1172,26 +1339,86 @@
             const text = input.value.trim();
             if (!text) return;
 
+            addUserMessage(text);
             input.value = '';
-            handleUserReply(text);
+
+            // Save data based on current step
+            const step = chatFlow[currentStep];
+            if (step && step.saveAs) {
+                userData[step.saveAs] = text;
+            }
+
+            currentStep++;
+            if (currentStep < chatFlow.length) {
+                setTimeout(() => addAIMessage(chatFlow[currentStep]), 500);
+            }
         }
 
-        function handleKeyPress(e) {
-            if (e.key === 'Enter') {
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') {
                 sendMessage();
             }
         }
 
-        // Close modal on escape
-        document.addEventListener('keydown', (e) => {
-            if (e.key === 'Escape') closeChat();
+        function updateProgress() {
+            for (let i = 1; i <= 5; i++) {
+                const step = document.getElementById('progress-' + i);
+                if (i < Math.ceil((currentStep + 1) / (chatFlow.length / 5))) {
+                    step.classList.add('complete');
+                    step.classList.remove('active');
+                } else if (i === Math.ceil((currentStep + 1) / (chatFlow.length / 5))) {
+                    step.classList.add('active');
+                    step.classList.remove('complete');
+                } else {
+                    step.classList.remove('active', 'complete');
+                }
+            }
+        }
+
+        // =====================================================
+        // STATS ANIMATION
+        // =====================================================
+        
+        function animateStats() {
+            // These would come from your API in production
+            animateValue('stat-properties', 0, 247, 2000);
+            animateValue('stat-countries', 0, 12, 2000);
+        }
+
+        function animateValue(id, start, end, duration) {
+            const element = document.getElementById(id);
+            const range = end - start;
+            const startTime = performance.now();
+
+            function update(currentTime) {
+                const elapsed = currentTime - startTime;
+                const progress = Math.min(elapsed / duration, 1);
+                const easeProgress = 1 - Math.pow(1 - progress, 3); // Ease out cubic
+                const current = Math.floor(start + range * easeProgress);
+                element.textContent = current.toLocaleString();
+
+                if (progress < 1) {
+                    requestAnimationFrame(update);
+                }
+            }
+
+            requestAnimationFrame(update);
+        }
+
+        // Run on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            // Page ready
         });
 
-        // Close modal on backdrop click
-        document.getElementById('chatModal').addEventListener('click', (e) => {
-            if (e.target === document.getElementById('chatModal')) {
-                closeChat();
-            }
+        // Smooth scroll for anchor links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth' });
+                }
+            });
         });
     </script>
 </body>
