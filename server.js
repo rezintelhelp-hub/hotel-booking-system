@@ -770,6 +770,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`
       CREATE TABLE IF NOT EXISTS channel_managers (
         id SERIAL PRIMARY KEY,
+        name VARCHAR(100),
         cm_code VARCHAR(50),
         cm_name VARCHAR(100),
         api_base_url VARCHAR(255),
@@ -787,20 +788,31 @@ app.get('/api/setup-database', async (req, res) => {
     // Create unique index if not exists
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cm_code ON channel_managers(cm_code) WHERE cm_code IS NOT NULL`);
     
-    // Insert default channel managers (check if exists first)
-    const beds24Exists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'beds24'`);
+    // Update existing rows that might have name but not cm_code
+    await pool.query(`UPDATE channel_managers SET cm_code = LOWER(name), cm_name = name WHERE cm_code IS NULL AND name IS NOT NULL`);
+    
+    // Insert or update Beds24
+    const beds24Exists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'beds24' OR LOWER(name) = 'beds24'`);
     if (beds24Exists.rows.length === 0) {
-      await pool.query(`INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type) VALUES ('beds24', 'Beds24', 'https://beds24.com/api/v2', 'oauth2')`);
+      await pool.query(`INSERT INTO channel_managers (name, cm_code, cm_name, api_base_url, auth_type) VALUES ('Beds24', 'beds24', 'Beds24', 'https://beds24.com/api/v2', 'oauth2')`);
+    } else {
+      await pool.query(`UPDATE channel_managers SET cm_code = 'beds24', cm_name = 'Beds24' WHERE id = $1`, [beds24Exists.rows[0].id]);
     }
     
-    const hostawayExists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'hostaway'`);
+    // Insert or update Hostaway
+    const hostawayExists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'hostaway' OR LOWER(name) = 'hostaway'`);
     if (hostawayExists.rows.length === 0) {
-      await pool.query(`INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type) VALUES ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1', 'oauth2')`);
+      await pool.query(`INSERT INTO channel_managers (name, cm_code, cm_name, api_base_url, auth_type) VALUES ('Hostaway', 'hostaway', 'Hostaway', 'https://api.hostaway.com/v1', 'oauth2')`);
+    } else {
+      await pool.query(`UPDATE channel_managers SET cm_code = 'hostaway', cm_name = 'Hostaway' WHERE id = $1`, [hostawayExists.rows[0].id]);
     }
     
-    const smoobuExists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'smoobu'`);
+    // Insert or update Smoobu
+    const smoobuExists = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'smoobu' OR LOWER(name) = 'smoobu'`);
     if (smoobuExists.rows.length === 0) {
-      await pool.query(`INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type) VALUES ('smoobu', 'Smoobu', 'https://login.smoobu.com/api', 'api_key')`);
+      await pool.query(`INSERT INTO channel_managers (name, cm_code, cm_name, api_base_url, auth_type) VALUES ('Smoobu', 'smoobu', 'Smoobu', 'https://login.smoobu.com/api', 'api_key')`);
+    } else {
+      await pool.query(`UPDATE channel_managers SET cm_code = 'smoobu', cm_name = 'Smoobu' WHERE id = $1`, [smoobuExists.rows[0].id]);
     }
     
     // Create channel_connections table
