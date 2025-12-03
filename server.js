@@ -3948,12 +3948,14 @@ app.post('/api/admin/sync-smoobu-availability', async (req, res) => {
             // Insert new availability
             for (const [date, info] of Object.entries(apartmentRates)) {
                 await dbClient.query(`
-                    INSERT INTO room_availability (room_id, date, available, price, min_stay)
-                    VALUES ($1, $2, $3, $4, $5)
+                    INSERT INTO room_availability (room_id, date, is_available, cm_price, standard_price, min_stay, source)
+                    VALUES ($1, $2, $3, $4, $4, $5, 'smoobu')
                     ON CONFLICT (room_id, date) DO UPDATE SET
-                        available = EXCLUDED.available,
-                        price = EXCLUDED.price,
+                        is_available = EXCLUDED.is_available,
+                        cm_price = EXCLUDED.cm_price,
+                        standard_price = EXCLUDED.standard_price,
                         min_stay = EXCLUDED.min_stay,
+                        source = EXCLUDED.source,
                         updated_at = NOW()
                 `, [
                     room.room_id,
