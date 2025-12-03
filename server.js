@@ -4810,11 +4810,11 @@ app.get('/api/admin/vouchers', async (req, res) => {
     let result;
     
     if (accountId) {
-      // Filter by account - vouchers linked to properties owned by this account
+      // Filter by account - only vouchers linked to properties owned by this account
       result = await pool.query(`
-        SELECT DISTINCT v.* FROM vouchers v
-        LEFT JOIN properties p ON v.property_id = p.id OR v.property_id = ANY(v.property_ids)
-        WHERE p.account_id = $1 OR v.property_id IS NULL
+        SELECT v.* FROM vouchers v
+        LEFT JOIN properties p ON v.property_id = p.id
+        WHERE p.account_id = $1
         ORDER BY v.created_at DESC
       `, [accountId]);
     } else {
@@ -5094,10 +5094,11 @@ app.get('/api/admin/taxes', async (req, res) => {
     let result;
     
     if (accountId) {
+      // Only show taxes linked to properties owned by this account
       result = await pool.query(`
         SELECT t.* FROM taxes t
         LEFT JOIN properties p ON t.property_id = p.id
-        WHERE p.account_id = $1 OR t.property_id IS NULL
+        WHERE p.account_id = $1
         ORDER BY t.name
       `, [accountId]);
     } else {
