@@ -8761,9 +8761,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         async function loadContentView() {
-            // Load properties into all selects
+            // Load properties into all selects (filtered by account)
             try {
-                const response = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
@@ -8774,8 +8775,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('content-policies-property-select').innerHTML = propertyOptions;
                 }
                 
-                // Load rooms
-                const roomsResp = await fetch('/api/db/bookable-units');
+                // Load rooms (filtered by account)
+                const roomsResp = await fetch(`/api/db/bookable-units${queryString}`);
                 const roomsData = await roomsResp.json();
                 
                 if (roomsData.success && roomsData.data) {
@@ -9440,9 +9441,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         offersStartDate.setHours(0, 0, 0, 0);
         
         async function loadOffers() {
-            // Load properties dropdown
+            // Load properties dropdown (filtered by account)
             try {
-                const propsResponse = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const propsResponse = await fetch(`/api/db/properties${queryString}`);
                 const propsData = await propsResponse.json();
                 
                 const propSelect = document.getElementById('offers-property-select');
@@ -9785,7 +9787,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!select) return;
             
             try {
-                const response = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 select.innerHTML = '<option value="">Select Property...</option>';
@@ -10322,8 +10325,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             container.innerHTML = '<p style="padding: 0.75rem; color: #6b7280;">Loading rooms...</p>';
             
             try {
-                // Get all properties
-                const propsRes = await fetch('/api/properties');
+                // Get all properties (filtered by account)
+                const queryString = buildQueryString();
+                const propsRes = await fetch(`/api/db/properties${queryString}`);
                 const propsData = await propsRes.json();
                 
                 if (!propsData.success || !propsData.data?.length) {
@@ -10334,7 +10338,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 let html = '';
                 for (const prop of propsData.data) {
                     // Get rooms for this property
-                    const roomsRes = await fetch(`/api/properties/${prop.id}/rooms`);
+                    const roomsRes = await fetch(`/api/db/bookable-units?property_id=${prop.id}`);
                     const roomsData = await roomsRes.json();
                     
                     if (roomsData.success && roomsData.data?.length) {
@@ -10932,7 +10936,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadPropertiesForOfferDropdown() {
             try {
-                const response = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 const propSelect = document.getElementById('offer-property');
@@ -11072,7 +11077,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadVouchers() {
             try {
-                const response = await fetch('/api/admin/vouchers');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/vouchers${queryString}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -11253,7 +11259,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadVoucherProperties() {
             try {
-                const response = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 const select = document.getElementById('voucher-property');
@@ -11392,7 +11399,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadUpsells() {
             try {
-                const response = await fetch('/api/admin/upsells');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/upsells${queryString}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -11495,7 +11503,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadUpsellProperties() {
             try {
-                const response = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 const select = document.getElementById('upsell-property');
@@ -11690,7 +11699,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadFees() {
             try {
-                const response = await fetch('/api/admin/fees');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/fees${queryString}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -11782,7 +11792,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadFeeProperties() {
             try {
-                const response = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 const select = document.getElementById('fee-property');
@@ -11906,7 +11917,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadTaxes() {
             try {
-                const response = await fetch('/api/admin/taxes');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/taxes${queryString}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -11997,7 +12009,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadTaxProperties() {
             try {
-                const response = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 const select = document.getElementById('tax-property');
