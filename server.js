@@ -3507,9 +3507,9 @@ app.post('/api/smoobu/import-property', async (req, res) => {
             await client.query(`
                 UPDATE bookable_units SET
                     name = $1,
-                    max_occupancy = $2,
-                    bedrooms = $3,
-                    bathrooms = $4,
+                    max_guests = $2,
+                    bedroom_count = $3,
+                    bathroom_count = $4,
                     base_price = $5,
                     updated_at = NOW()
                 WHERE id = $6
@@ -3528,9 +3528,9 @@ app.post('/api/smoobu/import-property', async (req, res) => {
                     property_id,
                     name,
                     description,
-                    max_occupancy,
-                    bedrooms,
-                    bathrooms,
+                    max_guests,
+                    bedroom_count,
+                    bathroom_count,
                     base_price,
                     smoobu_id
                 )
@@ -3539,7 +3539,7 @@ app.post('/api/smoobu/import-property', async (req, res) => {
             `, [
                 propertyId,
                 apartmentName,
-                '',
+                JSON.stringify({ en: '' }),
                 details.rooms?.maxOccupancy || 2,
                 details.rooms?.bedrooms || 1,
                 details.rooms?.bathrooms || 1,
