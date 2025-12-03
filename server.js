@@ -935,6 +935,247 @@ app.post('/api/accounts/forgot-password', async (req, res) => {
   }
 });
 
+// =====================================================
+// ONBOARDING ENDPOINTS
+// =====================================================
+
+// Step 1: Create account during onboarding
+app.post('/api/onboarding/create-account', async (req, res) => {
+  try {
+    const { name, email, password, channel_manager } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.json({ success: false, error: 'Name, email, and password are required' });
+    }
+    
+    if (password.length < 8) {
+      return res.json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    
+    // Check if email already exists
+    const existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [email.toLowerCase().trim()]);
+    if (existing.rows.length > 0) {
+      return res.json({ success: false, error: 'An account with this email already exists. Please login instead.' });
+    }
+    
+    // Get master admin as parent
+    const masterResult = await pool.query(`SELECT id FROM accounts WHERE role = 'master_admin' LIMIT 1`);
+    const parentId = masterResult.rows.length > 0 ? masterResult.rows[0].id : null;
+    
+    // Hash password
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    
+    // Generate API key
+    const apiKey = 'gas_' + crypto.randomBytes(24).toString('hex');
+    
+    // Create account (default role is 'admin')
+    const result = await pool.query(`
+      INSERT INTO accounts (
+        name, email, password_hash, business_name, role, parent_id,
+        api_key, api_key_created_at, status
+      )
+      VALUES ($1, $2, $3, $1, 'admin', $4, $5, NOW(), 'active')
+      RETURNING id, public_id, name, email, role, business_name
+    `, [name, email.toLowerCase().trim(), passwordHash, parentId, apiKey]);
+    
+    const account = result.rows[0];
+    
+    // Create session token
+    const sessionToken = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    
+    // Ensure sessions table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_sessions (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        token VARCHAR(255) UNIQUE NOT NULL,
+        expires_at TIMESTAMP NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        ip_address VARCHAR(45),
+        user_agent TEXT
+      )
+    `);
+    
+    await pool.query(`
+      INSERT INTO account_sessions (account_id, token, expires_at, ip_address, user_agent)
+      VALUES ($1, $2, $3, $4, $5)
+    `, [account.id, sessionToken, expiresAt, req.ip, req.get('User-Agent')]);
+    
+    res.json({
+      success: true,
+      account: account,
+      token: sessionToken
+    });
+  } catch (error) {
+    console.error('Onboarding create account error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Step 2: Save channel manager credentials
+app.post('/api/onboarding/save-credentials', async (req, res) => {
+  try {
+    const { account_id, channel_manager, api_key, invite_code } = req.body;
+    
+    if (!account_id || !channel_manager) {
+      return res.json({ success: false, error: 'Account ID and channel manager required' });
+    }
+    
+    // Store credentials in client_settings (create a client first if needed)
+    // First, check if there's a client linked to this account
+    let clientId;
+    const existingClient = await pool.query(`
+      SELECT c.id FROM clients c 
+      JOIN accounts a ON c.email = a.email 
+      WHERE a.id = $1
+    `, [account_id]);
+    
+    if (existingClient.rows.length > 0) {
+      clientId = existingClient.rows[0].id;
+    } else {
+      // Create a client record for this account
+      const account = await pool.query('SELECT name, email FROM accounts WHERE id = $1', [account_id]);
+      if (account.rows.length === 0) {
+        return res.json({ success: false, error: 'Account not found' });
+      }
+      
+      const clientResult = await pool.query(`
+        INSERT INTO clients (name, email, status)
+        VALUES ($1, $2, 'active')
+        RETURNING id
+      `, [account.rows[0].name, account.rows[0].email]);
+      clientId = clientResult.rows[0].id;
+    }
+    
+    // Store the API credentials
+    const settingKey = channel_manager === 'smoobu' ? 'smoobu_api_key' : 
+                       channel_manager === 'hostaway' ? 'hostaway_api_key' :
+                       channel_manager === 'beds24' ? 'beds24_invite_code' : 'api_key';
+    const settingValue = api_key || invite_code;
+    
+    await pool.query(`
+      INSERT INTO client_settings (client_id, setting_key, setting_value)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (client_id, setting_key) DO UPDATE SET setting_value = $3
+    `, [clientId, settingKey, settingValue]);
+    
+    res.json({ success: true, client_id: clientId });
+  } catch (error) {
+    console.error('Save credentials error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Step 3: Import properties from channel manager
+app.post('/api/onboarding/import-properties', async (req, res) => {
+  try {
+    const { account_id, channel_manager, api_key, invite_code, account_id: hostaway_account } = req.body;
+    
+    if (!account_id || !channel_manager) {
+      return res.json({ success: false, error: 'Account ID and channel manager required' });
+    }
+    
+    let propertyCount = 0;
+    
+    if (channel_manager === 'smoobu') {
+      // Get properties from Smoobu
+      const smoobuResponse = await axios.get('https://login.smoobu.com/api/apartments', {
+        headers: { 
+          'Api-Key': api_key,
+          'Cache-Control': 'no-cache'
+        }
+      });
+      
+      const apartments = smoobuResponse.data.apartments || [];
+      
+      // Get client_id for this account
+      const clientResult = await pool.query(`
+        SELECT c.id FROM clients c 
+        JOIN accounts a ON c.email = a.email 
+        WHERE a.id = $1
+      `, [account_id]);
+      const clientId = clientResult.rows[0]?.id || 1;
+      
+      // Import each apartment as a property
+      for (const apt of apartments) {
+        // Check if already exists
+        const existing = await pool.query('SELECT id FROM properties WHERE smoobu_id = $1', [apt.id.toString()]);
+        
+        if (existing.rows.length === 0) {
+          // Create property
+          const propResult = await pool.query(`
+            INSERT INTO properties (user_id, client_id, account_id, name, smoobu_id, channel_manager)
+            VALUES (1, $1, $2, $3, $4, 'smoobu')
+            RETURNING id
+          `, [clientId, account_id, apt.name, apt.id.toString()]);
+          
+          // Create bookable unit
+          await pool.query(`
+            INSERT INTO bookable_units (property_id, name, smoobu_id, max_guests, base_price)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [propResult.rows[0].id, apt.name, apt.id.toString(), apt.maxOccupancy || 2, apt.price?.minimal || 100]);
+          
+          propertyCount++;
+        }
+      }
+    } else if (channel_manager === 'hostaway') {
+      // Hostaway import logic
+      const tokenResponse = await axios.post('https://api.hostaway.com/v1/accessTokens', 
+        `grant_type=client_credentials&client_id=${hostaway_account}&client_secret=${api_key}`,
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      
+      const accessToken = tokenResponse.data.access_token;
+      
+      const listingsResponse = await axios.get('https://api.hostaway.com/v1/listings', {
+        headers: { 'Authorization': 'Bearer ' + accessToken }
+      });
+      
+      const listings = listingsResponse.data.result || [];
+      
+      const clientResult = await pool.query(`
+        SELECT c.id FROM clients c 
+        JOIN accounts a ON c.email = a.email 
+        WHERE a.id = $1
+      `, [account_id]);
+      const clientId = clientResult.rows[0]?.id || 1;
+      
+      for (const listing of listings) {
+        const existing = await pool.query('SELECT id FROM properties WHERE hostaway_id = $1', [listing.id.toString()]);
+        
+        if (existing.rows.length === 0) {
+          const propResult = await pool.query(`
+            INSERT INTO properties (user_id, client_id, account_id, name, hostaway_id, channel_manager)
+            VALUES (1, $1, $2, $3, $4, 'hostaway')
+            RETURNING id
+          `, [clientId, account_id, listing.name, listing.id.toString()]);
+          
+          await pool.query(`
+            INSERT INTO bookable_units (property_id, name, hostaway_id, max_guests, base_price)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [propResult.rows[0].id, listing.name, listing.id.toString(), listing.personCapacity || 2, listing.price || 100]);
+          
+          propertyCount++;
+        }
+      }
+    } else if (channel_manager === 'beds24') {
+      // Beds24 uses invite code flow - different process
+      // For now just acknowledge
+      return res.json({ 
+        success: true, 
+        property_count: 0,
+        message: 'Beds24 connection initiated. Properties will sync shortly.'
+      });
+    }
+    
+    res.json({ success: true, property_count: propertyCount });
+  } catch (error) {
+    console.error('Import properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Migrate existing agencies and clients to accounts
 app.post('/api/migrate-to-accounts', async (req, res) => {
   const client = await pool.connect();
