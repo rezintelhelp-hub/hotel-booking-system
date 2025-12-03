@@ -1,0 +1,1198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAS - Global Accommodation System | Join the Network</title>
+    <meta name="description" content="Join thousands of independent hotels, hostels and vacation rental owners. List for free. Let independent travel agents, tour operators and local tourist groups find you.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600;9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #7c5cff;
+            --primary-dark: #6344e0;
+            --primary-light: #ede9ff;
+            --secondary: #10b981;
+            --text-primary: #1a1a2e;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            --bg-white: #ffffff;
+            --bg-cream: #fafaf9;
+            --bg-light: #f8fafc;
+            --border: #e2e8f0;
+            --shadow-sm: 0 1px 2px rgba(0,0,0,0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -2px rgba(0,0,0,0.1);
+            --shadow-lg: 0 10px 15px -3px rgba(0,0,0,0.1), 0 4px 6px -4px rgba(0,0,0,0.1);
+            --shadow-xl: 0 20px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1);
+            --radius: 12px;
+            --radius-lg: 20px;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-primary);
+            line-height: 1.6;
+            background: var(--bg-white);
+            -webkit-font-smoothing: antialiased;
+        }
+
+        /* =====================================================
+           HEADER
+        ===================================================== */
+        header {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 100;
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .header-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            font-family: 'Fraunces', serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+            letter-spacing: -0.5px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            align-items: center;
+        }
+
+        .nav-links a {
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: color 0.2s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius);
+            font-weight: 600;
+            font-size: 0.95rem;
+            text-decoration: none;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+            box-shadow: var(--shadow-md), 0 0 0 0 rgba(124, 92, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg), 0 0 0 4px rgba(124, 92, 255, 0.15);
+        }
+
+        .btn-secondary {
+            background: var(--bg-light);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-cream);
+            border-color: var(--text-muted);
+        }
+
+        .btn-large {
+            padding: 1rem 2rem;
+            font-size: 1.05rem;
+        }
+
+        /* =====================================================
+           HERO SECTION
+        ===================================================== */
+        .hero {
+            padding: 8rem 2rem 5rem;
+            background: linear-gradient(180deg, var(--bg-white) 0%, var(--bg-cream) 100%);
+            overflow: hidden;
+        }
+
+        .hero-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .hero-content h1 {
+            font-family: 'Fraunces', serif;
+            font-size: 3.25rem;
+            font-weight: 700;
+            line-height: 1.15;
+            color: var(--text-primary);
+            margin-bottom: 1.5rem;
+            letter-spacing: -1px;
+        }
+
+        .hero-content h1 span {
+            color: var(--primary);
+        }
+
+        .hero-content p {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-bottom: 2rem;
+            max-width: 480px;
+            line-height: 1.7;
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+            margin-bottom: 3rem;
+        }
+
+        .trust-badges {
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .trust-badge {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .trust-badge svg {
+            width: 20px;
+            height: 20px;
+            color: var(--secondary);
+        }
+
+        /* =====================================================
+           CHAT PREVIEW
+        ===================================================== */
+        .chat-preview {
+            background: white;
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            animation: float 6s ease-in-out infinite;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+        }
+
+        .chat-preview-header {
+            background: var(--primary);
+            padding: 1rem 1.25rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .chat-avatar {
+            width: 44px;
+            height: 44px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.25rem;
+        }
+
+        .chat-preview-title {
+            color: white;
+            font-weight: 600;
+            font-size: 1rem;
+        }
+
+        .chat-preview-subtitle {
+            color: rgba(255,255,255,0.8);
+            font-size: 0.8rem;
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+        }
+
+        .chat-preview-subtitle::before {
+            content: '';
+            width: 8px;
+            height: 8px;
+            background: #34d399;
+            border-radius: 50%;
+        }
+
+        .chat-messages {
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: var(--bg-light);
+            min-height: 240px;
+        }
+
+        .chat-message {
+            max-width: 85%;
+            padding: 0.875rem 1rem;
+            border-radius: var(--radius);
+            font-size: 0.95rem;
+            line-height: 1.5;
+            animation: messageIn 0.4s ease-out;
+        }
+
+        @keyframes messageIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-message.ai {
+            background: white;
+            color: var(--text-primary);
+            align-self: flex-start;
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow-sm);
+        }
+
+        .chat-message.user {
+            background: var(--primary);
+            color: white;
+            align-self: flex-end;
+        }
+
+        .chat-preview-footer {
+            padding: 1rem 1.5rem 1.5rem;
+            background: white;
+            border-top: 1px solid var(--border);
+        }
+
+        .chat-preview-footer .btn {
+            width: 100%;
+        }
+
+        /* =====================================================
+           HOW IT WORKS
+        ===================================================== */
+        .how-it-works {
+            padding: 6rem 2rem;
+            background: var(--bg-white);
+        }
+
+        .section-container {
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-header h2 {
+            font-family: 'Fraunces', serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 1rem;
+            letter-spacing: -0.5px;
+        }
+
+        .section-header p {
+            font-size: 1.1rem;
+            color: var(--text-secondary);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+        }
+
+        .step {
+            text-align: center;
+            padding: 2rem 1.5rem;
+            background: var(--bg-light);
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .step:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-light);
+        }
+
+        .step-number {
+            width: 48px;
+            height: 48px;
+            background: var(--primary);
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            font-size: 1.25rem;
+            margin: 0 auto 1.25rem;
+        }
+
+        .step h3 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .step p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* Arrow connectors */
+        .step:not(:last-child)::after {
+            content: '→';
+            position: absolute;
+            right: -1.25rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--text-muted);
+            font-size: 1.25rem;
+        }
+
+        /* =====================================================
+           WHY GAS SECTION
+        ===================================================== */
+        .why-gas {
+            padding: 6rem 2rem;
+            background: var(--bg-cream);
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+
+        .benefit-card {
+            background: white;
+            padding: 2rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border);
+            transition: all 0.3s ease;
+        }
+
+        .benefit-card:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
+        .benefit-icon {
+            width: 56px;
+            height: 56px;
+            background: var(--primary-light);
+            border-radius: var(--radius);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .benefit-card h3 {
+            font-size: 1.15rem;
+            font-weight: 600;
+            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .benefit-card p {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        /* =====================================================
+           CTA SECTION
+        ===================================================== */
+        .cta-section {
+            padding: 6rem 2rem;
+            background: var(--primary);
+            text-align: center;
+        }
+
+        .cta-section h2 {
+            font-family: 'Fraunces', serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 1rem;
+        }
+
+        .cta-section p {
+            font-size: 1.15rem;
+            color: rgba(255,255,255,0.85);
+            margin-bottom: 2rem;
+            max-width: 500px;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .cta-section .btn-primary {
+            background: white;
+            color: var(--primary);
+        }
+
+        .cta-section .btn-primary:hover {
+            background: var(--bg-cream);
+            transform: translateY(-2px);
+        }
+
+        /* =====================================================
+           FOOTER
+        ===================================================== */
+        footer {
+            padding: 3rem 2rem;
+            background: var(--text-primary);
+            color: rgba(255,255,255,0.7);
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-logo {
+            font-family: 'Fraunces', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+        }
+
+        .footer-links {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .footer-links a {
+            color: rgba(255,255,255,0.7);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.2s;
+        }
+
+        .footer-links a:hover {
+            color: white;
+        }
+
+        /* =====================================================
+           CHAT MODAL
+        ===================================================== */
+        .chat-modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+
+        .chat-modal.active {
+            display: flex;
+        }
+
+        .chat-modal-content {
+            background: white;
+            border-radius: var(--radius-lg);
+            width: 100%;
+            max-width: 440px;
+            max-height: 85vh;
+            overflow: hidden;
+            box-shadow: 0 25px 50px -12px rgba(0,0,0,0.25);
+            animation: modalIn 0.3s ease-out;
+        }
+
+        @keyframes modalIn {
+            from {
+                opacity: 0;
+                transform: scale(0.95) translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .chat-modal-header {
+            background: var(--primary);
+            padding: 1.25rem 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-modal-header h3 {
+            color: white;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .chat-close {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 1.25rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: background 0.2s;
+        }
+
+        .chat-close:hover {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .chat-progress {
+            display: flex;
+            gap: 0.5rem;
+            padding: 1rem 1.5rem;
+            background: var(--bg-light);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .chat-progress-step {
+            flex: 1;
+            height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            transition: background 0.3s;
+        }
+
+        .chat-progress-step.active {
+            background: var(--primary);
+        }
+
+        .chat-progress-step.complete {
+            background: var(--secondary);
+        }
+
+        .chat-modal-body {
+            padding: 1.5rem;
+            max-height: 400px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            background: var(--bg-light);
+        }
+
+        .chat-modal-footer {
+            padding: 1rem 1.5rem;
+            background: white;
+            border-top: 1px solid var(--border);
+            display: flex;
+            gap: 0.75rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            padding: 0.875rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            font-size: 0.95rem;
+            font-family: inherit;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(124, 92, 255, 0.1);
+        }
+
+        .chat-send {
+            padding: 0.875rem 1.25rem;
+            background: var(--primary);
+            color: white;
+            border: none;
+            border-radius: var(--radius);
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .chat-send:hover {
+            background: var(--primary-dark);
+        }
+
+        .quick-replies {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.5rem;
+        }
+
+        .quick-reply {
+            padding: 0.5rem 1rem;
+            background: white;
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .quick-reply:hover {
+            border-color: var(--primary);
+            background: var(--primary-light);
+        }
+
+        .typing-indicator {
+            display: flex;
+            gap: 4px;
+            padding: 1rem;
+            background: white;
+            border-radius: var(--radius);
+            width: fit-content;
+            border: 1px solid var(--border);
+        }
+
+        .typing-indicator span {
+            width: 8px;
+            height: 8px;
+            background: var(--text-muted);
+            border-radius: 50%;
+            animation: typing 1.4s infinite;
+        }
+
+        .typing-indicator span:nth-child(2) { animation-delay: 0.2s; }
+        .typing-indicator span:nth-child(3) { animation-delay: 0.4s; }
+
+        @keyframes typing {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-4px); }
+        }
+
+        /* =====================================================
+           RESPONSIVE
+        ===================================================== */
+        @media (max-width: 1024px) {
+            .hero-container {
+                grid-template-columns: 1fr;
+                gap: 3rem;
+            }
+
+            .hero-content {
+                text-align: center;
+            }
+
+            .hero-content p {
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .hero-buttons {
+                justify-content: center;
+            }
+
+            .trust-badges {
+                justify-content: center;
+            }
+
+            .chat-preview {
+                max-width: 420px;
+                margin: 0 auto;
+            }
+
+            .steps {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .step:not(:last-child)::after {
+                display: none;
+            }
+
+            .benefits-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero-content h1 {
+                font-size: 2.25rem;
+            }
+
+            .steps {
+                grid-template-columns: 1fr;
+            }
+
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-container {
+                flex-direction: column;
+                gap: 1.5rem;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <header>
+        <div class="header-container">
+            <a href="/" class="logo">GAS</a>
+            <nav class="nav-links">
+                <a href="#how-it-works">How It Works</a>
+                <a href="#why-gas">Why GAS</a>
+                <a href="gas-onboarding.html">Property Owners</a>
+                <button class="btn btn-primary" onclick="openChat()">Get Started</button>
+            </nav>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1>Stop Paying <span>High Commissions</span></h1>
+                <p>Join the network of independent hotels, hostels and vacation rental owners who are taking back control. List for free. Let independent travel agents, tour operators and local tourist groups find you. Set your own terms.</p>
+                <div class="hero-buttons">
+                    <button class="btn btn-primary btn-large" onclick="openChat()">Get Started Free →</button>
+                    <a href="#how-it-works" class="btn btn-secondary btn-large">Learn More</a>
+                </div>
+                <div class="trust-badges">
+                    <div class="trust-badge">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        Free to list
+                    </div>
+                    <div class="trust-badge">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        No subscription
+                    </div>
+                    <div class="trust-badge">
+                        <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+                        You control pricing
+                    </div>
+                </div>
+            </div>
+
+            <div class="chat-preview">
+                <div class="chat-preview-header">
+                    <div class="chat-avatar">🤖</div>
+                    <div>
+                        <div class="chat-preview-title">GAS Assistant</div>
+                        <div class="chat-preview-subtitle">Online now</div>
+                    </div>
+                </div>
+                <div class="chat-messages">
+                    <div class="chat-message ai">
+                        👋 How much did you pay in OTA commissions last year?
+                    </div>
+                    <div class="chat-message user">
+                        Too much! Around 15-20%
+                    </div>
+                    <div class="chat-message ai">
+                        That's thousands going to platforms that don't really care about your property. Want to hear about a different way?
+                    </div>
+                </div>
+                <div class="chat-preview-footer">
+                    <button class="btn btn-primary" onclick="openChat()">
+                        Continue this conversation →
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- How It Works Section -->
+    <section class="how-it-works" id="how-it-works">
+        <div class="section-container">
+            <div class="section-header">
+                <h2>How It Works</h2>
+                <p>Four simple steps to join the network and start getting discovered by travel professionals worldwide</p>
+            </div>
+
+            <div class="steps">
+                <div class="step">
+                    <div class="step-number">1</div>
+                    <h3>Chat With Us</h3>
+                    <p>Tell us about your property. Our assistant will guide you through the process in minutes.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">2</div>
+                    <h3>Connect Your CM</h3>
+                    <p>Link your channel manager (Beds24, Hostaway, or Smoobu) to sync availability automatically.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">3</div>
+                    <h3>Add Your Content</h3>
+                    <p>Upload photos, write descriptions, and set your rates. Make your property shine.</p>
+                </div>
+                <div class="step">
+                    <div class="step-number">4</div>
+                    <h3>Get Discovered</h3>
+                    <p>Travel agents find you through our network. You approve bookings on your terms.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Why GAS Section -->
+    <section class="why-gas" id="why-gas">
+        <div class="section-container">
+            <div class="section-header">
+                <h2>Why Choose GAS?</h2>
+                <p>Built by hospitality professionals who understand what independent properties really need</p>
+            </div>
+
+            <div class="benefits-grid">
+                <div class="benefit-card">
+                    <div class="benefit-icon">💰</div>
+                    <h3>Zero Listing Fees</h3>
+                    <p>No subscription. No percentage. List your property completely free and keep more of what you earn.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🤝</div>
+                    <h3>Direct Relationships</h3>
+                    <p>Connect directly with independent travel agents, tour operators and tourist groups. Build lasting partnerships.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">⚡</div>
+                    <h3>Automatic Sync</h3>
+                    <p>Your availability, rates and content sync automatically from your channel manager. No double-entry.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🎯</div>
+                    <h3>You Set The Terms</h3>
+                    <p>Create special rates for agents, set your own commission levels, and approve every booking.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🌍</div>
+                    <h3>Global Reach</h3>
+                    <p>Get discovered by travel professionals worldwide who are looking for authentic, independent properties.</p>
+                </div>
+                <div class="benefit-card">
+                    <div class="benefit-icon">🛡️</div>
+                    <h3>Stay Independent</h3>
+                    <p>No algorithms controlling your visibility. No penalties. No race to the bottom on price.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <h2>Ready to Take Back Control?</h2>
+        <p>Join the growing network of independent properties. It takes just 5 minutes to get started.</p>
+        <button class="btn btn-primary btn-large" onclick="openChat()">Get Started Free →</button>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-container">
+            <div class="footer-logo">GAS</div>
+            <div class="footer-links">
+                <a href="#">About</a>
+                <a href="#">For Travel Agents</a>
+                <a href="#">Support</a>
+                <a href="#">Privacy</a>
+            </div>
+            <div style="font-size: 0.85rem;">
+                © 2025 Global Accommodation System. All rights reserved.
+            </div>
+        </div>
+    </footer>
+
+    <!-- Chat Modal -->
+    <div class="chat-modal" id="chatModal">
+        <div class="chat-modal-content">
+            <div class="chat-modal-header">
+                <h3>
+                    <div class="chat-avatar" style="width: 36px; height: 36px; font-size: 1rem;">🤖</div>
+                    GAS Assistant
+                </h3>
+                <button class="chat-close" onclick="closeChat()">×</button>
+            </div>
+            <div class="chat-progress">
+                <div class="chat-progress-step active" id="progress-1"></div>
+                <div class="chat-progress-step" id="progress-2"></div>
+                <div class="chat-progress-step" id="progress-3"></div>
+                <div class="chat-progress-step" id="progress-4"></div>
+                <div class="chat-progress-step" id="progress-5"></div>
+            </div>
+            <div class="chat-modal-body" id="chatBody">
+                <!-- Messages will be added here -->
+            </div>
+            <div class="chat-modal-footer">
+                <input type="text" class="chat-input" id="chatInput" placeholder="Type your message..." onkeypress="handleKeyPress(event)">
+                <button class="chat-send" onclick="sendMessage()">Send</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // =====================================================
+        // CHAT LOGIC
+        // =====================================================
+        
+        let currentStep = 0;
+        let userData = {
+            propertyName: '',
+            propertyType: '',
+            location: '',
+            channelManager: '',
+            email: ''
+        };
+
+        const chatFlow = [
+            {
+                message: "Hey! 👋 Quick question – how much did you pay in OTA commissions last year?",
+                quickReplies: ["Too much!", "Around 15-20%", "I'd rather not say"]
+            },
+            {
+                message: "Yeah, thought so. Here's the thing – GAS is completely free to list. No subscription. No percentage.\n\nWe're building a global network where independent travel agents, tour operators and local tourist groups find YOU. Not the other way around.\n\nWant in?",
+                quickReplies: ["Tell me more", "I'm interested!", "How does it work?"]
+            },
+            {
+                message: "Brilliant! Let's get you set up. It takes about 5 minutes.\n\nFirst – what's your property called?",
+                quickReplies: null,
+                saveAs: 'propertyName'
+            },
+            {
+                message: "Love it! And what type of accommodation is {propertyName}?",
+                quickReplies: ["Hotel", "B&B / Guesthouse", "Hostel", "Vacation Rental", "Self-Catering", "Other"],
+                saveAs: 'propertyType'
+            },
+            {
+                message: "Great! Where is {propertyName} located? (City, Country)",
+                quickReplies: null,
+                saveAs: 'location'
+            },
+            {
+                message: "Perfect! Last technical question – which channel manager do you use?",
+                quickReplies: ["Beds24", "Hostaway", "Smoobu", "Other / None"],
+                saveAs: 'channelManager'
+            },
+            {
+                message: "Excellent! Almost done. What's the best email to reach you?",
+                quickReplies: null,
+                saveAs: 'email'
+            },
+            {
+                message: "You're all set! 🎉\n\nWe'll send setup instructions to {email}.\n\nIn the meantime, click below to start connecting your property:",
+                quickReplies: null,
+                action: 'redirect'
+            }
+        ];
+
+        function openChat() {
+            document.getElementById('chatModal').classList.add('active');
+            if (currentStep === 0) {
+                setTimeout(() => addAIMessage(chatFlow[0].message, chatFlow[0].quickReplies), 500);
+            }
+        }
+
+        function closeChat() {
+            document.getElementById('chatModal').classList.remove('active');
+        }
+
+        function addAIMessage(text, quickReplies = null) {
+            const chatBody = document.getElementById('chatBody');
+            
+            // Show typing indicator
+            const typing = document.createElement('div');
+            typing.className = 'typing-indicator';
+            typing.innerHTML = '<span></span><span></span><span></span>';
+            chatBody.appendChild(typing);
+            chatBody.scrollTop = chatBody.scrollHeight;
+
+            setTimeout(() => {
+                // Remove typing indicator
+                typing.remove();
+
+                // Replace placeholders in text
+                let processedText = text;
+                for (const [key, value] of Object.entries(userData)) {
+                    processedText = processedText.replace(`{${key}}`, value);
+                }
+
+                // Add message
+                const msg = document.createElement('div');
+                msg.className = 'chat-message ai';
+                msg.innerHTML = processedText.replace(/\n/g, '<br>');
+                chatBody.appendChild(msg);
+
+                // Add quick replies if any
+                if (quickReplies) {
+                    const qr = document.createElement('div');
+                    qr.className = 'quick-replies';
+                    quickReplies.forEach(reply => {
+                        const btn = document.createElement('button');
+                        btn.className = 'quick-reply';
+                        btn.textContent = reply;
+                        btn.onclick = () => handleUserReply(reply);
+                        qr.appendChild(btn);
+                    });
+                    chatBody.appendChild(qr);
+                }
+
+                // Add redirect button if action
+                if (chatFlow[currentStep] && chatFlow[currentStep].action === 'redirect') {
+                    const btnContainer = document.createElement('div');
+                    btnContainer.style.marginTop = '1rem';
+                    const btn = document.createElement('button');
+                    btn.className = 'btn btn-primary';
+                    btn.style.width = '100%';
+                    btn.textContent = 'Start Setup →';
+                    btn.onclick = () => window.location.href = 'gas-onboarding.html';
+                    btnContainer.appendChild(btn);
+                    chatBody.appendChild(btnContainer);
+                }
+
+                chatBody.scrollTop = chatBody.scrollHeight;
+            }, 1000);
+        }
+
+        function addUserMessage(text) {
+            const chatBody = document.getElementById('chatBody');
+            const msg = document.createElement('div');
+            msg.className = 'chat-message user';
+            msg.textContent = text;
+            chatBody.appendChild(msg);
+            chatBody.scrollTop = chatBody.scrollHeight;
+        }
+
+        function handleUserReply(text) {
+            // Remove quick replies
+            const qr = document.querySelector('.quick-replies');
+            if (qr) qr.remove();
+
+            addUserMessage(text);
+
+            // Save data if needed
+            const step = chatFlow[currentStep];
+            if (step && step.saveAs) {
+                userData[step.saveAs] = text;
+            }
+
+            // Update progress
+            const progressStep = document.getElementById(`progress-${currentStep + 1}`);
+            if (progressStep) {
+                progressStep.classList.remove('active');
+                progressStep.classList.add('complete');
+            }
+
+            // Move to next step
+            currentStep++;
+            
+            const nextProgressStep = document.getElementById(`progress-${currentStep + 1}`);
+            if (nextProgressStep) {
+                nextProgressStep.classList.add('active');
+            }
+
+            // Show next message
+            if (currentStep < chatFlow.length) {
+                setTimeout(() => {
+                    addAIMessage(chatFlow[currentStep].message, chatFlow[currentStep].quickReplies);
+                }, 500);
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            input.value = '';
+            handleUserReply(text);
+        }
+
+        function handleKeyPress(e) {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        // Close modal on escape
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Escape') closeChat();
+        });
+
+        // Close modal on backdrop click
+        document.getElementById('chatModal').addEventListener('click', (e) => {
+            if (e.target === document.getElementById('chatModal')) {
+                closeChat();
+            }
+        });
+    </script>
+</body>
+</html>
