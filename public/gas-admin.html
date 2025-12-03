@@ -6049,6 +6049,24 @@ const promo = await fetch('/api/v1/offers/validate', {
         let selectedAccountId = null;
         let selectedAccountName = null;
         
+        // Helper function to get account query param
+        function getAccountParam() {
+            if (selectedAccountId) {
+                return `account_id=${selectedAccountId}`;
+            }
+            return '';
+        }
+        
+        // Helper to build query string with account filter
+        function buildQueryString(additionalParams = []) {
+            let params = [];
+            if (selectedAccountId) {
+                params.push(`account_id=${selectedAccountId}`);
+            }
+            params = params.concat(additionalParams.filter(p => p));
+            return params.length > 0 ? '?' + params.join('&') : '';
+        }
+        
         // Set agency filter
         function setAgencyFilter(agencyId, agencyName) {
             selectedAgencyId = agencyId;
@@ -7810,10 +7828,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 let roomCount = 0;
                 let locationCount = 0;
 
-                // Load all properties
+                // Load all properties (filtered by account)
                 let properties = [];
                 try {
-                    const propsResp = await fetch('/api/db/properties');
+                    const queryString = buildQueryString();
+                    const propsResp = await fetch(`/api/db/properties${queryString}`);
                     if (propsResp.ok) {
                         const propsData = await propsResp.json();
                         properties = propsData.data || [];
@@ -7822,10 +7841,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     console.log('No properties found:', e.message);
                 }
 
-                // Load all rooms
+                // Load all rooms (filtered by account)
                 let rooms = [];
                 try {
-                    const roomsResp = await fetch('/api/db/bookable-units');
+                    const queryString = buildQueryString();
+                    const roomsResp = await fetch(`/api/db/bookable-units${queryString}`);
                     if (roomsResp.ok) {
                         const roomsData = await roomsResp.json();
                         rooms = roomsData.data || [];
@@ -9036,11 +9056,8 @@ const promo = await fetch('/api/v1/offers/validate', {
         let availabilityViewLoaded = false;
         
         async function loadAvailabilityView() {
-            // Only do full load on first visit
-            if (availabilityViewLoaded) {
-                return;
-            }
-            availabilityViewLoaded = true;
+            // Reset loaded flag when account filter changes
+            availabilityViewLoaded = false;
             
             // Set start date to today
             gridStartDate = new Date();
@@ -9053,9 +9070,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             nextWeek.setDate(nextWeek.getDate() + 7);
             document.getElementById('edit-to-date').value = nextWeek.toISOString().split('T')[0];
             
-            // Load properties for filter
+            // Load properties for filter (filtered by account)
             try {
-                const propsResponse = await fetch('/api/db/properties');
+                const queryString = buildQueryString();
+                const propsResponse = await fetch(`/api/db/properties${queryString}`);
                 const propsData = await propsResponse.json();
                 
                 const propFilter = document.getElementById('grid-property-filter');
@@ -9067,9 +9085,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading properties:', error);
             }
             
-            // Load rooms
+            // Load rooms (filtered by account)
             try {
-                const response = await fetch('/api/db/bookable-units');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/bookable-units${queryString}`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
