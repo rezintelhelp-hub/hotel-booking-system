@@ -3264,6 +3264,25 @@ app.get('/api/webhooks/hostaway', (req, res) => {
 // Smoobu API Base URL
 const SMOOBU_API_URL = 'https://login.smoobu.com/api';
 
+// Test endpoint to check table structure
+app.get('/api/test-smoobu-insert', async (req, res) => {
+    try {
+        // Try a simple property insert
+        const result = await pool.query(`
+            INSERT INTO properties (client_id, name, smoobu_id, channel_manager)
+            VALUES (3, 'Test Property', 'test123', 'smoobu')
+            RETURNING id
+        `);
+        
+        // Delete it right away
+        await pool.query('DELETE FROM properties WHERE id = $1', [result.rows[0].id]);
+        
+        res.json({ success: true, message: 'Property insert works!' });
+    } catch (error) {
+        res.json({ success: false, error: error.message, detail: error.detail });
+    }
+});
+
 // Setup Smoobu connection - saves API key to database
 app.post('/api/smoobu/setup-connection', async (req, res) => {
     try {
@@ -3407,34 +3426,36 @@ app.post('/api/smoobu/import-property', async (req, res) => {
         const targetClientId = clientId || 1;
         
         // Get apartment details
-        const detailResponse = await axios.get(`${SMOOBU_API_URL}/apartments/${apartmentId}`, {
-            headers: {
-                'Api-Key': apiKey,
-                'Cache-Control': 'no-cache'
-            }
-        });
-        
-        const details = detailResponse.data;
-        
-        // Get apartment name from list
-        const listResponse = await axios.get(`${SMOOBU_API_URL}/apartments`, {
-            headers: {
-                'Api-Key': apiKey,
-                'Cache-Control': 'no-cache'
-            }
-        });
-        const apartment = listResponse.data.apartments?.find(a => a.id === parseInt(apartmentId));
-        const apartmentName = apartment?.name || `Smoobu Property ${apartmentId}`;
+        let details, apartmentName;
+        try {
+            const detailResponse = await axios.get(`${SMOOBU_API_URL}/apartments/${apartmentId}`, {
+                headers: {
+                    'Api-Key': apiKey,
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            details = detailResponse.data;
+            
+            const listResponse = await axios.get(`${SMOOBU_API_URL}/apartments`, {
+                headers: {
+                    'Api-Key': apiKey,
+                    'Cache-Control': 'no-cache'
+                }
+            });
+            const apartment = listResponse.data.apartments?.find(a => a.id === parseInt(apartmentId));
+            apartmentName = apartment?.name || `Smoobu Property ${apartmentId}`;
+        } catch (apiErr) {
+            return res.status(500).json({ success: false, error: 'Smoobu API error: ' + apiErr.message });
+        }
         
         await client.query('BEGIN');
         
         // Check if property already exists
+        let propertyId;
         const existingProp = await client.query(
             'SELECT id FROM properties WHERE smoobu_id = $1',
             [apartmentId.toString()]
         );
-        
-        let propertyId;
         
         if (existingProp.rows.length > 0) {
             // Update existing
