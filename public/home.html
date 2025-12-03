@@ -853,6 +853,7 @@
                 <a href="#how-it-works">How it Works</a>
                 <a href="#why-gas">Why GAS</a>
                 <a href="#" onclick="openChat(); return false;">Contact</a>
+                <a href="/login.html" class="btn btn-secondary">Sign In</a>
                 <button class="btn btn-primary" onclick="openChat()">Join Now</button>
             </div>
         </div>
@@ -1303,18 +1304,12 @@
 
             // Handle final step redirects
             if (reply === "Take me to my dashboard") {
-                // Redirect based on channel manager selection
+                // Store userData in localStorage for the next page
+                localStorage.setItem('gas_onboarding_data', JSON.stringify(userData));
+                
+                // Redirect to index.html (the main onboarding dashboard)
                 setTimeout(() => {
-                    if (userData.channelManager === 'Beds24') {
-                        window.location.href = '/beds24-wizard.html';
-                    } else if (userData.channelManager === 'Hostaway') {
-                        window.location.href = '/hostaway-wizard.html';
-                    } else if (userData.channelManager === 'Smoobu') {
-                        window.location.href = '/smoobu-wizard.html';
-                    } else {
-                        // Other or no CM - go to main admin
-                        window.location.href = '/gas-admin.html';
-                    }
+                    window.location.href = '/index.html';
                 }, 1000);
                 return;
             }
@@ -1346,6 +1341,8 @@
             const step = chatFlow[currentStep];
             if (step && step.saveAs) {
                 userData[step.saveAs] = text;
+                // Always store latest userData
+                localStorage.setItem('gas_onboarding_data', JSON.stringify(userData));
             }
 
             currentStep++;
