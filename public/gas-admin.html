@@ -6525,7 +6525,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <div style="display: flex; gap: 0.5rem;">
                                             <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
                                             ${account.role !== 'master_admin' ? `
-                                                <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', '${account.name}')">Role</button>
+                                                <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', \`${account.name.replace(/`/g, "'")}\`)">Role</button>
                                             ` : ''}
                                         </div>
                                     </td>
