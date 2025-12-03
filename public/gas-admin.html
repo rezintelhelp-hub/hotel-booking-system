@@ -6541,8 +6541,19 @@ const promo = await fetch('/api/v1/offers/validate', {
             const account = allAccounts.find(a => a.id === accountId);
             if (!account) return;
             
-            // Set the filter to this account and navigate to dashboard
-            setAccountFilter(accountId, account.name);
+            // Set the filter variables
+            selectedAccountId = accountId;
+            selectedAccountName = account.name;
+            
+            // Show banner
+            const banner = document.getElementById('agencyFilterBanner');
+            const nameEl = document.getElementById('agencyFilterName');
+            if (banner && nameEl) {
+                banner.style.display = 'flex';
+                nameEl.textContent = account.name;
+            }
+            
+            // Navigate to dashboard with new filter
             showView('dashboard');
         }
         
