@@ -3267,10 +3267,10 @@ const SMOOBU_API_URL = 'https://login.smoobu.com/api';
 // Test endpoint to check table structure
 app.get('/api/test-smoobu-insert', async (req, res) => {
     try {
-        // Try a simple property insert
+        // Try a simple property insert with user_id
         const result = await pool.query(`
-            INSERT INTO properties (client_id, name, smoobu_id, channel_manager)
-            VALUES (3, 'Test Property', 'test123', 'smoobu')
+            INSERT INTO properties (user_id, client_id, name, smoobu_id, channel_manager)
+            VALUES (1, 3, 'Test Property', 'test123', 'smoobu')
             RETURNING id
         `);
         
@@ -3485,6 +3485,7 @@ app.post('/api/smoobu/import-property', async (req, res) => {
             // Insert new
             const propertyResult = await client.query(`
                 INSERT INTO properties (
+                    user_id,
                     client_id, 
                     name, 
                     description,
@@ -3497,7 +3498,7 @@ app.post('/api/smoobu/import-property', async (req, res) => {
                     smoobu_id,
                     channel_manager
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'smoobu')
+                VALUES (1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'smoobu')
                 RETURNING id
             `, [
                 targetClientId,
