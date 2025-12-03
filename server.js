@@ -5230,8 +5230,7 @@ app.get('/api/admin/stats', async (req, res) => {
       `, [accountId]);
       bookingsCount = await pool.query(`
         SELECT COUNT(*) FROM bookings b
-        JOIN bookable_units bu ON b.room_id = bu.id
-        JOIN properties p ON bu.property_id = p.id
+        JOIN properties p ON b.property_id = p.id
         WHERE p.account_id = $1
       `, [accountId]);
       connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE client_id = $1 AND status = $2', [accountId, 'active']);
@@ -5245,8 +5244,7 @@ app.get('/api/admin/stats', async (req, res) => {
       `, [clientId]);
       bookingsCount = await pool.query(`
         SELECT COUNT(*) FROM bookings b
-        JOIN bookable_units bu ON b.room_id = bu.id
-        JOIN properties p ON bu.property_id = p.id
+        JOIN properties p ON b.property_id = p.id
         WHERE p.client_id = $1
       `, [clientId]);
       connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE client_id = $1 AND status = $2', [clientId, 'active']);
