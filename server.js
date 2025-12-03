@@ -1389,9 +1389,17 @@ app.get('/api/db/properties/:id', async (req, res) => {
 app.get('/api/db/bookable-units', async (req, res) => {
   try {
     const clientId = req.query.client_id;
+    const accountId = req.query.account_id;
     let result;
     
-    if (clientId) {
+    if (accountId) {
+      result = await pool.query(`
+        SELECT bu.* FROM bookable_units bu
+        JOIN properties p ON bu.property_id = p.id
+        WHERE p.account_id = $1
+        ORDER BY bu.property_id, bu.created_at
+      `, [accountId]);
+    } else if (clientId) {
       result = await pool.query(`
         SELECT bu.* FROM bookable_units bu
         JOIN properties p ON bu.property_id = p.id
