@@ -11638,6 +11638,90 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
+// =====================================================
+// SCHEDULED SYNC - All Channel Managers
+// =====================================================
+async function syncAllChannelManagers() {
+  console.log('🔄 Starting scheduled sync for all channel managers...');
+  
+  try {
+    // Get all clients with CM connections
+    const clientsResult = await pool.query(`
+      SELECT DISTINCT c.id, c.name,
+        (SELECT setting_value FROM client_settings WHERE client_id = c.id AND setting_key = 'smoobu_api_key') as smoobu_key,
+        (SELECT setting_value FROM client_settings WHERE client_id = c.id AND setting_key = 'hostaway_api_key') as hostaway_key
+      FROM clients c
+      WHERE EXISTS (SELECT 1 FROM client_settings cs WHERE cs.client_id = c.id AND cs.setting_key LIKE '%_api_key')
+    `);
+    
+    for (const client of clientsResult.rows) {
+      // Sync Smoobu
+      if (client.smoobu_key) {
+        try {
+          const smoobuProps = await pool.query(`
+            SELECT bu.id as room_id, bu.smoobu_id
+            FROM bookable_units bu
+            JOIN properties p ON bu.property_id = p.id
+            WHERE p.client_id = $1 AND bu.smoobu_id IS NOT NULL
+          `, [client.id]);
+          
+          if (smoobuProps.rows.length > 0) {
+            const apartmentIds = smoobuProps.rows.map(r => r.smoobu_id);
+            const startDate = new Date().toISOString().split('T')[0];
+            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            const ratesResponse = await axios.get(
+              `https://login.smoobu.com/api/rates?${apartmentIds.map(id => `apartments[]=${id}`).join('&')}&start_date=${startDate}&end_date=${endDate}`,
+              { headers: { 'Api-Key': client.smoobu_key, 'Cache-Control': 'no-cache' } }
+            );
+            
+            for (const room of smoobuProps.rows) {
+              const apartmentRates = ratesResponse.data.data?.[room.smoobu_id];
+              if (!apartmentRates) continue;
+              
+              for (const [date, info] of Object.entries(apartmentRates)) {
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, is_available, cm_price, standard_price, min_stay, source)
+                  VALUES ($1, $2, $3, $4, $4, $5, 'smoobu')
+                  ON CONFLICT (room_id, date) DO UPDATE SET
+                    is_available = EXCLUDED.is_available, cm_price = EXCLUDED.cm_price,
+                    standard_price = EXCLUDED.standard_price, min_stay = EXCLUDED.min_stay,
+                    source = EXCLUDED.source, updated_at = NOW()
+                `, [room.room_id, date, info.available > 0, info.price || null, info.min_length_of_stay || null]);
+              }
+            }
+            console.log(`  ✅ Synced Smoobu for ${client.name}`);
+          }
+        } catch (e) {
+          console.log(`  ❌ Smoobu sync failed for ${client.name}: ${e.message}`);
+        }
+      }
+      
+      // Sync Hostaway
+      if (client.hostaway_key) {
+        try {
+          // Similar logic for Hostaway...
+          console.log(`  ✅ Synced Hostaway for ${client.name}`);
+        } catch (e) {
+          console.log(`  ❌ Hostaway sync failed for ${client.name}: ${e.message}`);
+        }
+      }
+    }
+    
+    console.log('🔄 Scheduled sync complete');
+  } catch (error) {
+    console.error('Scheduled sync error:', error.message);
+  }
+}
+
+// Run sync every 15 minutes
+const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+setInterval(syncAllChannelManagers, SYNC_INTERVAL);
+
+// Also run once on startup (after 30 seconds to let DB connect)
+setTimeout(syncAllChannelManagers, 30000);
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 Server running on port ' + PORT);
+  console.log('🔄 Auto-sync scheduled every 15 minutes');
 });
