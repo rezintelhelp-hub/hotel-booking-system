@@ -5105,11 +5105,15 @@ app.get('/api/admin/stats', async (req, res) => {
     const clientId = req.query.client_id;
     const accountId = req.query.account_id;
     
+    console.log('Stats request - accountId:', accountId, 'clientId:', clientId);
+    
     let propertiesCount, unitsCount, bookingsCount, connectionsCount;
     
     if (accountId) {
       // Account-specific stats (new system)
+      console.log('Filtering by account_id:', accountId);
       propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE account_id = $1', [accountId]);
+      console.log('Properties count:', propertiesCount.rows[0].count);
       unitsCount = await pool.query(`
         SELECT COUNT(*) FROM bookable_units bu 
         JOIN properties p ON bu.property_id = p.id 
