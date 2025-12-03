@@ -787,6 +787,9 @@ app.get('/api/setup-database', async (req, res) => {
     // Add access_token column to channel_connections
     await pool.query(`ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS access_token TEXT`);
     
+    // Fix currency column length (should be VARCHAR(3) not VARCHAR(2))
+    await pool.query(`ALTER TABLE properties ALTER COLUMN currency TYPE VARCHAR(3)`);
+    
     // Add tourist tax columns to properties
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_enabled BOOLEAN DEFAULT false`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_type VARCHAR(20) DEFAULT 'per_guest_per_night'`); // per_guest_per_night, per_night, per_booking, percentage
