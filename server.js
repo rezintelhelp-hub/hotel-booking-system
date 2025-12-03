@@ -3589,7 +3589,7 @@ app.post('/api/smoobu/import-property', async (req, res) => {
     } catch (error) {
         await client.query('ROLLBACK');
         console.error('Smoobu import error:', error.response?.data || error.message);
-        res.status(500).json({ success: false, error: error.message, detail: error.detail, where: error.where });
+        res.status(500).json({ success: false, error: error.message, detail: error.detail, where: error.where, column: error.column, table: error.table });
     } finally {
         client.release();
     }
