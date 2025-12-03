@@ -54,11 +54,13 @@
         .sidebar {
             background: var(--sidebar-bg);
             border-right: 1px solid var(--border);
-            padding: 1.5rem 0;
+            padding: 1.5rem 0 0;
             position: sticky;
             top: 0;
             height: 100vh;
             overflow-y: auto;
+            display: flex;
+            flex-direction: column;
         }
 
         .logo {
@@ -84,6 +86,9 @@
 
         .nav {
             padding: 0 0.75rem;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
         }
 
         .nav-section {
@@ -127,6 +132,76 @@
 
         .nav-icon {
             font-size: 1.1rem;
+        }
+
+        /* User Profile Section */
+        .user-profile-section {
+            margin-top: auto;
+            padding: 1rem 1.25rem;
+            border-top: 1px solid var(--border);
+            background: var(--bg-primary);
+        }
+
+        .user-profile-info {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .user-avatar {
+            width: 36px;
+            height: 36px;
+            border-radius: 8px;
+            background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            font-size: 0.9rem;
+        }
+
+        .user-details {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .user-name {
+            font-weight: 600;
+            font-size: 0.85rem;
+            color: var(--text-primary);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .user-role {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: capitalize;
+        }
+
+        .logout-btn {
+            width: 100%;
+            padding: 0.5rem;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .logout-btn:hover {
+            background: #fef2f2;
+            border-color: #fecaca;
+            color: #dc2626;
         }
 
         /* Main Content */
@@ -1146,6 +1221,20 @@
                         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 122.5 122.5" fill="currentColor"><path d="M8.7 61.3c0 20.8 12.1 38.8 29.6 47.3L13 40.3c-2.8 6.5-4.3 13.7-4.3 21zm88.6-2.7c0-6.5-2.3-11-4.3-14.5-2.7-4.3-5.2-8-5.2-12.3 0-4.8 3.7-9.3 8.9-9.3h.7c-9.4-8.6-21.9-13.9-35.7-13.9-18.5 0-34.7 9.5-44.2 23.8h3.4c5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.8.3-6 .5l19.1 57 11.5-34.5-8.2-22.5c-2.8-.2-5.5-.5-5.5-.5-2.8-.2-2.5-4.5.3-4.3 0 0 8.7.7 13.9.7 5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.9.3-6 .5l19 56.5 5.2-17.5c2.3-7.3 4-12.5 4-17zm-36.3 7.6l-15.8 45.8c4.7 1.4 9.7 2.2 14.8 2.2 6.1 0 12-1.1 17.4-3-.1-.2-.3-.5-.4-.7l-16-43.3zm45.1-29.8c.5 3.4.7 7 .7 10.9 0 10.8-2 22.9-8 38l-21.8 63.1c21.2-12.4 35.5-35.5 35.5-62.1 0-17.9-6.2-34.3-16.4-47.9zM61.3 0C27.5 0 0 27.5 0 61.3c0 33.8 27.5 61.3 61.3 61.3 33.8 0 61.3-27.5 61.3-61.3C122.5 27.5 95 0 61.3 0zm0 119.7c-32.2 0-58.5-26.2-58.5-58.5 0-32.2 26.2-58.5 58.5-58.5 32.2 0 58.5 26.2 58.5 58.5-.1 32.3-26.3 58.5-58.5 58.5z"/></svg></span>
                         <span>WordPress</span>
                     </a>
+                </div>
+                
+                <!-- User Profile Section -->
+                <div class="user-profile-section" id="userProfileSection">
+                    <div class="user-profile-info">
+                        <div class="user-avatar" id="userAvatar">?</div>
+                        <div class="user-details">
+                            <div class="user-name" id="userName">Loading...</div>
+                            <div class="user-role" id="userRole">-</div>
+                        </div>
+                    </div>
+                    <button class="logout-btn" onclick="handleLogout()">
+                        <span>🚪</span> Sign Out
+                    </button>
                 </div>
             </nav>
         </aside>
@@ -6037,6 +6126,104 @@ const promo = await fetch('/api/v1/offers/validate', {
     </div>
 
     <script>
+        // =====================================================
+        // AUTHENTICATION
+        // =====================================================
+        let currentAccount = null;
+        
+        // Check authentication on page load
+        async function checkAuth() {
+            const token = localStorage.getItem('gas_token');
+            
+            if (!token) {
+                window.location.href = '/login.html';
+                return false;
+            }
+            
+            try {
+                const response = await fetch('/api/accounts/me', {
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentAccount = data.account;
+                    updateUserProfile();
+                    return true;
+                } else {
+                    // Token invalid, clear and redirect
+                    localStorage.removeItem('gas_token');
+                    localStorage.removeItem('gas_account');
+                    window.location.href = '/login.html';
+                    return false;
+                }
+            } catch (error) {
+                console.error('Auth check failed:', error);
+                // On network error, try using cached account
+                const cachedAccount = localStorage.getItem('gas_account');
+                if (cachedAccount) {
+                    currentAccount = JSON.parse(cachedAccount);
+                    updateUserProfile();
+                    return true;
+                }
+                window.location.href = '/login.html';
+                return false;
+            }
+        }
+        
+        function updateUserProfile() {
+            if (!currentAccount) return;
+            
+            const avatarEl = document.getElementById('userAvatar');
+            const nameEl = document.getElementById('userName');
+            const roleEl = document.getElementById('userRole');
+            
+            if (avatarEl) {
+                avatarEl.textContent = currentAccount.name.charAt(0).toUpperCase();
+            }
+            if (nameEl) {
+                nameEl.textContent = currentAccount.name;
+            }
+            if (roleEl) {
+                const roleLabels = {
+                    'master_admin': 'Master Admin',
+                    'agency_admin': 'Agency Admin',
+                    'submaster_admin': 'Sub Admin',
+                    'admin': 'Admin'
+                };
+                roleEl.textContent = roleLabels[currentAccount.role] || currentAccount.role;
+            }
+        }
+        
+        async function handleLogout() {
+            const token = localStorage.getItem('gas_token');
+            
+            try {
+                await fetch('/api/accounts/logout', {
+                    method: 'POST',
+                    headers: { 'Authorization': 'Bearer ' + token }
+                });
+            } catch (error) {
+                console.error('Logout error:', error);
+            }
+            
+            localStorage.removeItem('gas_token');
+            localStorage.removeItem('gas_account');
+            window.location.href = '/login.html';
+        }
+        
+        // Helper to add auth header to fetch requests
+        function authHeaders() {
+            const token = localStorage.getItem('gas_token');
+            return token ? { 'Authorization': 'Bearer ' + token } : {};
+        }
+        
+        // Run auth check immediately
+        checkAuth();
+        
+        // =====================================================
+        // GLOBAL STATE
+        // =====================================================
         // Global client tracking - uses public_id (UUID) for security
         let currentClientPublicId = null; // UUID or null for all clients
         let clientIdMap = {}; // Maps public_id -> internal id
@@ -6538,17 +6725,12 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         function viewAccount(accountId) {
-            const account = allAccounts.find(a => a.id === accountId || a.id === parseInt(accountId));
-            if (!account) {
-                console.error('Account not found:', accountId);
-                return;
-            }
+            const account = allAccounts.find(a => a.id === accountId);
+            if (!account) return;
             
-            // Set the filter variables (ensure integer)
-            selectedAccountId = parseInt(account.id);
+            // Set the filter variables
+            selectedAccountId = accountId;
             selectedAccountName = account.name;
-            
-            console.log('viewAccount - set selectedAccountId to:', selectedAccountId);
             
             // Show banner
             const banner = document.getElementById('agencyFilterBanner');
@@ -6617,16 +6799,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 `<option value="${r}" ${r === currentRole ? 'selected' : ''}>${roleLabels[r]}</option>`
             ).join('');
             
-            // Remove existing modal if any
-            const existing = document.getElementById('changeRoleModal');
-            if (existing) existing.remove();
-            
             const modalHtml = `
-                <div id="changeRoleModal" class="modal active">
-                    <div class="modal-content" style="max-width: 400px;">
+                <div class="modal-overlay" id="changeRoleModal" style="display: flex;">
+                    <div class="modal" style="max-width: 400px;">
                         <div class="modal-header">
-                            <h3 class="modal-title">🔄 Change Role</h3>
-                            <button class="modal-close" onclick="closeChangeRoleModal()">&times;</button>
+                            <h3>Change Role</h3>
+                            <button class="modal-close" onclick="closeModal('changeRoleModal')">&times;</button>
                         </div>
                         <div style="padding: 1.5rem;">
                             <p style="margin-bottom: 1rem;">Change role for <strong>${accountName}</strong>:</p>
@@ -6634,7 +6812,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${options}
                             </select>
                             <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                                <button class="btn btn-secondary" onclick="closeChangeRoleModal()" style="flex: 1;">Cancel</button>
+                                <button class="btn btn-secondary" onclick="closeModal('changeRoleModal')" style="flex: 1;">Cancel</button>
                                 <button class="btn" onclick="saveAccountRole(${accountId})" style="flex: 1;">Save</button>
                             </div>
                         </div>
@@ -6643,11 +6821,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             `;
             
             document.body.insertAdjacentHTML('beforeend', modalHtml);
-        }
-        
-        function closeChangeRoleModal() {
-            const modal = document.getElementById('changeRoleModal');
-            if (modal) modal.remove();
         }
         
         async function saveAccountRole(accountId) {
@@ -6662,7 +6835,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const result = await response.json();
                 
                 if (result.success) {
-                    closeChangeRoleModal();
+                    closeModal('changeRoleModal');
                     loadAccounts();
                 } else {
                     alert('Error: ' + result.error);
@@ -7521,8 +7694,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Build query params - prioritize account_id (new system)
                 let queryParams = [];
                 if (selectedAccountId) {
-                    // Ensure it's an integer
-                    queryParams.push(`account_id=${parseInt(selectedAccountId)}`);
+                    queryParams.push(`account_id=${selectedAccountId}`);
                 } else {
                     const clientId = getClientId();
                     if (clientId) {
@@ -7536,7 +7708,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const response = await fetch(`/api/admin/stats${queryString}`);
                 const stats = await response.json();
                 
-                console.log('loadDashboard - stats response:', stats);
+                console.log('loadDashboard - stats:', stats);
                 
                 if (stats.success) {
                     document.getElementById('stat-properties').textContent = stats.properties || 0;
