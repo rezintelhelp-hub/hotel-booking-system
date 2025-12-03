@@ -7516,8 +7516,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
                 const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
                 
+                console.log('loadDashboard - selectedAccountId:', selectedAccountId, 'queryString:', queryString);
+                
                 const response = await fetch(`/api/admin/stats${queryString}`);
                 const stats = await response.json();
+                
+                console.log('loadDashboard - stats:', stats);
                 
                 if (stats.success) {
                     document.getElementById('stat-properties').textContent = stats.properties || 0;
