@@ -1352,9 +1352,12 @@ app.post('/api/auth/login', async (req, res) => {
 app.get('/api/db/properties', async (req, res) => {
   try {
     const clientId = req.query.client_id;
+    const accountId = req.query.account_id;
     let result;
     
-    if (clientId) {
+    if (accountId) {
+      result = await pool.query('SELECT * FROM properties WHERE account_id = $1 ORDER BY created_at DESC', [accountId]);
+    } else if (clientId) {
       result = await pool.query('SELECT * FROM properties WHERE client_id = $1 ORDER BY created_at DESC', [clientId]);
     } else {
       result = await pool.query('SELECT * FROM properties ORDER BY created_at DESC');
@@ -5032,11 +5035,27 @@ app.post('/api/pricing/calculate', async (req, res) => {
 app.get('/api/admin/stats', async (req, res) => {
   try {
     const clientId = req.query.client_id;
+    const accountId = req.query.account_id;
     
     let propertiesCount, unitsCount, bookingsCount, connectionsCount;
     
-    if (clientId) {
-      // Client-specific stats
+    if (accountId) {
+      // Account-specific stats (new system)
+      propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE account_id = $1', [accountId]);
+      unitsCount = await pool.query(`
+        SELECT COUNT(*) FROM bookable_units bu 
+        JOIN properties p ON bu.property_id = p.id 
+        WHERE p.account_id = $1
+      `, [accountId]);
+      bookingsCount = await pool.query(`
+        SELECT COUNT(*) FROM bookings b
+        JOIN bookable_units bu ON b.room_id = bu.id
+        JOIN properties p ON bu.property_id = p.id
+        WHERE p.account_id = $1
+      `, [accountId]);
+      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE client_id = $1 AND status = $2', [accountId, 'active']);
+    } else if (clientId) {
+      // Client-specific stats (legacy)
       propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE client_id = $1', [clientId]);
       unitsCount = await pool.query(`
         SELECT COUNT(*) FROM bookable_units bu 
