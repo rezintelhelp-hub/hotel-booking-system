@@ -244,6 +244,7 @@
             <div class="tabs">
                 <button class="tab active" onclick="showTab('login')">Sign In</button>
                 <button class="tab" onclick="showTab('setpassword')">Set Password</button>
+                <button class="tab" onclick="showTab('forgot')">Forgot Password</button>
             </div>
             
             <!-- Login Form -->
@@ -272,11 +273,11 @@
                 </form>
                 
                 <div class="footer-links">
-                    <a href="/gas-onboarding.html">Don't have an account? Get started</a>
+                    <a href="#" onclick="showTab('forgot'); return false;">Forgot your password?</a>
                 </div>
             </div>
             
-            <!-- Set Password Form -->
+            <!-- Set Password Form (for new accounts) -->
             <div id="setpassword-section" class="form-section">
                 <div id="setpassword-alert" class="alert hidden"></div>
                 
@@ -308,6 +309,30 @@
                 
                 <div class="footer-links">
                     <a href="#" onclick="showTab('login'); return false;">Already have a password? Sign in</a>
+                </div>
+            </div>
+            
+            <!-- Forgot Password Form -->
+            <div id="forgot-section" class="form-section">
+                <div id="forgot-alert" class="alert hidden"></div>
+                
+                <p style="margin-bottom: 1rem; color: #6b7280; font-size: 0.9rem;">
+                    Enter your email to reset your password. You'll be able to set a new one.
+                </p>
+                
+                <form id="forgot-form" onsubmit="handleForgotPassword(event)">
+                    <div class="form-group">
+                        <label for="forgot-email">Email Address</label>
+                        <input type="email" id="forgot-email" name="email" required placeholder="you@example.com">
+                    </div>
+                    
+                    <button type="submit" class="btn" id="forgot-btn">
+                        Reset Password
+                    </button>
+                </form>
+                
+                <div class="footer-links">
+                    <a href="#" onclick="showTab('login'); return false;">Back to Sign In</a>
                 </div>
             </div>
         </div>
@@ -435,6 +460,44 @@
             
             btn.disabled = false;
             btn.textContent = 'Set Password';
+        }
+        
+        async function handleForgotPassword(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('forgot-btn');
+            const email = document.getElementById('forgot-email').value;
+            
+            btn.disabled = true;
+            btn.innerHTML = '<span class="loading-spinner"></span>Resetting...';
+            
+            try {
+                const response = await fetch('/api/accounts/forgot-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showAlert('forgot', 'Password reset! You can now set a new password.', 'success');
+                    
+                    // Pre-fill set password form and switch to it
+                    setTimeout(() => {
+                        document.getElementById('set-email').value = email;
+                        showTab('setpassword');
+                        showAlert('setpassword', 'Now create your new password.', 'success');
+                    }, 1500);
+                } else {
+                    showAlert('forgot', data.error, 'error');
+                }
+            } catch (error) {
+                showAlert('forgot', 'Connection error. Please try again.', 'error');
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Reset Password';
         }
     </script>
 </body>
