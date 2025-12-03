@@ -3873,16 +3873,27 @@ app.post('/api/admin/sync-smoobu-availability', async (req, res) => {
     const dbClient = await pool.connect();
     
     try {
-        const { apiKey, clientId } = req.body;
+        let { apiKey, clientId } = req.body;
+        
+        const targetClientId = clientId || 1;
+        
+        // If no API key provided, get from client_settings
+        if (!apiKey) {
+            const keyResult = await dbClient.query(
+                `SELECT setting_value FROM client_settings WHERE client_id = $1 AND setting_key = 'smoobu_api_key'`,
+                [targetClientId]
+            );
+            if (keyResult.rows.length > 0) {
+                apiKey = keyResult.rows[0].setting_value;
+            }
+        }
         
         if (!apiKey) {
             return res.status(400).json({ 
                 success: false, 
-                error: 'API key is required' 
+                error: 'API key is required - none found in settings' 
             });
         }
-        
-        const targetClientId = clientId || 1;
         
         // Get all Smoobu properties for this client
         const propertiesResult = await dbClient.query(`
