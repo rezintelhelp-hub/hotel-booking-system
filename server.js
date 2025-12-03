@@ -1390,9 +1390,16 @@ app.get('/api/db/bookable-units', async (req, res) => {
   try {
     const clientId = req.query.client_id;
     const accountId = req.query.account_id;
+    const propertyId = req.query.property_id;
     let result;
     
-    if (accountId) {
+    if (propertyId) {
+      result = await pool.query(`
+        SELECT bu.* FROM bookable_units bu
+        WHERE bu.property_id = $1
+        ORDER BY bu.created_at
+      `, [propertyId]);
+    } else if (accountId) {
       result = await pool.query(`
         SELECT bu.* FROM bookable_units bu
         JOIN properties p ON bu.property_id = p.id
@@ -4546,9 +4553,22 @@ app.delete('/api/admin/offers/:id', async (req, res) => {
 // Get all vouchers
 app.get('/api/admin/vouchers', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT * FROM vouchers ORDER BY created_at DESC
-    `);
+    const accountId = req.query.account_id;
+    let result;
+    
+    if (accountId) {
+      // Filter by account - vouchers linked to properties owned by this account
+      result = await pool.query(`
+        SELECT DISTINCT v.* FROM vouchers v
+        LEFT JOIN properties p ON v.property_id = p.id OR v.property_id = ANY(v.property_ids)
+        WHERE p.account_id = $1 OR v.property_id IS NULL
+        ORDER BY v.created_at DESC
+      `, [accountId]);
+    } else {
+      result = await pool.query(`
+        SELECT * FROM vouchers ORDER BY created_at DESC
+      `);
+    }
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -4653,15 +4673,31 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
 
 app.get('/api/admin/upsells', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT u.*, 
-             p.name as property_name,
-             r.name as room_name
-      FROM upsells u
-      LEFT JOIN properties p ON u.property_id = p.id
-      LEFT JOIN rooms r ON u.room_id = r.id
-      ORDER BY u.name
-    `);
+    const accountId = req.query.account_id;
+    let result;
+    
+    if (accountId) {
+      result = await pool.query(`
+        SELECT u.*, 
+               p.name as property_name,
+               r.name as room_name
+        FROM upsells u
+        LEFT JOIN properties p ON u.property_id = p.id
+        LEFT JOIN rooms r ON u.room_id = r.id
+        WHERE p.account_id = $1 OR u.property_id IS NULL
+        ORDER BY u.name
+      `, [accountId]);
+    } else {
+      result = await pool.query(`
+        SELECT u.*, 
+               p.name as property_name,
+               r.name as room_name
+        FROM upsells u
+        LEFT JOIN properties p ON u.property_id = p.id
+        LEFT JOIN rooms r ON u.room_id = r.id
+        ORDER BY u.name
+      `);
+    }
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -4725,7 +4761,19 @@ app.delete('/api/admin/upsells/:id', async (req, res) => {
 
 app.get('/api/admin/fees', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM fees ORDER BY name');
+    const accountId = req.query.account_id;
+    let result;
+    
+    if (accountId) {
+      result = await pool.query(`
+        SELECT f.* FROM fees f
+        LEFT JOIN properties p ON f.property_id = p.id
+        WHERE p.account_id = $1 OR f.property_id IS NULL
+        ORDER BY f.name
+      `, [accountId]);
+    } else {
+      result = await pool.query('SELECT * FROM fees ORDER BY name');
+    }
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -4789,7 +4837,19 @@ app.delete('/api/admin/fees/:id', async (req, res) => {
 
 app.get('/api/admin/taxes', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM taxes ORDER BY name');
+    const accountId = req.query.account_id;
+    let result;
+    
+    if (accountId) {
+      result = await pool.query(`
+        SELECT t.* FROM taxes t
+        LEFT JOIN properties p ON t.property_id = p.id
+        WHERE p.account_id = $1 OR t.property_id IS NULL
+        ORDER BY t.name
+      `, [accountId]);
+    } else {
+      result = await pool.query('SELECT * FROM taxes ORDER BY name');
+    }
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
