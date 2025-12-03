@@ -766,6 +766,43 @@ app.get('/api/setup-clients', async (req, res) => {
 
 app.get('/api/setup-database', async (req, res) => {
   try {
+    // Create channel_managers table first (referenced by channel_connections)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS channel_managers (
+        id SERIAL PRIMARY KEY,
+        cm_code VARCHAR(50) UNIQUE NOT NULL,
+        cm_name VARCHAR(100) NOT NULL,
+        api_base_url VARCHAR(255),
+        auth_type VARCHAR(50) DEFAULT 'oauth2',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Insert default channel managers
+    await pool.query(`
+      INSERT INTO channel_managers (cm_code, cm_name, api_base_url, auth_type)
+      VALUES 
+        ('beds24', 'Beds24', 'https://beds24.com/api/v2', 'oauth2'),
+        ('hostaway', 'Hostaway', 'https://api.hostaway.com/v1', 'oauth2'),
+        ('smoobu', 'Smoobu', 'https://login.smoobu.com/api', 'api_key')
+      ON CONFLICT (cm_code) DO NOTHING
+    `);
+    
+    // Create channel_connections table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS channel_connections (
+        id SERIAL PRIMARY KEY,
+        client_id INTEGER,
+        cm_id INTEGER REFERENCES channel_managers(id),
+        account_id VARCHAR(100),
+        refresh_token TEXT,
+        access_token TEXT,
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
     await pool.query(`CREATE TABLE IF NOT EXISTS properties (id SERIAL PRIMARY KEY, name VARCHAR(255) NOT NULL, description TEXT, address TEXT, city VARCHAR(100), country VARCHAR(100), property_type VARCHAR(50), star_rating INTEGER, hero_image_url TEXT, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS rooms (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE, name VARCHAR(255) NOT NULL, description TEXT, max_occupancy INTEGER, max_adults INTEGER, max_children INTEGER, base_price DECIMAL(10, 2), currency VARCHAR(3) DEFAULT 'USD', quantity INTEGER DEFAULT 1, active BOOLEAN DEFAULT true, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     await pool.query(`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id), room_id INTEGER REFERENCES rooms(id), check_in DATE NOT NULL, check_out DATE NOT NULL, num_adults INTEGER NOT NULL, num_children INTEGER DEFAULT 0, guest_first_name VARCHAR(100) NOT NULL, guest_last_name VARCHAR(100) NOT NULL, guest_email VARCHAR(255) NOT NULL, guest_phone VARCHAR(50), total_price DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'confirmed', beds24_booking_id VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
