@@ -6045,6 +6045,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         let selectedAgencyId = null;
         let selectedAgencyName = null;
         
+        // Account filter (new unified system) - when set, all views filter by this account
+        let selectedAccountId = null;
+        let selectedAccountName = null;
+        
         // Set agency filter
         function setAgencyFilter(agencyId, agencyName) {
             selectedAgencyId = agencyId;
@@ -6525,8 +6529,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         // Account filter (like the old agency filter)
-        let selectedAccountId = null;
-        let selectedAccountName = null;
+        // selectedAccountId and selectedAccountName are declared at the top with other globals
         
         function setAccountFilter(accountId, accountName) {
             selectedAccountId = accountId;
@@ -7605,7 +7608,14 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadRooms() {
             const container = document.getElementById('rooms-list');
             try {
-                const response = await fetch('/api/admin/units');
+                // Build query params for account filter
+                let queryParams = [];
+                if (selectedAccountId) {
+                    queryParams.push(`account_id=${selectedAccountId}`);
+                }
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+                
+                const response = await fetch(`/api/admin/units${queryString}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
