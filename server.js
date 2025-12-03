@@ -5121,14 +5121,29 @@ app.get('/api/admin/debug', async (req, res) => {
 // Get all bookable units with property details
 app.get('/api/admin/units', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT 
-        bu.*,
-        p.name as property_name
-      FROM bookable_units bu
-      LEFT JOIN properties p ON bu.property_id = p.id
-      ORDER BY bu.created_at DESC
-    `);
+    const accountId = req.query.account_id;
+    let result;
+    
+    if (accountId) {
+      result = await pool.query(`
+        SELECT 
+          bu.*,
+          p.name as property_name
+        FROM bookable_units bu
+        LEFT JOIN properties p ON bu.property_id = p.id
+        WHERE p.account_id = $1
+        ORDER BY bu.created_at DESC
+      `, [accountId]);
+    } else {
+      result = await pool.query(`
+        SELECT 
+          bu.*,
+          p.name as property_name
+        FROM bookable_units bu
+        LEFT JOIN properties p ON bu.property_id = p.id
+        ORDER BY bu.created_at DESC
+      `);
+    }
     
     res.json({
       success: true,
