@@ -15596,13 +15596,21 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('plan-sort-order').value = plan.sort_order || 0;
                     document.getElementById('plan-is-active').checked = plan.is_active;
                     
-                    const features = typeof plan.features === 'string' ? JSON.parse(plan.features) : (plan.features || []);
-                    document.getElementById('plan-features').value = features.join('\n');
+                    // Handle features - can be array or object with features_list
+                    let features = typeof plan.features === 'string' ? JSON.parse(plan.features) : (plan.features || {});
+                    let featuresList = [];
+                    if (Array.isArray(features)) {
+                        featuresList = features;
+                    } else if (features.features_list) {
+                        featuresList = features.features_list;
+                    }
+                    document.getElementById('plan-features').value = featuresList.join('\n');
                     
                     document.getElementById('plan-modal-title').textContent = '💳 Edit Plan';
                     openModal('billingPlanModal');
                 }
             } catch (error) {
+                console.error('Error editing plan:', error);
                 showNotification('Error loading plan', 'error');
             }
         }
@@ -15611,7 +15619,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             event.preventDefault();
             
             const featuresText = document.getElementById('plan-features').value;
-            const features = featuresText.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+            const featuresList = featuresText.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+            
+            // Build features object with features_list
+            const maxProps = document.getElementById('plan-max-properties').value ? parseInt(document.getElementById('plan-max-properties').value) : null;
+            const features = {
+                properties: maxProps,
+                websites: 1,
+                booking_plugin: true,
+                features_list: featuresList
+            };
             
             const planData = {
                 id: document.getElementById('plan-id').value || undefined,
@@ -15621,7 +15638,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 price_monthly: parseFloat(document.getElementById('plan-price-monthly').value),
                 price_yearly: document.getElementById('plan-price-yearly').value ? parseFloat(document.getElementById('plan-price-yearly').value) : null,
                 currency: document.getElementById('plan-currency').value,
-                max_properties: document.getElementById('plan-max-properties').value ? parseInt(document.getElementById('plan-max-properties').value) : null,
+                max_properties: maxProps,
                 features: features,
                 sort_order: parseInt(document.getElementById('plan-sort-order').value) || 0,
                 is_active: document.getElementById('plan-is-active').checked
