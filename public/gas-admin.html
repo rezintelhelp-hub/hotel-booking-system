@@ -1201,23 +1201,27 @@
                     </a>
                 </div>
 
-                <div class="nav-section">
+                <div class="nav-section" id="nav-billing-section">
                     <div class="nav-label">Billing</div>
-                    <a class="nav-item" data-view="billing-overview" href="#" onclick="navClick(this, 'billing-overview'); return false;">
+                    <a class="nav-item" data-view="my-billing" href="#" onclick="navClick(this, 'my-billing'); return false;">
+                        <span class="nav-icon">💳</span>
+                        <span>Plans & Extras</span>
+                    </a>
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-overview" href="#" onclick="navClick(this, 'billing-overview'); return false;">
                         <span class="nav-icon">📊</span>
                         <span>Overview</span>
                     </a>
-                    <a class="nav-item" data-view="billing-plans" href="#" onclick="navClick(this, 'billing-plans'); return false;">
-                        <span class="nav-icon">💳</span>
-                        <span>Plans</span>
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-plans" href="#" onclick="navClick(this, 'billing-plans'); return false;">
+                        <span class="nav-icon">📋</span>
+                        <span>Manage Plans</span>
                     </a>
-                    <a class="nav-item" data-view="billing-credits" href="#" onclick="navClick(this, 'billing-credits'); return false;">
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-credits" href="#" onclick="navClick(this, 'billing-credits'); return false;">
                         <span class="nav-icon">🪙</span>
-                        <span>Credit Packages</span>
+                        <span>Manage Credits</span>
                     </a>
-                    <a class="nav-item" data-view="billing-extras" href="#" onclick="navClick(this, 'billing-extras'); return false;">
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-extras" href="#" onclick="navClick(this, 'billing-extras'); return false;">
                         <span class="nav-icon">🛒</span>
-                        <span>Extras Shop</span>
+                        <span>Manage Extras</span>
                     </a>
                 </div>
 
@@ -4866,6 +4870,40 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Billing (Client View) -->
+            <div id="my-billing" class="view">
+                <div class="header">
+                    <h2>💳 Plans & Extras</h2>
+                    <p>Subscribe to a plan or purchase extras</p>
+                </div>
+
+                <!-- Subscription Plans -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title" style="margin-bottom: 1rem;">📋 Subscription Plans</h3>
+                    <div id="my-billing-plans" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <p style="color: var(--text-secondary);">Loading plans...</p>
+                    </div>
+                </div>
+
+                <!-- Buy Credits -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title" style="margin-bottom: 1rem;">🪙 Credit Packages</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Buy credits to spend on extras and services</p>
+                    <div id="my-billing-credits" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem;">
+                        <p style="color: var(--text-secondary);">Loading credit packages...</p>
+                    </div>
+                </div>
+
+                <!-- Extras Shop -->
+                <div class="card">
+                    <h3 class="card-title" style="margin-bottom: 1rem;">🛒 Extras & Services</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Services you can purchase with credits</p>
+                    <div id="my-billing-extras" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
+                        <p style="color: var(--text-secondary);">Loading extras...</p>
                     </div>
                 </div>
             </div>
@@ -15116,8 +15154,124 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadCreditPackages();
             } else if (view === 'billing-extras') {
                 loadBillingExtras();
+            } else if (view === 'my-billing') {
+                loadMyBilling();
             }
         };
+
+        // Show admin billing sections for master_admin only
+        function updateBillingNavVisibility() {
+            const user = JSON.parse(localStorage.getItem('gas_user') || '{}');
+            const isMasterAdmin = user.role === 'master_admin';
+            
+            document.querySelectorAll('.billing-admin-only').forEach(el => {
+                el.style.display = isMasterAdmin ? 'flex' : 'none';
+            });
+        }
+        
+        // Call on page load
+        updateBillingNavVisibility();
+
+        // Load client-facing billing page
+        async function loadMyBilling() {
+            // Load plans
+            try {
+                const plansRes = await fetch('/api/billing/plans');
+                const plansData = await plansRes.json();
+                
+                const plansContainer = document.getElementById('my-billing-plans');
+                if (plansData.success && plansData.data.length > 0) {
+                    plansContainer.innerHTML = plansData.data.map(plan => {
+                        const features = typeof plan.features === 'string' ? JSON.parse(plan.features) : (plan.features || []);
+                        const currencySymbol = plan.currency === 'GBP' ? '£' : plan.currency === 'EUR' ? '€' : '$';
+                        return `
+                        <div style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center;">
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1.2rem;">${plan.name}</h4>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">${plan.description || ''}</p>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--accent);">
+                                ${currencySymbol}${parseFloat(plan.price_monthly).toFixed(2)}
+                                <span style="font-size: 0.9rem; font-weight: 400; color: var(--text-secondary);">/mo</span>
+                            </div>
+                            ${plan.price_yearly ? `<div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">or ${currencySymbol}${parseFloat(plan.price_yearly).toFixed(2)}/year</div>` : '<div style="margin-bottom: 1rem;"></div>'}
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">
+                                ${plan.max_properties ? plan.max_properties + ' properties' : 'Unlimited properties'}
+                            </div>
+                            <ul style="text-align: left; font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 1rem 0; padding-left: 1.2rem;">
+                                ${features.slice(0, 4).map(f => `<li>${f}</li>`).join('')}
+                            </ul>
+                            <button class="btn" style="width: 100%;" onclick="contactForPlan('${plan.name}')">Get Started</button>
+                        </div>
+                    `}).join('');
+                } else {
+                    plansContainer.innerHTML = '<p style="color: var(--text-secondary);">No plans available</p>';
+                }
+            } catch (e) {
+                console.error('Error loading plans:', e);
+            }
+            
+            // Load credit packages
+            try {
+                const creditsRes = await fetch('/api/billing/credit-packages');
+                const creditsData = await creditsRes.json();
+                
+                const creditsContainer = document.getElementById('my-billing-credits');
+                if (creditsData.success && creditsData.data.length > 0) {
+                    creditsContainer.innerHTML = creditsData.data.map(pkg => {
+                        const currencySymbol = pkg.currency === 'GBP' ? '£' : pkg.currency === 'EUR' ? '€' : '$';
+                        const totalCredits = pkg.credits + (pkg.bonus_credits || 0);
+                        return `
+                        <div style="border: 2px solid var(--border); border-radius: 12px; padding: 1.25rem; text-align: center;">
+                            <div style="font-size: 2rem; margin-bottom: 0.25rem;">🪙</div>
+                            <div style="font-size: 1.5rem; font-weight: 700; color: var(--warning);">${totalCredits}</div>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">credits</div>
+                            ${pkg.bonus_credits > 0 ? `<div style="font-size: 0.75rem; color: var(--success); margin-bottom: 0.5rem;">+${pkg.bonus_credits} bonus!</div>` : ''}
+                            <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem;">${currencySymbol}${parseFloat(pkg.price).toFixed(2)}</div>
+                            <button class="btn btn-secondary" style="width: 100%;" onclick="contactForCredits('${pkg.name}')">Buy</button>
+                        </div>
+                    `}).join('');
+                } else {
+                    creditsContainer.innerHTML = '<p style="color: var(--text-secondary);">No credit packages available</p>';
+                }
+            } catch (e) {
+                console.error('Error loading credits:', e);
+            }
+            
+            // Load extras
+            try {
+                const extrasRes = await fetch('/api/billing/extras');
+                const extrasData = await extrasRes.json();
+                
+                const extrasContainer = document.getElementById('my-billing-extras');
+                if (extrasData.success && extrasData.data.length > 0) {
+                    extrasContainer.innerHTML = extrasData.data.map(extra => `
+                        <div style="border: 1px solid var(--border); border-radius: 12px; padding: 1rem; display: flex; align-items: center; gap: 1rem;">
+                            <div style="font-size: 2rem;">${extra.icon || '📦'}</div>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 600;">${extra.name}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${extra.description || ''}</div>
+                            </div>
+                            <div style="text-align: center;">
+                                <div style="font-weight: 700; color: var(--warning);">${extra.credit_cost}</div>
+                                <div style="font-size: 0.7rem; color: var(--text-secondary);">credits</div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    extrasContainer.innerHTML = '<p style="color: var(--text-secondary);">No extras available</p>';
+                }
+            } catch (e) {
+                console.error('Error loading extras:', e);
+            }
+        }
+
+        // Placeholder functions for purchase actions
+        function contactForPlan(planName) {
+            alert('To subscribe to the ' + planName + ' plan, please contact us at support@example.com');
+        }
+
+        function contactForCredits(packageName) {
+            alert('To purchase ' + packageName + ', please contact us at support@example.com');
+        }
 
         // =====================================================
         // BILLING FUNCTIONS
