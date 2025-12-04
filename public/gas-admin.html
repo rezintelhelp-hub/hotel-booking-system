@@ -4373,39 +4373,103 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <p>Add booking functionality to your WordPress website</p>
                 </div>
 
+                <!-- Your Settings -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white;">
+                    <h3 style="margin: 0 0 1rem 0;">⚙️ Your WordPress Plugin Settings</h3>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 1rem;">
+                            <div style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.25rem;">API URL</div>
+                            <code style="font-size: 0.9rem; word-break: break-all;" id="wp-api-url"></code>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 1rem;">
+                            <div style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.25rem;">Client Account ID</div>
+                            <code style="font-size: 1.2rem; font-weight: bold;" id="wp-client-id">-</code>
+                        </div>
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 8px; padding: 1rem;">
+                            <div style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 0.25rem;">Property ID</div>
+                            <code style="font-size: 1.2rem; font-weight: bold;" id="wp-property-id">-</code>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Download Section -->
                 <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); color: white;">
                     <h3 style="margin: 0 0 1rem 0; display: flex; align-items: center; gap: 0.5rem;">
-                        📦 Downloads
+                        📦 Plugin Downloads
                     </h3>
-                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem;">
-                        <!-- Plugin Download -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem;">
+                        <!-- Core Booking Plugin -->
                         <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
                             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <span style="font-size: 2rem;">🔌</span>
+                                <span style="font-size: 1.75rem;">🔌</span>
                                 <div>
-                                    <h4 style="margin: 0; font-size: 1.1rem;">GAS Booking Plugin</h4>
-                                    <span style="font-size: 0.8rem; opacity: 0.8;">v47 • Required</span>
+                                    <h4 style="margin: 0; font-size: 1rem;">GAS Booking</h4>
+                                    <span style="font-size: 0.75rem; opacity: 0.8;">v4.0 • All Plans</span>
                                 </div>
                             </div>
-                            <p style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 1rem;">Search, room listings, booking calendar & checkout</p>
-                            <a href="/downloads/gas-booking-wp-plugin-v47.zip" download class="btn" style="background: white; color: #1e40af; width: 100%; text-align: center; text-decoration: none; display: block;">
-                                ⬇️ Download Plugin
+                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Search, rooms, calendar & checkout</p>
+                            <a href="/downloads/gas-booking-wp-plugin.zip" download class="btn" style="background: white; color: #1e40af; width: 100%; text-align: center; text-decoration: none; display: block; font-size: 0.85rem;">
+                                ⬇️ Download
                             </a>
                         </div>
                         
-                        <!-- Theme Download -->
+                        <!-- Theme -->
                         <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
                             <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                                <span style="font-size: 2rem;">🎨</span>
+                                <span style="font-size: 1.75rem;">🎨</span>
                                 <div>
-                                    <h4 style="margin: 0; font-size: 1.1rem;">GAS Developer Theme</h4>
-                                    <span style="font-size: 0.8rem; opacity: 0.8;">Optional starter theme</span>
+                                    <h4 style="margin: 0; font-size: 1rem;">Developer Theme</h4>
+                                    <span style="font-size: 0.75rem; opacity: 0.8;">v2.0 • All Plans</span>
                                 </div>
                             </div>
-                            <p style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 1rem;">Minimal theme optimized for GAS booking widgets</p>
-                            <a href="/downloads/gas-theme-developer.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3);">
-                                ⬇️ Download Theme
+                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Starter theme with auto-setup</p>
+                            <a href="/downloads/gas-theme-developer.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
+                                ⬇️ Download
+                            </a>
+                        </div>
+                        
+                        <!-- Blog Plugin -->
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <span style="font-size: 1.75rem;">📝</span>
+                                <div>
+                                    <h4 style="margin: 0; font-size: 1rem;">GAS Blog</h4>
+                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0 • Pro+</span>
+                                </div>
+                            </div>
+                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Blog with SEO & schema markup</p>
+                            <a href="/downloads/gas-blog.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
+                                ⬇️ Download
+                            </a>
+                        </div>
+                        
+                        <!-- Attractions Plugin -->
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <span style="font-size: 1.75rem;">📍</span>
+                                <div>
+                                    <h4 style="margin: 0; font-size: 1rem;">GAS Attractions</h4>
+                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0 • Business+</span>
+                                </div>
+                            </div>
+                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">Nearby places & activities</p>
+                            <a href="/downloads/gas-attractions.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
+                                ⬇️ Download
+                            </a>
+                        </div>
+                        
+                        <!-- Reviews Plugin -->
+                        <div style="background: rgba(255,255,255,0.15); border-radius: 10px; padding: 1.25rem;">
+                            <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                                <span style="font-size: 1.75rem;">⭐</span>
+                                <div>
+                                    <h4 style="margin: 0; font-size: 1rem;">GAS Reviews</h4>
+                                    <span style="font-size: 0.75rem; opacity: 0.8;">v1.0 • Enterprise</span>
+                                </div>
+                            </div>
+                            <p style="font-size: 0.8rem; opacity: 0.9; margin-bottom: 1rem;">TripAdvisor, Booking.com, Google</p>
+                            <a href="/downloads/gas-reviews.zip" download class="btn" style="background: rgba(255,255,255,0.25); color: white; width: 100%; text-align: center; text-decoration: none; display: block; border: 1px solid rgba(255,255,255,0.3); font-size: 0.85rem;">
+                                ⬇️ Download
                             </a>
                         </div>
                     </div>
@@ -4438,16 +4502,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Configure Plugin Settings</h4>
                             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">In WordPress, go to <strong>Settings → GAS Booking</strong> and enter:</p>
                             <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; font-size: 0.85rem;">
-                                <div style="display: grid; grid-template-columns: 130px 1fr; gap: 0.5rem; align-items: center;">
+                                <div style="display: grid; grid-template-columns: 140px 1fr; gap: 0.5rem; align-items: center;">
                                     <strong>API URL:</strong>
                                     <div>
                                         <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-api-url-guide"></code>
                                         <button onclick="copyShortcode(document.getElementById('wp-api-url-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
                                     </div>
-                                    <strong>Property ID:</strong>
+                                    <strong>Client Account ID:</strong>
                                     <div>
-                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-property-id-guide">1</code>
-                                        <button onclick="copyShortcode(document.getElementById('wp-property-id-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
+                                        <code style="background: #1e293b; color: #e2e8f0; padding: 0.3rem 0.6rem; border-radius: 4px; font-size: 0.8rem;" id="wp-client-id-guide">1</code>
+                                        <button onclick="copyShortcode(document.getElementById('wp-client-id-guide').textContent)" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
                                     </div>
                                 </div>
                                 <p style="margin: 0.75rem 0 0 0; color: var(--text-secondary); font-size: 0.8rem;">Leave other settings as default, then click <strong>Save Changes</strong></p>
@@ -4476,8 +4540,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem;">Create "Book Now" Page</h4>
                             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;"><strong>Pages → Add New</strong> → Title: "Book Now" → Add Shortcode block:</p>
                             <div style="background: #1e293b; border-radius: 6px; padding: 0.6rem 1rem; display: inline-flex; align-items: center; gap: 0.75rem;">
-                                <code style="color: #e2e8f0; font-size: 0.9rem;" id="wp-rooms-shortcode">[gas_rooms property_id="1"]</code>
-                                <button onclick="copyShortcode('[gas_rooms property_id=&quot;' + (window.currentPropertyId || 1) + '&quot;]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                                <code style="color: #e2e8f0; font-size: 0.9rem;" id="wp-rooms-shortcode">[gas_rooms]</code>
+                                <button onclick="copyShortcode('[gas_rooms]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
                             </div>
                             <p style="color: var(--text-muted); font-size: 0.8rem; margin-top: 0.5rem;">↳ Shows grid of all rooms with availability</p>
                         </div>
@@ -8309,9 +8373,28 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('wp-api-url').textContent = apiUrl;
             document.getElementById('wp-api-url-guide').textContent = apiUrl;
             
-            // Load rooms for reference
+            // Get client ID
+            const clientId = selectedAccountId || JSON.parse(localStorage.getItem('gas_user') || '{}').account_id || '';
+            document.getElementById('wp-client-id').textContent = clientId || '-';
+            if (document.getElementById('wp-client-id-guide')) {
+                document.getElementById('wp-client-id-guide').textContent = clientId || '1';
+            }
+            
+            // Build query params for filtering by account
+            let queryParams = [];
+            if (selectedAccountId) {
+                queryParams.push(`account_id=${selectedAccountId}`);
+            } else {
+                const user = JSON.parse(localStorage.getItem('gas_user') || '{}');
+                if (user.account_id) {
+                    queryParams.push(`account_id=${user.account_id}`);
+                }
+            }
+            const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+            
+            // Load rooms for reference (filtered by account)
             try {
-                const response = await fetch('/api/admin/units');
+                const response = await fetch('/api/admin/units' + queryString);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
@@ -8320,8 +8403,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     window.currentPropertyId = firstPropertyId;
                     document.getElementById('shortcode-property-id').textContent = firstPropertyId;
                     document.getElementById('wp-property-id').textContent = firstPropertyId;
-                    document.getElementById('wp-property-id-guide').textContent = firstPropertyId;
-                    document.getElementById('wp-rooms-shortcode').textContent = `[gas_rooms property_id="${firstPropertyId}"]`;
+                    if (document.getElementById('wp-property-id-guide')) {
+                        document.getElementById('wp-property-id-guide').textContent = firstPropertyId;
+                    }
+                    document.getElementById('wp-rooms-shortcode').textContent = `[gas_rooms]`;
                     
                     // Build rooms table
                     let html = '<table style="width: 100%; font-size: 0.85rem;">';
@@ -8342,7 +8427,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     html += '</tbody></table>';
                     document.getElementById('wp-room-ids').innerHTML = html;
                 } else {
-                    document.getElementById('wp-room-ids').innerHTML = '<p style="color: var(--text-secondary);">No rooms found. Add rooms first.</p>';
+                    document.getElementById('wp-room-ids').innerHTML = '<p style="color: var(--text-secondary);">No rooms found. Add rooms first or select a client.</p>';
                 }
             } catch (error) {
                 console.error('Error loading rooms for WordPress view:', error);
@@ -15403,7 +15488,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.data.length > 0) {
                     container.innerHTML = data.data.map(plan => {
-                        const features = typeof plan.features === 'string' ? JSON.parse(plan.features) : (plan.features || []);
+                        let features = plan.features;
+                        if (typeof features === 'string') {
+                            try { features = JSON.parse(features); } catch(e) { features = {}; }
+                        }
+                        
+                        // Handle both old array format and new object format
+                        let featuresList = [];
+                        if (Array.isArray(features)) {
+                            featuresList = features;
+                        } else if (features.features_list) {
+                            featuresList = features.features_list;
+                        } else {
+                            // Build from object
+                            if (features.properties) featuresList.push(features.properties === null ? 'Unlimited properties' : features.properties + ' properties');
+                            if (features.websites) featuresList.push(features.websites + ' website' + (features.websites > 1 ? 's' : ''));
+                            if (features.booking_plugin) featuresList.push('Booking plugin');
+                            if (features.blog_module) featuresList.push('Blog module');
+                            if (features.attractions_module) featuresList.push('Attractions module');
+                            if (features.reviews_widget) featuresList.push('Reviews widget');
+                            if (features.support) featuresList.push(features.support.charAt(0).toUpperCase() + features.support.slice(1) + ' support');
+                            if (features.free_trial) featuresList.push('14-day free trial');
+                            if (features.white_label) featuresList.push('White-label');
+                        }
+                        
                         return `
                         <div class="card" style="position: relative; ${!plan.is_active ? 'opacity: 0.6;' : ''}">
                             <div style="position: absolute; top: 1rem; right: 1rem; display: flex; gap: 0.5rem;">
@@ -15420,7 +15528,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 <strong>Max properties:</strong> ${plan.max_properties || 'Unlimited'}
                             </div>
                             <ul style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; padding-left: 1.25rem;">
-                                ${features.map(f => `<li>${f}</li>`).join('')}
+                                ${featuresList.map(f => `<li>${f}</li>`).join('')}
                             </ul>
                             ${!plan.is_active ? '<div style="margin-top: 1rem;"><span class="badge badge-warning">Inactive</span></div>' : ''}
                         </div>
