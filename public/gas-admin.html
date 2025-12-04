@@ -1192,6 +1192,26 @@
                 </div>
 
                 <div class="nav-section">
+                    <div class="nav-label">Billing</div>
+                    <a class="nav-item" data-view="billing-overview" href="#" onclick="navClick(this, 'billing-overview'); return false;">
+                        <span class="nav-icon">📊</span>
+                        <span>Overview</span>
+                    </a>
+                    <a class="nav-item" data-view="billing-plans" href="#" onclick="navClick(this, 'billing-plans'); return false;">
+                        <span class="nav-icon">💳</span>
+                        <span>Plans</span>
+                    </a>
+                    <a class="nav-item" data-view="billing-credits" href="#" onclick="navClick(this, 'billing-credits'); return false;">
+                        <span class="nav-icon">🪙</span>
+                        <span>Credit Packages</span>
+                    </a>
+                    <a class="nav-item" data-view="billing-extras" href="#" onclick="navClick(this, 'billing-extras'); return false;">
+                        <span class="nav-icon">🛒</span>
+                        <span>Extras Shop</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
                     <div class="nav-label">System</div>
                     <a class="nav-item" data-view="integrations" href="#" onclick="navClick(this, 'integrations'); return false;">
                         <span class="nav-icon">🔗</span>
@@ -4695,6 +4715,150 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
             </div>
+
+            <!-- Billing Overview View -->
+            <div id="billing-overview" class="view">
+                <div class="header">
+                    <h2>📊 Billing Overview</h2>
+                    <p>Revenue and subscription metrics</p>
+                </div>
+
+                <!-- MRR Stats -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="card" style="text-align: center; padding: 1.5rem; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                        <div style="font-size: 2.5rem; font-weight: 700;" id="billing-mrr">£0</div>
+                        <div style="font-size: 0.9rem; opacity: 0.9;">Monthly Recurring Revenue</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--accent);" id="billing-active-subs">0</div>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">Active Subscriptions</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2.5rem; font-weight: 700; color: var(--warning);" id="billing-credits-circulation">0</div>
+                        <div style="font-size: 0.9rem; color: var(--text-secondary);">Credits in Circulation</div>
+                    </div>
+                </div>
+
+                <!-- Setup Button -->
+                <div class="card" style="margin-bottom: 1.5rem; background: #f0fdf4; border: 1px solid #bbf7d0;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <h3 style="margin: 0 0 0.5rem 0; color: #166534;">🔧 Setup Billing Tables</h3>
+                            <p style="margin: 0; color: #166534; font-size: 0.9rem;">Run this once to create billing tables and default plans/packages</p>
+                        </div>
+                        <button class="btn" onclick="setupBilling()">Setup Billing</button>
+                    </div>
+                </div>
+
+                <!-- Subscriptions by Plan -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <h3 class="card-title">Subscriptions by Plan</h3>
+                    <div id="billing-subs-by-plan">
+                        <p style="color: var(--text-secondary);">Loading...</p>
+                    </div>
+                </div>
+
+                <!-- Recent Payments -->
+                <div class="card">
+                    <h3 class="card-title">Recent Payments</h3>
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Amount</th>
+                                    <th>Type</th>
+                                    <th>Date</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billing-recent-payments">
+                                <tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No payments yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing Plans View -->
+            <div id="billing-plans" class="view">
+                <div class="header">
+                    <h2>💳 Subscription Plans</h2>
+                    <p>Configure pricing tiers for your customers</p>
+                </div>
+
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <button class="btn" onclick="openPlanModal()">+ Add Plan</button>
+                </div>
+
+                <div id="billing-plans-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                    <div class="card" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        Loading plans...
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing Credit Packages View -->
+            <div id="billing-credits" class="view">
+                <div class="header">
+                    <h2>🪙 Credit Packages</h2>
+                    <p>Configure credit bundles customers can purchase</p>
+                </div>
+
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <button class="btn" onclick="openCreditPackageModal()">+ Add Package</button>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Credits</th>
+                                    <th>Bonus</th>
+                                    <th>Price</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billing-credit-packages-table">
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing Extras View -->
+            <div id="billing-extras" class="view">
+                <div class="header">
+                    <h2>🛒 Extras Shop</h2>
+                    <p>Services and add-ons customers can buy with credits</p>
+                </div>
+
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <button class="btn" onclick="openExtraModal()">+ Add Extra</button>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Name</th>
+                                    <th>Category</th>
+                                    <th>Cost</th>
+                                    <th>Status</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billing-extras-table">
+                                <tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </main>
     </div>
 
@@ -4793,6 +4957,203 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <button type="button" class="btn btn-secondary" onclick="closeModal('kbImportModal')">Cancel</button>
                     <button type="button" class="btn" onclick="importKBArticles()">Import Articles</button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Billing Plan Modal -->
+    <div id="billingPlanModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="plan-modal-title" style="margin: 0; font-size: 1.25rem;">💳 Add Subscription Plan</h3>
+                </div>
+                <button class="modal-close" onclick="closeModal('billingPlanModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="plan-form" onsubmit="savePlan(event)">
+                    <input type="hidden" id="plan-id">
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Plan Name <span style="color: #ef4444;">*</span></label>
+                            <input type="text" id="plan-name" class="form-input" required placeholder="e.g., Professional">
+                        </div>
+                        <div class="form-group">
+                            <label>Slug</label>
+                            <input type="text" id="plan-slug" class="form-input" placeholder="professional">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Description</label>
+                        <input type="text" id="plan-description" class="form-input" placeholder="For growing businesses">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Monthly Price <span style="color: #ef4444;">*</span></label>
+                            <input type="number" id="plan-price-monthly" class="form-input" required step="0.01" placeholder="59.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Yearly Price</label>
+                            <input type="number" id="plan-price-yearly" class="form-input" step="0.01" placeholder="590.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Currency</label>
+                            <select id="plan-currency" class="form-input">
+                                <option value="GBP">£ GBP</option>
+                                <option value="EUR">€ EUR</option>
+                                <option value="USD">$ USD</option>
+                                <option value="CHF">CHF</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Max Properties</label>
+                            <input type="number" id="plan-max-properties" class="form-input" placeholder="Leave empty for unlimited">
+                        </div>
+                        <div class="form-group">
+                            <label>Sort Order</label>
+                            <input type="number" id="plan-sort-order" class="form-input" value="0">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Features (one per line)</label>
+                        <textarea id="plan-features" class="form-input" rows="4" placeholder="Up to 5 properties&#10;All features&#10;Priority support"></textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="plan-is-active" checked>
+                            Active (visible to customers)
+                        </label>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('billingPlanModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Plan</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Credit Package Modal -->
+    <div id="creditPackageModal" class="modal">
+        <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="credit-package-modal-title" style="margin: 0; font-size: 1.25rem;">🪙 Add Credit Package</h3>
+                </div>
+                <button class="modal-close" onclick="closeModal('creditPackageModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="credit-package-form" onsubmit="saveCreditPackage(event)">
+                    <input type="hidden" id="credit-package-id">
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Package Name <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="credit-package-name" class="form-input" required placeholder="e.g., 50 Credits">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Credits <span style="color: #ef4444;">*</span></label>
+                            <input type="number" id="credit-package-credits" class="form-input" required placeholder="50">
+                        </div>
+                        <div class="form-group">
+                            <label>Bonus Credits</label>
+                            <input type="number" id="credit-package-bonus" class="form-input" value="0" placeholder="0">
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Price <span style="color: #ef4444;">*</span></label>
+                            <input type="number" id="credit-package-price" class="form-input" required step="0.01" placeholder="40.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Currency</label>
+                            <select id="credit-package-currency" class="form-input">
+                                <option value="GBP">£ GBP</option>
+                                <option value="EUR">€ EUR</option>
+                                <option value="USD">$ USD</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="credit-package-is-active" checked>
+                            Active (available for purchase)
+                        </label>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('creditPackageModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Package</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Extras Modal -->
+    <div id="extraModal" class="modal">
+        <div class="modal-content" style="max-width: 550px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #ec4899 0%, #be185d 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="extra-modal-title" style="margin: 0; font-size: 1.25rem;">🛒 Add Extra Service</h3>
+                </div>
+                <button class="modal-close" onclick="closeModal('extraModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="extra-form" onsubmit="saveExtra(event)">
+                    <input type="hidden" id="extra-id">
+                    
+                    <div style="display: grid; grid-template-columns: 3fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Name <span style="color: #ef4444;">*</span></label>
+                            <input type="text" id="extra-name" class="form-input" required placeholder="e.g., Setup Assistance Call">
+                        </div>
+                        <div class="form-group">
+                            <label>Icon</label>
+                            <input type="text" id="extra-icon" class="form-input" placeholder="📞">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Description</label>
+                        <textarea id="extra-description" class="form-input" rows="2" placeholder="What does the customer get?"></textarea>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Credit Cost <span style="color: #ef4444;">*</span></label>
+                            <input type="number" id="extra-credit-cost" class="form-input" required placeholder="5">
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <input type="text" id="extra-category" class="form-input" placeholder="Support">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="extra-is-active" checked>
+                            Active (available in shop)
+                        </label>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('extraModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Extra</button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
@@ -14737,8 +15098,447 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadKBArticles();
             } else if (view === 'kb-unanswered') {
                 loadKBUnanswered();
+            } else if (view === 'billing-overview') {
+                loadBillingOverview();
+            } else if (view === 'billing-plans') {
+                loadBillingPlans();
+            } else if (view === 'billing-credits') {
+                loadCreditPackages();
+            } else if (view === 'billing-extras') {
+                loadBillingExtras();
             }
         };
+
+        // =====================================================
+        // BILLING FUNCTIONS
+        // =====================================================
+
+        async function setupBilling() {
+            try {
+                const response = await fetch('/api/setup-billing');
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Billing tables created!', 'success');
+                    loadBillingOverview();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error setting up billing', 'error');
+            }
+        }
+
+        async function loadBillingOverview() {
+            try {
+                const response = await fetch('/api/admin/billing/overview');
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Update MRR
+                    document.getElementById('billing-mrr').textContent = '£' + data.mrr.toFixed(2);
+                    
+                    // Update active subs count
+                    const totalSubs = data.subscriptions_by_plan.reduce((sum, p) => sum + parseInt(p.count), 0);
+                    document.getElementById('billing-active-subs').textContent = totalSubs;
+                    
+                    // Update credits in circulation
+                    document.getElementById('billing-credits-circulation').textContent = data.credits?.total_balance || 0;
+                    
+                    // Subscriptions by plan
+                    const subsByPlan = document.getElementById('billing-subs-by-plan');
+                    if (data.subscriptions_by_plan.length > 0) {
+                        subsByPlan.innerHTML = data.subscriptions_by_plan.map(p => `
+                            <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border);">
+                                <span>${p.name}</span>
+                                <span><strong>${p.count}</strong> subscribers × £${parseFloat(p.price_monthly).toFixed(2)} = <strong>£${parseFloat(p.mrr).toFixed(2)}</strong>/mo</span>
+                            </div>
+                        `).join('');
+                    } else {
+                        subsByPlan.innerHTML = '<p style="color: var(--text-secondary);">No active subscriptions yet</p>';
+                    }
+                    
+                    // Recent payments
+                    const paymentsTable = document.getElementById('billing-recent-payments');
+                    if (data.recent_payments.length > 0) {
+                        paymentsTable.innerHTML = data.recent_payments.map(p => `
+                            <tr>
+                                <td>${p.account_name}</td>
+                                <td>£${parseFloat(p.amount).toFixed(2)}</td>
+                                <td><span class="badge">${p.type}</span></td>
+                                <td>${new Date(p.created_at).toLocaleDateString()}</td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        paymentsTable.innerHTML = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No payments yet</td></tr>';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading billing overview:', error);
+            }
+        }
+
+        // Plans
+        async function loadBillingPlans() {
+            try {
+                const response = await fetch('/api/admin/billing/plans');
+                const data = await response.json();
+                
+                const container = document.getElementById('billing-plans-list');
+                
+                if (data.success && data.data.length > 0) {
+                    container.innerHTML = data.data.map(plan => {
+                        const features = typeof plan.features === 'string' ? JSON.parse(plan.features) : (plan.features || []);
+                        return `
+                        <div class="card" style="position: relative; ${!plan.is_active ? 'opacity: 0.6;' : ''}">
+                            <div style="position: absolute; top: 1rem; right: 1rem; display: flex; gap: 0.5rem;">
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="editPlan(${plan.id})">Edit</button>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error);" onclick="deletePlan(${plan.id})">×</button>
+                            </div>
+                            <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem;">${plan.name}</h3>
+                            <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">${plan.description || ''}</p>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--accent); margin-bottom: 0.5rem;">
+                                £${parseFloat(plan.price_monthly).toFixed(2)}<span style="font-size: 1rem; font-weight: 400; color: var(--text-secondary);">/mo</span>
+                            </div>
+                            ${plan.price_yearly ? `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 1rem;">or £${parseFloat(plan.price_yearly).toFixed(2)}/year</div>` : ''}
+                            <div style="font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                <strong>Max properties:</strong> ${plan.max_properties || 'Unlimited'}
+                            </div>
+                            <ul style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; padding-left: 1.25rem;">
+                                ${features.map(f => `<li>${f}</li>`).join('')}
+                            </ul>
+                            ${!plan.is_active ? '<div style="margin-top: 1rem;"><span class="badge badge-warning">Inactive</span></div>' : ''}
+                        </div>
+                    `}).join('');
+                } else {
+                    container.innerHTML = '<div class="card" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No plans configured. Click "Setup Billing" in Overview first.</div>';
+                }
+            } catch (error) {
+                console.error('Error loading plans:', error);
+            }
+        }
+
+        function openPlanModal() {
+            document.getElementById('plan-id').value = '';
+            document.getElementById('plan-name').value = '';
+            document.getElementById('plan-slug').value = '';
+            document.getElementById('plan-description').value = '';
+            document.getElementById('plan-price-monthly').value = '';
+            document.getElementById('plan-price-yearly').value = '';
+            document.getElementById('plan-currency').value = 'GBP';
+            document.getElementById('plan-max-properties').value = '';
+            document.getElementById('plan-features').value = '';
+            document.getElementById('plan-sort-order').value = '0';
+            document.getElementById('plan-is-active').checked = true;
+            document.getElementById('plan-modal-title').textContent = '💳 Add Subscription Plan';
+            openModal('billingPlanModal');
+        }
+
+        async function editPlan(id) {
+            try {
+                const response = await fetch('/api/admin/billing/plans');
+                const data = await response.json();
+                const plan = data.data.find(p => p.id === id);
+                
+                if (plan) {
+                    document.getElementById('plan-id').value = plan.id;
+                    document.getElementById('plan-name').value = plan.name;
+                    document.getElementById('plan-slug').value = plan.slug;
+                    document.getElementById('plan-description').value = plan.description || '';
+                    document.getElementById('plan-price-monthly').value = plan.price_monthly;
+                    document.getElementById('plan-price-yearly').value = plan.price_yearly || '';
+                    document.getElementById('plan-currency').value = plan.currency || 'GBP';
+                    document.getElementById('plan-max-properties').value = plan.max_properties || '';
+                    document.getElementById('plan-sort-order').value = plan.sort_order || 0;
+                    document.getElementById('plan-is-active').checked = plan.is_active;
+                    
+                    const features = typeof plan.features === 'string' ? JSON.parse(plan.features) : (plan.features || []);
+                    document.getElementById('plan-features').value = features.join('\n');
+                    
+                    document.getElementById('plan-modal-title').textContent = '💳 Edit Plan';
+                    openModal('billingPlanModal');
+                }
+            } catch (error) {
+                showNotification('Error loading plan', 'error');
+            }
+        }
+
+        async function savePlan(event) {
+            event.preventDefault();
+            
+            const featuresText = document.getElementById('plan-features').value;
+            const features = featuresText.split('\n').map(f => f.trim()).filter(f => f.length > 0);
+            
+            const planData = {
+                id: document.getElementById('plan-id').value || undefined,
+                name: document.getElementById('plan-name').value,
+                slug: document.getElementById('plan-slug').value || undefined,
+                description: document.getElementById('plan-description').value,
+                price_monthly: parseFloat(document.getElementById('plan-price-monthly').value),
+                price_yearly: document.getElementById('plan-price-yearly').value ? parseFloat(document.getElementById('plan-price-yearly').value) : null,
+                currency: document.getElementById('plan-currency').value,
+                max_properties: document.getElementById('plan-max-properties').value ? parseInt(document.getElementById('plan-max-properties').value) : null,
+                features: features,
+                sort_order: parseInt(document.getElementById('plan-sort-order').value) || 0,
+                is_active: document.getElementById('plan-is-active').checked
+            };
+            
+            try {
+                const response = await fetch('/api/admin/billing/plans', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(planData)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Plan saved!', 'success');
+                    closeModal('billingPlanModal');
+                    loadBillingPlans();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving plan', 'error');
+            }
+        }
+
+        async function deletePlan(id) {
+            if (!confirm('Delete this plan?')) return;
+            
+            try {
+                const response = await fetch('/api/admin/billing/plans/' + id, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Plan deleted', 'success');
+                    loadBillingPlans();
+                }
+            } catch (error) {
+                showNotification('Error deleting plan', 'error');
+            }
+        }
+
+        // Credit Packages
+        async function loadCreditPackages() {
+            try {
+                const response = await fetch('/api/admin/billing/credit-packages');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('billing-credit-packages-table');
+                
+                if (data.success && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map(pkg => `
+                        <tr style="${!pkg.is_active ? 'opacity: 0.6;' : ''}">
+                            <td><strong>${pkg.name}</strong></td>
+                            <td>${pkg.credits}</td>
+                            <td>${pkg.bonus_credits > 0 ? '+' + pkg.bonus_credits : '-'}</td>
+                            <td>£${parseFloat(pkg.price).toFixed(2)}</td>
+                            <td><span class="badge ${pkg.is_active ? 'badge-success' : 'badge-warning'}">${pkg.is_active ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editCreditPackage(${pkg.id})">Edit</button>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: var(--error);" onclick="deleteCreditPackage(${pkg.id})">Delete</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No credit packages configured</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading credit packages:', error);
+            }
+        }
+
+        function openCreditPackageModal() {
+            document.getElementById('credit-package-id').value = '';
+            document.getElementById('credit-package-name').value = '';
+            document.getElementById('credit-package-credits').value = '';
+            document.getElementById('credit-package-bonus').value = '0';
+            document.getElementById('credit-package-price').value = '';
+            document.getElementById('credit-package-currency').value = 'GBP';
+            document.getElementById('credit-package-is-active').checked = true;
+            document.getElementById('credit-package-modal-title').textContent = '🪙 Add Credit Package';
+            openModal('creditPackageModal');
+        }
+
+        async function editCreditPackage(id) {
+            try {
+                const response = await fetch('/api/admin/billing/credit-packages');
+                const data = await response.json();
+                const pkg = data.data.find(p => p.id === id);
+                
+                if (pkg) {
+                    document.getElementById('credit-package-id').value = pkg.id;
+                    document.getElementById('credit-package-name').value = pkg.name;
+                    document.getElementById('credit-package-credits').value = pkg.credits;
+                    document.getElementById('credit-package-bonus').value = pkg.bonus_credits || 0;
+                    document.getElementById('credit-package-price').value = pkg.price;
+                    document.getElementById('credit-package-currency').value = pkg.currency || 'GBP';
+                    document.getElementById('credit-package-is-active').checked = pkg.is_active;
+                    document.getElementById('credit-package-modal-title').textContent = '🪙 Edit Credit Package';
+                    openModal('creditPackageModal');
+                }
+            } catch (error) {
+                showNotification('Error loading package', 'error');
+            }
+        }
+
+        async function saveCreditPackage(event) {
+            event.preventDefault();
+            
+            const pkgData = {
+                id: document.getElementById('credit-package-id').value || undefined,
+                name: document.getElementById('credit-package-name').value,
+                credits: parseInt(document.getElementById('credit-package-credits').value),
+                bonus_credits: parseInt(document.getElementById('credit-package-bonus').value) || 0,
+                price: parseFloat(document.getElementById('credit-package-price').value),
+                currency: document.getElementById('credit-package-currency').value,
+                is_active: document.getElementById('credit-package-is-active').checked
+            };
+            
+            try {
+                const response = await fetch('/api/admin/billing/credit-packages', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(pkgData)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Package saved!', 'success');
+                    closeModal('creditPackageModal');
+                    loadCreditPackages();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving package', 'error');
+            }
+        }
+
+        async function deleteCreditPackage(id) {
+            if (!confirm('Delete this package?')) return;
+            
+            try {
+                const response = await fetch('/api/admin/billing/credit-packages/' + id, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Package deleted', 'success');
+                    loadCreditPackages();
+                }
+            } catch (error) {
+                showNotification('Error deleting package', 'error');
+            }
+        }
+
+        // Extras
+        async function loadBillingExtras() {
+            try {
+                const response = await fetch('/api/admin/billing/extras');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('billing-extras-table');
+                
+                if (data.success && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map(extra => `
+                        <tr style="${!extra.is_active ? 'opacity: 0.6;' : ''}">
+                            <td><strong>${extra.icon || ''} ${extra.name}</strong><br><small style="color: var(--text-secondary);">${extra.description || ''}</small></td>
+                            <td>${extra.category || '-'}</td>
+                            <td><strong>${extra.credit_cost}</strong> credits</td>
+                            <td><span class="badge ${extra.is_active ? 'badge-success' : 'badge-warning'}">${extra.is_active ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editExtra(${extra.id})">Edit</button>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: var(--error);" onclick="deleteExtra(${extra.id})">Delete</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No extras configured</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading extras:', error);
+            }
+        }
+
+        function openExtraModal() {
+            document.getElementById('extra-id').value = '';
+            document.getElementById('extra-name').value = '';
+            document.getElementById('extra-icon').value = '';
+            document.getElementById('extra-description').value = '';
+            document.getElementById('extra-credit-cost').value = '';
+            document.getElementById('extra-category').value = '';
+            document.getElementById('extra-is-active').checked = true;
+            document.getElementById('extra-modal-title').textContent = '🛒 Add Extra Service';
+            openModal('extraModal');
+        }
+
+        async function editExtra(id) {
+            try {
+                const response = await fetch('/api/admin/billing/extras');
+                const data = await response.json();
+                const extra = data.data.find(e => e.id === id);
+                
+                if (extra) {
+                    document.getElementById('extra-id').value = extra.id;
+                    document.getElementById('extra-name').value = extra.name;
+                    document.getElementById('extra-icon').value = extra.icon || '';
+                    document.getElementById('extra-description').value = extra.description || '';
+                    document.getElementById('extra-credit-cost').value = extra.credit_cost;
+                    document.getElementById('extra-category').value = extra.category || '';
+                    document.getElementById('extra-is-active').checked = extra.is_active;
+                    document.getElementById('extra-modal-title').textContent = '🛒 Edit Extra';
+                    openModal('extraModal');
+                }
+            } catch (error) {
+                showNotification('Error loading extra', 'error');
+            }
+        }
+
+        async function saveExtra(event) {
+            event.preventDefault();
+            
+            const extraData = {
+                id: document.getElementById('extra-id').value || undefined,
+                name: document.getElementById('extra-name').value,
+                icon: document.getElementById('extra-icon').value,
+                description: document.getElementById('extra-description').value,
+                credit_cost: parseInt(document.getElementById('extra-credit-cost').value),
+                category: document.getElementById('extra-category').value,
+                is_active: document.getElementById('extra-is-active').checked
+            };
+            
+            try {
+                const response = await fetch('/api/admin/billing/extras', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(extraData)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Extra saved!', 'success');
+                    closeModal('extraModal');
+                    loadBillingExtras();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving extra', 'error');
+            }
+        }
+
+        async function deleteExtra(id) {
+            if (!confirm('Delete this extra?')) return;
+            
+            try {
+                const response = await fetch('/api/admin/billing/extras/' + id, { method: 'DELETE' });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Extra deleted', 'success');
+                    loadBillingExtras();
+                }
+            } catch (error) {
+                showNotification('Error deleting extra', 'error');
+            }
+        }
 
         // Initial load
         loadClientSelector();
