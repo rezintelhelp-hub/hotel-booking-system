@@ -4391,20 +4391,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <!-- Quick Create Section -->
                 <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white;">
                     <h3 style="margin: 0 0 1rem 0;">🚀 Create WordPress Site</h3>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1rem; align-items: end;">
-                        <div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
+                        <div style="flex: 1; min-width: 200px;">
                             <label style="font-size: 0.85rem; opacity: 0.9; display: block; margin-bottom: 0.5rem;">Select Property</label>
-                            <select id="wp-create-property" class="form-input" style="background: rgba(255,255,255,0.9); color: #1e293b;">
+                            <select id="wp-create-property" class="form-input" style="background: white; color: #1e293b; width: 100%;">
                                 <option value="">-- Select Property --</option>
                             </select>
                         </div>
-                        <div>
+                        <div style="flex: 1; min-width: 200px;">
                             <label style="font-size: 0.85rem; opacity: 0.9; display: block; margin-bottom: 0.5rem;">Site Slug (URL)</label>
-                            <input type="text" id="wp-create-slug" class="form-input" placeholder="e.g., lehmannhouse" style="background: rgba(255,255,255,0.9); color: #1e293b;">
+                            <input type="text" id="wp-create-slug" class="form-input" placeholder="e.g., lehmannhouse" style="background: white; color: #1e293b; width: 100%;">
                             <p style="font-size: 0.75rem; opacity: 0.8; margin-top: 0.25rem;">Will be: <span id="wp-slug-preview">slug</span>.sites.gas.travel</p>
                         </div>
                         <div>
-                            <button class="btn" onclick="createWordPressSite()" style="background: white; color: #059669; font-weight: 600;">
+                            <button class="btn" onclick="createWordPressSite()" style="background: white; color: #059669; font-weight: 600; white-space: nowrap;">
                                 🌐 Create Site
                             </button>
                         </div>
@@ -4446,7 +4446,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label>API Key</label>
-                            <input type="password" id="instawp-api-key" class="form-input" placeholder="Enter your WordPress API key">
+                            <input type="text" id="instawp-api-key" class="form-input" value="GAS_SECRET_KEY_2024!" placeholder="Enter your WordPress API key">
                         </div>
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
@@ -8546,9 +8546,10 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Load WordPress view data
         async function loadWordPressView() {
-            // Load properties into dropdown
+            // Load properties into dropdown (doesn't need WordPress API)
             await loadPropertiesForWordPress();
-            // Load existing sites
+            
+            // Load existing sites (needs WordPress API)
             await loadWordPressSites();
             
             // Setup slug preview
@@ -8560,6 +8561,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                         preview.textContent = this.value || 'slug';
                     }
                 });
+            }
+            
+            // Pre-fill API key if stored
+            const storedKey = localStorage.getItem('wp_api_key');
+            if (storedKey) {
+                const keyInput = document.getElementById('instawp-api-key');
+                if (keyInput) keyInput.value = storedKey;
             }
         }
         
@@ -8573,13 +8581,22 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 select.innerHTML = '<option value="">-- Select Property --</option>';
                 
-                if (data.success && data.data) {
+                if (data.success && data.data && data.data.length > 0) {
                     data.data.forEach(prop => {
                         select.innerHTML += `<option value="${prop.id}" data-account="${prop.account_id}" data-name="${prop.name}">${prop.id}: ${prop.name} (Account ${prop.account_id || 'N/A'})</option>`;
                     });
+                } else if (data.success && data.properties && data.properties.length > 0) {
+                    // Alternative response format
+                    data.properties.forEach(prop => {
+                        select.innerHTML += `<option value="${prop.id}" data-account="${prop.account_id}" data-name="${prop.name}">${prop.id}: ${prop.name} (Account ${prop.account_id || 'N/A'})</option>`;
+                    });
+                } else {
+                    select.innerHTML += '<option value="" disabled>No properties found - add properties first</option>';
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
+                const select = document.getElementById('wp-create-property');
+                if (select) select.innerHTML = '<option value="">Error loading properties</option>';
             }
         }
         
@@ -8587,13 +8604,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             const container = document.getElementById('wp-sites-list');
             if (!container) return;
             
+            container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading sites...</p>';
+            
             try {
-                // Call our WordPress API to list sites
                 const settings = await getWordPressSettings();
-                if (!settings.api_url || !settings.api_key) {
-                    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">⚠️ Configure WordPress Hosting Settings first (click "Show Settings" above)</p>';
-                    return;
-                }
                 
                 const response = await fetch(settings.api_url, {
                     method: 'POST',
@@ -8645,16 +8659,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (error) {
                 console.error('Error loading WordPress sites:', error);
-                container.innerHTML = `<p style="text-align: center; color: var(--error); padding: 2rem;">Error connecting to WordPress: ${error.message}</p>`;
+                container.innerHTML = `<p style="text-align: center; color: var(--error); padding: 2rem;">Cannot connect to WordPress server. Make sure gas-api.php is installed on your Hostinger VPS.</p>`;
             }
         }
         
         async function getWordPressSettings() {
-            // Get from input fields or defaults
-            return {
-                api_url: document.getElementById('instawp-api-url')?.value || 'https://sites.gas.travel/gas-api.php',
-                api_key: document.getElementById('instawp-api-key')?.value || localStorage.getItem('wp_api_key') || ''
-            };
+            // Get from input fields with defaults
+            const apiUrl = document.getElementById('instawp-api-url')?.value || 'https://sites.gas.travel/gas-api.php';
+            const apiKey = document.getElementById('instawp-api-key')?.value || 'GAS_SECRET_KEY_2024!';
+            return { api_url: apiUrl, api_key: apiKey };
         }
         
         async function createWordPressSite() {
