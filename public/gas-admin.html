@@ -1268,17 +1268,19 @@
 
                 <div class="nav-section">
                     <div class="nav-label">Developers</div>
-                    <a class="nav-item" data-view="api-docs" href="#" onclick="navClick(this, 'api-docs'); return false;">
+                    <a class="nav-item" data-view="api-docs" data-requires-feature="api_access" href="#" onclick="return handleFeatureClick(this, 'api-docs', 'api_access');">
                         <span class="nav-icon">🔌</span>
                         <span>API</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
                 </div>
 
                 <div class="nav-section">
                     <div class="nav-label">Website</div>
-                    <a class="nav-item" data-view="wordpress" href="#" onclick="navClick(this, 'wordpress'); return false;">
-                        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 122.5 122.5" fill="currentColor"><path d="M8.7 61.3c0 20.8 12.1 38.8 29.6 47.3L13 40.3c-2.8 6.5-4.3 13.7-4.3 21zm88.6-2.7c0-6.5-2.3-11-4.3-14.5-2.7-4.3-5.2-8-5.2-12.3 0-4.8 3.7-9.3 8.9-9.3h.7c-9.4-8.6-21.9-13.9-35.7-13.9-18.5 0-34.7 9.5-44.2 23.8h3.4c5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.8.3-6 .5l19.1 57 11.5-34.5-8.2-22.5c-2.8-.2-5.5-.5-5.5-.5-2.8-.2-2.5-4.5.3-4.3 0 0 8.7.7 13.9.7 5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.9.3-6 .5l19 56.5 5.2-17.5c2.3-7.3 4-12.5 4-17zm-36.3 7.6l-15.8 45.8c4.7 1.4 9.7 2.2 14.8 2.2 6.1 0 12-1.1 17.4-3-.1-.2-.3-.5-.4-.7l-16-43.3zm45.1-29.8c.5 3.4.7 7 .7 10.9 0 10.8-2 22.9-8 38l-21.8 63.1c21.2-12.4 35.5-35.5 35.5-62.1 0-17.9-6.2-34.3-16.4-47.9zM61.3 0C27.5 0 0 27.5 0 61.3c0 33.8 27.5 61.3 61.3 61.3 33.8 0 61.3-27.5 61.3-61.3C122.5 27.5 95 0 61.3 0zm0 119.7c-32.2 0-58.5-26.2-58.5-58.5 0-32.2 26.2-58.5 58.5-58.5 32.2 0 58.5 26.2 58.5 58.5-.1 32.3-26.3 58.5-58.5 58.5z"/></svg></span>
+                    <a class="nav-item" data-view="wordpress" data-requires-feature="has_subscription" href="#" onclick="return handleFeatureClick(this, 'wordpress', 'has_subscription');">
+                        <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 122.5 122.5" fill="currentColor"><path d="M8.7 61.3c0 20.8 12.1 38.8 29.6 47.3L13 40.3c-2.8 6.5-4.3 13.7-4.3 21zm88.6-2.7c0-6.5-2.3-11-4.3-14.5-2.7-4.3-5.2-8-5.2-12.3 0-4.8 3.7-9.3 8.9-9.3h.7c-9.4-8.6-21.9-13.9-35.7-13.9-18.5 0-34.7 9.5-44.2 23.8h3.4c5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.8.3-6 .5l19.1 57 11.5-34.5-8.2-22.5c-2.8-.2-5.5-.5-5.5-.5-2.8-.2-2.5-4.5.3-4.3 0 0 8.7.7 13.9.7 5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.9.3-6 .5l19 56.5 5.2-17.5c2.3-7.3 4-12.5 4-17zm-36.3 7.6l-15.8 45.8c4.7 1.4 9.7 2.2 14.8 2.2 6.1 0 12-1.1 17.4-3-.1-.2-.3-.5-.4-.7l-16-43.3zm45.1-29.8c.5 3.4.7 7 .7 10.9 0 10.8-2 22.9-8 38l-21.8 63.1c21.2-12.4 35.5-35.5 35.5-62.1 0-17.9-6.2-34.3-16.4-47.9zM61.3 0C27.5 0 0 27.5 0 61.3c0 33.8 27.5 61.3 61.3 61.3 33.8 0 61.3-27.5 61.3-61.3C122.5 27.5 95 0 61.3 0zm0 119.7c-32.2 0-58.5-26.2-58.5-58.5 0-32.2 26.2-58.5 58.5-58.5 32.2 0 58.5 26.2 58.5 58.5-.1 32.3-26.3 58.5 58.5z"/></svg></span>
                         <span>WordPress</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
                 </div>
                 
@@ -4386,6 +4388,107 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <p>Add booking functionality to your WordPress website</p>
                 </div>
 
+                <!-- Website Status Section (for selected account) -->
+                <div id="wp-website-section" class="card" style="margin-bottom: 1.5rem; display: none;">
+                    <div id="wp-no-website" style="display: none;">
+                        <div style="text-align: center; padding: 2rem;">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">🌐</div>
+                            <h3 style="margin: 0 0 0.5rem 0;">No Website Yet</h3>
+                            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Create a WordPress website for this account with our booking system pre-installed.</p>
+                            <button class="btn" onclick="openCreateWebsiteModal()" style="font-size: 1rem; padding: 0.75rem 2rem;">
+                                🚀 Create Website
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="wp-has-website" style="display: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                            <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.5rem;">🌐</span>
+                                Account Website
+                            </h3>
+                            <span id="wp-website-status" class="badge badge-success">Active</span>
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-bottom: 1rem;">
+                            <div style="background: var(--bg-secondary); border-radius: 8px; padding: 1rem;">
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Site URL</div>
+                                <a id="wp-website-url" href="#" target="_blank" style="color: var(--accent); font-weight: 500; word-break: break-all;"></a>
+                            </div>
+                            <div style="background: var(--bg-secondary); border-radius: 8px; padding: 1rem;">
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">WordPress Admin</div>
+                                <a id="wp-website-admin" href="#" target="_blank" style="color: var(--accent); font-weight: 500;">Open Dashboard →</a>
+                            </div>
+                            <div style="background: var(--bg-secondary); border-radius: 8px; padding: 1rem;">
+                                <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Template</div>
+                                <span id="wp-website-template" style="font-weight: 500;">-</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.5rem;">
+                            <a id="wp-website-visit-btn" href="#" target="_blank" class="btn" style="text-decoration: none;">
+                                🔗 Visit Site
+                            </a>
+                            <a id="wp-website-admin-btn" href="#" target="_blank" class="btn btn-secondary" style="text-decoration: none;">
+                                ⚙️ WP Admin
+                            </a>
+                            <button class="btn btn-secondary" onclick="refreshWebsiteStatus()" style="margin-left: auto;">
+                                🔄 Refresh Status
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <div id="wp-website-creating" style="display: none; text-align: center; padding: 2rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">⏳</div>
+                        <h3 style="margin: 0 0 0.5rem 0;">Creating Website...</h3>
+                        <p style="color: var(--text-secondary);">This usually takes 10-30 seconds</p>
+                        <div style="margin-top: 1rem;">
+                            <button class="btn btn-secondary" onclick="refreshWebsiteStatus()">Check Status</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- InstaWP Settings (Master Admin Only) -->
+                <div id="wp-instawp-settings" class="card billing-admin-only" style="margin-bottom: 1.5rem; border: 2px dashed var(--border);">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
+                            ⚙️ InstaWP Configuration
+                        </h3>
+                        <button class="btn btn-secondary btn-small" onclick="toggleInstaWPSettings()">
+                            <span id="instawp-toggle-text">Show Settings</span>
+                        </button>
+                    </div>
+                    
+                    <div id="instawp-settings-panel" style="display: none;">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label>API Key</label>
+                            <input type="password" id="instawp-api-key" class="form-input" placeholder="Enter your InstaWP API key">
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                Get your API key from <a href="https://app.instawp.io/account/api-tokens" target="_blank">InstaWP Dashboard</a>
+                            </p>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label>Default Template Slug</label>
+                            <input type="text" id="instawp-default-template" class="form-input" placeholder="e.g., gas-hotel-template">
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label>Templates by Plan (JSON)</label>
+                            <textarea id="instawp-templates" class="form-input" rows="4" placeholder='{"starter": "gas-starter", "professional": "gas-pro", "business": "gas-business", "enterprise": "gas-enterprise"}'></textarea>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="instawp-enabled" style="width: 18px; height: 18px;">
+                                Enable InstaWP Integration
+                            </label>
+                        </div>
+                        
+                        <button class="btn" onclick="saveInstaWPSettings()">💾 Save InstaWP Settings</button>
+                    </div>
+                </div>
+
                 <!-- Your Settings -->
                 <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white;">
                     <h3 style="margin: 0 0 1rem 0;">⚙️ Your WordPress Plugin Settings</h3>
@@ -5196,12 +5299,71 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </select>
                 </div>
                 
+                <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-primary);">⚡ Feature Overrides</div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Enable features not included in the plan</p>
+                    
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                        <input type="checkbox" id="assign-plan-api-access" style="width: 18px; height: 18px;">
+                        <span>🔌 API Access</span>
+                    </label>
+                </div>
+                
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
                     <button type="button" class="btn btn-secondary" style="color: var(--error);" onclick="cancelAccountSubscription()">Cancel Subscription</button>
                     <div style="display: flex; gap: 0.5rem;">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('assignPlanModal')">Close</button>
                         <button type="button" class="btn" onclick="saveAssignedPlan()">Assign Plan</button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Website Modal -->
+    <div id="createWebsiteModal" class="modal">
+        <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">🚀 Create WordPress Website</h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; opacity: 0.9;">For: <span id="create-website-account-name"></span></p>
+                </div>
+                <button class="modal-close" onclick="closeModal('createWebsiteModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <p style="margin: 0; font-size: 0.9rem;">✨ A new WordPress site will be created with:</p>
+                    <ul style="margin: 0.5rem 0 0 1.25rem; font-size: 0.85rem; color: var(--text-secondary);">
+                        <li>GAS Booking Plugin pre-installed</li>
+                        <li>Theme configured for your property</li>
+                        <li>API connection set up automatically</li>
+                    </ul>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Site Name</label>
+                    <input type="text" id="create-website-name" class="form-input" placeholder="e.g., lehmannhouse">
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Will be: <strong><span id="create-website-preview">yoursite</span>.instawp.site</strong>
+                    </p>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Template (Optional)</label>
+                    <select id="create-website-template" class="form-input">
+                        <option value="">Use default for plan</option>
+                        <option value="gas-starter">GAS Starter</option>
+                        <option value="gas-professional">GAS Professional</option>
+                        <option value="gas-business">GAS Business</option>
+                        <option value="gas-enterprise">GAS Enterprise</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('createWebsiteModal')">Cancel</button>
+                    <button type="button" class="btn" onclick="createWebsite()" id="create-website-btn">
+                        🚀 Create Website
+                    </button>
                 </div>
             </div>
         </div>
@@ -6529,6 +6691,120 @@ const promo = await fetch('/api/v1/offers/validate', {
         </div>
     </div>
 
+    <!-- Payment Settings Modal -->
+    <div id="paymentSettingsModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">💳 Payment Settings</h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; opacity: 0.9;" id="payment-settings-property-name"></p>
+                </div>
+                <button class="modal-close" onclick="closeModal('paymentSettingsModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="payment-settings-property-id">
+                
+                <!-- Enable/Disable -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 1rem;">
+                        <input type="checkbox" id="payment-enabled" style="width: 20px; height: 20px;" checked>
+                        <strong>Enable Online Payments</strong>
+                    </label>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0 0 1.75rem;">
+                        Allow guests to pay deposits and balances online
+                    </p>
+                </div>
+                
+                <!-- Deposit Settings -->
+                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem;">💰 Deposit Settings</h4>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Deposit Type</label>
+                            <select id="payment-deposit-type" class="form-input">
+                                <option value="percentage">Percentage of total</option>
+                                <option value="fixed">Fixed amount</option>
+                                <option value="full">Full payment required</option>
+                                <option value="none">No deposit</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label>Deposit Amount</label>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="number" id="payment-deposit-amount" class="form-input" value="25" min="0" step="0.01">
+                                <span id="payment-deposit-symbol" style="font-weight: 500;">%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-top: 1rem; margin-bottom: 0;">
+                        <label>Balance Due (days before arrival)</label>
+                        <input type="number" id="payment-balance-days" class="form-input" value="14" min="0" style="max-width: 150px;">
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            0 = balance due on arrival
+                        </p>
+                    </div>
+                </div>
+                
+                <!-- Currency -->
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Currency</label>
+                    <select id="payment-currency" class="form-input" style="max-width: 200px;">
+                        <option value="GBP">🇬🇧 GBP (£)</option>
+                        <option value="USD">🇺🇸 USD ($)</option>
+                        <option value="EUR">🇪🇺 EUR (€)</option>
+                        <option value="CHF">🇨🇭 CHF</option>
+                    </select>
+                </div>
+                
+                <!-- Payment Methods -->
+                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem;">💳 Payment Methods</h4>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="payment-method-card" checked style="width: 18px; height: 18px;">
+                            <span>Credit/Debit Card (via Stripe)</span>
+                        </label>
+                        <div id="stripe-connect-section" style="margin-left: 1.5rem; padding: 0.75rem; background: white; border-radius: 8px;">
+                            <div id="stripe-not-connected" style="display: flex; align-items: center; gap: 0.75rem;">
+                                <span style="color: var(--error);">⚠️ Stripe not connected</span>
+                                <button type="button" class="btn btn-small" onclick="connectStripe()" style="font-size: 0.8rem;">
+                                    Connect Stripe
+                                </button>
+                            </div>
+                            <div id="stripe-connected" style="display: none; color: var(--success);">
+                                ✓ Stripe connected
+                            </div>
+                        </div>
+                        
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; opacity: 0.5;">
+                            <input type="checkbox" id="payment-method-paypal" disabled style="width: 18px; height: 18px;">
+                            <span>PayPal (coming soon)</span>
+                        </label>
+                        
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; opacity: 0.5;">
+                            <input type="checkbox" id="payment-method-bank" disabled style="width: 18px; height: 18px;">
+                            <span>Bank Transfer (coming soon)</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Cancellation Policy -->
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Cancellation Policy (Optional)</label>
+                    <textarea id="payment-cancellation" class="form-input" rows="3" placeholder="e.g., Free cancellation up to 48 hours before check-in. 50% refund for cancellations made 24-48 hours before. No refund for cancellations less than 24 hours before check-in."></textarea>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('paymentSettingsModal')">Cancel</button>
+                    <button type="button" class="btn" onclick="savePaymentSettings()">💾 Save Payment Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Edit Room Modal -->
     <div id="editRoomModal" class="modal">
         <div class="modal-content">
@@ -7587,6 +7863,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             assignPlanAccountId = accountId;
             assignPlanAccountName = accountName;
             
+            // Reset checkboxes
+            document.getElementById('assign-plan-api-access').checked = false;
+            
             // Load plans for dropdown
             try {
                 const response = await fetch('/api/admin/billing/plans');
@@ -7612,6 +7891,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('assign-plan-select').value = data.data.plan_id;
                     document.getElementById('assign-plan-current').innerHTML = `Current plan: <strong>${data.data.plan_name}</strong>`;
                     document.getElementById('assign-plan-current').style.display = 'block';
+                    
+                    // Load feature overrides
+                    const overrides = data.data.feature_overrides || {};
+                    document.getElementById('assign-plan-api-access').checked = overrides.api_access === true;
                 } else {
                     document.getElementById('assign-plan-current').style.display = 'none';
                 }
@@ -7626,10 +7909,17 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function saveAssignedPlan() {
             const planId = document.getElementById('assign-plan-select').value;
             const billingCycle = document.getElementById('assign-plan-cycle').value;
+            const apiAccess = document.getElementById('assign-plan-api-access').checked;
             
             if (!planId) {
                 showNotification('Please select a plan', 'error');
                 return;
+            }
+            
+            // Build feature overrides (only include if checked)
+            const featureOverrides = {};
+            if (apiAccess) {
+                featureOverrides.api_access = true;
             }
             
             try {
@@ -7639,7 +7929,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({
                         account_id: assignPlanAccountId,
                         plan_id: parseInt(planId),
-                        billing_cycle: billingCycle
+                        billing_cycle: billingCycle,
+                        feature_overrides: featureOverrides
                     })
                 });
                 
@@ -7648,6 +7939,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     showNotification(`Plan assigned to ${assignPlanAccountName}!`, 'success');
                     closeModal('assignPlanModal');
                     loadAccountPlanBadge(assignPlanAccountId);
+                    // Reload entitlements if viewing this account
+                    if (selectedAccountId === assignPlanAccountId) {
+                        loadAccountEntitlements();
+                    }
                 } else {
                     showNotification('Error: ' + data.error, 'error');
                 }
@@ -8593,6 +8888,11 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Load WordPress view data
         async function loadWordPressView() {
+            // Load account website status first
+            if (typeof loadAccountWebsite === 'function') {
+                loadAccountWebsite();
+            }
+            
             // Set API URL in all locations
             const apiUrl = window.location.origin;
             document.getElementById('wp-api-url').textContent = apiUrl;
@@ -8755,7 +9055,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                                 </select>
                                             </td>
                                             <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
-                                            <td><button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button></td>
+                                            <td>
+                                                <div style="display: flex; gap: 0.25rem;">
+                                                    <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${prop.name.replace(/'/g, "\\'")}')" title="Payment Settings">💳</button>
+                                                </div>
+                                            </td>
                                         </tr>
                                     `}).join('')}
                                 </tbody>
@@ -15532,6 +15837,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Apply locked state to nav items based on entitlements
         function applyFeatureLocks() {
             const features = accountEntitlements?.features || {};
+            const hasPlan = accountEntitlements?.plan != null;
             
             const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
             
@@ -15548,9 +15854,18 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Otherwise, show locks based on selected account's entitlements
             document.querySelectorAll('[data-requires-feature]').forEach(el => {
                 const requiredFeature = el.getAttribute('data-requires-feature');
-                const hasFeature = features[requiredFeature] === true;
                 
-                if (hasFeature) {
+                // Check access based on feature type
+                let hasAccess = false;
+                if (requiredFeature === 'has_subscription') {
+                    hasAccess = hasPlan;
+                } else if (requiredFeature === 'api_access') {
+                    hasAccess = features.api_access === true;
+                } else {
+                    hasAccess = features[requiredFeature] === true;
+                }
+                
+                if (hasAccess) {
                     el.classList.remove('feature-locked');
                     const lock = el.querySelector('.feature-lock');
                     if (lock) lock.style.display = 'none';
@@ -15573,31 +15888,57 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             const features = accountEntitlements?.features || {};
-            const hasFeature = features[featureName] === true;
+            const hasPlan = accountEntitlements?.plan != null;
             
-            if (hasFeature) {
+            // Check access based on feature type
+            let hasAccess = false;
+            if (featureName === 'has_subscription') {
+                hasAccess = hasPlan;
+            } else if (featureName === 'api_access') {
+                hasAccess = features.api_access === true;
+            } else {
+                hasAccess = features[featureName] === true;
+            }
+            
+            if (hasAccess) {
                 navClick(element, viewName);
             } else {
                 // Show upgrade prompt
                 const featureNames = {
                     'blog_module': 'Blog Module',
                     'attractions_module': 'Attractions Module', 
-                    'reviews_widget': 'Reviews Widget'
+                    'reviews_widget': 'Reviews Widget',
+                    'has_subscription': 'WordPress Integration',
+                    'api_access': 'API Access'
                 };
                 const planRequired = {
                     'blog_module': 'Professional',
                     'attractions_module': 'Business',
-                    'reviews_widget': 'Enterprise'
+                    'reviews_widget': 'Enterprise',
+                    'has_subscription': 'any',
+                    'api_access': 'with API access enabled'
                 };
                 
                 const name = featureNames[featureName] || featureName;
                 const plan = planRequired[featureName] || 'a higher';
                 
-                // Different message for master_admin viewing another account
+                // Different messages based on feature type
                 if (user.role === 'master_admin') {
-                    showNotification(`🔒 This account doesn't have ${name}. Assign ${plan} plan or above in Accounts.`, 'warning', 5000);
+                    if (featureName === 'has_subscription') {
+                        showNotification(`🔒 This account needs an active subscription for ${name}.`, 'warning', 5000);
+                    } else if (featureName === 'api_access') {
+                        showNotification(`🔒 API Access is not enabled for this account. Enable it in account settings.`, 'warning', 5000);
+                    } else {
+                        showNotification(`🔒 This account doesn't have ${name}. Assign ${plan} plan or above.`, 'warning', 5000);
+                    }
                 } else {
-                    showNotification(`🔒 ${name} requires ${plan} plan or above. Go to Billing > Plans & Extras to upgrade.`, 'warning', 5000);
+                    if (featureName === 'has_subscription') {
+                        showNotification(`🔒 ${name} requires an active subscription. Go to Billing to subscribe.`, 'warning', 5000);
+                    } else if (featureName === 'api_access') {
+                        showNotification(`🔒 API Access is not enabled for your account. Contact support.`, 'warning', 5000);
+                    } else {
+                        showNotification(`🔒 ${name} requires ${plan} plan or above. Go to Billing > Plans & Extras to upgrade.`, 'warning', 5000);
+                    }
                 }
             }
             return false;
@@ -15605,6 +15946,330 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Call after auth and when account selection changes
         loadAccountEntitlements();
+
+        // =====================================================
+        // INSTAWP INTEGRATION
+        // =====================================================
+        
+        let instaWPSettingsVisible = false;
+        
+        function toggleInstaWPSettings() {
+            instaWPSettingsVisible = !instaWPSettingsVisible;
+            document.getElementById('instawp-settings-panel').style.display = instaWPSettingsVisible ? 'block' : 'none';
+            document.getElementById('instawp-toggle-text').textContent = instaWPSettingsVisible ? 'Hide Settings' : 'Show Settings';
+            
+            if (instaWPSettingsVisible) {
+                loadInstaWPSettings();
+            }
+        }
+        
+        async function loadInstaWPSettings() {
+            try {
+                const response = await fetch('/api/admin/instawp/settings');
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    document.getElementById('instawp-api-key').value = data.data.api_key || '';
+                    document.getElementById('instawp-default-template').value = data.data.default_template || '';
+                    document.getElementById('instawp-templates').value = data.data.templates ? JSON.stringify(data.data.templates, null, 2) : '';
+                    document.getElementById('instawp-enabled').checked = data.data.is_enabled || false;
+                }
+            } catch (error) {
+                console.error('Error loading InstaWP settings:', error);
+            }
+        }
+        
+        async function saveInstaWPSettings() {
+            try {
+                let templates = {};
+                const templatesText = document.getElementById('instawp-templates').value.trim();
+                if (templatesText) {
+                    try {
+                        templates = JSON.parse(templatesText);
+                    } catch (e) {
+                        showNotification('Invalid JSON in templates field', 'error');
+                        return;
+                    }
+                }
+                
+                const response = await fetch('/api/admin/instawp/settings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        api_key: document.getElementById('instawp-api-key').value,
+                        default_template: document.getElementById('instawp-default-template').value,
+                        templates: templates,
+                        is_enabled: document.getElementById('instawp-enabled').checked
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('InstaWP settings saved!', 'success');
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving settings', 'error');
+            }
+        }
+        
+        // Load account website status when WordPress view is shown
+        async function loadAccountWebsite() {
+            const section = document.getElementById('wp-website-section');
+            const noWebsite = document.getElementById('wp-no-website');
+            const hasWebsite = document.getElementById('wp-has-website');
+            const creating = document.getElementById('wp-website-creating');
+            
+            // Only show for selected accounts or non-master-admin users
+            const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
+            const accountId = selectedAccountId || (user.role !== 'master_admin' ? user.id : null);
+            
+            if (!accountId) {
+                section.style.display = 'none';
+                return;
+            }
+            
+            section.style.display = 'block';
+            noWebsite.style.display = 'none';
+            hasWebsite.style.display = 'none';
+            creating.style.display = 'none';
+            
+            try {
+                const response = await fetch(`/api/account/${accountId}/website`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const website = data.data;
+                    
+                    if (website.status === 'creating') {
+                        creating.style.display = 'block';
+                    } else {
+                        hasWebsite.style.display = 'block';
+                        
+                        document.getElementById('wp-website-url').href = website.site_url || '#';
+                        document.getElementById('wp-website-url').textContent = website.site_url || '-';
+                        document.getElementById('wp-website-admin').href = website.admin_url || '#';
+                        document.getElementById('wp-website-template').textContent = website.template_used || '-';
+                        document.getElementById('wp-website-visit-btn').href = website.site_url || '#';
+                        document.getElementById('wp-website-admin-btn').href = website.admin_url || '#';
+                        
+                        const statusBadge = document.getElementById('wp-website-status');
+                        statusBadge.textContent = website.status;
+                        statusBadge.className = 'badge ' + (website.status === 'active' ? 'badge-success' : 'badge-warning');
+                    }
+                } else {
+                    noWebsite.style.display = 'block';
+                }
+            } catch (error) {
+                console.error('Error loading website:', error);
+                noWebsite.style.display = 'block';
+            }
+        }
+        
+        function openCreateWebsiteModal() {
+            const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
+            const accountId = selectedAccountId || user.id;
+            const accountName = selectedAccountName || user.name;
+            
+            document.getElementById('create-website-account-name').textContent = accountName;
+            document.getElementById('create-website-name').value = accountName.toLowerCase().replace(/[^a-z0-9]/g, '');
+            updateWebsitePreview();
+            
+            openModal('createWebsiteModal');
+        }
+        
+        function updateWebsitePreview() {
+            const name = document.getElementById('create-website-name').value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+            document.getElementById('create-website-preview').textContent = name || 'yoursite';
+        }
+        
+        // Add event listener for site name input
+        document.addEventListener('DOMContentLoaded', function() {
+            const nameInput = document.getElementById('create-website-name');
+            if (nameInput) {
+                nameInput.addEventListener('input', updateWebsitePreview);
+            }
+        });
+        
+        async function createWebsite() {
+            const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
+            const accountId = selectedAccountId || user.id;
+            
+            const siteName = document.getElementById('create-website-name').value.toLowerCase().replace(/[^a-z0-9-]/g, '');
+            const template = document.getElementById('create-website-template').value;
+            
+            if (!siteName) {
+                showNotification('Please enter a site name', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById('create-website-btn');
+            btn.disabled = true;
+            btn.textContent = '⏳ Creating...';
+            
+            try {
+                const response = await fetch('/api/admin/instawp/create-site', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        site_name: siteName,
+                        template_slug: template || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('🎉 Website creation started!', 'success');
+                    closeModal('createWebsiteModal');
+                    loadAccountWebsite();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error creating website', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = '🚀 Create Website';
+            }
+        }
+        
+        async function refreshWebsiteStatus() {
+            showNotification('Checking website status...', 'info', 2000);
+            await loadAccountWebsite();
+        }
+
+        // =====================================================
+        // PROPERTY PAYMENT SETTINGS
+        // =====================================================
+        
+        let currentPaymentPropertyId = null;
+        
+        async function openPaymentSettings(propertyId, propertyName) {
+            currentPaymentPropertyId = propertyId;
+            document.getElementById('payment-settings-property-id').value = propertyId;
+            document.getElementById('payment-settings-property-name').textContent = propertyName;
+            
+            // Reset form
+            document.getElementById('payment-enabled').checked = true;
+            document.getElementById('payment-deposit-type').value = 'percentage';
+            document.getElementById('payment-deposit-amount').value = 25;
+            document.getElementById('payment-balance-days').value = 14;
+            document.getElementById('payment-currency').value = 'GBP';
+            document.getElementById('payment-method-card').checked = true;
+            document.getElementById('payment-cancellation').value = '';
+            
+            // Load existing settings
+            try {
+                const response = await fetch(`/api/property/${propertyId}/payment-settings`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const settings = data.data;
+                    document.getElementById('payment-enabled').checked = settings.payment_enabled !== false;
+                    document.getElementById('payment-deposit-type').value = settings.deposit_type || 'percentage';
+                    document.getElementById('payment-deposit-amount').value = settings.deposit_amount || 25;
+                    document.getElementById('payment-balance-days').value = settings.balance_due_days || 14;
+                    document.getElementById('payment-currency').value = settings.currency || 'GBP';
+                    document.getElementById('payment-cancellation').value = settings.cancellation_policy || '';
+                    
+                    // Payment methods
+                    const methods = settings.accepted_methods || ['card'];
+                    document.getElementById('payment-method-card').checked = methods.includes('card');
+                    
+                    // Stripe status
+                    if (settings.stripe_connected) {
+                        document.getElementById('stripe-not-connected').style.display = 'none';
+                        document.getElementById('stripe-connected').style.display = 'block';
+                    } else {
+                        document.getElementById('stripe-not-connected').style.display = 'flex';
+                        document.getElementById('stripe-connected').style.display = 'none';
+                    }
+                    
+                    updateDepositSymbol();
+                }
+            } catch (error) {
+                console.error('Error loading payment settings:', error);
+            }
+            
+            openModal('paymentSettingsModal');
+        }
+        
+        function updateDepositSymbol() {
+            const type = document.getElementById('payment-deposit-type').value;
+            const symbol = document.getElementById('payment-deposit-symbol');
+            const amountInput = document.getElementById('payment-deposit-amount');
+            
+            if (type === 'percentage') {
+                symbol.textContent = '%';
+                amountInput.max = 100;
+            } else if (type === 'fixed') {
+                const currency = document.getElementById('payment-currency').value;
+                symbol.textContent = currency === 'GBP' ? '£' : currency === 'EUR' ? '€' : currency === 'USD' ? '$' : currency;
+                amountInput.max = 99999;
+            } else if (type === 'full' || type === 'none') {
+                symbol.textContent = '';
+                amountInput.disabled = true;
+            }
+            
+            if (type !== 'full' && type !== 'none') {
+                amountInput.disabled = false;
+            }
+        }
+        
+        // Add event listener for deposit type change
+        document.addEventListener('DOMContentLoaded', function() {
+            const depositType = document.getElementById('payment-deposit-type');
+            if (depositType) {
+                depositType.addEventListener('change', updateDepositSymbol);
+            }
+            const currencySelect = document.getElementById('payment-currency');
+            if (currencySelect) {
+                currencySelect.addEventListener('change', updateDepositSymbol);
+            }
+        });
+        
+        async function savePaymentSettings() {
+            const propertyId = document.getElementById('payment-settings-property-id').value;
+            
+            const acceptedMethods = [];
+            if (document.getElementById('payment-method-card').checked) acceptedMethods.push('card');
+            
+            const settings = {
+                payment_enabled: document.getElementById('payment-enabled').checked,
+                deposit_type: document.getElementById('payment-deposit-type').value,
+                deposit_amount: parseFloat(document.getElementById('payment-deposit-amount').value) || 25,
+                balance_due_days: parseInt(document.getElementById('payment-balance-days').value) || 14,
+                currency: document.getElementById('payment-currency').value,
+                accepted_methods: acceptedMethods,
+                cancellation_policy: document.getElementById('payment-cancellation').value
+            };
+            
+            try {
+                const response = await fetch(`/api/property/${propertyId}/payment-settings`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(settings)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Payment settings saved!', 'success');
+                    closeModal('paymentSettingsModal');
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving settings', 'error');
+            }
+        }
+        
+        function connectStripe() {
+            // For now, just show a message - Stripe Connect implementation later
+            showNotification('Stripe Connect integration coming soon! Contact support for setup assistance.', 'info', 5000);
+        }
 
         // Load client-facing billing page
         async function loadMyBilling() {
