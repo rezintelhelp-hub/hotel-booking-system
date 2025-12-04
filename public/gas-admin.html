@@ -4448,11 +4448,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                <!-- InstaWP Settings (Master Admin Only) -->
+                <!-- WordPress Hosting Settings (Master Admin Only) -->
                 <div id="wp-instawp-settings" class="card billing-admin-only" style="margin-bottom: 1.5rem; border: 2px dashed var(--border);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
-                            ⚙️ InstaWP Configuration
+                            ⚙️ WordPress Hosting Configuration
                         </h3>
                         <button class="btn btn-secondary btn-small" onclick="toggleInstaWPSettings()">
                             <span id="instawp-toggle-text">Show Settings</span>
@@ -4460,32 +4460,34 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                     
                     <div id="instawp-settings-panel" style="display: none;">
+                        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                            <p style="margin: 0; font-size: 0.9rem;">✅ <strong>Your WordPress hosting is active!</strong></p>
+                            <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">API: sites.gas.travel</p>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label>API URL</label>
+                            <input type="text" id="instawp-api-url" class="form-input" value="https://sites.gas.travel/gas-api.php">
+                        </div>
+                        
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label>API Key</label>
-                            <input type="password" id="instawp-api-key" class="form-input" placeholder="Enter your InstaWP API key">
-                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                                Get your API key from <a href="https://app.instawp.io/account/api-tokens" target="_blank">InstaWP Dashboard</a>
-                            </p>
+                            <input type="password" id="instawp-api-key" class="form-input" placeholder="Enter your WordPress API key">
                         </div>
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
-                            <label>Default Template Slug</label>
-                            <input type="text" id="instawp-default-template" class="form-input" placeholder="e.g., gas-hotel-template">
-                        </div>
-                        
-                        <div class="form-group" style="margin-bottom: 1rem;">
-                            <label>Templates by Plan (JSON)</label>
-                            <textarea id="instawp-templates" class="form-input" rows="4" placeholder='{"starter": "gas-starter", "professional": "gas-pro", "business": "gas-business", "enterprise": "gas-enterprise"}'></textarea>
+                            <label>Default Template (Optional)</label>
+                            <input type="text" id="instawp-default-template" class="form-input" placeholder="e.g., developer-theme">
                         </div>
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                                 <input type="checkbox" id="instawp-enabled" style="width: 18px; height: 18px;">
-                                Enable InstaWP Integration
+                                Enable WordPress Site Creation
                             </label>
                         </div>
                         
-                        <button class="btn" onclick="saveInstaWPSettings()">💾 Save InstaWP Settings</button>
+                        <button class="btn" onclick="saveInstaWPSettings()">💾 Save Settings</button>
                     </div>
                 </div>
 
@@ -15969,43 +15971,35 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success && data.data) {
+                    if (document.getElementById('instawp-api-url')) {
+                        document.getElementById('instawp-api-url').value = data.data.api_url || 'https://sites.gas.travel/gas-api.php';
+                    }
                     document.getElementById('instawp-api-key').value = data.data.api_key || '';
                     document.getElementById('instawp-default-template').value = data.data.default_template || '';
-                    document.getElementById('instawp-templates').value = data.data.templates ? JSON.stringify(data.data.templates, null, 2) : '';
                     document.getElementById('instawp-enabled').checked = data.data.is_enabled || false;
                 }
             } catch (error) {
-                console.error('Error loading InstaWP settings:', error);
+                console.error('Error loading WordPress settings:', error);
             }
         }
         
         async function saveInstaWPSettings() {
             try {
-                let templates = {};
-                const templatesText = document.getElementById('instawp-templates').value.trim();
-                if (templatesText) {
-                    try {
-                        templates = JSON.parse(templatesText);
-                    } catch (e) {
-                        showNotification('Invalid JSON in templates field', 'error');
-                        return;
-                    }
-                }
-                
                 const response = await fetch('/api/admin/instawp/settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
+                        api_url: document.getElementById('instawp-api-url')?.value || 'https://sites.gas.travel/gas-api.php',
                         api_key: document.getElementById('instawp-api-key').value,
                         default_template: document.getElementById('instawp-default-template').value,
-                        templates: templates,
+                        templates: {},
                         is_enabled: document.getElementById('instawp-enabled').checked
                     })
                 });
                 
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('InstaWP settings saved!', 'success');
+                    showNotification('WordPress hosting settings saved!', 'success');
                 } else {
                     showNotification('Error: ' + data.error, 'error');
                 }
