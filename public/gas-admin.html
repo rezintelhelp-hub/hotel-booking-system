@@ -1034,6 +1034,16 @@
             overflow: hidden;
             text-overflow: ellipsis;
         }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        
+        @keyframes slideOut {
+            from { transform: translateX(0); opacity: 1; }
+            to { transform: translateX(100%); opacity: 0; }
+        }
     </style>
 </head>
 <body>
@@ -15113,18 +15123,60 @@ const promo = await fetch('/api/v1/offers/validate', {
         // BILLING FUNCTIONS
         // =====================================================
 
+        // Show notification toast
+        function showNotification(message, type = 'info') {
+            // Create notification element
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                color: white;
+                font-weight: 500;
+                z-index: 9999;
+                animation: slideIn 0.3s ease;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
+            
+            if (type === 'success') {
+                notification.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+            } else if (type === 'error') {
+                notification.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+            } else {
+                notification.style.background = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
+            }
+            
+            notification.textContent = message;
+            document.body.appendChild(notification);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+
         async function setupBilling() {
+            console.log('setupBilling called');
             try {
                 const response = await fetch('/api/setup-billing');
+                console.log('Response:', response);
                 const data = await response.json();
+                console.log('Data:', data);
                 if (data.success) {
                     showNotification('Billing tables created!', 'success');
                     loadBillingOverview();
+                    loadBillingPlans();
                 } else {
                     showNotification('Error: ' + data.error, 'error');
+                    alert('Error: ' + data.error);
                 }
             } catch (error) {
-                showNotification('Error setting up billing', 'error');
+                console.error('Setup billing error:', error);
+                showNotification('Error setting up billing: ' + error.message, 'error');
+                alert('Error: ' + error.message);
             }
         }
 
