@@ -1180,6 +1180,18 @@
                 </div>
 
                 <div class="nav-section">
+                    <div class="nav-label">Knowledge Base</div>
+                    <a class="nav-item" data-view="kb-articles" href="#" onclick="navClick(this, 'kb-articles'); return false;">
+                        <span class="nav-icon">📚</span>
+                        <span>Articles</span>
+                    </a>
+                    <a class="nav-item" data-view="kb-unanswered" href="#" onclick="navClick(this, 'kb-unanswered'); return false;">
+                        <span class="nav-icon">❓</span>
+                        <span>Unanswered</span>
+                    </a>
+                </div>
+
+                <div class="nav-section">
                     <div class="nav-label">System</div>
                     <a class="nav-item" data-view="integrations" href="#" onclick="navClick(this, 'integrations'); return false;">
                         <span class="nav-icon">🔗</span>
@@ -4598,7 +4610,191 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
             </div>
+
+            <!-- Knowledge Base Articles View -->
+            <div id="kb-articles" class="view">
+                <div class="header">
+                    <h2>📚 Knowledge Base</h2>
+                    <p>Manage AI assistant knowledge - articles the chatbot uses to answer questions</p>
+                </div>
+
+                <!-- Quick Stats -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="card" style="text-align: center; padding: 1rem;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--accent);" id="kb-article-count">0</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">Articles</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1rem;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--success);" id="kb-category-count">0</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">Categories</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1rem;">
+                        <div style="font-size: 2rem; font-weight: 700; color: var(--warning);" id="kb-unanswered-count">0</div>
+                        <div style="font-size: 0.85rem; color: var(--text-secondary);">Unanswered</div>
+                    </div>
+                </div>
+
+                <!-- Actions Bar -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 1rem; flex-wrap: wrap; align-items: center;">
+                        <button class="btn" onclick="openKBArticleModal()">+ Add Article</button>
+                        <button class="btn btn-secondary" onclick="openKBImportModal()">📥 Import Articles</button>
+                        <button class="btn btn-secondary" onclick="setupKnowledgeBase()">🔧 Setup Tables</button>
+                        <div style="flex: 1;"></div>
+                        <select id="kb-category-filter" class="form-input" style="width: auto;" onchange="loadKBArticles()">
+                            <option value="">All Categories</option>
+                        </select>
+                        <input type="text" id="kb-search" class="form-input" placeholder="Search articles..." style="width: 200px;" onkeyup="debounce(loadKBArticles, 300)()">
+                    </div>
+                </div>
+
+                <!-- Articles List -->
+                <div class="card">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Title</th>
+                                    <th>Category</th>
+                                    <th>Status</th>
+                                    <th>Views</th>
+                                    <th>Helpful</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="kb-articles-table">
+                                <tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading articles...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Knowledge Base Unanswered View -->
+            <div id="kb-unanswered" class="view">
+                <div class="header">
+                    <h2>❓ Unanswered Questions</h2>
+                    <p>Questions the AI couldn't answer - review and add missing knowledge</p>
+                </div>
+
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center;">
+                        <select id="kb-unanswered-filter" class="form-input" style="width: auto;" onchange="loadKBUnanswered()">
+                            <option value="new">New</option>
+                            <option value="resolved">Resolved</option>
+                            <option value="">All</option>
+                        </select>
+                        <div style="flex: 1;"></div>
+                        <span id="kb-unanswered-total" style="color: var(--text-secondary); font-size: 0.9rem;">0 questions</span>
+                    </div>
+                </div>
+
+                <div id="kb-unanswered-list">
+                    <div class="card" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                        Loading unanswered questions...
+                    </div>
+                </div>
+            </div>
         </main>
+    </div>
+
+    <!-- Knowledge Base Article Modal -->
+    <div id="kbArticleModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="kb-article-modal-title" style="margin: 0; font-size: 1.25rem;">📚 Add Knowledge Article</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Add content the AI can use to answer questions</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('kbArticleModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="kb-article-form" onsubmit="saveKBArticle(event)">
+                    <input type="hidden" id="kb-article-id">
+                    
+                    <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Title <span style="color: #ef4444;">*</span></label>
+                            <input type="text" id="kb-article-title" class="form-input" required placeholder="e.g., How to connect Beds24">
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="kb-article-category" class="form-input">
+                                <option value="">Select category...</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Summary</label>
+                        <textarea id="kb-article-summary" class="form-input" rows="2" placeholder="Brief summary shown in search results..."></textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Content <span style="color: #ef4444;">*</span></label>
+                        <textarea id="kb-article-content" class="form-input" rows="12" required placeholder="Full article content. The AI will use this to answer questions. Use markdown formatting."></textarea>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Keywords (comma-separated)</label>
+                            <input type="text" id="kb-article-keywords" class="form-input" placeholder="beds24, api, connect, invite code">
+                        </div>
+                        <div class="form-group">
+                            <label>Status</label>
+                            <select id="kb-article-status" class="form-input">
+                                <option value="published">Published</option>
+                                <option value="draft">Draft</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('kbArticleModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Article</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Knowledge Base Import Modal -->
+    <div id="kbImportModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">📥 Import Articles</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Bulk import articles from JSON</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('kbImportModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #166534;">JSON Format</h4>
+                    <pre style="margin: 0; font-size: 0.8rem; color: #166534; overflow-x: auto;">[
+  {
+    "title": "Article Title",
+    "category": "getting-started",
+    "summary": "Brief summary",
+    "content": "Full content here...",
+    "keywords": ["keyword1", "keyword2"]
+  }
+]</pre>
+                </div>
+                
+                <div class="form-group">
+                    <label>Paste JSON Array</label>
+                    <textarea id="kb-import-json" class="form-input" rows="10" placeholder="Paste your JSON array of articles here..."></textarea>
+                </div>
+                
+                <div id="kb-import-result" style="display: none; margin-top: 1rem; padding: 1rem; border-radius: 8px;"></div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('kbImportModal')">Cancel</button>
+                    <button type="button" class="btn" onclick="importKBArticles()">Import Articles</button>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Add/Edit Agency Modal -->
@@ -14222,6 +14418,327 @@ const promo = await fetch('/api/v1/offers/validate', {
         function copyApiUrl() {
             copyToClipboard(document.getElementById('api-docs-base-url').value);
         }
+
+        // =====================================================
+        // KNOWLEDGE BASE FUNCTIONS
+        // =====================================================
+
+        async function setupKnowledgeBase() {
+            try {
+                const response = await fetch('/api/setup-knowledge-base');
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Knowledge base tables created!', 'success');
+                    loadKBArticles();
+                    loadKBCategories();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error setting up knowledge base', 'error');
+            }
+        }
+
+        async function loadKBCategories() {
+            try {
+                const response = await fetch('/api/kb/categories');
+                const data = await response.json();
+                if (data.success) {
+                    // Populate filter dropdown
+                    const filterSelect = document.getElementById('kb-category-filter');
+                    const articleSelect = document.getElementById('kb-article-category');
+                    
+                    if (filterSelect) {
+                        filterSelect.innerHTML = '<option value="">All Categories</option>' +
+                            data.data.map(c => `<option value="${c.id}">${c.icon || ''} ${c.name} (${c.article_count || 0})</option>`).join('');
+                    }
+                    
+                    if (articleSelect) {
+                        articleSelect.innerHTML = '<option value="">Select category...</option>' +
+                            data.data.map(c => `<option value="${c.id}">${c.icon || ''} ${c.name}</option>`).join('');
+                    }
+                    
+                    // Update stats
+                    document.getElementById('kb-category-count').textContent = data.data.length;
+                }
+            } catch (error) {
+                console.error('Error loading KB categories:', error);
+            }
+        }
+
+        async function loadKBArticles() {
+            try {
+                const categoryId = document.getElementById('kb-category-filter')?.value || '';
+                const search = document.getElementById('kb-search')?.value || '';
+                
+                let url = '/api/kb/articles?status=published';
+                if (categoryId) url += '&category_id=' + categoryId;
+                if (search) url += '&search=' + encodeURIComponent(search);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const tbody = document.getElementById('kb-articles-table');
+                if (!tbody) return;
+                
+                if (data.success && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map(article => `
+                        <tr>
+                            <td>
+                                <strong>${article.title}</strong>
+                                ${article.summary ? `<br><small style="color: var(--text-secondary);">${article.summary.substring(0, 80)}...</small>` : ''}
+                            </td>
+                            <td>${article.category_icon || ''} ${article.category_name || 'Uncategorized'}</td>
+                            <td>
+                                <span class="badge ${article.status === 'published' ? 'badge-success' : 'badge-warning'}">
+                                    ${article.status}
+                                </span>
+                            </td>
+                            <td>${article.views || 0}</td>
+                            <td>
+                                <span style="color: var(--success);">👍 ${article.helpful_yes || 0}</span>
+                                <span style="color: var(--error); margin-left: 0.5rem;">👎 ${article.helpful_no || 0}</span>
+                            </td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editKBArticle(${article.id})">Edit</button>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: var(--error);" onclick="deleteKBArticle(${article.id})">Delete</button>
+                            </td>
+                        </tr>
+                    `).join('');
+                    
+                    document.getElementById('kb-article-count').textContent = data.data.length;
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No articles found. Click "Setup Tables" first, then add articles.</td></tr>';
+                    document.getElementById('kb-article-count').textContent = '0';
+                }
+            } catch (error) {
+                console.error('Error loading KB articles:', error);
+            }
+        }
+
+        function openKBArticleModal(articleId = null) {
+            document.getElementById('kb-article-id').value = '';
+            document.getElementById('kb-article-title').value = '';
+            document.getElementById('kb-article-summary').value = '';
+            document.getElementById('kb-article-content').value = '';
+            document.getElementById('kb-article-keywords').value = '';
+            document.getElementById('kb-article-status').value = 'published';
+            document.getElementById('kb-article-category').value = '';
+            document.getElementById('kb-article-modal-title').textContent = '📚 Add Knowledge Article';
+            
+            loadKBCategories();
+            openModal('kbArticleModal');
+        }
+
+        async function editKBArticle(id) {
+            try {
+                const response = await fetch('/api/kb/articles/' + id);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const article = data.data;
+                    document.getElementById('kb-article-id').value = article.id;
+                    document.getElementById('kb-article-title').value = article.title;
+                    document.getElementById('kb-article-summary').value = article.summary || '';
+                    document.getElementById('kb-article-content').value = article.content;
+                    document.getElementById('kb-article-keywords').value = (article.keywords || []).join(', ');
+                    document.getElementById('kb-article-status').value = article.status;
+                    document.getElementById('kb-article-modal-title').textContent = '📝 Edit Article';
+                    
+                    await loadKBCategories();
+                    document.getElementById('kb-article-category').value = article.category_id || '';
+                    
+                    openModal('kbArticleModal');
+                }
+            } catch (error) {
+                showNotification('Error loading article', 'error');
+            }
+        }
+
+        async function saveKBArticle(event) {
+            event.preventDefault();
+            
+            const id = document.getElementById('kb-article-id').value;
+            const keywords = document.getElementById('kb-article-keywords').value
+                .split(',')
+                .map(k => k.trim().toLowerCase())
+                .filter(k => k.length > 0);
+            
+            const articleData = {
+                id: id || undefined,
+                title: document.getElementById('kb-article-title').value,
+                category_id: document.getElementById('kb-article-category').value || null,
+                summary: document.getElementById('kb-article-summary').value,
+                content: document.getElementById('kb-article-content').value,
+                keywords: keywords,
+                status: document.getElementById('kb-article-status').value
+            };
+            
+            try {
+                const response = await fetch('/api/kb/articles', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(articleData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Article saved!', 'success');
+                    closeModal('kbArticleModal');
+                    loadKBArticles();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving article', 'error');
+            }
+        }
+
+        async function deleteKBArticle(id) {
+            if (!confirm('Delete this article? This cannot be undone.')) return;
+            
+            try {
+                const response = await fetch('/api/kb/articles/' + id, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Article deleted', 'success');
+                    loadKBArticles();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error deleting article', 'error');
+            }
+        }
+
+        function openKBImportModal() {
+            document.getElementById('kb-import-json').value = '';
+            document.getElementById('kb-import-result').style.display = 'none';
+            openModal('kbImportModal');
+        }
+
+        async function importKBArticles() {
+            const jsonText = document.getElementById('kb-import-json').value.trim();
+            const resultDiv = document.getElementById('kb-import-result');
+            
+            if (!jsonText) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#fef2f2';
+                resultDiv.innerHTML = '❌ Please paste JSON data';
+                return;
+            }
+            
+            try {
+                const articles = JSON.parse(jsonText);
+                
+                if (!Array.isArray(articles)) {
+                    throw new Error('JSON must be an array');
+                }
+                
+                const response = await fetch('/api/kb/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ articles })
+                });
+                
+                const data = await response.json();
+                
+                resultDiv.style.display = 'block';
+                if (data.success) {
+                    resultDiv.style.background = '#f0fdf4';
+                    resultDiv.innerHTML = `✅ Imported ${data.imported} articles` +
+                        (data.errors?.length ? `<br>⚠️ ${data.errors.length} errors` : '');
+                    loadKBArticles();
+                    loadKBCategories();
+                } else {
+                    resultDiv.style.background = '#fef2f2';
+                    resultDiv.innerHTML = '❌ ' + data.error;
+                }
+            } catch (error) {
+                resultDiv.style.display = 'block';
+                resultDiv.style.background = '#fef2f2';
+                resultDiv.innerHTML = '❌ Invalid JSON: ' + error.message;
+            }
+        }
+
+        async function loadKBUnanswered() {
+            try {
+                const status = document.getElementById('kb-unanswered-filter')?.value || 'new';
+                const response = await fetch('/api/kb/unanswered' + (status ? '?status=' + status : ''));
+                const data = await response.json();
+                
+                const container = document.getElementById('kb-unanswered-list');
+                const countEl = document.getElementById('kb-unanswered-count');
+                const totalEl = document.getElementById('kb-unanswered-total');
+                
+                if (data.success && data.data.length > 0) {
+                    container.innerHTML = data.data.map(q => `
+                        <div class="card" style="margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                                <div style="flex: 1;">
+                                    <p style="margin: 0 0 0.5rem 0; font-weight: 500;">"${q.question}"</p>
+                                    <small style="color: var(--text-secondary);">
+                                        Asked ${q.times_asked}x · ${new Date(q.created_at).toLocaleDateString()}
+                                    </small>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;" onclick="createArticleFromQuestion(${q.id}, '${q.question.replace(/'/g, "\\'")}')">
+                                        + Create Article
+                                    </button>
+                                    <button class="btn btn-secondary" style="padding: 0.25rem 0.75rem; font-size: 0.8rem;" onclick="dismissQuestion(${q.id})">
+                                        Dismiss
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                    
+                    if (countEl) countEl.textContent = data.data.length;
+                    if (totalEl) totalEl.textContent = data.data.length + ' questions';
+                } else {
+                    container.innerHTML = '<div class="card" style="text-align: center; padding: 2rem; color: var(--text-secondary);">No unanswered questions! 🎉</div>';
+                    if (countEl) countEl.textContent = '0';
+                    if (totalEl) totalEl.textContent = '0 questions';
+                }
+            } catch (error) {
+                console.error('Error loading unanswered:', error);
+            }
+        }
+
+        function createArticleFromQuestion(questionId, questionText) {
+            openKBArticleModal();
+            document.getElementById('kb-article-title').value = questionText;
+            // Store question ID to resolve after saving
+            document.getElementById('kb-article-form').dataset.resolveQuestionId = questionId;
+        }
+
+        async function dismissQuestion(id) {
+            if (!confirm('Dismiss this question?')) return;
+            
+            try {
+                const response = await fetch('/api/kb/unanswered/' + id, { method: 'DELETE' });
+                if (response.ok) {
+                    showNotification('Question dismissed', 'success');
+                    loadKBUnanswered();
+                }
+            } catch (error) {
+                showNotification('Error dismissing question', 'error');
+            }
+        }
+
+        // Load KB data when switching to KB views
+        const originalNavClick = navClick;
+        navClick = function(element, view) {
+            originalNavClick(element, view);
+            if (view === 'kb-articles') {
+                loadKBCategories();
+                loadKBArticles();
+            } else if (view === 'kb-unanswered') {
+                loadKBUnanswered();
+            }
+        };
 
         // Initial load
         loadClientSelector();
