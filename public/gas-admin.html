@@ -4465,6 +4465,113 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </a>
                     </div>
                 </div>
+
+                <!-- Booking Flow -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);">
+                    <h3 style="margin: 0 0 1rem 0; font-size: 1rem;">🔄 Booking Flow</h3>
+                    <div style="display: flex; align-items: center; justify-content: center; gap: 0.5rem; flex-wrap: wrap; font-size: 0.9rem;">
+                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🏠</div>
+                            <strong>Homepage</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_search]</div>
+                        </div>
+                        <div style="font-size: 1.5rem; color: var(--accent);">→</div>
+                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">📋</div>
+                            <strong>Book Now</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_rooms]</div>
+                        </div>
+                        <div style="font-size: 1.5rem; color: var(--accent);">→</div>
+                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🛏️</div>
+                            <strong>Room Details</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">[gas_room]</div>
+                        </div>
+                        <div style="font-size: 1.5rem; color: var(--accent);">→</div>
+                        <div style="background: white; padding: 0.75rem 1rem; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); text-align: center;">
+                            <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">✅</div>
+                            <strong>Booked!</strong>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Confirmation</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Shortcode Reference -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0 0 1rem 0; font-size: 1rem;">📝 Shortcode Reference</h3>
+                    
+                    <!-- Search Bar -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="background: #dbeafe; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🔍</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Search Bar</h4>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Homepage</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_search]</code>
+                                <button onclick="copyShortcode('[gas_search]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">style="vertical"</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Room Listing -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="background: #dcfce7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🏠</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Room Listing</h4>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Book Now page</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_rooms]</code>
+                                <button onclick="copyShortcode('[gas_rooms]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Options: <code style="background: #e2e8f0; padding: 0.1rem 0.3rem; border-radius: 2px;">columns="2"</code>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Room Detail -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 0.75rem;">
+                        <div style="background: #fef3c7; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">🛏️</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Room Detail Page</h4>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Room page</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_room]</code>
+                                <button onclick="copyShortcode('[gas_room]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Shows full room details, calendar & booking form
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Checkout -->
+                    <div style="display: flex; align-items: flex-start; gap: 1rem; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
+                        <div style="background: #fce7f3; width: 40px; height: 40px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 1.25rem; flex-shrink: 0;">💳</div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.25rem;">
+                                <h4 style="margin: 0; font-size: 0.95rem;">Checkout</h4>
+                                <span style="font-size: 0.75rem; color: var(--text-secondary);">Checkout page</span>
+                            </div>
+                            <div style="background: #1e293b; border-radius: 4px; padding: 0.5rem 0.75rem; font-family: monospace; font-size: 0.85rem; color: #e2e8f0; display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <code>[gas_checkout]</code>
+                                <button onclick="copyShortcode('[gas_checkout]')" style="background: #334155; border: none; color: white; padding: 0.25rem 0.6rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem;">Copy</button>
+                            </div>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                Guest details form & payment
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Knowledge Base Articles View -->
