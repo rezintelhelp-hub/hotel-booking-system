@@ -8573,7 +8573,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadPropertiesForWordPress() {
             try {
-                const response = await fetch('/api/admin/properties');
+                const response = await fetch('/api/db/properties');
                 const data = await response.json();
                 
                 const select = document.getElementById('wp-create-property');
@@ -8583,11 +8583,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.data && data.data.length > 0) {
                     data.data.forEach(prop => {
-                        select.innerHTML += `<option value="${prop.id}" data-account="${prop.account_id}" data-name="${prop.name}">${prop.id}: ${prop.name} (Account ${prop.account_id || 'N/A'})</option>`;
-                    });
-                } else if (data.success && data.properties && data.properties.length > 0) {
-                    // Alternative response format
-                    data.properties.forEach(prop => {
                         select.innerHTML += `<option value="${prop.id}" data-account="${prop.account_id}" data-name="${prop.name}">${prop.id}: ${prop.name} (Account ${prop.account_id || 'N/A'})</option>`;
                     });
                 } else {
