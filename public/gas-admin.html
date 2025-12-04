@@ -130,6 +130,16 @@
             font-weight: 600;
         }
 
+        .nav-item.feature-locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+        
+        .nav-item.feature-locked:hover {
+            background: transparent;
+            color: var(--text-secondary);
+        }
+
         .nav-icon {
             font-size: 1.1rem;
         }
@@ -1239,17 +1249,20 @@
 
                 <div class="nav-section">
                     <div class="nav-label">Apps</div>
-                    <a class="nav-item" data-view="app-blog" href="#" onclick="navClick(this, 'app-blog'); return false;">
+                    <a class="nav-item" data-view="app-blog" data-requires-feature="blog_module" href="#" onclick="return handleFeatureClick(this, 'app-blog', 'blog_module');">
                         <span class="nav-icon">📝</span>
                         <span>Blog</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
-                    <a class="nav-item" data-view="app-attractions" href="#" onclick="navClick(this, 'app-attractions'); return false;">
+                    <a class="nav-item" data-view="app-attractions" data-requires-feature="attractions_module" href="#" onclick="return handleFeatureClick(this, 'app-attractions', 'attractions_module');">
                         <span class="nav-icon">🎯</span>
                         <span>Attractions</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
-                    <a class="nav-item" data-view="app-reviews" href="#" onclick="navClick(this, 'app-reviews'); return false;">
+                    <a class="nav-item" data-view="app-reviews" data-requires-feature="reviews_widget" href="#" onclick="return handleFeatureClick(this, 'app-reviews', 'reviews_widget');">
                         <span class="nav-icon">⭐</span>
                         <span>Reviews</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
                 </div>
 
@@ -5154,6 +5167,46 @@ const promo = await fetch('/api/v1/offers/validate', {
         </div>
     </div>
 
+    <!-- Assign Plan Modal -->
+    <div id="assignPlanModal" class="modal">
+        <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">💳 Assign Subscription Plan</h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; opacity: 0.9;">For: <span id="assign-plan-account-name"></span></p>
+                </div>
+                <button class="modal-close" onclick="closeModal('assignPlanModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div id="assign-plan-current" style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 0.75rem 1rem; margin-bottom: 1rem; display: none;">
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Select Plan</label>
+                    <select id="assign-plan-select" class="form-input">
+                        <option value="">-- Select Plan --</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Billing Cycle</label>
+                    <select id="assign-plan-cycle" class="form-input">
+                        <option value="monthly">Monthly</option>
+                        <option value="yearly">Yearly (save ~17%)</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn btn-secondary" style="color: var(--error);" onclick="cancelAccountSubscription()">Cancel Subscription</button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('assignPlanModal')">Close</button>
+                        <button type="button" class="btn" onclick="saveAssignedPlan()">Assign Plan</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Credit Package Modal -->
     <div id="creditPackageModal" class="modal">
         <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
@@ -6823,6 +6876,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     if (typeof updateBillingNavVisibility === 'function') {
                         updateBillingNavVisibility();
                     }
+                    // Load feature entitlements
+                    if (typeof loadAccountEntitlements === 'function') {
+                        loadAccountEntitlements();
+                    }
                     // Reload dashboard with correct filters
                     if (typeof loadDashboard === 'function') {
                         loadDashboard();
@@ -6846,6 +6903,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Update billing nav visibility after auth
                     if (typeof updateBillingNavVisibility === 'function') {
                         updateBillingNavVisibility();
+                    }
+                    // Load feature entitlements
+                    if (typeof loadAccountEntitlements === 'function') {
+                        loadAccountEntitlements();
                     }
                     if (typeof loadDashboard === 'function') {
                         loadDashboard();
@@ -7404,6 +7465,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <tr>
                                 <th>Account</th>
                                 <th>Role</th>
+                                <th>Plan</th>
                                 <th>Parent</th>
                                 <th>Properties</th>
                                 <th>Status</th>
@@ -7425,6 +7487,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         </div>
                                     </td>
                                     <td>${getRoleBadge(account.role)}</td>
+                                    <td>
+                                        <span id="account-plan-${account.id}" class="badge badge-secondary" style="cursor: pointer;" onclick="openAssignPlanModal(${account.id}, \`${account.name.replace(/`/g, "'")}\`)">
+                                            Loading...
+                                        </span>
+                                    </td>
                                     <td>
                                         ${account.parent_name 
                                             ? `<span style="color: var(--text-secondary);">↳ ${account.parent_name}</span>` 
@@ -7450,6 +7517,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </table>
                 </div>
             `;
+            
+            // Load plan badges for each account
+            accounts.forEach(account => loadAccountPlanBadge(account.id));
         }
         
         function viewAccount(accountId) {
@@ -7468,8 +7538,145 @@ const promo = await fetch('/api/v1/offers/validate', {
                 nameEl.textContent = account.name;
             }
             
+            // Reload entitlements for selected account
+            if (typeof loadAccountEntitlements === 'function') {
+                loadAccountEntitlements();
+            }
+            
             // Navigate to dashboard with new filter
             showView('dashboard');
+        }
+        
+        // Load plan badge for an account
+        async function loadAccountPlanBadge(accountId) {
+            const badge = document.getElementById(`account-plan-${accountId}`);
+            if (!badge) return;
+            
+            try {
+                const response = await fetch(`/api/admin/billing/subscription/${accountId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const planColors = {
+                        'starter': '#6b7280',
+                        'professional': '#2563eb',
+                        'business': '#7c3aed',
+                        'enterprise': '#dc2626'
+                    };
+                    const color = planColors[data.data.plan_slug] || '#6b7280';
+                    badge.innerHTML = data.data.plan_name;
+                    badge.style.background = color;
+                    badge.style.color = 'white';
+                } else {
+                    badge.innerHTML = 'No Plan';
+                    badge.style.background = '#e5e7eb';
+                    badge.style.color = '#6b7280';
+                }
+            } catch (error) {
+                badge.innerHTML = 'Error';
+                badge.style.background = '#fee2e2';
+                badge.style.color = '#dc2626';
+            }
+        }
+        
+        // Open assign plan modal
+        let assignPlanAccountId = null;
+        let assignPlanAccountName = null;
+        
+        async function openAssignPlanModal(accountId, accountName) {
+            assignPlanAccountId = accountId;
+            assignPlanAccountName = accountName;
+            
+            // Load plans for dropdown
+            try {
+                const response = await fetch('/api/admin/billing/plans');
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const select = document.getElementById('assign-plan-select');
+                    select.innerHTML = '<option value="">-- Select Plan --</option>' + 
+                        data.data.filter(p => p.is_active).map(plan => 
+                            `<option value="${plan.id}">${plan.name} - £${parseFloat(plan.price_monthly).toFixed(2)}/mo</option>`
+                        ).join('');
+                }
+            } catch (error) {
+                console.error('Error loading plans:', error);
+            }
+            
+            // Get current subscription
+            try {
+                const response = await fetch(`/api/admin/billing/subscription/${accountId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    document.getElementById('assign-plan-select').value = data.data.plan_id;
+                    document.getElementById('assign-plan-current').innerHTML = `Current plan: <strong>${data.data.plan_name}</strong>`;
+                    document.getElementById('assign-plan-current').style.display = 'block';
+                } else {
+                    document.getElementById('assign-plan-current').style.display = 'none';
+                }
+            } catch (error) {
+                document.getElementById('assign-plan-current').style.display = 'none';
+            }
+            
+            document.getElementById('assign-plan-account-name').textContent = accountName;
+            openModal('assignPlanModal');
+        }
+        
+        async function saveAssignedPlan() {
+            const planId = document.getElementById('assign-plan-select').value;
+            const billingCycle = document.getElementById('assign-plan-cycle').value;
+            
+            if (!planId) {
+                showNotification('Please select a plan', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/billing/assign-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: assignPlanAccountId,
+                        plan_id: parseInt(planId),
+                        billing_cycle: billingCycle
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(`Plan assigned to ${assignPlanAccountName}!`, 'success');
+                    closeModal('assignPlanModal');
+                    loadAccountPlanBadge(assignPlanAccountId);
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error assigning plan', 'error');
+            }
+        }
+        
+        async function cancelAccountSubscription() {
+            if (!confirm(`Cancel subscription for ${assignPlanAccountName}?`)) return;
+            
+            try {
+                const response = await fetch('/api/admin/billing/cancel-subscription', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id: assignPlanAccountId })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Subscription cancelled', 'success');
+                    closeModal('assignPlanModal');
+                    loadAccountPlanBadge(assignPlanAccountId);
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error cancelling subscription', 'error');
+            }
         }
         
         // Account filter (like the old agency filter)
@@ -7485,6 +7692,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (banner && nameEl) {
                 banner.style.display = 'flex';
                 nameEl.textContent = accountName;
+            }
+            
+            // Reload entitlements for selected account
+            if (typeof loadAccountEntitlements === 'function') {
+                loadAccountEntitlements();
             }
             
             // Reload current view with filter
@@ -7512,6 +7724,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             // Hide banner
             const banner = document.getElementById('agencyFilterBanner');
             if (banner) banner.style.display = 'none';
+            
+            // Reload entitlements (will show master admin's defaults)
+            if (typeof loadAccountEntitlements === 'function') {
+                loadAccountEntitlements();
+            }
             
             // Reload current view without filter
             const activeView = document.querySelector('.nav-item.active');
@@ -15266,6 +15483,109 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Call on page load (will be called again after auth)
         updateBillingNavVisibility();
 
+        // =====================================================
+        // FEATURE ENTITLEMENTS
+        // =====================================================
+        
+        let accountEntitlements = null;
+        
+        // Load entitlements for the current/selected account
+        async function loadAccountEntitlements() {
+            const accountId = selectedAccountId || (currentAccount ? currentAccount.id : null);
+            
+            if (!accountId) {
+                // No subscription - lock all premium features
+                accountEntitlements = { features: {} };
+                applyFeatureLocks();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/account/${accountId}/entitlements`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    accountEntitlements = data;
+                } else {
+                    accountEntitlements = { features: {} };
+                }
+            } catch (error) {
+                console.error('Error loading entitlements:', error);
+                accountEntitlements = { features: {} };
+            }
+            
+            applyFeatureLocks();
+        }
+        
+        // Apply locked state to nav items based on entitlements
+        function applyFeatureLocks() {
+            const features = accountEntitlements?.features || {};
+            
+            // Master admin sees everything unlocked
+            const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
+            if (user.role === 'master_admin') {
+                document.querySelectorAll('[data-requires-feature]').forEach(el => {
+                    el.classList.remove('feature-locked');
+                    const lock = el.querySelector('.feature-lock');
+                    if (lock) lock.style.display = 'none';
+                });
+                return;
+            }
+            
+            document.querySelectorAll('[data-requires-feature]').forEach(el => {
+                const requiredFeature = el.getAttribute('data-requires-feature');
+                const hasFeature = features[requiredFeature] === true;
+                
+                if (hasFeature) {
+                    el.classList.remove('feature-locked');
+                    const lock = el.querySelector('.feature-lock');
+                    if (lock) lock.style.display = 'none';
+                } else {
+                    el.classList.add('feature-locked');
+                    const lock = el.querySelector('.feature-lock');
+                    if (lock) lock.style.display = 'inline';
+                }
+            });
+        }
+        
+        // Handle click on feature-gated nav items
+        function handleFeatureClick(element, viewName, featureName) {
+            // Master admin always has access
+            const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
+            if (user.role === 'master_admin') {
+                navClick(element, viewName);
+                return false;
+            }
+            
+            const features = accountEntitlements?.features || {};
+            const hasFeature = features[featureName] === true;
+            
+            if (hasFeature) {
+                navClick(element, viewName);
+            } else {
+                // Show upgrade prompt
+                const featureNames = {
+                    'blog_module': 'Blog Module',
+                    'attractions_module': 'Attractions Module', 
+                    'reviews_widget': 'Reviews Widget'
+                };
+                const planRequired = {
+                    'blog_module': 'Professional',
+                    'attractions_module': 'Business',
+                    'reviews_widget': 'Enterprise'
+                };
+                
+                const name = featureNames[featureName] || featureName;
+                const plan = planRequired[featureName] || 'a higher';
+                
+                showNotification(`🔒 ${name} requires ${plan} plan or above. Go to Billing > Plans & Extras to upgrade.`, 'warning', 5000);
+            }
+            return false;
+        }
+        
+        // Call after auth and when account selection changes
+        loadAccountEntitlements();
+
         // Load client-facing billing page
         async function loadMyBilling() {
             // Load plans
@@ -15384,7 +15704,7 @@ const promo = await fetch('/api/v1/offers/validate', {
         // =====================================================
 
         // Show notification toast
-        function showNotification(message, type = 'info') {
+        function showNotification(message, type = 'info', duration = 3000) {
             // Create notification element
             const notification = document.createElement('div');
             notification.style.cssText = `
@@ -15398,12 +15718,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 z-index: 9999;
                 animation: slideIn 0.3s ease;
                 box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                max-width: 400px;
             `;
             
             if (type === 'success') {
                 notification.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
             } else if (type === 'error') {
                 notification.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
+            } else if (type === 'warning') {
+                notification.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
             } else {
                 notification.style.background = 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)';
             }
@@ -15411,11 +15734,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             notification.textContent = message;
             document.body.appendChild(notification);
             
-            // Remove after 3 seconds
+            // Remove after duration
             setTimeout(() => {
                 notification.style.animation = 'slideOut 0.3s ease';
                 setTimeout(() => notification.remove(), 300);
-            }, 3000);
+            }, duration);
         }
 
         async function setupBilling() {
