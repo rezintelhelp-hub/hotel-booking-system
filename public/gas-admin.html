@@ -4390,21 +4390,21 @@ const promo = await fetch('/api/v1/offers/validate', {
 
                 <!-- Quick Create Section -->
                 <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white;">
-                    <h3 style="margin: 0 0 1rem 0;">🚀 Create WordPress Site</h3>
-                    <div style="display: flex; flex-wrap: wrap; gap: 1rem; align-items: flex-end;">
-                        <div style="flex: 1; min-width: 200px;">
+                    <h3 style="margin: 0 0 1.25rem 0;">🚀 Create WordPress Site</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 1.5rem; align-items: end;">
+                        <div>
                             <label style="font-size: 0.85rem; opacity: 0.9; display: block; margin-bottom: 0.5rem;">Select Property</label>
-                            <select id="wp-create-property" class="form-input" style="background: white; color: #1e293b; width: 100%;">
+                            <select id="wp-create-property" class="form-input" style="background: white; color: #1e293b; width: 100%; padding: 0.6rem 0.75rem;">
                                 <option value="">-- Select Property --</option>
                             </select>
                         </div>
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="font-size: 0.85rem; opacity: 0.9; display: block; margin-bottom: 0.5rem;">Site Slug (URL)</label>
-                            <input type="text" id="wp-create-slug" class="form-input" placeholder="e.g., lehmannhouse" style="background: white; color: #1e293b; width: 100%;">
-                            <p style="font-size: 0.75rem; opacity: 0.8; margin-top: 0.25rem;">Will be: <span id="wp-slug-preview">slug</span>.sites.gas.travel</p>
-                        </div>
                         <div>
-                            <button class="btn" onclick="createWordPressSite()" style="background: white; color: #059669; font-weight: 600; white-space: nowrap;">
+                            <label style="font-size: 0.85rem; opacity: 0.9; display: block; margin-bottom: 0.5rem;">Site Slug (URL)</label>
+                            <input type="text" id="wp-create-slug" class="form-input" placeholder="e.g., lehmannhouse" style="background: white; color: #1e293b; width: 100%; padding: 0.6rem 0.75rem;">
+                            <p style="font-size: 0.75rem; opacity: 0.8; margin-top: 0.35rem;">Will be: <strong><span id="wp-slug-preview">slug</span>.sites.gas.travel</strong></p>
+                        </div>
+                        <div style="padding-bottom: 1.5rem;">
+                            <button class="btn" onclick="createWordPressSite()" style="background: white; color: #059669; font-weight: 600; padding: 0.6rem 1.5rem; white-space: nowrap;">
                                 🌐 Create Site
                             </button>
                         </div>
@@ -8617,36 +8617,36 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success && data.sites && data.sites.length > 0) {
                     let html = `
-                        <div class="table-container">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th>ID</th>
-                                        <th>Site URL</th>
-                                        <th>Created</th>
-                                        <th>Actions</th>
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--border); text-align: left;">
+                                    <th style="padding: 0.75rem; width: 60px;">ID</th>
+                                    <th style="padding: 0.75rem;">Site URL</th>
+                                    <th style="padding: 0.75rem; width: 180px;">Created</th>
+                                    <th style="padding: 0.75rem; width: 200px;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.sites.map(site => {
+                                    const siteUrl = site.url.replace('http://', 'https://');
+                                    return `
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <td style="padding: 0.75rem;"><code style="background: #f1f5f9; padding: 4px 10px; border-radius: 4px; font-weight: 600;">${site.blog_id}</code></td>
+                                        <td style="padding: 0.75rem;">
+                                            <a href="${siteUrl}" target="_blank" style="color: var(--accent); font-weight: 500;">${siteUrl}</a>
+                                        </td>
+                                        <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">${site.registered || '-'}</td>
+                                        <td style="padding: 0.75rem;">
+                                            <div style="display: flex; gap: 0.5rem;">
+                                                <a href="${siteUrl}" target="_blank" class="btn btn-secondary btn-small" style="text-decoration: none;">🔗 Visit</a>
+                                                <a href="${siteUrl}wp-admin/" target="_blank" class="btn btn-secondary btn-small" style="text-decoration: none;">⚙️ Admin</a>
+                                                ${site.blog_id !== '1' ? `<button class="btn btn-secondary btn-small" onclick="deleteWordPressSite('${site.blog_id}')" style="color: #ef4444;">🗑️</button>` : ''}
+                                            </div>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    ${data.sites.map(site => `
-                                        <tr>
-                                            <td><code style="background: #f1f5f9; padding: 2px 8px; border-radius: 4px;">${site.blog_id}</code></td>
-                                            <td>
-                                                <a href="${site.url}" target="_blank" style="color: var(--accent);">${site.url}</a>
-                                            </td>
-                                            <td style="font-size: 0.85rem; color: var(--text-secondary);">${site.registered || '-'}</td>
-                                            <td>
-                                                <div style="display: flex; gap: 0.5rem;">
-                                                    <a href="${site.url}" target="_blank" class="btn btn-secondary btn-small">🔗 Visit</a>
-                                                    <a href="${site.url}wp-admin/" target="_blank" class="btn btn-secondary btn-small">⚙️ Admin</a>
-                                                    ${site.blog_id !== '1' ? `<button class="btn btn-secondary btn-small" onclick="deleteWordPressSite('${site.blog_id}')" style="color: #ef4444;">🗑️</button>` : ''}
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
+                                `}).join('')}
+                            </tbody>
+                        </table>
                     `;
                     container.innerHTML = html;
                 } else {
