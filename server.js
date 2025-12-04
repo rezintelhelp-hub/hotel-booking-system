@@ -2210,6 +2210,535 @@ app.post('/api/kb/import', async (req, res) => {
   }
 });
 
+// =====================================================
+// BILLING & SUBSCRIPTION SYSTEM
+// =====================================================
+
+// Setup billing tables
+app.get('/api/setup-billing', async (req, res) => {
+  try {
+    // Subscription plans (editable by admin)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_plans (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        slug VARCHAR(100) UNIQUE NOT NULL,
+        description TEXT,
+        price_monthly DECIMAL(10,2) NOT NULL,
+        price_yearly DECIMAL(10,2),
+        currency VARCHAR(3) DEFAULT 'GBP',
+        max_properties INTEGER,
+        features JSONB DEFAULT '[]',
+        is_active BOOLEAN DEFAULT true,
+        stripe_price_id_monthly VARCHAR(255),
+        stripe_price_id_yearly VARCHAR(255),
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Credit packages (editable by admin)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_credit_packages (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        credits INTEGER NOT NULL,
+        price DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'GBP',
+        bonus_credits INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT true,
+        stripe_price_id VARCHAR(255),
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Extras/services that cost credits
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_extras (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) UNIQUE NOT NULL,
+        description TEXT,
+        credit_cost INTEGER NOT NULL,
+        category VARCHAR(100),
+        icon VARCHAR(50),
+        is_active BOOLEAN DEFAULT true,
+        requires_booking BOOLEAN DEFAULT false,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Account subscriptions
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_subscriptions (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        plan_id INTEGER REFERENCES billing_plans(id),
+        status VARCHAR(50) DEFAULT 'active',
+        billing_cycle VARCHAR(20) DEFAULT 'monthly',
+        stripe_subscription_id VARCHAR(255),
+        stripe_customer_id VARCHAR(255),
+        current_period_start TIMESTAMP,
+        current_period_end TIMESTAMP,
+        cancelled_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Account credit balance
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_credits (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER UNIQUE REFERENCES accounts(id) ON DELETE CASCADE,
+        balance INTEGER DEFAULT 0,
+        lifetime_purchased INTEGER DEFAULT 0,
+        lifetime_spent INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Credit transactions log
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_credit_transactions (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        amount INTEGER NOT NULL,
+        type VARCHAR(50) NOT NULL,
+        description TEXT,
+        reference_type VARCHAR(50),
+        reference_id INTEGER,
+        balance_after INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Payment history
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_payments (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'GBP',
+        type VARCHAR(50) NOT NULL,
+        status VARCHAR(50) DEFAULT 'completed',
+        description TEXT,
+        stripe_payment_id VARCHAR(255),
+        stripe_invoice_id VARCHAR(255),
+        metadata JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Insert default plans if empty
+    const planCheck = await pool.query('SELECT COUNT(*) FROM billing_plans');
+    if (parseInt(planCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO billing_plans (name, slug, description, price_monthly, price_yearly, max_properties, features, sort_order) VALUES
+        ('Starter', 'starter', 'Perfect for single properties', 29.00, 290.00, 1, '["1 property", "Basic features", "Email support", "WordPress plugin"]', 1),
+        ('Professional', 'professional', 'For growing businesses', 59.00, 590.00, 5, '["Up to 5 properties", "All features", "Priority support", "API access", "Custom domain"]', 2),
+        ('Business', 'business', 'For established operators', 99.00, 990.00, 15, '["Up to 15 properties", "All features", "Priority support", "API access", "White-label options", "Dedicated account manager"]', 3),
+        ('Enterprise', 'enterprise', 'Unlimited scale', 199.00, 1990.00, NULL, '["Unlimited properties", "All features", "24/7 support", "Full API access", "White-label", "Custom integrations", "SLA guarantee"]', 4)
+      `);
+    }
+    
+    // Insert default credit packages if empty
+    const creditCheck = await pool.query('SELECT COUNT(*) FROM billing_credit_packages');
+    if (parseInt(creditCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO billing_credit_packages (name, credits, price, bonus_credits, sort_order) VALUES
+        ('10 Credits', 10, 10.00, 0, 1),
+        ('25 Credits', 25, 20.00, 0, 2),
+        ('50 Credits', 50, 40.00, 0, 3),
+        ('100 Credits', 100, 75.00, 0, 4)
+      `);
+    }
+    
+    // Insert default extras if empty
+    const extrasCheck = await pool.query('SELECT COUNT(*) FROM billing_extras');
+    if (parseInt(extrasCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO billing_extras (name, slug, description, credit_cost, category, icon, sort_order) VALUES
+        ('Setup Assistance Call (30 min)', 'setup-call', 'One-on-one video call to help you get started', 5, 'Support', '📞', 1),
+        ('Custom Website Setup', 'website-setup', 'We''ll configure your website template for you', 20, 'Setup', '🎨', 2),
+        ('Data Migration', 'data-migration', 'Help migrating from another system', 15, 'Setup', '📦', 3),
+        ('AI Content Generation (10 pages)', 'ai-content', 'AI-written descriptions for your properties', 5, 'Content', '🤖', 4),
+        ('Premium Template', 'premium-template', 'Access to premium website templates', 10, 'Templates', '✨', 5),
+        ('Priority Support Ticket', 'priority-support', 'Jump the queue for support', 2, 'Support', '🚀', 6),
+        ('Training Session (1 hour)', 'training', 'Personalised training session', 10, 'Support', '📚', 7),
+        ('Custom Integration', 'custom-integration', 'Custom channel manager or API integration', 30, 'Development', '🔧', 8)
+      `);
+    }
+    
+    res.json({ success: true, message: 'Billing tables created with default data!' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// BILLING PLANS ADMIN (Master Admin Only)
+// =====================================================
+
+// Get all plans
+app.get('/api/admin/billing/plans', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM billing_plans ORDER BY sort_order, price_monthly');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create/update plan
+app.post('/api/admin/billing/plans', async (req, res) => {
+  try {
+    const { id, name, slug, description, price_monthly, price_yearly, currency, max_properties, features, is_active, sort_order } = req.body;
+    
+    if (id) {
+      const result = await pool.query(`
+        UPDATE billing_plans SET 
+          name = $1, slug = $2, description = $3, price_monthly = $4, price_yearly = $5,
+          currency = $6, max_properties = $7, features = $8, is_active = $9, sort_order = $10
+        WHERE id = $11 RETURNING *
+      `, [name, slug, description, price_monthly, price_yearly, currency || 'GBP', max_properties, JSON.stringify(features || []), is_active !== false, sort_order || 0, id]);
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      const result = await pool.query(`
+        INSERT INTO billing_plans (name, slug, description, price_monthly, price_yearly, currency, max_properties, features, is_active, sort_order)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+      `, [name, slug, description, price_monthly, price_yearly, currency || 'GBP', max_properties, JSON.stringify(features || []), is_active !== false, sort_order || 0]);
+      res.json({ success: true, data: result.rows[0] });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete plan
+app.delete('/api/admin/billing/plans/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM billing_plans WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// CREDIT PACKAGES ADMIN
+// =====================================================
+
+// Get all credit packages
+app.get('/api/admin/billing/credit-packages', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM billing_credit_packages ORDER BY sort_order, price');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create/update credit package
+app.post('/api/admin/billing/credit-packages', async (req, res) => {
+  try {
+    const { id, name, credits, price, currency, bonus_credits, is_active, sort_order } = req.body;
+    
+    if (id) {
+      const result = await pool.query(`
+        UPDATE billing_credit_packages SET 
+          name = $1, credits = $2, price = $3, currency = $4, bonus_credits = $5, is_active = $6, sort_order = $7
+        WHERE id = $8 RETURNING *
+      `, [name, credits, price, currency || 'GBP', bonus_credits || 0, is_active !== false, sort_order || 0, id]);
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      const result = await pool.query(`
+        INSERT INTO billing_credit_packages (name, credits, price, currency, bonus_credits, is_active, sort_order)
+        VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *
+      `, [name, credits, price, currency || 'GBP', bonus_credits || 0, is_active !== false, sort_order || 0]);
+      res.json({ success: true, data: result.rows[0] });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete credit package
+app.delete('/api/admin/billing/credit-packages/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM billing_credit_packages WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// EXTRAS ADMIN
+// =====================================================
+
+// Get all extras
+app.get('/api/admin/billing/extras', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM billing_extras ORDER BY sort_order, name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create/update extra
+app.post('/api/admin/billing/extras', async (req, res) => {
+  try {
+    const { id, name, slug, description, credit_cost, category, icon, is_active, requires_booking, sort_order } = req.body;
+    
+    const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    
+    if (id) {
+      const result = await pool.query(`
+        UPDATE billing_extras SET 
+          name = $1, slug = $2, description = $3, credit_cost = $4, category = $5, 
+          icon = $6, is_active = $7, requires_booking = $8, sort_order = $9
+        WHERE id = $10 RETURNING *
+      `, [name, finalSlug, description, credit_cost, category, icon, is_active !== false, requires_booking || false, sort_order || 0, id]);
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      const result = await pool.query(`
+        INSERT INTO billing_extras (name, slug, description, credit_cost, category, icon, is_active, requires_booking, sort_order)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *
+      `, [name, finalSlug, description, credit_cost, category, icon, is_active !== false, requires_booking || false, sort_order || 0]);
+      res.json({ success: true, data: result.rows[0] });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete extra
+app.delete('/api/admin/billing/extras/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM billing_extras WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// ACCOUNT BILLING (For Users)
+// =====================================================
+
+// Get account's subscription and credits
+app.get('/api/billing/my-account', async (req, res) => {
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Not authenticated' });
+    }
+    
+    // Get account from token
+    const sessionResult = await pool.query(`
+      SELECT a.* FROM accounts a
+      JOIN account_sessions s ON a.id = s.account_id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    
+    if (sessionResult.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid session' });
+    }
+    
+    const account = sessionResult.rows[0];
+    
+    // Get subscription
+    const subResult = await pool.query(`
+      SELECT s.*, p.name as plan_name, p.features, p.max_properties
+      FROM billing_subscriptions s
+      LEFT JOIN billing_plans p ON s.plan_id = p.id
+      WHERE s.account_id = $1 AND s.status = 'active'
+      ORDER BY s.created_at DESC LIMIT 1
+    `, [account.id]);
+    
+    // Get credits
+    const creditResult = await pool.query(`
+      SELECT * FROM billing_credits WHERE account_id = $1
+    `, [account.id]);
+    
+    // Get recent credit transactions
+    const transResult = await pool.query(`
+      SELECT * FROM billing_credit_transactions 
+      WHERE account_id = $1 
+      ORDER BY created_at DESC LIMIT 10
+    `, [account.id]);
+    
+    res.json({
+      success: true,
+      subscription: subResult.rows[0] || null,
+      credits: creditResult.rows[0] || { balance: 0, lifetime_purchased: 0, lifetime_spent: 0 },
+      recent_transactions: transResult.rows
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get available plans (for upgrade/signup)
+app.get('/api/billing/plans', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM billing_plans WHERE is_active = true ORDER BY sort_order, price_monthly');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get available credit packages
+app.get('/api/billing/credit-packages', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM billing_credit_packages WHERE is_active = true ORDER BY sort_order, price');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get available extras
+app.get('/api/billing/extras', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM billing_extras WHERE is_active = true ORDER BY sort_order, name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Add credits to account (admin function or after Stripe payment)
+app.post('/api/billing/add-credits', async (req, res) => {
+  try {
+    const { account_id, amount, description, type = 'purchase', reference_type, reference_id } = req.body;
+    
+    // Upsert credits record
+    await pool.query(`
+      INSERT INTO billing_credits (account_id, balance, lifetime_purchased, updated_at)
+      VALUES ($1, $2, $2, NOW())
+      ON CONFLICT (account_id) DO UPDATE SET
+        balance = billing_credits.balance + $2,
+        lifetime_purchased = billing_credits.lifetime_purchased + $2,
+        updated_at = NOW()
+    `, [account_id, amount]);
+    
+    // Get new balance
+    const balanceResult = await pool.query('SELECT balance FROM billing_credits WHERE account_id = $1', [account_id]);
+    const newBalance = balanceResult.rows[0]?.balance || amount;
+    
+    // Log transaction
+    await pool.query(`
+      INSERT INTO billing_credit_transactions (account_id, amount, type, description, reference_type, reference_id, balance_after)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `, [account_id, amount, type, description, reference_type, reference_id, newBalance]);
+    
+    res.json({ success: true, new_balance: newBalance });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Spend credits on an extra
+app.post('/api/billing/spend-credits', async (req, res) => {
+  try {
+    const { account_id, extra_id, notes } = req.body;
+    
+    // Get the extra
+    const extraResult = await pool.query('SELECT * FROM billing_extras WHERE id = $1', [extra_id]);
+    if (extraResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Extra not found' });
+    }
+    const extra = extraResult.rows[0];
+    
+    // Check balance
+    const balanceResult = await pool.query('SELECT balance FROM billing_credits WHERE account_id = $1', [account_id]);
+    const currentBalance = balanceResult.rows[0]?.balance || 0;
+    
+    if (currentBalance < extra.credit_cost) {
+      return res.json({ success: false, error: 'Insufficient credits', required: extra.credit_cost, available: currentBalance });
+    }
+    
+    // Deduct credits
+    await pool.query(`
+      UPDATE billing_credits SET 
+        balance = balance - $1,
+        lifetime_spent = lifetime_spent + $1,
+        updated_at = NOW()
+      WHERE account_id = $2
+    `, [extra.credit_cost, account_id]);
+    
+    // Get new balance
+    const newBalanceResult = await pool.query('SELECT balance FROM billing_credits WHERE account_id = $1', [account_id]);
+    const newBalance = newBalanceResult.rows[0]?.balance || 0;
+    
+    // Log transaction
+    await pool.query(`
+      INSERT INTO billing_credit_transactions (account_id, amount, type, description, reference_type, reference_id, balance_after)
+      VALUES ($1, $2, 'spend', $3, 'extra', $4, $5)
+    `, [account_id, -extra.credit_cost, `${extra.name}${notes ? ' - ' + notes : ''}`, extra.id, newBalance]);
+    
+    res.json({ success: true, new_balance: newBalance, extra: extra.name });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get billing overview for admin (all accounts)
+app.get('/api/admin/billing/overview', async (req, res) => {
+  try {
+    // Total active subscriptions by plan
+    const subsByPlan = await pool.query(`
+      SELECT p.name, p.price_monthly, COUNT(s.id) as count, SUM(p.price_monthly) as mrr
+      FROM billing_subscriptions s
+      JOIN billing_plans p ON s.plan_id = p.id
+      WHERE s.status = 'active'
+      GROUP BY p.id, p.name, p.price_monthly
+      ORDER BY p.sort_order
+    `);
+    
+    // Total MRR
+    const mrrResult = await pool.query(`
+      SELECT COALESCE(SUM(p.price_monthly), 0) as total_mrr
+      FROM billing_subscriptions s
+      JOIN billing_plans p ON s.plan_id = p.id
+      WHERE s.status = 'active'
+    `);
+    
+    // Total credits in circulation
+    const creditsResult = await pool.query(`
+      SELECT 
+        COALESCE(SUM(balance), 0) as total_balance,
+        COALESCE(SUM(lifetime_purchased), 0) as total_purchased,
+        COALESCE(SUM(lifetime_spent), 0) as total_spent
+      FROM billing_credits
+    `);
+    
+    // Recent payments
+    const paymentsResult = await pool.query(`
+      SELECT bp.*, a.name as account_name
+      FROM billing_payments bp
+      JOIN accounts a ON bp.account_id = a.id
+      ORDER BY bp.created_at DESC LIMIT 20
+    `);
+    
+    res.json({
+      success: true,
+      subscriptions_by_plan: subsByPlan.rows,
+      mrr: parseFloat(mrrResult.rows[0]?.total_mrr || 0),
+      credits: creditsResult.rows[0],
+      recent_payments: paymentsResult.rows
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/auth/signup', async (req, res) => {
   const { name, email, password, company, account_type } = req.body;
   try {
