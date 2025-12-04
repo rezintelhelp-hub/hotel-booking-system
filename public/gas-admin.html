@@ -4442,6 +4442,29 @@ const promo = await fetch('/api/v1/offers/validate', {
                         <button class="btn" onclick="saveInstaWPSettings()">💾 Save</button>
                     </div>
                 </div>
+
+                <!-- Plugin Downloads -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #1e40af 0%, #7c3aed 100%); color: white;">
+                    <h3 style="margin: 0 0 1rem 0; font-size: 1rem;">📦 Plugin Downloads</h3>
+                    <p style="font-size: 0.85rem; opacity: 0.9; margin-bottom: 1rem;">For manual WordPress installation:</p>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 0.75rem;">
+                        <a href="/downloads/gas-booking-wp-plugin.zip" download class="btn" style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; text-align: center; border: 1px solid rgba(255,255,255,0.3);">
+                            🔌 GAS Booking
+                        </a>
+                        <a href="/downloads/gas-theme-developer.zip" download class="btn" style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; text-align: center; border: 1px solid rgba(255,255,255,0.3);">
+                            🎨 Developer Theme
+                        </a>
+                        <a href="/downloads/gas-blog.zip" download class="btn" style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; text-align: center; border: 1px solid rgba(255,255,255,0.3);">
+                            📝 GAS Blog
+                        </a>
+                        <a href="/downloads/gas-attractions.zip" download class="btn" style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; text-align: center; border: 1px solid rgba(255,255,255,0.3);">
+                            📍 Attractions
+                        </a>
+                        <a href="/downloads/gas-reviews.zip" download class="btn" style="background: rgba(255,255,255,0.2); color: white; text-decoration: none; text-align: center; border: 1px solid rgba(255,255,255,0.3);">
+                            ⭐ Reviews
+                        </a>
+                    </div>
+                </div>
             </div>
 
             <!-- Knowledge Base Articles View -->
@@ -8626,9 +8649,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         async function getWordPressSettings() {
-            // Get from input fields with defaults
-            const apiUrl = document.getElementById('instawp-api-url')?.value || 'https://sites.gas.travel/gas-api.php';
-            const apiKey = document.getElementById('instawp-api-key')?.value || 'GAS_SECRET_KEY_2024!';
+            // Get from localStorage first, then input fields, then defaults
+            const apiUrl = localStorage.getItem('wp_api_url') || document.getElementById('instawp-api-url')?.value || 'https://sites.gas.travel/gas-api.php';
+            const apiKey = localStorage.getItem('wp_api_key') || document.getElementById('instawp-api-key')?.value || 'GAS_SECRET_KEY_2024!';
             return { api_url: apiUrl, api_key: apiKey };
         }
         
@@ -15732,45 +15755,51 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         async function loadInstaWPSettings() {
-            try {
-                const response = await fetch('/api/admin/instawp/settings');
-                const data = await response.json();
-                
-                if (data.success && data.data) {
-                    if (document.getElementById('instawp-api-url')) {
-                        document.getElementById('instawp-api-url').value = data.data.api_url || 'https://sites.gas.travel/gas-api.php';
-                    }
-                    document.getElementById('instawp-api-key').value = data.data.api_key || '';
-                    document.getElementById('instawp-default-template').value = data.data.default_template || '';
-                    document.getElementById('instawp-enabled').checked = data.data.is_enabled || false;
-                }
-            } catch (error) {
-                console.error('Error loading WordPress settings:', error);
+            // Load from localStorage
+            const savedUrl = localStorage.getItem('wp_api_url');
+            const savedKey = localStorage.getItem('wp_api_key');
+            
+            if (savedUrl && document.getElementById('instawp-api-url')) {
+                document.getElementById('instawp-api-url').value = savedUrl;
+            }
+            if (savedKey && document.getElementById('instawp-api-key')) {
+                document.getElementById('instawp-api-key').value = savedKey;
             }
         }
         
         async function saveInstaWPSettings() {
+            const apiUrl = document.getElementById('instawp-api-url')?.value;
+            const apiKey = document.getElementById('instawp-api-key')?.value;
+            
+            if (!apiUrl || !apiKey) {
+                showNotification('Please fill in API URL and Key', 'error');
+                return;
+            }
+            
+            // Store locally for now
+            localStorage.setItem('wp_api_url', apiUrl);
+            localStorage.setItem('wp_api_key', apiKey);
+            
+            // Test the connection
             try {
-                const response = await fetch('/api/admin/instawp/settings', {
+                const response = await fetch(apiUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        api_url: document.getElementById('instawp-api-url')?.value || 'https://sites.gas.travel/gas-api.php',
-                        api_key: document.getElementById('instawp-api-key').value,
-                        default_template: document.getElementById('instawp-default-template').value,
-                        templates: {},
-                        is_enabled: document.getElementById('instawp-enabled').checked
-                    })
+                    headers: {
+                        'Authorization': 'Bearer ' + apiKey,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({ action: 'list_sites' })
                 });
                 
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('WordPress hosting settings saved!', 'success');
+                    showNotification('✅ Settings saved and connection verified!', 'success');
+                    loadWordPressSites();
                 } else {
-                    showNotification('Error: ' + data.error, 'error');
+                    showNotification('Settings saved but connection failed: ' + (data.error || 'Unknown error'), 'error');
                 }
             } catch (error) {
-                showNotification('Error saving settings', 'error');
+                showNotification('Settings saved but could not connect: ' + error.message, 'error');
             }
         }
         
