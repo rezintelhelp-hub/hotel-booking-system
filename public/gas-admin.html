@@ -6819,6 +6819,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     currentAccount = data.account;
                     updateUserProfile();
                     applyRoleBasedAccess();
+                    // Update billing nav visibility after auth
+                    if (typeof updateBillingNavVisibility === 'function') {
+                        updateBillingNavVisibility();
+                    }
                     // Reload dashboard with correct filters
                     if (typeof loadDashboard === 'function') {
                         loadDashboard();
@@ -6839,6 +6843,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                     currentAccount = JSON.parse(cachedAccount);
                     updateUserProfile();
                     applyRoleBasedAccess();
+                    // Update billing nav visibility after auth
+                    if (typeof updateBillingNavVisibility === 'function') {
+                        updateBillingNavVisibility();
+                    }
                     if (typeof loadDashboard === 'function') {
                         loadDashboard();
                     }
@@ -15246,7 +15254,8 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         // Show admin billing sections for master_admin only
         function updateBillingNavVisibility() {
-            const user = JSON.parse(localStorage.getItem('gas_user') || '{}');
+            // Check both possible storage keys and currentAccount
+            const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || localStorage.getItem('gas_user') || '{}');
             const isMasterAdmin = user.role === 'master_admin';
             
             document.querySelectorAll('.billing-admin-only').forEach(el => {
@@ -15254,7 +15263,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             });
         }
         
-        // Call on page load
+        // Call on page load (will be called again after auth)
         updateBillingNavVisibility();
 
         // Load client-facing billing page
