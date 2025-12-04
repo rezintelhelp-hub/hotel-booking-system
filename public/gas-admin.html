@@ -4750,7 +4750,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
 
                 <!-- Setup Button -->
-                <div class="card" style="margin-bottom: 1.5rem; background: #f0fdf4; border: 1px solid #bbf7d0;">
+                <div id="billing-setup-section" class="card" style="margin-bottom: 1.5rem; background: #f0fdf4; border: 1px solid #bbf7d0;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <div>
                             <h3 style="margin: 0 0 0.5rem 0; color: #166534;">🔧 Setup Billing Tables</h3>
@@ -15184,6 +15184,16 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 const response = await fetch('/api/admin/billing/overview');
                 const data = await response.json();
+                
+                // Hide setup button if we have data
+                const setupSection = document.getElementById('billing-setup-section');
+                if (setupSection) {
+                    if (data.success) {
+                        setupSection.style.display = 'none';
+                    } else {
+                        setupSection.style.display = 'block';
+                    }
+                }
                 
                 if (data.success) {
                     // Update MRR
