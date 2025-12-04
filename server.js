@@ -2283,9 +2283,15 @@ app.get('/api/setup-billing', async (req, res) => {
         current_period_start TIMESTAMP,
         current_period_end TIMESTAMP,
         cancelled_at TIMESTAMP,
+        feature_overrides JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
+    `);
+    
+    // Add feature_overrides column if missing (for existing tables)
+    await pool.query(`
+      ALTER TABLE billing_subscriptions ADD COLUMN IF NOT EXISTS feature_overrides JSONB DEFAULT '{}'
     `);
     
     // Account credit balance
@@ -2418,6 +2424,83 @@ app.get('/api/setup-billing', async (req, res) => {
         ('GAS Reviews Plugin', 'gas-reviews-plugin', 'Reviews from multiple sources', 'plugin', 'enterprise', '1.0.0')
       `);
     }
+    
+    // InstaWP settings (global platform settings)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS instawp_settings (
+        id SERIAL PRIMARY KEY,
+        api_key VARCHAR(500),
+        default_template VARCHAR(255),
+        templates JSONB DEFAULT '{}',
+        webhook_secret VARCHAR(255),
+        is_enabled BOOLEAN DEFAULT false,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Account websites (InstaWP sites created for accounts)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS account_websites (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        instawp_site_id VARCHAR(255),
+        site_name VARCHAR(255),
+        site_url VARCHAR(500),
+        admin_url VARCHAR(500),
+        template_used VARCHAR(255),
+        custom_domain VARCHAR(255),
+        status VARCHAR(50) DEFAULT 'creating',
+        instawp_data JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id)
+      )
+    `);
+    
+    // Property payment settings
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS property_payment_settings (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE UNIQUE,
+        payment_enabled BOOLEAN DEFAULT true,
+        deposit_type VARCHAR(20) DEFAULT 'percentage',
+        deposit_amount DECIMAL(10,2) DEFAULT 25,
+        balance_due_days INTEGER DEFAULT 14,
+        stripe_account_id VARCHAR(255),
+        stripe_connected BOOLEAN DEFAULT false,
+        paypal_email VARCHAR(255),
+        bank_details JSONB DEFAULT '{}',
+        accepted_methods JSONB DEFAULT '["card"]',
+        currency VARCHAR(3) DEFAULT 'GBP',
+        cancellation_policy TEXT,
+        refund_policy JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Guest payments (transactions from booking site)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS guest_payments (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER REFERENCES bookings(id) ON DELETE SET NULL,
+        property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        guest_email VARCHAR(255),
+        guest_name VARCHAR(255),
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'GBP',
+        payment_type VARCHAR(50) DEFAULT 'deposit',
+        payment_method VARCHAR(50),
+        status VARCHAR(50) DEFAULT 'pending',
+        stripe_payment_id VARCHAR(255),
+        stripe_transfer_id VARCHAR(255),
+        paypal_transaction_id VARCHAR(255),
+        metadata JSONB DEFAULT '{}',
+        paid_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
     
     res.json({ success: true, message: 'Billing tables created with default data!' });
   } catch (error) {
@@ -2663,7 +2746,7 @@ app.get('/api/billing/extras', async (req, res) => {
 // Assign subscription to account (admin function)
 app.post('/api/admin/billing/assign-subscription', async (req, res) => {
   try {
-    const { account_id, plan_id, billing_cycle = 'monthly', status = 'active' } = req.body;
+    const { account_id, plan_id, billing_cycle = 'monthly', status = 'active', feature_overrides = {} } = req.body;
     
     // Validate plan exists
     const planResult = await pool.query('SELECT * FROM billing_plans WHERE id = $1', [plan_id]);
@@ -2680,29 +2763,33 @@ app.post('/api/admin/billing/assign-subscription', async (req, res) => {
       periodEnd.setMonth(periodEnd.getMonth() + 1);
     }
     
-    // Upsert subscription (one active subscription per account)
-    const result = await pool.query(`
-      INSERT INTO billing_subscriptions (account_id, plan_id, status, billing_cycle, current_period_start, current_period_end)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      ON CONFLICT (account_id) WHERE status = 'active'
-      DO UPDATE SET
-        plan_id = $2,
-        status = $3,
-        billing_cycle = $4,
-        current_period_start = $5,
-        current_period_end = $6,
-        updated_at = NOW()
-      RETURNING *
-    `, [account_id, plan_id, status, billing_cycle, now, periodEnd]);
+    // Check if subscription exists
+    const existingResult = await pool.query(`
+      SELECT id FROM billing_subscriptions WHERE account_id = $1
+    `, [account_id]);
     
-    // If no rows affected by upsert (no existing active sub), insert new
-    if (result.rows.length === 0) {
-      const insertResult = await pool.query(`
-        INSERT INTO billing_subscriptions (account_id, plan_id, status, billing_cycle, current_period_start, current_period_end)
-        VALUES ($1, $2, $3, $4, $5, $6)
+    let result;
+    if (existingResult.rows.length > 0) {
+      // Update existing subscription
+      result = await pool.query(`
+        UPDATE billing_subscriptions SET
+          plan_id = $2,
+          status = $3,
+          billing_cycle = $4,
+          current_period_start = $5,
+          current_period_end = $6,
+          feature_overrides = $7,
+          updated_at = NOW()
+        WHERE account_id = $1
         RETURNING *
-      `, [account_id, plan_id, status, billing_cycle, now, periodEnd]);
-      return res.json({ success: true, data: insertResult.rows[0] });
+      `, [account_id, plan_id, status, billing_cycle, now, periodEnd, JSON.stringify(feature_overrides)]);
+    } else {
+      // Insert new subscription
+      result = await pool.query(`
+        INSERT INTO billing_subscriptions (account_id, plan_id, status, billing_cycle, current_period_start, current_period_end, feature_overrides)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING *
+      `, [account_id, plan_id, status, billing_cycle, now, periodEnd, JSON.stringify(feature_overrides)]);
     }
     
     res.json({ success: true, data: result.rows[0] });
@@ -2824,35 +2911,35 @@ app.post('/api/billing/spend-credits', async (req, res) => {
 // Update existing plans with new feature structure (run once)
 app.get('/api/admin/billing/update-plans', async (req, res) => {
   try {
-    // Update Starter
+    // Update Starter - no API access
     await pool.query(`
       UPDATE billing_plans SET 
         max_properties = 1,
-        features = '{"properties": 1, "websites": 1, "booking_plugin": true, "theme": "basic", "blog_module": false, "attractions_module": false, "reviews_widget": false, "support": "email", "free_trial": false, "white_label": false, "features_list": ["1 property", "1 website", "Booking plugin", "Basic theme", "Email support"]}'
+        features = '{"properties": 1, "websites": 1, "booking_plugin": true, "theme": "basic", "blog_module": false, "attractions_module": false, "reviews_widget": false, "api_access": false, "support": "email", "free_trial": false, "white_label": false, "features_list": ["1 property", "1 website", "Booking plugin", "Basic theme", "Email support"]}'
       WHERE slug = 'starter'
     `);
     
-    // Update Professional
+    // Update Professional - no API access
     await pool.query(`
       UPDATE billing_plans SET 
         max_properties = 10,
-        features = '{"properties": 10, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": false, "reviews_widget": false, "support": "email", "free_trial": true, "white_label": false, "features_list": ["Up to 10 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Email support", "14-day free trial"]}'
+        features = '{"properties": 10, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": false, "reviews_widget": false, "api_access": false, "support": "email", "free_trial": true, "white_label": false, "features_list": ["Up to 10 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Email support", "14-day free trial"]}'
       WHERE slug = 'professional'
     `);
     
-    // Update Business
+    // Update Business - no API access
     await pool.query(`
       UPDATE billing_plans SET 
         max_properties = 50,
-        features = '{"properties": 50, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": true, "reviews_widget": false, "support": "priority", "free_trial": true, "white_label": false, "features_list": ["Up to 50 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Attractions module", "Priority support", "14-day free trial"]}'
+        features = '{"properties": 50, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": true, "reviews_widget": false, "api_access": false, "support": "priority", "free_trial": true, "white_label": false, "features_list": ["Up to 50 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Attractions module", "Priority support", "14-day free trial"]}'
       WHERE slug = 'business'
     `);
     
-    // Update Enterprise
+    // Update Enterprise - HAS API access
     await pool.query(`
       UPDATE billing_plans SET 
         max_properties = NULL,
-        features = '{"properties": null, "websites": 10, "booking_plugin": true, "theme": "premium", "blog_module": true, "attractions_module": true, "reviews_widget": true, "support": "dedicated", "free_trial": true, "white_label": true, "features_list": ["Unlimited properties", "Up to 10 websites", "Booking plugin", "All themes including premium", "Blog module", "Attractions module", "Reviews widget", "Dedicated support", "White-label option", "14-day free trial"]}'
+        features = '{"properties": null, "websites": 10, "booking_plugin": true, "theme": "premium", "blog_module": true, "attractions_module": true, "reviews_widget": true, "api_access": true, "support": "dedicated", "free_trial": true, "white_label": true, "features_list": ["Unlimited properties", "Up to 10 websites", "Booking plugin", "All themes including premium", "Blog module", "Attractions module", "Reviews widget", "API access", "Dedicated support", "White-label option", "14-day free trial"]}'
       WHERE slug = 'enterprise'
     `);
     
@@ -2863,11 +2950,12 @@ app.get('/api/admin/billing/update-plans', async (req, res) => {
       ('Additional Website', 'additional-website', 'Add another website to your account', 20, 'Websites', '🌐', 1),
       ('Reviews Widget', 'reviews-widget', 'Display reviews from TripAdvisor, Booking.com, Google', 15, 'Modules', '⭐', 2),
       ('Attractions Module', 'attractions-module', 'Showcase nearby attractions and things to do', 10, 'Modules', '📍', 3),
-      ('Premium Theme', 'premium-theme', 'Access to premium website design', 25, 'Themes', '✨', 4),
-      ('Setup Assistance Call (30 min)', 'setup-call', 'One-on-one video call to help you get started', 5, 'Support', '📞', 5),
-      ('We Setup For You', 'full-setup', 'We configure everything for you', 20, 'Support', '🎨', 6),
-      ('Custom Integration', 'custom-integration', 'Custom channel manager or API integration', 30, 'Development', '🔧', 7),
-      ('Training Session (1 hour)', 'training', 'Personalised training session', 10, 'Support', '📚', 8)
+      ('API Access', 'api-access', 'Enable API access for custom integrations', 25, 'Development', '🔌', 4),
+      ('Premium Theme', 'premium-theme', 'Access to premium website design', 25, 'Themes', '✨', 5),
+      ('Setup Assistance Call (30 min)', 'setup-call', 'One-on-one video call to help you get started', 5, 'Support', '📞', 6),
+      ('We Setup For You', 'full-setup', 'We configure everything for you', 20, 'Support', '🎨', 7),
+      ('Custom Integration', 'custom-integration', 'Custom channel manager or API integration', 30, 'Development', '🔧', 8),
+      ('Training Session (1 hour)', 'training', 'Personalised training session', 10, 'Support', '📚', 9)
     `);
     
     // Create new tables if they don't exist
@@ -3067,9 +3155,9 @@ app.get('/api/account/:accountId/entitlements', async (req, res) => {
   try {
     const accountId = req.params.accountId;
     
-    // Get subscription plan features
+    // Get subscription plan features AND feature_overrides
     const subResult = await pool.query(`
-      SELECT p.features, p.slug as plan_slug, p.name as plan_name
+      SELECT p.features, p.slug as plan_slug, p.name as plan_name, s.feature_overrides
       FROM billing_subscriptions s
       JOIN billing_plans p ON s.plan_id = p.id
       WHERE s.account_id = $1 AND s.status = 'active'
@@ -3077,7 +3165,11 @@ app.get('/api/account/:accountId/entitlements', async (req, res) => {
     `, [accountId]);
     
     const planFeatures = subResult.rows[0]?.features || {};
+    const featureOverrides = subResult.rows[0]?.feature_overrides || {};
     const planSlug = subResult.rows[0]?.plan_slug || 'none';
+    
+    // Merge plan features with overrides (overrides take precedence)
+    const mergedFeatures = { ...planFeatures, ...featureOverrides };
     
     // Get delivered items
     const deliveredResult = await pool.query(`
@@ -3087,7 +3179,7 @@ app.get('/api/account/:accountId/entitlements', async (req, res) => {
     `, [accountId]);
     
     // Get available templates they can access based on tier
-    const tierOrder = { 'basic': 1, 'professional': 2, 'business': 3, 'enterprise': 4 };
+    const tierOrder = { 'basic': 1, 'starter': 1, 'professional': 2, 'business': 3, 'enterprise': 4 };
     const accountTier = tierOrder[planSlug] || 0;
     
     const templatesResult = await pool.query(`
@@ -3102,9 +3194,398 @@ app.get('/api/account/:accountId/entitlements', async (req, res) => {
     res.json({
       success: true,
       plan: subResult.rows[0] || null,
-      features: planFeatures,
+      features: mergedFeatures,
+      feature_overrides: featureOverrides,
       delivered: deliveredResult.rows,
       accessible_templates: accessibleTemplates
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// INSTAWP INTEGRATION
+// =====================================================
+
+// Get InstaWP settings (master admin)
+app.get('/api/admin/instawp/settings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM instawp_settings ORDER BY id LIMIT 1');
+    res.json({ success: true, data: result.rows[0] || null });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save InstaWP settings (master admin)
+app.post('/api/admin/instawp/settings', async (req, res) => {
+  try {
+    const { api_key, default_template, templates, webhook_secret, is_enabled } = req.body;
+    
+    // Upsert
+    const existing = await pool.query('SELECT id FROM instawp_settings LIMIT 1');
+    
+    if (existing.rows.length > 0) {
+      const result = await pool.query(`
+        UPDATE instawp_settings SET
+          api_key = $1, default_template = $2, templates = $3, webhook_secret = $4, is_enabled = $5, updated_at = NOW()
+        WHERE id = $6 RETURNING *
+      `, [api_key, default_template, JSON.stringify(templates || {}), webhook_secret, is_enabled, existing.rows[0].id]);
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      const result = await pool.query(`
+        INSERT INTO instawp_settings (api_key, default_template, templates, webhook_secret, is_enabled)
+        VALUES ($1, $2, $3, $4, $5) RETURNING *
+      `, [api_key, default_template, JSON.stringify(templates || {}), webhook_secret, is_enabled]);
+      res.json({ success: true, data: result.rows[0] });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get account website
+app.get('/api/account/:accountId/website', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM account_websites WHERE account_id = $1
+    `, [req.params.accountId]);
+    res.json({ success: true, data: result.rows[0] || null });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create website for account via InstaWP
+app.post('/api/admin/instawp/create-site', async (req, res) => {
+  try {
+    const { account_id, site_name, template_slug } = req.body;
+    
+    // Get InstaWP settings
+    const settingsResult = await pool.query('SELECT * FROM instawp_settings LIMIT 1');
+    const settings = settingsResult.rows[0];
+    
+    if (!settings || !settings.api_key || !settings.is_enabled) {
+      return res.json({ success: false, error: 'InstaWP not configured. Add API key in settings.' });
+    }
+    
+    // Check if account already has a site
+    const existingResult = await pool.query('SELECT * FROM account_websites WHERE account_id = $1', [account_id]);
+    if (existingResult.rows.length > 0) {
+      return res.json({ success: false, error: 'Account already has a website', existing: existingResult.rows[0] });
+    }
+    
+    // Get account details for configuration
+    const accountResult = await pool.query('SELECT * FROM accounts WHERE id = $1', [account_id]);
+    const account = accountResult.rows[0];
+    
+    if (!account) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    // Determine template based on subscription
+    const subResult = await pool.query(`
+      SELECT p.slug FROM billing_subscriptions s
+      JOIN billing_plans p ON s.plan_id = p.id
+      WHERE s.account_id = $1 AND s.status = 'active'
+    `, [account_id]);
+    
+    const planSlug = subResult.rows[0]?.slug || 'starter';
+    const templates = settings.templates || {};
+    const templateToUse = template_slug || templates[planSlug] || settings.default_template;
+    
+    // Create site via InstaWP API
+    const instawpResponse = await fetch('https://app.instawp.io/api/v2/sites/template', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${settings.api_key}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        template_slug: templateToUse,
+        site_name: site_name || account.name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+        is_reserved: true
+      })
+    });
+    
+    const instawpData = await instawpResponse.json();
+    
+    if (!instawpResponse.ok) {
+      return res.json({ success: false, error: 'InstaWP API error', details: instawpData });
+    }
+    
+    // Store website record
+    const websiteResult = await pool.query(`
+      INSERT INTO account_websites (account_id, instawp_site_id, site_name, site_url, admin_url, template_used, status, instawp_data)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [
+      account_id,
+      instawpData.data?.id || instawpData.id,
+      site_name || account.name,
+      instawpData.data?.url || instawpData.url,
+      instawpData.data?.wp_admin_url || instawpData.wp_admin_url,
+      templateToUse,
+      instawpData.data?.is_pool ? 'active' : 'creating',
+      JSON.stringify(instawpData)
+    ]);
+    
+    res.json({ success: true, data: websiteResult.rows[0], instawp: instawpData });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Check InstaWP site status
+app.get('/api/admin/instawp/site-status/:siteId', async (req, res) => {
+  try {
+    const settingsResult = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const settings = settingsResult.rows[0];
+    
+    if (!settings || !settings.api_key) {
+      return res.json({ success: false, error: 'InstaWP not configured' });
+    }
+    
+    const response = await fetch(`https://app.instawp.io/api/v2/sites/${req.params.siteId}`, {
+      headers: { 'Authorization': `Bearer ${settings.api_key}` }
+    });
+    
+    const data = await response.json();
+    res.json({ success: true, data });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update website record (after site is ready)
+app.put('/api/account/:accountId/website', async (req, res) => {
+  try {
+    const { site_url, admin_url, custom_domain, status } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE account_websites SET
+        site_url = COALESCE($2, site_url),
+        admin_url = COALESCE($3, admin_url),
+        custom_domain = COALESCE($4, custom_domain),
+        status = COALESCE($5, status),
+        updated_at = NOW()
+      WHERE account_id = $1
+      RETURNING *
+    `, [req.params.accountId, site_url, admin_url, custom_domain, status]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete website
+app.delete('/api/account/:accountId/website', async (req, res) => {
+  try {
+    // Get website details first
+    const websiteResult = await pool.query('SELECT * FROM account_websites WHERE account_id = $1', [req.params.accountId]);
+    const website = websiteResult.rows[0];
+    
+    if (!website) {
+      return res.json({ success: false, error: 'No website found' });
+    }
+    
+    // Optionally delete from InstaWP too
+    const settingsResult = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const settings = settingsResult.rows[0];
+    
+    if (settings?.api_key && website.instawp_site_id) {
+      try {
+        await fetch(`https://app.instawp.io/api/v2/sites/${website.instawp_site_id}`, {
+          method: 'DELETE',
+          headers: { 'Authorization': `Bearer ${settings.api_key}` }
+        });
+      } catch (e) {
+        console.log('Failed to delete from InstaWP:', e.message);
+      }
+    }
+    
+    await pool.query('DELETE FROM account_websites WHERE account_id = $1', [req.params.accountId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PROPERTY PAYMENT SETTINGS
+// =====================================================
+
+// Get payment settings for a property
+app.get('/api/property/:propertyId/payment-settings', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM property_payment_settings WHERE property_id = $1
+    `, [req.params.propertyId]);
+    
+    // Return defaults if no settings exist
+    if (result.rows.length === 0) {
+      res.json({ 
+        success: true, 
+        data: {
+          property_id: parseInt(req.params.propertyId),
+          payment_enabled: true,
+          deposit_type: 'percentage',
+          deposit_amount: 25,
+          balance_due_days: 14,
+          stripe_connected: false,
+          accepted_methods: ['card'],
+          currency: 'GBP'
+        }
+      });
+    } else {
+      res.json({ success: true, data: result.rows[0] });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save payment settings for a property
+app.post('/api/property/:propertyId/payment-settings', async (req, res) => {
+  try {
+    const propertyId = req.params.propertyId;
+    const {
+      payment_enabled, deposit_type, deposit_amount, balance_due_days,
+      stripe_account_id, paypal_email, bank_details, accepted_methods,
+      currency, cancellation_policy, refund_policy
+    } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO property_payment_settings (
+        property_id, payment_enabled, deposit_type, deposit_amount, balance_due_days,
+        stripe_account_id, paypal_email, bank_details, accepted_methods,
+        currency, cancellation_policy, refund_policy
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (property_id) DO UPDATE SET
+        payment_enabled = $2, deposit_type = $3, deposit_amount = $4, balance_due_days = $5,
+        stripe_account_id = $6, paypal_email = $7, bank_details = $8, accepted_methods = $9,
+        currency = $10, cancellation_policy = $11, refund_policy = $12, updated_at = NOW()
+      RETURNING *
+    `, [
+      propertyId, payment_enabled, deposit_type, deposit_amount, balance_due_days,
+      stripe_account_id, paypal_email, JSON.stringify(bank_details || {}),
+      JSON.stringify(accepted_methods || ['card']), currency || 'GBP',
+      cancellation_policy, JSON.stringify(refund_policy || {})
+    ]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// GUEST PAYMENTS (for booking checkout)
+// =====================================================
+
+// Create payment intent for a booking
+app.post('/api/payments/create-intent', async (req, res) => {
+  try {
+    const { booking_id, property_id, amount, currency, payment_type, guest_email, guest_name } = req.body;
+    
+    // Get property payment settings
+    const settingsResult = await pool.query(`
+      SELECT pps.*, p.account_id FROM property_payment_settings pps
+      JOIN properties p ON pps.property_id = p.id
+      WHERE pps.property_id = $1
+    `, [property_id]);
+    
+    const settings = settingsResult.rows[0];
+    
+    if (!settings) {
+      return res.json({ success: false, error: 'Payment not configured for this property' });
+    }
+    
+    // For now, just record the payment intent (Stripe integration later)
+    const result = await pool.query(`
+      INSERT INTO guest_payments (booking_id, property_id, account_id, guest_email, guest_name, amount, currency, payment_type, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'pending')
+      RETURNING *
+    `, [booking_id, property_id, settings.account_id, guest_email, guest_name, amount, currency || settings.currency, payment_type]);
+    
+    res.json({ 
+      success: true, 
+      data: result.rows[0],
+      // In future, return Stripe client_secret here
+      message: 'Payment recorded. Stripe integration pending.'
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get payments for a booking
+app.get('/api/booking/:bookingId/payments', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM guest_payments WHERE booking_id = $1 ORDER BY created_at DESC
+    `, [req.params.bookingId]);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all payments for a property
+app.get('/api/property/:propertyId/payments', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT gp.*, b.check_in, b.check_out, bu.name as room_name
+      FROM guest_payments gp
+      LEFT JOIN bookings b ON gp.booking_id = b.id
+      LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      WHERE gp.property_id = $1
+      ORDER BY gp.created_at DESC
+    `, [req.params.propertyId]);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Calculate deposit for a booking
+app.post('/api/payments/calculate-deposit', async (req, res) => {
+  try {
+    const { property_id, total_amount } = req.body;
+    
+    const settingsResult = await pool.query(`
+      SELECT * FROM property_payment_settings WHERE property_id = $1
+    `, [property_id]);
+    
+    const settings = settingsResult.rows[0] || {
+      deposit_type: 'percentage',
+      deposit_amount: 25,
+      balance_due_days: 14,
+      currency: 'GBP'
+    };
+    
+    let depositAmount;
+    if (settings.deposit_type === 'percentage') {
+      depositAmount = (total_amount * settings.deposit_amount) / 100;
+    } else {
+      depositAmount = Math.min(settings.deposit_amount, total_amount);
+    }
+    
+    const balanceAmount = total_amount - depositAmount;
+    
+    res.json({
+      success: true,
+      data: {
+        total: total_amount,
+        deposit: Math.round(depositAmount * 100) / 100,
+        balance: Math.round(balanceAmount * 100) / 100,
+        deposit_type: settings.deposit_type,
+        deposit_setting: settings.deposit_amount,
+        balance_due_days: settings.balance_due_days,
+        currency: settings.currency
+      }
     });
   } catch (error) {
     res.json({ success: false, error: error.message });
