@@ -15267,7 +15267,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const plansContainer = document.getElementById('my-billing-plans');
                 if (plansData.success && plansData.data.length > 0) {
                     plansContainer.innerHTML = plansData.data.map(plan => {
-                        const features = typeof plan.features === 'string' ? JSON.parse(plan.features) : (plan.features || []);
+                        let features = plan.features;
+                        if (typeof features === 'string') {
+                            try { features = JSON.parse(features); } catch(e) { features = {}; }
+                        }
+                        
+                        // Handle both old array format and new object format
+                        let featuresList = [];
+                        if (Array.isArray(features)) {
+                            featuresList = features;
+                        } else if (features && features.features_list) {
+                            featuresList = features.features_list;
+                        }
+                        
                         const currencySymbol = plan.currency === 'GBP' ? '£' : plan.currency === 'EUR' ? '€' : '$';
                         return `
                         <div style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center;">
@@ -15282,7 +15294,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 ${plan.max_properties ? plan.max_properties + ' properties' : 'Unlimited properties'}
                             </div>
                             <ul style="text-align: left; font-size: 0.8rem; color: var(--text-secondary); margin: 0 0 1rem 0; padding-left: 1.2rem;">
-                                ${features.slice(0, 4).map(f => `<li>${f}</li>`).join('')}
+                                ${featuresList.slice(0, 5).map(f => `<li>${f}</li>`).join('')}
                             </ul>
                             <button class="btn" style="width: 100%;" onclick="contactForPlan('${plan.name}')">Get Started</button>
                         </div>
