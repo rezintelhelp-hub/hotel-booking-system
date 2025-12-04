@@ -4572,6 +4572,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     </div>
                 </div>
+
+                <!-- Individual Room Shortcodes -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <h3 style="margin: 0 0 1rem 0; font-size: 1rem;">🛏️ Individual Room Shortcodes</h3>
+                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 1rem;">Use these to embed a specific room's booking form anywhere:</p>
+                    <div id="wp-room-ids">
+                        <p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Loading rooms...</p>
+                    </div>
+                </div>
             </div>
 
             <!-- Knowledge Base Articles View -->
@@ -8665,6 +8674,50 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (storedKey) {
                 const keyInput = document.getElementById('instawp-api-key');
                 if (keyInput) keyInput.value = storedKey;
+            }
+            
+            // Build query params for filtering by account
+            let queryParams = [];
+            if (selectedAccountId) {
+                queryParams.push(`account_id=${selectedAccountId}`);
+            } else {
+                const user = JSON.parse(localStorage.getItem('gas_user') || '{}');
+                if (user.account_id) {
+                    queryParams.push(`account_id=${user.account_id}`);
+                }
+            }
+            const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+            
+            // Load rooms for individual shortcodes (filtered by account)
+            try {
+                const response = await fetch('/api/admin/units' + queryString);
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    // Build rooms table
+                    let html = '<table style="width: 100%; font-size: 0.85rem;">';
+                    html += '<thead><tr style="text-align: left; border-bottom: 2px solid var(--border);"><th style="padding: 0.5rem;">Room Name</th><th style="padding: 0.5rem;">ID</th><th style="padding: 0.5rem;">Shortcode</th></tr></thead>';
+                    html += '<tbody>';
+                    
+                    data.data.forEach(room => {
+                        html += `<tr style="border-bottom: 1px solid var(--border);">
+                            <td style="padding: 0.5rem;">${room.name}</td>
+                            <td style="padding: 0.5rem;"><code style="background: #e2e8f0; padding: 0.15rem 0.4rem; border-radius: 3px;">${room.id}</code></td>
+                            <td style="padding: 0.5rem;">
+                                <code style="background: #1e293b; color: #e2e8f0; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">[gas_booking unit_id="${room.id}"]</code>
+                                <button onclick="copyShortcode('[gas_booking unit_id=&quot;${room.id}&quot;]')" style="background: var(--accent); border: none; color: white; padding: 0.2rem 0.5rem; border-radius: 3px; cursor: pointer; font-size: 0.7rem; margin-left: 0.5rem;">Copy</button>
+                            </td>
+                        </tr>`;
+                    });
+                    
+                    html += '</tbody></table>';
+                    document.getElementById('wp-room-ids').innerHTML = html;
+                } else {
+                    document.getElementById('wp-room-ids').innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">No rooms found. Add rooms first or select a client.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading rooms for WordPress view:', error);
+                document.getElementById('wp-room-ids').innerHTML = '<p style="color: var(--error); text-align: center;">Error loading rooms</p>';
             }
         }
         
