@@ -2337,10 +2337,10 @@ app.get('/api/setup-billing', async (req, res) => {
     if (parseInt(planCheck.rows[0].count) === 0) {
       await pool.query(`
         INSERT INTO billing_plans (name, slug, description, price_monthly, price_yearly, max_properties, features, sort_order) VALUES
-        ('Starter', 'starter', 'Perfect for single properties', 29.00, 290.00, 1, '["1 property", "Basic features", "Email support", "WordPress plugin"]', 1),
-        ('Professional', 'professional', 'For growing businesses', 59.00, 590.00, 5, '["Up to 5 properties", "All features", "Priority support", "API access", "Custom domain"]', 2),
-        ('Business', 'business', 'For established operators', 99.00, 990.00, 15, '["Up to 15 properties", "All features", "Priority support", "API access", "White-label options", "Dedicated account manager"]', 3),
-        ('Enterprise', 'enterprise', 'Unlimited scale', 199.00, 1990.00, NULL, '["Unlimited properties", "All features", "24/7 support", "Full API access", "White-label", "Custom integrations", "SLA guarantee"]', 4)
+        ('Starter', 'starter', 'Perfect for single properties', 29.00, 290.00, 1, '{"properties": 1, "websites": 1, "booking_plugin": true, "theme": "basic", "blog_module": false, "attractions_module": false, "reviews_widget": false, "support": "email", "free_trial": false, "white_label": false, "features_list": ["1 property", "1 website", "Booking plugin", "Basic theme", "Email support"]}', 1),
+        ('Professional', 'professional', 'For growing businesses', 59.00, 590.00, 10, '{"properties": 10, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": false, "reviews_widget": false, "support": "email", "free_trial": true, "white_label": false, "features_list": ["Up to 10 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Email support", "14-day free trial"]}', 2),
+        ('Business', 'business', 'For established operators', 99.00, 990.00, 50, '{"properties": 50, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": true, "reviews_widget": false, "support": "priority", "free_trial": true, "white_label": false, "features_list": ["Up to 50 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Attractions module", "Priority support", "14-day free trial"]}', 3),
+        ('Enterprise', 'enterprise', 'Unlimited scale', 199.00, 1990.00, NULL, '{"properties": null, "websites": 10, "booking_plugin": true, "theme": "premium", "blog_module": true, "attractions_module": true, "reviews_widget": true, "support": "dedicated", "free_trial": true, "white_label": true, "features_list": ["Unlimited properties", "Up to 10 websites", "Booking plugin", "All themes including premium", "Blog module", "Attractions module", "Reviews widget", "Dedicated support", "White-label option", "14-day free trial"]}', 4)
       `);
     }
     
@@ -2361,14 +2361,61 @@ app.get('/api/setup-billing', async (req, res) => {
     if (parseInt(extrasCheck.rows[0].count) === 0) {
       await pool.query(`
         INSERT INTO billing_extras (name, slug, description, credit_cost, category, icon, sort_order) VALUES
-        ('Setup Assistance Call (30 min)', 'setup-call', 'One-on-one video call to help you get started', 5, 'Support', '📞', 1),
-        ('Custom Website Setup', 'website-setup', 'We''ll configure your website template for you', 20, 'Setup', '🎨', 2),
-        ('Data Migration', 'data-migration', 'Help migrating from another system', 15, 'Setup', '📦', 3),
-        ('AI Content Generation (10 pages)', 'ai-content', 'AI-written descriptions for your properties', 5, 'Content', '🤖', 4),
-        ('Premium Template', 'premium-template', 'Access to premium website templates', 10, 'Templates', '✨', 5),
-        ('Priority Support Ticket', 'priority-support', 'Jump the queue for support', 2, 'Support', '🚀', 6),
-        ('Training Session (1 hour)', 'training', 'Personalised training session', 10, 'Support', '📚', 7),
-        ('Custom Integration', 'custom-integration', 'Custom channel manager or API integration', 30, 'Development', '🔧', 8)
+        ('Additional Website', 'additional-website', 'Add another website to your account', 20, 'Websites', '🌐', 1),
+        ('Reviews Widget', 'reviews-widget', 'Display reviews from TripAdvisor, Booking.com, Google', 15, 'Modules', '⭐', 2),
+        ('Attractions Module', 'attractions-module', 'Showcase nearby attractions and things to do', 10, 'Modules', '📍', 3),
+        ('Premium Theme', 'premium-theme', 'Access to premium website design', 25, 'Themes', '✨', 4),
+        ('Setup Assistance Call (30 min)', 'setup-call', 'One-on-one video call to help you get started', 5, 'Support', '📞', 5),
+        ('We Setup For You', 'full-setup', 'We configure everything for you', 20, 'Support', '🎨', 6),
+        ('Custom Integration', 'custom-integration', 'Custom channel manager or API integration', 30, 'Development', '🔧', 7),
+        ('Training Session (1 hour)', 'training', 'Personalised training session', 10, 'Support', '📚', 8)
+      `);
+    }
+    
+    // Deliverables tracking - what templates/plugins have been delivered to each account
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_deliverables (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        deliverable_type VARCHAR(50) NOT NULL,
+        deliverable_id INTEGER,
+        deliverable_name VARCHAR(255) NOT NULL,
+        delivered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        delivered_by INTEGER,
+        source VARCHAR(50) DEFAULT 'subscription',
+        notes TEXT,
+        UNIQUE(account_id, deliverable_type, deliverable_id)
+      )
+    `);
+    
+    // Available templates/themes catalog
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_templates (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) UNIQUE NOT NULL,
+        description TEXT,
+        preview_image VARCHAR(500),
+        template_type VARCHAR(50) DEFAULT 'theme',
+        tier VARCHAR(50) DEFAULT 'basic',
+        download_url VARCHAR(500),
+        version VARCHAR(20) DEFAULT '1.0.0',
+        is_active BOOLEAN DEFAULT true,
+        features JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Insert default templates if empty
+    const templateCheck = await pool.query('SELECT COUNT(*) FROM website_templates');
+    if (parseInt(templateCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO website_templates (name, slug, description, template_type, tier, version) VALUES
+        ('Developer Theme', 'developer-theme', 'Clean developer-focused theme with full customization', 'theme', 'basic', '2.0.0'),
+        ('GAS Booking Plugin', 'gas-booking-plugin', 'Core booking system plugin', 'plugin', 'basic', '4.0.0'),
+        ('GAS Blog Plugin', 'gas-blog-plugin', 'Blog functionality with SEO', 'plugin', 'professional', '1.0.0'),
+        ('GAS Attractions Plugin', 'gas-attractions-plugin', 'Nearby attractions showcase', 'plugin', 'business', '1.0.0'),
+        ('GAS Reviews Plugin', 'gas-reviews-plugin', 'Reviews from multiple sources', 'plugin', 'enterprise', '1.0.0')
       `);
     }
     
@@ -2689,6 +2736,107 @@ app.post('/api/billing/spend-credits', async (req, res) => {
   }
 });
 
+// Update existing plans with new feature structure (run once)
+app.get('/api/admin/billing/update-plans', async (req, res) => {
+  try {
+    // Update Starter
+    await pool.query(`
+      UPDATE billing_plans SET 
+        max_properties = 1,
+        features = '{"properties": 1, "websites": 1, "booking_plugin": true, "theme": "basic", "blog_module": false, "attractions_module": false, "reviews_widget": false, "support": "email", "free_trial": false, "white_label": false, "features_list": ["1 property", "1 website", "Booking plugin", "Basic theme", "Email support"]}'
+      WHERE slug = 'starter'
+    `);
+    
+    // Update Professional
+    await pool.query(`
+      UPDATE billing_plans SET 
+        max_properties = 10,
+        features = '{"properties": 10, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": false, "reviews_widget": false, "support": "email", "free_trial": true, "white_label": false, "features_list": ["Up to 10 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Email support", "14-day free trial"]}'
+      WHERE slug = 'professional'
+    `);
+    
+    // Update Business
+    await pool.query(`
+      UPDATE billing_plans SET 
+        max_properties = 50,
+        features = '{"properties": 50, "websites": 1, "booking_plugin": true, "theme": "standard", "blog_module": true, "attractions_module": true, "reviews_widget": false, "support": "priority", "free_trial": true, "white_label": false, "features_list": ["Up to 50 properties", "1 website", "Booking plugin", "All standard themes", "Blog module", "Attractions module", "Priority support", "14-day free trial"]}'
+      WHERE slug = 'business'
+    `);
+    
+    // Update Enterprise
+    await pool.query(`
+      UPDATE billing_plans SET 
+        max_properties = NULL,
+        features = '{"properties": null, "websites": 10, "booking_plugin": true, "theme": "premium", "blog_module": true, "attractions_module": true, "reviews_widget": true, "support": "dedicated", "free_trial": true, "white_label": true, "features_list": ["Unlimited properties", "Up to 10 websites", "Booking plugin", "All themes including premium", "Blog module", "Attractions module", "Reviews widget", "Dedicated support", "White-label option", "14-day free trial"]}'
+      WHERE slug = 'enterprise'
+    `);
+    
+    // Update extras
+    await pool.query(`DELETE FROM billing_extras`);
+    await pool.query(`
+      INSERT INTO billing_extras (name, slug, description, credit_cost, category, icon, sort_order) VALUES
+      ('Additional Website', 'additional-website', 'Add another website to your account', 20, 'Websites', '🌐', 1),
+      ('Reviews Widget', 'reviews-widget', 'Display reviews from TripAdvisor, Booking.com, Google', 15, 'Modules', '⭐', 2),
+      ('Attractions Module', 'attractions-module', 'Showcase nearby attractions and things to do', 10, 'Modules', '📍', 3),
+      ('Premium Theme', 'premium-theme', 'Access to premium website design', 25, 'Themes', '✨', 4),
+      ('Setup Assistance Call (30 min)', 'setup-call', 'One-on-one video call to help you get started', 5, 'Support', '📞', 5),
+      ('We Setup For You', 'full-setup', 'We configure everything for you', 20, 'Support', '🎨', 6),
+      ('Custom Integration', 'custom-integration', 'Custom channel manager or API integration', 30, 'Development', '🔧', 7),
+      ('Training Session (1 hour)', 'training', 'Personalised training session', 10, 'Support', '📚', 8)
+    `);
+    
+    // Create new tables if they don't exist
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_deliverables (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        deliverable_type VARCHAR(50) NOT NULL,
+        deliverable_id INTEGER,
+        deliverable_name VARCHAR(255) NOT NULL,
+        delivered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        delivered_by INTEGER,
+        source VARCHAR(50) DEFAULT 'subscription',
+        notes TEXT,
+        UNIQUE(account_id, deliverable_type, deliverable_id)
+      )
+    `);
+    
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_templates (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) UNIQUE NOT NULL,
+        description TEXT,
+        preview_image VARCHAR(500),
+        template_type VARCHAR(50) DEFAULT 'theme',
+        tier VARCHAR(50) DEFAULT 'basic',
+        download_url VARCHAR(500),
+        version VARCHAR(20) DEFAULT '1.0.0',
+        is_active BOOLEAN DEFAULT true,
+        features JSONB DEFAULT '[]',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Insert default templates if empty
+    const templateCheck = await pool.query('SELECT COUNT(*) FROM website_templates');
+    if (parseInt(templateCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO website_templates (name, slug, description, template_type, tier, version) VALUES
+        ('Developer Theme', 'developer-theme', 'Clean developer-focused theme with full customization', 'theme', 'starter', '2.0.0'),
+        ('GAS Booking Plugin', 'gas-booking-plugin', 'Core booking system plugin', 'plugin', 'starter', '4.0.0'),
+        ('GAS Blog Plugin', 'gas-blog-plugin', 'Blog functionality with SEO', 'plugin', 'professional', '1.0.0'),
+        ('GAS Attractions Plugin', 'gas-attractions-plugin', 'Nearby attractions showcase', 'plugin', 'business', '1.0.0'),
+        ('GAS Reviews Plugin', 'gas-reviews-plugin', 'Reviews from multiple sources', 'plugin', 'enterprise', '1.0.0')
+      `);
+    }
+    
+    res.json({ success: true, message: 'Plans, extras, and new tables updated!' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get billing overview for admin (all accounts)
 app.get('/api/admin/billing/overview', async (req, res) => {
   try {
@@ -2733,6 +2881,145 @@ app.get('/api/admin/billing/overview', async (req, res) => {
       mrr: parseFloat(mrrResult.rows[0]?.total_mrr || 0),
       credits: creditsResult.rows[0],
       recent_payments: paymentsResult.rows
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// WEBSITE TEMPLATES MANAGEMENT
+// =====================================================
+
+// Get all templates (admin)
+app.get('/api/admin/templates', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM website_templates ORDER BY template_type, tier, name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create/update template
+app.post('/api/admin/templates', async (req, res) => {
+  try {
+    const { id, name, slug, description, preview_image, template_type, tier, download_url, version, is_active, features } = req.body;
+    
+    const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    
+    if (id) {
+      const result = await pool.query(`
+        UPDATE website_templates SET
+          name = $1, slug = $2, description = $3, preview_image = $4, template_type = $5,
+          tier = $6, download_url = $7, version = $8, is_active = $9, features = $10
+        WHERE id = $11 RETURNING *
+      `, [name, finalSlug, description, preview_image, template_type, tier, download_url, version, is_active !== false, JSON.stringify(features || []), id]);
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      const result = await pool.query(`
+        INSERT INTO website_templates (name, slug, description, preview_image, template_type, tier, download_url, version, is_active, features)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *
+      `, [name, finalSlug, description, preview_image, template_type, tier, download_url, version, is_active !== false, JSON.stringify(features || [])]);
+      res.json({ success: true, data: result.rows[0] });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete template
+app.delete('/api/admin/templates/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM website_templates WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// DELIVERY TRACKING
+// =====================================================
+
+// Get deliveries for an account
+app.get('/api/admin/deliveries/:accountId', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT d.*, wt.name as template_name, wt.template_type, wt.tier, wt.version
+      FROM billing_deliverables d
+      LEFT JOIN website_templates wt ON d.deliverable_id = wt.id AND d.deliverable_type IN ('theme', 'plugin')
+      WHERE d.account_id = $1
+      ORDER BY d.delivered_at DESC
+    `, [req.params.accountId]);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Record a delivery
+app.post('/api/admin/deliveries', async (req, res) => {
+  try {
+    const { account_id, deliverable_type, deliverable_id, deliverable_name, source, notes, delivered_by } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO billing_deliverables (account_id, deliverable_type, deliverable_id, deliverable_name, source, notes, delivered_by)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      ON CONFLICT (account_id, deliverable_type, deliverable_id) 
+      DO UPDATE SET delivered_at = NOW(), notes = EXCLUDED.notes
+      RETURNING *
+    `, [account_id, deliverable_type, deliverable_id, deliverable_name, source || 'manual', notes, delivered_by]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Check what an account has access to (based on subscription + purchases)
+app.get('/api/account/:accountId/entitlements', async (req, res) => {
+  try {
+    const accountId = req.params.accountId;
+    
+    // Get subscription plan features
+    const subResult = await pool.query(`
+      SELECT p.features, p.slug as plan_slug, p.name as plan_name
+      FROM billing_subscriptions s
+      JOIN billing_plans p ON s.plan_id = p.id
+      WHERE s.account_id = $1 AND s.status = 'active'
+      ORDER BY s.created_at DESC LIMIT 1
+    `, [accountId]);
+    
+    const planFeatures = subResult.rows[0]?.features || {};
+    const planSlug = subResult.rows[0]?.plan_slug || 'none';
+    
+    // Get delivered items
+    const deliveredResult = await pool.query(`
+      SELECT deliverable_type, deliverable_name, deliverable_id
+      FROM billing_deliverables
+      WHERE account_id = $1
+    `, [accountId]);
+    
+    // Get available templates they can access based on tier
+    const tierOrder = { 'basic': 1, 'professional': 2, 'business': 3, 'enterprise': 4 };
+    const accountTier = tierOrder[planSlug] || 0;
+    
+    const templatesResult = await pool.query(`
+      SELECT * FROM website_templates WHERE is_active = true
+    `);
+    
+    const accessibleTemplates = templatesResult.rows.filter(t => {
+      const templateTier = tierOrder[t.tier] || 0;
+      return templateTier <= accountTier;
+    });
+    
+    res.json({
+      success: true,
+      plan: subResult.rows[0] || null,
+      features: planFeatures,
+      delivered: deliveredResult.rows,
+      accessible_templates: accessibleTemplates
     });
   } catch (error) {
     res.json({ success: false, error: error.message });
