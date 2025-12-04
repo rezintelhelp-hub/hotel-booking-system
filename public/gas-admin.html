@@ -15533,9 +15533,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         function applyFeatureLocks() {
             const features = accountEntitlements?.features || {};
             
-            // Master admin sees everything unlocked
             const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
-            if (user.role === 'master_admin') {
+            
+            // If master_admin with NO account selected, show everything unlocked
+            if (user.role === 'master_admin' && !selectedAccountId) {
                 document.querySelectorAll('[data-requires-feature]').forEach(el => {
                     el.classList.remove('feature-locked');
                     const lock = el.querySelector('.feature-lock');
@@ -15544,6 +15545,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return;
             }
             
+            // Otherwise, show locks based on selected account's entitlements
             document.querySelectorAll('[data-requires-feature]').forEach(el => {
                 const requiredFeature = el.getAttribute('data-requires-feature');
                 const hasFeature = features[requiredFeature] === true;
@@ -15562,9 +15564,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Handle click on feature-gated nav items
         function handleFeatureClick(element, viewName, featureName) {
-            // Master admin always has access
             const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
-            if (user.role === 'master_admin') {
+            
+            // Master admin with no account selected - always has access
+            if (user.role === 'master_admin' && !selectedAccountId) {
                 navClick(element, viewName);
                 return false;
             }
@@ -15590,7 +15593,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const name = featureNames[featureName] || featureName;
                 const plan = planRequired[featureName] || 'a higher';
                 
-                showNotification(`🔒 ${name} requires ${plan} plan or above. Go to Billing > Plans & Extras to upgrade.`, 'warning', 5000);
+                // Different message for master_admin viewing another account
+                if (user.role === 'master_admin') {
+                    showNotification(`🔒 This account doesn't have ${name}. Assign ${plan} plan or above in Accounts.`, 'warning', 5000);
+                } else {
+                    showNotification(`🔒 ${name} requires ${plan} plan or above. Go to Billing > Plans & Extras to upgrade.`, 'warning', 5000);
+                }
             }
             return false;
         }
