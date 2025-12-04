@@ -9240,7 +9240,19 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadRoomCheckboxes() {
             try {
-                const response = await fetch('/api/db/bookable-units');
+                // Build query params for account filtering
+                let queryParams = [];
+                if (selectedAccountId) {
+                    queryParams.push(`account_id=${selectedAccountId}`);
+                } else {
+                    const user = JSON.parse(localStorage.getItem('gas_account') || '{}');
+                    if (user.account_id) {
+                        queryParams.push(`account_id=${user.account_id}`);
+                    }
+                }
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+                
+                const response = await fetch('/api/db/bookable-units' + queryString);
                 if (!response.ok) {
                     throw new Error('Failed to load rooms');
                 }
@@ -9249,7 +9261,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const container = document.getElementById('roomCheckboxes');
                 if (rooms.length === 0) {
-                    container.innerHTML = '<p style="color: var(--text-secondary);">No rooms available. Import from Beds24 first.</p>';
+                    container.innerHTML = '<p style="color: var(--text-secondary);">No rooms available for this account.</p>';
                     return;
                 }
                 
