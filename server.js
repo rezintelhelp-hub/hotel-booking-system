@@ -2660,6 +2660,91 @@ app.get('/api/billing/extras', async (req, res) => {
   }
 });
 
+// Assign subscription to account (admin function)
+app.post('/api/admin/billing/assign-subscription', async (req, res) => {
+  try {
+    const { account_id, plan_id, billing_cycle = 'monthly', status = 'active' } = req.body;
+    
+    // Validate plan exists
+    const planResult = await pool.query('SELECT * FROM billing_plans WHERE id = $1', [plan_id]);
+    if (planResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Plan not found' });
+    }
+    
+    // Calculate period dates
+    const now = new Date();
+    const periodEnd = new Date(now);
+    if (billing_cycle === 'yearly') {
+      periodEnd.setFullYear(periodEnd.getFullYear() + 1);
+    } else {
+      periodEnd.setMonth(periodEnd.getMonth() + 1);
+    }
+    
+    // Upsert subscription (one active subscription per account)
+    const result = await pool.query(`
+      INSERT INTO billing_subscriptions (account_id, plan_id, status, billing_cycle, current_period_start, current_period_end)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      ON CONFLICT (account_id) WHERE status = 'active'
+      DO UPDATE SET
+        plan_id = $2,
+        status = $3,
+        billing_cycle = $4,
+        current_period_start = $5,
+        current_period_end = $6,
+        updated_at = NOW()
+      RETURNING *
+    `, [account_id, plan_id, status, billing_cycle, now, periodEnd]);
+    
+    // If no rows affected by upsert (no existing active sub), insert new
+    if (result.rows.length === 0) {
+      const insertResult = await pool.query(`
+        INSERT INTO billing_subscriptions (account_id, plan_id, status, billing_cycle, current_period_start, current_period_end)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        RETURNING *
+      `, [account_id, plan_id, status, billing_cycle, now, periodEnd]);
+      return res.json({ success: true, data: insertResult.rows[0] });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get subscription for an account
+app.get('/api/admin/billing/subscription/:accountId', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT s.*, p.name as plan_name, p.slug as plan_slug, p.features
+      FROM billing_subscriptions s
+      JOIN billing_plans p ON s.plan_id = p.id
+      WHERE s.account_id = $1 AND s.status = 'active'
+      ORDER BY s.created_at DESC LIMIT 1
+    `, [req.params.accountId]);
+    
+    res.json({ success: true, data: result.rows[0] || null });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Cancel subscription
+app.post('/api/admin/billing/cancel-subscription', async (req, res) => {
+  try {
+    const { account_id } = req.body;
+    
+    await pool.query(`
+      UPDATE billing_subscriptions 
+      SET status = 'cancelled', cancelled_at = NOW(), updated_at = NOW()
+      WHERE account_id = $1 AND status = 'active'
+    `, [account_id]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Add credits to account (admin function or after Stripe payment)
 app.post('/api/billing/add-credits', async (req, res) => {
   try {
