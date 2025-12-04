@@ -2425,10 +2425,11 @@ app.get('/api/setup-billing', async (req, res) => {
       `);
     }
     
-    // InstaWP settings (global platform settings)
+    // InstaWP/WordPress hosting settings (global platform settings)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS instawp_settings (
         id SERIAL PRIMARY KEY,
+        api_url VARCHAR(500) DEFAULT 'https://sites.gas.travel/gas-api.php',
         api_key VARCHAR(500),
         default_template VARCHAR(255),
         templates JSONB DEFAULT '{}',
@@ -3221,7 +3222,7 @@ app.get('/api/admin/instawp/settings', async (req, res) => {
 // Save InstaWP settings (master admin)
 app.post('/api/admin/instawp/settings', async (req, res) => {
   try {
-    const { api_key, default_template, templates, webhook_secret, is_enabled } = req.body;
+    const { api_url, api_key, default_template, templates, webhook_secret, is_enabled } = req.body;
     
     // Upsert
     const existing = await pool.query('SELECT id FROM instawp_settings LIMIT 1');
@@ -3229,15 +3230,15 @@ app.post('/api/admin/instawp/settings', async (req, res) => {
     if (existing.rows.length > 0) {
       const result = await pool.query(`
         UPDATE instawp_settings SET
-          api_key = $1, default_template = $2, templates = $3, webhook_secret = $4, is_enabled = $5, updated_at = NOW()
-        WHERE id = $6 RETURNING *
-      `, [api_key, default_template, JSON.stringify(templates || {}), webhook_secret, is_enabled, existing.rows[0].id]);
+          api_url = $1, api_key = $2, default_template = $3, templates = $4, webhook_secret = $5, is_enabled = $6, updated_at = NOW()
+        WHERE id = $7 RETURNING *
+      `, [api_url || 'https://sites.gas.travel/gas-api.php', api_key, default_template, JSON.stringify(templates || {}), webhook_secret, is_enabled, existing.rows[0].id]);
       res.json({ success: true, data: result.rows[0] });
     } else {
       const result = await pool.query(`
-        INSERT INTO instawp_settings (api_key, default_template, templates, webhook_secret, is_enabled)
-        VALUES ($1, $2, $3, $4, $5) RETURNING *
-      `, [api_key, default_template, JSON.stringify(templates || {}), webhook_secret, is_enabled]);
+        INSERT INTO instawp_settings (api_url, api_key, default_template, templates, webhook_secret, is_enabled)
+        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+      `, [api_url || 'https://sites.gas.travel/gas-api.php', api_key, default_template, JSON.stringify(templates || {}), webhook_secret, is_enabled]);
       res.json({ success: true, data: result.rows[0] });
     }
   } catch (error) {
@@ -3295,24 +3296,28 @@ app.post('/api/admin/instawp/create-site', async (req, res) => {
     const templates = settings.templates || {};
     const templateToUse = template_slug || templates[planSlug] || settings.default_template;
     
-    // Create site via InstaWP API
-    const instawpResponse = await fetch('https://app.instawp.io/api/v2/sites/template', {
+    // Create site via WordPress Multisite API
+    const siteSlug = (site_name || account.name).toLowerCase().replace(/[^a-z0-9]/g, '');
+    
+    const wpResponse = await fetch(settings.api_url || 'https://sites.gas.travel/gas-api.php', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${settings.api_key}`,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        template_slug: templateToUse,
-        site_name: site_name || account.name.toLowerCase().replace(/[^a-z0-9]/g, ''),
-        is_reserved: true
+        action: 'create_site',
+        slug: siteSlug,
+        title: account.name,
+        email: account.email || 'admin@gas.travel',
+        account_id: account_id
       })
     });
     
-    const instawpData = await instawpResponse.json();
+    const wpData = await wpResponse.json();
     
-    if (!instawpResponse.ok) {
-      return res.json({ success: false, error: 'InstaWP API error', details: instawpData });
+    if (!wpData.success) {
+      return res.json({ success: false, error: 'WordPress API error', details: wpData.error });
     }
     
     // Store website record
@@ -3322,13 +3327,13 @@ app.post('/api/admin/instawp/create-site', async (req, res) => {
       RETURNING *
     `, [
       account_id,
-      instawpData.data?.id || instawpData.id,
+      wpData.slug,
       site_name || account.name,
-      instawpData.data?.url || instawpData.url,
-      instawpData.data?.wp_admin_url || instawpData.wp_admin_url,
+      wpData.site_url,
+      wpData.admin_url,
       templateToUse,
-      instawpData.data?.is_pool ? 'active' : 'creating',
-      JSON.stringify(instawpData)
+      'active',
+      JSON.stringify(wpData)
     ]);
     
     res.json({ success: true, data: websiteResult.rows[0], instawp: instawpData });
