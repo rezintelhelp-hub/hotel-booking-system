@@ -1813,6 +1813,403 @@ app.get('/api/setup-users', async (req, res) => {
   }
 });
 
+// =====================================================
+// KNOWLEDGE BASE SYSTEM
+// =====================================================
+
+// Setup knowledge base tables
+app.get('/api/setup-knowledge-base', async (req, res) => {
+  try {
+    // Categories for organizing knowledge
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kb_categories (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(255) UNIQUE NOT NULL,
+        description TEXT,
+        icon VARCHAR(50),
+        sort_order INTEGER DEFAULT 0,
+        parent_id INTEGER REFERENCES kb_categories(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Main knowledge articles
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kb_articles (
+        id SERIAL PRIMARY KEY,
+        category_id INTEGER REFERENCES kb_categories(id),
+        title VARCHAR(500) NOT NULL,
+        slug VARCHAR(500) UNIQUE NOT NULL,
+        summary TEXT,
+        content TEXT NOT NULL,
+        keywords TEXT[],
+        related_articles INTEGER[],
+        status VARCHAR(50) DEFAULT 'published',
+        views INTEGER DEFAULT 0,
+        helpful_yes INTEGER DEFAULT 0,
+        helpful_no INTEGER DEFAULT 0,
+        created_by INTEGER,
+        updated_by INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Track questions the AI couldn't answer
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kb_unanswered (
+        id SERIAL PRIMARY KEY,
+        question TEXT NOT NULL,
+        user_context TEXT,
+        account_id INTEGER,
+        session_id VARCHAR(255),
+        times_asked INTEGER DEFAULT 1,
+        status VARCHAR(50) DEFAULT 'new',
+        resolved_article_id INTEGER REFERENCES kb_articles(id),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Chat history for context
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS kb_chat_history (
+        id SERIAL PRIMARY KEY,
+        session_id VARCHAR(255) NOT NULL,
+        account_id INTEGER,
+        role VARCHAR(50) NOT NULL,
+        message TEXT NOT NULL,
+        articles_used INTEGER[],
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Insert default categories if empty
+    const catCheck = await pool.query('SELECT COUNT(*) FROM kb_categories');
+    if (parseInt(catCheck.rows[0].count) === 0) {
+      await pool.query(`
+        INSERT INTO kb_categories (name, slug, description, icon, sort_order) VALUES
+        ('Getting Started', 'getting-started', 'New to GAS? Start here', '🚀', 1),
+        ('Channel Managers', 'channel-managers', 'Connecting Beds24, Hostaway, Smoobu and more', '🔗', 2),
+        ('Properties & Rooms', 'properties-rooms', 'Managing your properties and units', '🏨', 3),
+        ('Images', 'images', 'Uploading and managing photos', '📷', 4),
+        ('Pricing & Offers', 'pricing-offers', 'Setting prices, creating offers and discounts', '💰', 5),
+        ('Availability', 'availability', 'Calendar and booking management', '📅', 6),
+        ('Vouchers', 'vouchers', 'Creating and managing vouchers', '🎟️', 7),
+        ('Upsells & Fees', 'upsells-fees', 'Additional charges and upsell options', '➕', 8),
+        ('Taxes', 'taxes', 'Tourist taxes and regional charges', '📋', 9),
+        ('Content & SEO', 'content-seo', 'Descriptions, pages, and search optimization', '✏️', 10),
+        ('Website & Plugins', 'website-plugins', 'WordPress plugin and website integration', '🌐', 11),
+        ('Travel Agents', 'travel-agents', 'Information for travel agents and tour operators', '✈️', 12),
+        ('Account & Billing', 'account-billing', 'Managing your account and payments', '👤', 13),
+        ('Troubleshooting', 'troubleshooting', 'Common issues and solutions', '🔧', 14)
+      `);
+    }
+    
+    res.json({ success: true, message: 'Knowledge base tables created!' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all knowledge categories
+app.get('/api/kb/categories', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT c.*, 
+        (SELECT COUNT(*) FROM kb_articles WHERE category_id = c.id AND status = 'published') as article_count
+      FROM kb_categories c
+      ORDER BY c.sort_order, c.name
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create/update category
+app.post('/api/kb/categories', async (req, res) => {
+  try {
+    const { id, name, slug, description, icon, sort_order, parent_id } = req.body;
+    
+    if (id) {
+      // Update
+      const result = await pool.query(`
+        UPDATE kb_categories SET name = $1, slug = $2, description = $3, icon = $4, sort_order = $5, parent_id = $6
+        WHERE id = $7 RETURNING *
+      `, [name, slug, description, icon, sort_order, parent_id, id]);
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      // Create
+      const result = await pool.query(`
+        INSERT INTO kb_categories (name, slug, description, icon, sort_order, parent_id)
+        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+      `, [name, slug, description, icon, sort_order || 0, parent_id]);
+      res.json({ success: true, data: result.rows[0] });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all articles (with optional filters)
+app.get('/api/kb/articles', async (req, res) => {
+  try {
+    const { category_id, status, search } = req.query;
+    let query = `
+      SELECT a.*, c.name as category_name, c.icon as category_icon
+      FROM kb_articles a
+      LEFT JOIN kb_categories c ON a.category_id = c.id
+      WHERE 1=1
+    `;
+    const params = [];
+    
+    if (category_id) {
+      params.push(category_id);
+      query += ` AND a.category_id = $${params.length}`;
+    }
+    
+    if (status) {
+      params.push(status);
+      query += ` AND a.status = $${params.length}`;
+    }
+    
+    if (search) {
+      params.push(`%${search}%`);
+      query += ` AND (a.title ILIKE $${params.length} OR a.content ILIKE $${params.length} OR a.summary ILIKE $${params.length})`;
+    }
+    
+    query += ' ORDER BY a.category_id, a.title';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single article
+app.get('/api/kb/articles/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT a.*, c.name as category_name, c.icon as category_icon
+      FROM kb_articles a
+      LEFT JOIN kb_categories c ON a.category_id = c.id
+      WHERE a.id = $1
+    `, [req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Article not found' });
+    }
+    
+    // Increment views
+    await pool.query('UPDATE kb_articles SET views = views + 1 WHERE id = $1', [req.params.id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create/update article
+app.post('/api/kb/articles', async (req, res) => {
+  try {
+    const { id, category_id, title, slug, summary, content, keywords, related_articles, status } = req.body;
+    
+    // Generate slug from title if not provided
+    const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+    
+    if (id) {
+      // Update
+      const result = await pool.query(`
+        UPDATE kb_articles SET 
+          category_id = $1, title = $2, slug = $3, summary = $4, content = $5, 
+          keywords = $6, related_articles = $7, status = $8, updated_at = NOW()
+        WHERE id = $9 RETURNING *
+      `, [category_id, title, finalSlug, summary, content, keywords || [], related_articles || [], status || 'published', id]);
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      // Create
+      const result = await pool.query(`
+        INSERT INTO kb_articles (category_id, title, slug, summary, content, keywords, related_articles, status)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+      `, [category_id, title, finalSlug, summary, content, keywords || [], related_articles || [], status || 'published']);
+      res.json({ success: true, data: result.rows[0] });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete article
+app.delete('/api/kb/articles/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM kb_articles WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Mark article as helpful/not helpful
+app.post('/api/kb/articles/:id/feedback', async (req, res) => {
+  try {
+    const { helpful } = req.body;
+    const field = helpful ? 'helpful_yes' : 'helpful_no';
+    await pool.query(`UPDATE kb_articles SET ${field} = ${field} + 1 WHERE id = $1`, [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Search knowledge base (for AI to use)
+app.get('/api/kb/search', async (req, res) => {
+  try {
+    const { q, limit = 5 } = req.query;
+    
+    if (!q) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    // Search by keywords, title, summary, and content
+    const searchTerms = q.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    
+    if (searchTerms.length === 0) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    // Build search query with ranking
+    const result = await pool.query(`
+      SELECT a.id, a.title, a.summary, a.content, a.keywords, c.name as category_name, c.icon as category_icon,
+        (
+          -- Exact title match (highest)
+          CASE WHEN LOWER(a.title) = $1 THEN 100 ELSE 0 END +
+          -- Title contains search (high)
+          CASE WHEN LOWER(a.title) LIKE $2 THEN 50 ELSE 0 END +
+          -- Keywords match (high)
+          CASE WHEN a.keywords && $3::text[] THEN 40 ELSE 0 END +
+          -- Summary contains (medium)
+          CASE WHEN LOWER(a.summary) LIKE $2 THEN 20 ELSE 0 END +
+          -- Content contains (low)
+          CASE WHEN LOWER(a.content) LIKE $2 THEN 10 ELSE 0 END
+        ) as relevance
+      FROM kb_articles a
+      LEFT JOIN kb_categories c ON a.category_id = c.id
+      WHERE a.status = 'published'
+        AND (
+          LOWER(a.title) LIKE $2
+          OR LOWER(a.summary) LIKE $2
+          OR LOWER(a.content) LIKE $2
+          OR a.keywords && $3::text[]
+        )
+      ORDER BY relevance DESC, a.views DESC
+      LIMIT $4
+    `, [q.toLowerCase(), `%${q.toLowerCase()}%`, searchTerms, limit]);
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get unanswered questions
+app.get('/api/kb/unanswered', async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = 'SELECT * FROM kb_unanswered';
+    const params = [];
+    
+    if (status) {
+      params.push(status);
+      query += ' WHERE status = $1';
+    }
+    
+    query += ' ORDER BY times_asked DESC, created_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Mark unanswered question as resolved
+app.post('/api/kb/unanswered/:id/resolve', async (req, res) => {
+  try {
+    const { article_id } = req.body;
+    await pool.query(`
+      UPDATE kb_unanswered SET status = 'resolved', resolved_article_id = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [article_id, req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete unanswered question
+app.delete('/api/kb/unanswered/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM kb_unanswered WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Bulk import articles (for importing ChatGPT-generated docs)
+app.post('/api/kb/import', async (req, res) => {
+  try {
+    const { articles } = req.body;
+    
+    if (!articles || !Array.isArray(articles)) {
+      return res.json({ success: false, error: 'Articles array required' });
+    }
+    
+    let imported = 0;
+    let errors = [];
+    
+    for (const article of articles) {
+      try {
+        const slug = article.slug || article.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        
+        // Find or create category
+        let categoryId = article.category_id;
+        if (!categoryId && article.category) {
+          const catResult = await pool.query('SELECT id FROM kb_categories WHERE slug = $1 OR name ILIKE $2', 
+            [article.category.toLowerCase().replace(/[^a-z0-9]+/g, '-'), article.category]);
+          if (catResult.rows.length > 0) {
+            categoryId = catResult.rows[0].id;
+          }
+        }
+        
+        // Insert or update article
+        await pool.query(`
+          INSERT INTO kb_articles (category_id, title, slug, summary, content, keywords, status)
+          VALUES ($1, $2, $3, $4, $5, $6, 'published')
+          ON CONFLICT (slug) DO UPDATE SET
+            category_id = EXCLUDED.category_id,
+            title = EXCLUDED.title,
+            summary = EXCLUDED.summary,
+            content = EXCLUDED.content,
+            keywords = EXCLUDED.keywords,
+            updated_at = NOW()
+        `, [categoryId, article.title, slug, article.summary, article.content, article.keywords || []]);
+        
+        imported++;
+      } catch (e) {
+        errors.push({ title: article.title, error: e.message });
+      }
+    }
+    
+    res.json({ success: true, imported, errors });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/auth/signup', async (req, res) => {
   const { name, email, password, company, account_type } = req.body;
   try {
@@ -12433,77 +12830,121 @@ function checkChatRateLimit(ip) {
 }
 
 // GAS Documentation context for the AI
-const GAS_SYSTEM_PROMPT = `You are the GAS Assistant - a concise, action-focused guide for the Global Accommodation System.
+const GAS_SYSTEM_PROMPT = `You are the GAS Assistant - a helpful, knowledgeable guide for the Global Accommodation System.
 
-YOUR STYLE:
-- Be SHORT and DIRECT - max 2-3 sentences then give a link
-- Always end with a clickable action link
-- Don't over-explain - guide people to the right place
-- Use friendly but brief language
+🔒 WHAT GAS IS (CRITICAL - ALWAYS GET THIS RIGHT):
+- GAS is the Global Accommodation System - an independent inventory and website system
+- GAS is NOT an OTA (Online Travel Agency) like Booking.com, Airbnb, or Expedia
+- GAS NEVER connects to corporate OTAs - only to independent channel managers (Beds24, Hostaway, Smoobu)
+- GAS does NOT collect payments for owners - payments happen on the owner's own website
+- GAS connects property owners with independent travel agents, tour operators, and tourist groups
 
-HOW TO FIND API CREDENTIALS (IMPORTANT - GET THIS RIGHT):
+🎯 YOUR ROLE:
+- Help users understand and use GAS features
+- Guide them through setup and configuration
+- Answer questions about how things work
+- Be conversational and supportive - stay with the user through their journey
+- If you have knowledge base articles, use them to provide accurate, detailed answers
+- If you don't know something, say so and suggest contacting support
+
+📚 HOW TO USE KNOWLEDGE BASE ARTICLES:
+When knowledge base articles are provided in the context, use them to:
+- Give accurate, detailed answers
+- Reference specific steps and instructions
+- Provide the correct terminology
+- Link to relevant features
+
+🔗 CHANNEL MANAGER CREDENTIALS:
 
 BEDS24 INVITE CODE:
-1. Log into your Beds24 account
-2. Go to Settings (top menu)
-3. Click Marketplace in the left sidebar
-4. Click API
-5. You'll see "Invite Codes" section at the top
-6. Click the green "Generate invite code" button
-7. Copy the code and paste it into GAS
+1. Log into Beds24 → Settings (top menu)
+2. Click Marketplace → API
+3. Click "Generate invite code"
+4. Copy and paste into GAS
 
-HOSTAWAY API CREDENTIALS:
-1. Log into Hostaway Dashboard
-2. Go to Settings → Hostaway API
-3. Click "Create"
-4. Choose a Name and select "Hostaway Public API" as Partner
-5. Click Create
-6. IMPORTANT: Copy your Account ID and API Key immediately - they only show once!
-7. Paste both into GAS
-Note: Keep these safe - Hostaway won't show them again after you leave the page.
+HOSTAWAY API:
+1. Log into Hostaway → Settings → Hostaway API
+2. Click "Create" → Select "Hostaway Public API"
+3. Copy Account ID and API Key immediately (only shown once!)
 
-SMOOBU API KEY:
-1. Log into your Smoobu account
-2. Go to Settings → API
-3. Copy your API Key
-4. Paste it into GAS
+SMOOBU API:
+1. Log into Smoobu → Settings → API
+2. Copy your API Key
 
-QUICK ANSWERS WITH LINKS:
-
-If someone wants to LIST THEIR PROPERTY:
-"Great! Let's get you set up. Which channel manager do you use? [Beds24](/beds24-wizard.html) | [Hostaway](/hostaway-wizard.html) | [Smoobu](/smoobu-wizard.html)"
-
-If someone is a TRAVEL AGENT:
-"Welcome! Travel agent registration is coming soon. For now, contact us at support@gettingautomated.com"
-
-If someone asks WHAT IS GAS:
-"GAS helps independent hotels and B&Bs connect with travel agents directly - no big OTA commissions. Ready to list your property? [Start here](/gas-onboarding.html)"
-
-If someone asks WHERE TO FIND INVITE CODE or API KEY:
-Give them the exact steps from the credentials section above.
-
-WHAT GETS IMPORTED:
-- Property names and details
-- Room/unit types and configurations  
-- Images
-- Pricing
-- Availability calendar
-NOT imported: booking history, guest data, payment details
-
-KEY LINKS:
-- Start onboarding: /gas-onboarding.html
-- Beds24 setup: /beds24-wizard.html
-- Hostaway setup: /hostaway-wizard.html
-- Smoobu setup: /smoobu-wizard.html
-- Admin dashboard: /gas-admin.html
+🔗 KEY LINKS:
+- Home: /home.html
+- Onboarding: /index.html
+- Admin Dashboard: /gas-admin.html
 - Support: support@gettingautomated.com
 
-IMPORTANT RULES:
-1. Keep responses under 50 words when possible
-2. ALWAYS include a relevant link
-3. Format links as clickable: [Text here](/path)
-4. Give ACCURATE instructions for finding API keys - use the exact steps above
-5. If unsure, direct to support@gettingautomated.com`;
+💬 CONVERSATION STYLE:
+- Be warm and helpful
+- Give complete answers using knowledge base when available
+- For complex topics, break things down step by step
+- Always offer to help with follow-up questions
+- Format links as clickable: [Text](/path)
+- Use bullet points for lists and steps`;
+
+// Search knowledge base for relevant articles
+async function searchKnowledgeBase(query) {
+  try {
+    const searchTerms = query.toLowerCase().split(/\s+/).filter(t => t.length > 2);
+    
+    if (searchTerms.length === 0) {
+      return [];
+    }
+    
+    const result = await pool.query(`
+      SELECT a.id, a.title, a.summary, a.content, a.keywords, c.name as category_name
+      FROM kb_articles a
+      LEFT JOIN kb_categories c ON a.category_id = c.id
+      WHERE a.status = 'published'
+        AND (
+          LOWER(a.title) LIKE $1
+          OR LOWER(a.summary) LIKE $1
+          OR LOWER(a.content) LIKE $1
+          OR a.keywords && $2::text[]
+        )
+      ORDER BY 
+        CASE WHEN LOWER(a.title) LIKE $1 THEN 1 ELSE 2 END,
+        a.views DESC
+      LIMIT 3
+    `, [`%${query.toLowerCase()}%`, searchTerms]);
+    
+    return result.rows;
+  } catch (error) {
+    console.error('Knowledge base search error:', error);
+    return [];
+  }
+}
+
+// Track unanswered questions
+async function trackUnansweredQuestion(question, sessionId, accountId) {
+  try {
+    // Check if similar question exists
+    const existing = await pool.query(`
+      SELECT id, times_asked FROM kb_unanswered 
+      WHERE LOWER(question) LIKE $1 AND status = 'new'
+      LIMIT 1
+    `, [`%${question.toLowerCase().substring(0, 50)}%`]);
+    
+    if (existing.rows.length > 0) {
+      // Increment counter
+      await pool.query(
+        'UPDATE kb_unanswered SET times_asked = times_asked + 1, updated_at = NOW() WHERE id = $1',
+        [existing.rows[0].id]
+      );
+    } else {
+      // Insert new
+      await pool.query(`
+        INSERT INTO kb_unanswered (question, session_id, account_id)
+        VALUES ($1, $2, $3)
+      `, [question, sessionId, accountId]);
+    }
+  } catch (error) {
+    console.error('Track unanswered error:', error);
+  }
+}
 
 // Chat endpoint
 app.post('/api/chat', async (req, res) => {
@@ -12517,7 +12958,7 @@ app.post('/api/chat', async (req, res) => {
       });
     }
     
-    const { message, conversationHistory = [] } = req.body;
+    const { message, conversationHistory = [], sessionId, accountId } = req.body;
     
     if (!message || typeof message !== 'string') {
       return res.status(400).json({ success: false, error: 'Message is required' });
@@ -12526,6 +12967,25 @@ app.post('/api/chat', async (req, res) => {
     // Limit message length
     if (message.length > 1000) {
       return res.status(400).json({ success: false, error: 'Message too long (max 1000 characters)' });
+    }
+    
+    // Search knowledge base for relevant articles
+    const relevantArticles = await searchKnowledgeBase(message);
+    
+    // Build knowledge context if articles found
+    let knowledgeContext = '';
+    if (relevantArticles.length > 0) {
+      knowledgeContext = '\n\n📚 RELEVANT KNOWLEDGE BASE ARTICLES:\n';
+      for (const article of relevantArticles) {
+        knowledgeContext += `\n--- ${article.title} (${article.category_name}) ---\n`;
+        if (article.summary) knowledgeContext += `Summary: ${article.summary}\n`;
+        // Include content but truncate if too long
+        const content = article.content.length > 1500 
+          ? article.content.substring(0, 1500) + '...'
+          : article.content;
+        knowledgeContext += `${content}\n`;
+      }
+      knowledgeContext += '\n---\nUse the above articles to provide accurate, helpful answers.\n';
     }
     
     // Limit conversation history to last 10 messages to control token usage
@@ -12540,11 +13000,14 @@ app.post('/api/chat', async (req, res) => {
       { role: 'user', content: message }
     ];
     
+    // Build system prompt with knowledge context
+    const systemPrompt = GAS_SYSTEM_PROMPT + knowledgeContext;
+    
     // Call Claude API
     const response = await axios.post('https://api.anthropic.com/v1/messages', {
       model: 'claude-sonnet-4-20250514',
-      max_tokens: 500,
-      system: GAS_SYSTEM_PROMPT,
+      max_tokens: 800,
+      system: systemPrompt,
       messages: messages
     }, {
       headers: {
@@ -12556,9 +13019,28 @@ app.post('/api/chat', async (req, res) => {
     
     const assistantMessage = response.data.content[0].text;
     
+    // Check if the response indicates uncertainty - track for review
+    const uncertaintyIndicators = [
+      "i don't have specific information",
+      "i'm not sure about",
+      "contact support",
+      "i don't know",
+      "i cannot find"
+    ];
+    
+    const isUncertain = uncertaintyIndicators.some(indicator => 
+      assistantMessage.toLowerCase().includes(indicator)
+    );
+    
+    if (isUncertain && relevantArticles.length === 0) {
+      // Track this as potentially unanswered
+      await trackUnansweredQuestion(message, sessionId, accountId);
+    }
+    
     res.json({ 
       success: true, 
-      message: assistantMessage 
+      message: assistantMessage,
+      articlesUsed: relevantArticles.map(a => a.id)
     });
     
   } catch (error) {
