@@ -4872,7 +4872,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <button class="btn btn-small btn-secondary task-filter-btn" data-status="in_progress" onclick="filterTasks('in_progress')">In Progress</button>
                             <button class="btn btn-small btn-secondary task-filter-btn" data-status="done" onclick="filterTasks('done')">Done</button>
                         </div>
-                        <div style="margin-left: auto;">
+                        <div style="margin-left: auto; display: flex; gap: 0.5rem;">
+                            <button class="btn btn-small btn-secondary" onclick="syncTasksFromFile()" title="Sync from tasks.json">📥 Sync from File</button>
                             <button class="btn btn-small btn-secondary" onclick="loadTasks()">🔄 Refresh</button>
                         </div>
                     </div>
@@ -16225,6 +16226,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (error) {
                 showNotification('Error updating task', 'error');
+            }
+        }
+        
+        async function syncTasksFromFile() {
+            if (!confirm('This will replace all tasks with contents from tasks.json. Continue?')) return;
+            
+            try {
+                const response = await fetch('/api/admin/tasks/sync-from-file', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    loadTasks();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error syncing tasks', 'error');
             }
         }
 
