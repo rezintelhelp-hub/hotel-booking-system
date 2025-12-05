@@ -2882,6 +2882,24 @@ fetch('/api/public/client/1/rooms')
                     </div>
                 </div>
 
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="upsells-property-select" class="form-input" onchange="loadUpsellsForProperty()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                            <select id="upsells-room-select" class="form-input" onchange="loadUpsellsForProperty()">
+                                <option value="">All Rooms</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Quick Add Presets -->
                 <div class="card" style="margin-bottom: 1rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -13059,10 +13077,70 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         let upsellsData = [];
         
-        async function loadUpsells() {
+        async function loadUpsellsPropertySelect() {
             try {
                 const queryString = buildQueryString();
-                const response = await fetch(`/api/admin/upsells${queryString}`);
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('upsells-property-select');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties for upsells:', error);
+            }
+        }
+        
+        async function loadUpsellsRooms() {
+            const propertyId = document.getElementById('upsells-property-select')?.value;
+            const roomSelect = document.getElementById('upsells-room-select');
+            if (!roomSelect) return;
+            
+            roomSelect.innerHTML = '<option value="">All Rooms</option>';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    data.data.forEach(r => {
+                        roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        async function loadUpsellsForProperty() {
+            const propertyId = document.getElementById('upsells-property-select')?.value;
+            const roomId = document.getElementById('upsells-room-select')?.value;
+            
+            // Also load rooms when property changes
+            if (!roomId) {
+                await loadUpsellsRooms();
+            }
+            
+            if (!propertyId) {
+                document.getElementById('upsells-list').innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view and manage upsells
+                    </p>
+                `;
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/upsells?property_id=${propertyId}${roomId ? '&room_id=' + roomId : ''}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -13074,14 +13152,36 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        async function loadUpsells() {
+            // Load property selector first
+            await loadUpsellsPropertySelect();
+            
+            // Show message to select property
+            document.getElementById('upsells-list').innerHTML = `
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    Select a property to view and manage upsells
+                </p>
+            `;
+        }
+        
         function renderUpsells(upsells) {
             const container = document.getElementById('upsells-list');
+            const propertyId = document.getElementById('upsells-property-select')?.value;
+            
+            if (!propertyId) {
+                container.innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view and manage upsells
+                    </p>
+                `;
+                return;
+            }
             
             if (!upsells || upsells.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon">🎁</div>
-                        <h3>No Upsells Configured</h3>
+                        <h3>No Upsells for This Property</h3>
                         <p>Click any preset above or create a custom upsell</p>
                         <button class="btn" onclick="openAddUpsellModal()">Create Custom Upsell</button>
                     </div>
@@ -13094,7 +13194,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border);">
                             <th style="text-align: left; padding: 0.75rem;">Name</th>
-                            <th style="text-align: left; padding: 0.75rem;">Applies To</th>
                             <th style="text-align: left; padding: 0.75rem;">Price</th>
                             <th style="text-align: left; padding: 0.75rem;">Charge Type</th>
                             <th style="text-align: center; padding: 0.75rem;">Status</th>
@@ -13114,26 +13213,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             };
             
             for (const upsell of upsells) {
-                // Determine "Applies To" text
-                let appliesTo = '<span style="color: #10b981;">All Properties</span>';
-                if (upsell.property_name) {
-                    if (upsell.room_name) {
-                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">${upsell.room_name}</small>`;
-                    } else if (upsell.room_ids) {
-                        const unitCount = upsell.room_ids.split(',').length;
-                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">${unitCount} units</small>`;
-                    } else {
-                        appliesTo = `${upsell.property_name}<br><small style="color: #6b7280;">All units</small>`;
-                    }
-                }
-                
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
                             <strong>${upsell.name}</strong>
                             ${upsell.description ? `<br><small style="color: var(--text-secondary);">${upsell.description}</small>` : ''}
                         </td>
-                        <td style="padding: 0.75rem; font-size: 0.9rem;">${appliesTo}</td>
                         <td style="padding: 0.75rem; font-weight: 600; color: #059669;">$${parseFloat(upsell.price).toFixed(2)}</td>
                         <td style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.9rem;">${chargeTypeLabels[upsell.charge_type] || upsell.charge_type}</td>
                         <td style="padding: 0.75rem; text-align: center;">
@@ -13159,18 +13244,26 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('upsell-multi-room').checked = false;
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
             document.getElementById('upsell-room').style.display = 'block';
-            loadUpsellProperties();
+            
+            // Pre-select property from page filter
+            const selectedProperty = document.getElementById('upsells-property-select')?.value;
+            loadUpsellPropertiesForModal().then(() => {
+                if (selectedProperty) {
+                    document.getElementById('upsell-property').value = selectedProperty;
+                    loadUpsellRooms();
+                }
+            });
             openModal('addUpsellModal');
         }
         
-        async function loadUpsellProperties() {
+        async function loadUpsellPropertiesForModal() {
             try {
                 const queryString = buildQueryString();
                 const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 const select = document.getElementById('upsell-property');
-                select.innerHTML = '<option value="">All Properties</option>';
+                select.innerHTML = '<option value="">Select Property...</option>';
                 
                 if (data.success && data.data) {
                     data.data.forEach(p => {
@@ -13255,7 +13348,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('upsell-room').style.display = 'block';
             
             // Load properties first
-            await loadUpsellProperties();
+            await loadUpsellPropertiesForModal();
             
             // Set property and load rooms
             if (upsell.property_id) {
@@ -13327,7 +13420,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success) {
                     closeModal('addUpsellModal');
-                    loadUpsells();
+                    loadUpsellsForProperty();
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -13344,7 +13437,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    loadUpsells();
+                    loadUpsellsForProperty();
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -14443,7 +14536,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('upsell-active').checked = true;
             
             // Load properties
-            await loadUpsellProperties();
+            await loadUpsellPropertiesForModal();
             
             // Update modal title to show it's from preset
             document.getElementById('upsell-modal-title').innerHTML = '🎁 Add: ' + name;
