@@ -8461,14 +8461,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                     loadFeaturedRoomsList();
                 }
                 
-                // Get client ID for per-client storage
-                const clientId = selectedAccountId || getClientId() || 'default';
-                const storageKey = `wb-settings-${clientId}-${section}`;
+                // Get account ID
+                const accountId = selectedAccountId;
+                if (!accountId) {
+                    console.log('No account selected, using default values');
+                    return;
+                }
                 
-                // Try to load from localStorage first (per-client)
-                const savedSettings = localStorage.getItem(storageKey);
-                if (savedSettings) {
-                    const settings = JSON.parse(savedSettings);
+                // Load from server API
+                const response = await fetch(`/api/admin/website-builder/${section}?account_id=${accountId}`);
+                const data = await response.json();
+                
+                if (data.success && data.settings) {
+                    const settings = data.settings;
                     
                     // Populate form fields based on section
                     Object.keys(settings).forEach(key => {
@@ -8500,7 +8505,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         }
                     }
                     
-                    console.log(`Loaded ${section} settings for client ${clientId}`);
+                    console.log(`Loaded ${section} settings for account ${accountId}`);
                 }
             } catch (error) {
                 console.error('Error loading website builder section:', error);
@@ -8581,12 +8586,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
-        // Load Lehmann House profile settings into Website Builder
         async function saveWebsiteSection(section) {
             try {
-                const clientId = selectedAccountId || getClientId();
-                if (!clientId) {
-                    alert('Please select a client first');
+                const accountId = selectedAccountId;
+                if (!accountId) {
+                    alert('Please select a client/account first from the dropdown');
                     return;
                 }
                 
@@ -8605,27 +8609,19 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 });
                 
-                // Save to localStorage (per client)
-                const storageKey = `wb-settings-${clientId}-${section}`;
-                localStorage.setItem(storageKey, JSON.stringify(settings));
-                console.log(`Saved ${section} settings for client ${clientId}`);
+                // Save to server API
+                const response = await fetch(`/api/admin/website-builder/${section}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_id: accountId, settings })
+                });
+                const data = await response.json();
                 
-                // Also try to save to server API (may not exist yet)
-                try {
-                    const response = await fetch(`/api/admin/website-builder/${section}`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ client_id: clientId, settings })
-                    });
-                    const data = await response.json();
-                    if (data.success) {
-                        console.log('Also saved to server');
-                    }
-                } catch (apiError) {
-                    console.log('Server API not available, saved to localStorage only');
+                if (data.success) {
+                    showNotification('✅ Settings saved!', 'success');
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
                 }
-                
-                showNotification('✅ Settings saved for this client!', 'success');
             } catch (error) {
                 console.error('Error saving website section:', error);
                 alert('Error saving. Please try again.');
@@ -13834,6 +13830,52 @@ const promo = await fetch('/api/v1/offers/validate', {
                         valEl.textContent = this.value + slider.suffix;
                     });
                 }
+            });
+            
+            // Enhance color pickers with hex input
+            document.querySelectorAll('input[type="color"][id^="wb-"]').forEach(colorInput => {
+                // Create wrapper div
+                const wrapper = document.createElement('div');
+                wrapper.style.cssText = 'display: flex; gap: 8px; align-items: center;';
+                
+                // Insert wrapper before color input
+                colorInput.parentNode.insertBefore(wrapper, colorInput);
+                
+                // Move color input into wrapper and resize it
+                wrapper.appendChild(colorInput);
+                colorInput.style.width = '60px';
+                colorInput.style.height = '40px';
+                colorInput.style.flexShrink = '0';
+                
+                // Create hex text input
+                const hexInput = document.createElement('input');
+                hexInput.type = 'text';
+                hexInput.value = colorInput.value.toUpperCase();
+                hexInput.placeholder = '#000000';
+                hexInput.style.cssText = 'flex: 1; padding: 8px 12px; border: 1px solid var(--border); border-radius: 8px; font-family: monospace; font-size: 14px;';
+                wrapper.appendChild(hexInput);
+                
+                // Sync color picker to hex input
+                colorInput.addEventListener('input', function() {
+                    hexInput.value = this.value.toUpperCase();
+                });
+                
+                // Sync hex input to color picker
+                hexInput.addEventListener('input', function() {
+                    let val = this.value.trim();
+                    if (!val.startsWith('#')) val = '#' + val;
+                    if (/^#[0-9A-Fa-f]{6}$/.test(val)) {
+                        colorInput.value = val;
+                        this.style.borderColor = 'var(--border)';
+                    } else {
+                        this.style.borderColor = '#ef4444';
+                    }
+                });
+                
+                hexInput.addEventListener('blur', function() {
+                    this.value = colorInput.value.toUpperCase();
+                    this.style.borderColor = 'var(--border)';
+                });
             });
         });
         
