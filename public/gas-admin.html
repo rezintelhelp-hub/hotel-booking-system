@@ -3648,90 +3648,147 @@ fetch('/api/public/client/1/rooms')
                 </div>
             </div>
 
-            <!-- Website Builder: Header & Logo -->
+            <!-- Website Builder: Header & Menu -->
             <div id="wb-header" class="view">
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>📌 Header & Logo</h2>
-                            <p>Site identity and navigation</p>
+                            <h2>📌 Header & Menu</h2>
+                            <p>Header layout and navigation styling</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('header')">💾 Save & Sync</button>
                     </div>
                 </div>
+                
+                <!-- Menu Layout -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Logo</h3>
+                        <h3 class="card-title">Layout</h3>
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Logo Image</label>
-                            <div id="wb-header-logo-preview" style="width: 200px; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0;">
-                                <span style="color: #94a3b8;">No logo uploaded</span>
-                            </div>
-                            <input type="file" id="wb-header-logo" accept="image/*" onchange="previewWebsiteImage('header-logo')">
-                            <small class="form-hint">Recommended: PNG with transparent background, max 400x150px</small>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Site Name (if no logo)</label>
-                            <input type="text" class="form-input" id="wb-header-site-name" placeholder="e.g., The Grand Hotel">
-                            <small class="form-hint">Displayed if no logo is uploaded</small>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Tagline</label>
-                            <input type="text" class="form-input" id="wb-header-tagline" placeholder="e.g., Luxury Accommodation Since 1985">
-                        </div>
-                    </div>
-                </div>
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Navigation Menu</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-show-rooms" checked> Show "Rooms" link
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-show-about" checked> Show "About" link
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-show-contact" checked> Show "Contact" link
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-show-blog" checked> Show "Blog" link
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Book Now Button Text</label>
-                            <input type="text" class="form-input" id="wb-header-book-button" placeholder="e.g., Book Now">
-                        </div>
-                    </div>
-                </div>
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Header Style</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Header Background</label>
-                            <select class="form-select" id="wb-header-bg-style">
-                                <option value="transparent">Transparent (over hero)</option>
-                                <option value="white">White</option>
-                                <option value="dark">Dark</option>
-                                <option value="primary">Primary Color</option>
+                            <label class="form-label">Menu Layout</label>
+                            <select class="form-input" id="wb-header-menu-layout">
+                                <option value="logo-left">Logo Left, Menu Right</option>
+                                <option value="logo-center">Logo Center, Menu Split</option>
+                                <option value="logo-right">Logo Right, Menu Left</option>
+                                <option value="stacked">Logo Top, Menu Below (Centered)</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-sticky" checked> Sticky Header (stays at top when scrolling)
-                            </label>
+                    </div>
+                </div>
+                
+                <!-- Colors -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Colors</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Header Background Color</label>
+                                <input type="color" id="wb-header-bg-color" value="#ffffff" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Menu Link Color</label>
+                                <input type="color" id="wb-header-link-color" value="#1e293b" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Logo/Site Title Color</label>
+                                <input type="color" id="wb-header-logo-color" value="#0f172a" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">CTA Button Background</label>
+                                <input type="color" id="wb-header-cta-bg" value="#2563eb" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">CTA Button Text Color</label>
+                                <input type="color" id="wb-header-cta-text" value="#ffffff" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Menu Typography -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Menu Typography</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Menu Font</label>
+                                <select class="form-input" id="wb-header-menu-font">
+                                    <option value="inter">Inter (Modern)</option>
+                                    <option value="roboto">Roboto (Clean)</option>
+                                    <option value="opensans">Open Sans (Friendly)</option>
+                                    <option value="lato">Lato (Professional)</option>
+                                    <option value="montserrat">Montserrat (Bold)</option>
+                                    <option value="poppins">Poppins (Rounded)</option>
+                                    <option value="raleway">Raleway (Elegant)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Menu Font Weight</label>
+                                <select class="form-input" id="wb-header-font-weight">
+                                    <option value="400">Normal (400)</option>
+                                    <option value="500" selected>Medium (500)</option>
+                                    <option value="600">Semi-Bold (600)</option>
+                                    <option value="700">Bold (700)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Menu Text Style</label>
+                                <select class="form-input" id="wb-header-text-transform">
+                                    <option value="none">Normal</option>
+                                    <option value="uppercase">UPPERCASE</option>
+                                    <option value="capitalize">Capitalize</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Menu Font Size (px)</label>
+                            <input type="range" id="wb-header-font-size" min="12" max="20" step="1" value="15" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>12</span>
+                                <span id="wb-header-font-size-val">15px</span>
+                                <span>20</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Border & Options -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Border & Options</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="wb-header-show-border"> Show Bottom Border
+                                </label>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Border Color</label>
+                                <input type="color" id="wb-header-border-color" value="#e2e8f0" style="width: 100%; height: 35px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="wb-header-transparent"> Transparent on Hero
+                                </label>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Header becomes transparent over hero image</div>
+                            </div>
+                            <div class="form-group">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="wb-header-sticky" checked> Sticky Header on Scroll
+                                </label>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3743,41 +3800,122 @@ fetch('/api/public/client/1/rooms')
                     <div class="header-top">
                         <div>
                             <h2>🖼️ Hero Section</h2>
-                            <p>The main banner at the top of your website</p>
+                            <p>The main banner at the top of your homepage</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('hero')">💾 Save & Sync</button>
                     </div>
                 </div>
+                
+                <!-- Background -->
                 <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Background</h3>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Hero Headline</label>
-                            <input type="text" class="form-input" id="wb-hero-headline" placeholder="e.g., Welcome to Paradise">
-                            <small class="form-hint">The main text visitors see first</small>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Hero Subheadline</label>
-                            <input type="text" class="form-input" id="wb-hero-subheadline" placeholder="e.g., Experience luxury in the heart of the countryside">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Button Text</label>
-                            <input type="text" class="form-input" id="wb-hero-button-text" placeholder="e.g., Book Now">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Button Link</label>
-                            <input type="text" class="form-input" id="wb-hero-button-link" placeholder="e.g., #booking or /rooms">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Background Image</label>
-                            <div id="wb-hero-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                                <span style="color: #94a3b8;">No image selected</span>
+                            <label class="form-label">Hero Background Image</label>
+                            <div id="wb-hero-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                <span style="color: #94a3b8;">No image uploaded</span>
                             </div>
                             <input type="file" id="wb-hero-image" accept="image/*" onchange="previewWebsiteImage('hero')">
                         </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Overlay Color</label>
+                                <input type="color" id="wb-hero-overlay-color" value="#0f172a" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Overlay Darkness (%)</label>
+                                <input type="range" id="wb-hero-overlay-opacity" min="0" max="100" step="5" value="30" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                    <span>0 = No overlay</span>
+                                    <span id="wb-hero-overlay-opacity-val">30%</span>
+                                    <span>100 = Full dark</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Hero Height (vh)</label>
+                            <input type="range" id="wb-hero-height" min="50" max="100" step="5" value="90" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>50% of screen</span>
+                                <span id="wb-hero-height-val">90vh</span>
+                                <span>Full screen</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Badge -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Hero Badge (Optional)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Badge Text</label>
+                                <input type="text" class="form-input" id="wb-hero-badge-text" placeholder="Welcome to Paradise">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Badge Link URL</label>
+                                <input type="text" class="form-input" id="wb-hero-badge-link" placeholder="Optional - make badge clickable">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Badge Background</label>
+                                <input type="text" class="form-input" id="wb-hero-badge-bg" value="rgba(255,255,255,0.15)" placeholder="rgba(255,255,255,0.15)">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Badge Text Color</label>
+                                <input type="color" id="wb-hero-badge-text-color" value="#ffffff" style="width: 100%; height: 38px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Badge Border Color</label>
+                                <input type="text" class="form-input" id="wb-hero-badge-border" value="rgba(255,255,255,0.3)" placeholder="rgba(255,255,255,0.3)">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Title & Subtitle -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Title & Subtitle</h3>
+                    </div>
+                    <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Overlay Opacity</label>
-                            <input type="range" id="wb-hero-overlay" min="0" max="100" value="50" style="width: 100%;">
-                            <small class="form-hint">Darken the background to make text more readable</small>
+                            <label class="form-label">Hero Title</label>
+                            <input type="text" class="form-input" id="wb-hero-title" placeholder="Find Your Perfect Vacation Rental">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Hero Subtitle</label>
+                            <textarea class="form-input" id="wb-hero-subtitle" rows="2" placeholder="Discover stunning vacation rentals with luxury amenities, prime locations, and unforgettable experiences."></textarea>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Trust Badges -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Trust Badges (Optional)</h3>
+                    </div>
+                    <div class="card-body">
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem; font-size: 0.85rem;">Small text badges shown below the hero content. Leave empty to hide.</p>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Trust Badge 1</label>
+                                <input type="text" class="form-input" id="wb-hero-trust-1" placeholder="Instant Booking">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Trust Badge 2</label>
+                                <input type="text" class="form-input" id="wb-hero-trust-2" placeholder="Best Price Guarantee">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Trust Badge 3</label>
+                                <input type="text" class="form-input" id="wb-hero-trust-3" placeholder="24/7 Support">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3894,34 +4032,72 @@ fetch('/api/public/client/1/rooms')
                     </div>
                 </div>
                 <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Display Options</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Display Mode</label>
+                                <select class="form-input" id="wb-featured-mode">
+                                    <option value="all">Show All Properties</option>
+                                    <option value="random">Random Selection</option>
+                                    <option value="specific">Specific Rooms (select below)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Number to Show</label>
+                                <input type="number" class="form-input" id="wb-featured-count" value="3" min="1" max="12">
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">For "Random" or "All" mode</div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Select Rooms to Feature</label>
+                            <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Check the rooms you want to display (for "Specific Rooms" mode)</div>
+                            <div id="wb-featured-rooms-list" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;">
+                                <p style="color: var(--text-secondary); padding: 0.5rem;">Loading rooms...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Section Content</h3>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Section Title</label>
-                            <input type="text" class="form-input" id="wb-featured-title" placeholder="e.g., Our Rooms">
+                            <input type="text" class="form-input" id="wb-featured-title" placeholder="Featured Properties">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Section Subtitle</label>
-                            <input type="text" class="form-input" id="wb-featured-subtitle" placeholder="e.g., Choose your perfect stay">
+                            <textarea class="form-input" id="wb-featured-subtitle" rows="2" placeholder="Discover our handpicked selection of stunning vacation rentals, each offering unique experiences and exceptional comfort."></textarea>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Display Mode</label>
-                            <select class="form-select" id="wb-featured-mode">
-                                <option value="all">Show All Rooms</option>
-                                <option value="featured">Featured Only</option>
-                                <option value="selected">Select Specific</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Number to Display</label>
-                            <select class="form-select" id="wb-featured-count">
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="6">6</option>
-                                <option value="all">All</option>
-                            </select>
-                        </div>
-                        <div id="wb-featured-rooms-list" style="margin-top: 1rem;">
-                            <!-- Populated dynamically -->
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Button (Optional)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text</label>
+                                <input type="text" class="form-input" id="wb-featured-btn-text" placeholder="View All Properties">
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Leave empty to hide button</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button URL</label>
+                                <input type="text" class="form-input" id="wb-featured-btn-url" placeholder="/book-now/">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Background Color</label>
+                                <input type="color" id="wb-featured-btn-bg" value="#2563eb" style="width: 100%; height: 40px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <input type="color" id="wb-featured-btn-text-color" value="#ffffff" style="width: 100%; height: 40px; border-radius: 8px; cursor: pointer;">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3933,31 +4109,70 @@ fetch('/api/public/client/1/rooms')
                     <div class="header-top">
                         <div>
                             <h2>⭐ Reviews Section</h2>
-                            <p>Customer testimonials and ratings</p>
+                            <p>Display reviews from TripAdvisor, Booking.com, Google and more</p>
                         </div>
-                        <button class="btn" onclick="addWebsiteReview()">+ Add Review</button>
+                        <button class="btn" onclick="saveWebsiteSection('reviews')">💾 Save & Sync</button>
                     </div>
                 </div>
                 <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Section Settings</h3>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Section Title</label>
-                            <input type="text" class="form-input" id="wb-reviews-title" placeholder="e.g., What Our Guests Say">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="wb-reviews-enabled"> Enable Reviews Section
+                            </label>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-reviews-show" checked> Show Reviews Section
-                            </label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-reviews-title" placeholder="What Our Guests Say">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Section Subtitle</label>
+                            <input type="text" class="form-input" id="wb-reviews-subtitle" placeholder="Real reviews from real guests across all platforms">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <input type="color" id="wb-reviews-bg-color" value="#0f172a" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <input type="color" id="wb-reviews-text-color" value="#ffffff" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Display Style</label>
+                                <select class="form-input" id="wb-reviews-style">
+                                    <option value="slider">Slider (Auto-scrolling testimonials)</option>
+                                    <option value="grid">Grid (Review cards)</option>
+                                    <option value="badges">Badges Only (Rating scores)</option>
+                                    <option value="summary">Summary (Overall rating)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Number of Reviews</label>
+                                <select class="form-input" id="wb-reviews-limit">
+                                    <option value="3">3</option>
+                                    <option value="6" selected>6</option>
+                                    <option value="9">9</option>
+                                    <option value="12">12</option>
+                                </select>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">For Grid style only</div>
+                            </div>
                         </div>
                     </div>
                 </div>
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Reviews</h3>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 class="card-title">Manual Reviews</h3>
+                        <button class="btn btn-small" onclick="addWebsiteReview()">+ Add Review</button>
                     </div>
                     <div class="card-body" id="wb-reviews-list">
                         <div class="empty-state">
-                            <p>No reviews yet. Click "Add Review" to add testimonials.</p>
+                            <p>No manual reviews added. Click "Add Review" to add testimonials, or connect review platforms in Integrations.</p>
                         </div>
                     </div>
                 </div>
@@ -4070,33 +4285,83 @@ fetch('/api/public/client/1/rooms')
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🚀 Call to Action</h2>
-                            <p>Encourage visitors to book</p>
+                            <h2>📢 CTA Section</h2>
+                            <p>Call-to-action banner above the footer</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('cta')">💾 Save & Sync</button>
                     </div>
                 </div>
                 <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Section Settings</h3>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">CTA Headline</label>
-                            <input type="text" class="form-input" id="wb-cta-headline" placeholder="e.g., Ready to Book Your Stay?">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="wb-cta-enabled" checked> Enable CTA Section
+                            </label>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">CTA Text</label>
-                            <textarea class="form-textarea" id="wb-cta-text" rows="2" placeholder="e.g., Book directly with us for the best rates and exclusive perks."></textarea>
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-input" id="wb-cta-title" placeholder="Ready to Book Your Stay?">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Button Text</label>
-                            <input type="text" class="form-input" id="wb-cta-button-text" placeholder="e.g., Check Availability">
+                            <label class="form-label">Title Font Size (px)</label>
+                            <input type="range" id="wb-cta-title-size" min="24" max="60" step="2" value="36" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>24</span>
+                                <span id="wb-cta-title-size-val">36px</span>
+                                <span>60</span>
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Button Link</label>
-                            <input type="text" class="form-input" id="wb-cta-button-link" placeholder="e.g., #booking">
+                            <label class="form-label">Text</label>
+                            <textarea class="form-input" id="wb-cta-text" rows="2" placeholder="Find your perfect vacation rental today and create memories that last a lifetime."></textarea>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Background Color</label>
-                            <input type="color" id="wb-cta-bg-color" value="#6366f1" style="width: 100px; height: 40px;">
+                            <label class="form-label">Text Font Size (px)</label>
+                            <input type="range" id="wb-cta-text-size" min="14" max="24" step="1" value="18" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>14</span>
+                                <span id="wb-cta-text-size-val">18px</span>
+                                <span>24</span>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <input type="color" id="wb-cta-bg-color" value="#2563eb" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <input type="color" id="wb-cta-text-color" value="#ffffff" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Button</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text</label>
+                                <input type="text" class="form-input" id="wb-cta-btn-text" placeholder="Browse Properties">
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">Leave empty to hide button</div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button URL</label>
+                                <input type="text" class="form-input" id="wb-cta-btn-url" placeholder="/book-now/">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Background Color</label>
+                                <input type="color" id="wb-cta-btn-bg" value="#ffffff" style="width: 100%; height: 40px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <input type="color" id="wb-cta-btn-text-color" value="#2563eb" style="width: 100%; height: 40px; border-radius: 8px; cursor: pointer;">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4114,6 +4379,32 @@ fetch('/api/public/client/1/rooms')
                     </div>
                 </div>
                 <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Footer Style</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Footer Background</label>
+                                <input type="color" id="wb-footer-bg-color" value="#0f172a" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Footer Text Color</label>
+                                <input type="color" id="wb-footer-text-color" value="#ffffff" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Footer Layout</label>
+                                <select class="form-input" id="wb-footer-layout">
+                                    <option value="4-columns">4 Columns</option>
+                                    <option value="3-columns">3 Columns</option>
+                                    <option value="2-columns">2 Columns</option>
+                                    <option value="centered">Centered Simple</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card" style="margin-top: 1rem;">
                     <div class="card-header">
                         <h3 class="card-title">Quick Links</h3>
                     </div>
@@ -13424,7 +13715,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 { id: 'wb-global-styles-body-size', suffix: 'px' },
                 { id: 'wb-intro-title-size', suffix: 'px' },
                 { id: 'wb-intro-text-size', suffix: 'px' },
-                { id: 'wb-intro-max-width', suffix: 'px' }
+                { id: 'wb-intro-max-width', suffix: 'px' },
+                { id: 'wb-header-font-size', suffix: 'px' },
+                { id: 'wb-hero-overlay-opacity', suffix: '%' },
+                { id: 'wb-hero-height', suffix: 'vh' },
+                { id: 'wb-cta-title-size', suffix: 'px' },
+                { id: 'wb-cta-text-size', suffix: 'px' }
             ];
             
             rangeSliders.forEach(slider => {
