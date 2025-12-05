@@ -8461,8 +8461,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     loadFeaturedRoomsList();
                 }
                 
-                // Get account ID
-                const accountId = selectedAccountId;
+                // Get account ID - either from filter or current logged-in account
+                const accountId = selectedAccountId || (currentAccount ? currentAccount.id : null);
                 if (!accountId) {
                     console.log('No account selected, using default values');
                     return;
@@ -8517,8 +8517,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             const container = document.getElementById('wb-featured-rooms-list');
             if (!container) return;
             
-            // Get the selected account ID (same as used in loadRooms)
-            const accountId = selectedAccountId || getClientId();
+            // Get the account ID - either from filter or current logged-in account
+            const accountId = selectedAccountId || (currentAccount ? currentAccount.id : null);
             if (!accountId) {
                 container.innerHTML = '<p style="color: var(--text-secondary); padding: 0.5rem;">Select a client to load rooms</p>';
                 return;
@@ -8588,9 +8588,10 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function saveWebsiteSection(section) {
             try {
-                const accountId = selectedAccountId;
+                // Get the account ID - either from filter or current logged-in account
+                const accountId = selectedAccountId || (currentAccount ? currentAccount.id : null);
                 if (!accountId) {
-                    alert('Please select a client/account first from the dropdown');
+                    alert('Please select an account first from the Accounts page');
                     return;
                 }
                 
@@ -8609,7 +8610,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 });
                 
-                // Save to server API
+                // Save to GAS database
                 const response = await fetch(`/api/admin/website-builder/${section}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -8617,14 +8618,70 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 const data = await response.json();
                 
-                if (data.success) {
-                    showNotification('✅ Settings saved!', 'success');
-                } else {
+                if (!data.success) {
                     showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
+                    return;
+                }
+                
+                // Also sync to WordPress if site_id is available
+                const wpSiteId = await getWordPressSiteId(accountId);
+                if (wpSiteId) {
+                    try {
+                        const wpResponse = await fetch('https://sites.gas.travel/gas-sync-api.php', {
+                            method: 'POST',
+                            headers: { 
+                                'Content-Type': 'application/json',
+                                'X-API-Key': 'GAS_SECRET_KEY_2024!'
+                            },
+                            body: JSON.stringify({
+                                action: 'sync_section',
+                                site_id: wpSiteId,
+                                section: section,
+                                settings: settings
+                            })
+                        });
+                        const wpData = await wpResponse.json();
+                        if (wpData.success) {
+                            showNotification('✅ Saved & synced to WordPress!', 'success');
+                        } else {
+                            showNotification('✅ Saved! (WordPress sync failed: ' + wpData.error + ')', 'warning');
+                        }
+                    } catch (wpError) {
+                        console.error('WordPress sync error:', wpError);
+                        showNotification('✅ Saved! (WordPress sync unavailable)', 'success');
+                    }
+                } else {
+                    showNotification('✅ Settings saved!', 'success');
                 }
             } catch (error) {
                 console.error('Error saving website section:', error);
                 alert('Error saving. Please try again.');
+            }
+        }
+        
+        // Get WordPress site ID for an account
+        async function getWordPressSiteId(accountId) {
+            try {
+                // Check if we have it cached
+                if (window.wpSiteIdCache && window.wpSiteIdCache[accountId]) {
+                    return window.wpSiteIdCache[accountId];
+                }
+                
+                // Try to get from account settings
+                const response = await fetch(`/api/admin/accounts/${accountId}/settings`);
+                const data = await response.json();
+                
+                if (data.success && data.settings && data.settings.wordpress_site_id) {
+                    // Cache it
+                    if (!window.wpSiteIdCache) window.wpSiteIdCache = {};
+                    window.wpSiteIdCache[accountId] = data.settings.wordpress_site_id;
+                    return data.settings.wordpress_site_id;
+                }
+                
+                return null;
+            } catch (error) {
+                console.error('Error getting WordPress site ID:', error);
+                return null;
             }
         }
         
@@ -8914,11 +8971,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         </span>
                                     </td>
                                     <td>
-                                        <div style="display: flex; gap: 0.5rem;">
+                                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                             <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
                                             ${account.role !== 'master_admin' ? `
-                                                <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', \`${account.name.replace(/`/g, "'")}\`)">Role</button>
+                                                <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', \`${account.name.replace(/\`/g, "'")}\`)">Role</button>
                                             ` : ''}
+                                            <button class="btn btn-secondary btn-small" onclick="openWordPressLinkModal(${account.id}, \`${account.name.replace(/\`/g, "'")}\`)" title="Link WordPress Site">🌐 WP</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -9217,6 +9275,100 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (result.success) {
                     closeModal('changeRoleModal');
                     loadAccounts();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        // WordPress Site Link Modal
+        async function openWordPressLinkModal(accountId, accountName) {
+            // First, get current settings
+            let currentSiteId = '';
+            let currentUrl = '';
+            
+            try {
+                const response = await fetch(`/api/admin/accounts/${accountId}/settings`);
+                const data = await response.json();
+                if (data.success && data.settings) {
+                    currentSiteId = data.settings.wordpress_site_id || '';
+                    currentUrl = data.settings.wordpress_url || '';
+                }
+            } catch (e) {
+                console.log('Could not load existing settings');
+            }
+            
+            const modalHtml = `
+                <div class="modal-overlay" id="wordpressLinkModal" style="display: flex;">
+                    <div class="modal" style="max-width: 500px;">
+                        <div class="modal-header">
+                            <h3>🌐 Link WordPress Site</h3>
+                            <button class="modal-close" onclick="closeModal('wordpressLinkModal')">&times;</button>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <p style="margin-bottom: 1rem;">Link a WordPress site to <strong>${accountName}</strong>:</p>
+                            
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">WordPress Site ID (Blog ID)</label>
+                                <input type="number" id="wpSiteId" value="${currentSiteId}" placeholder="e.g., 2" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px;">
+                                <small style="color: var(--text-secondary);">The blog_id from WordPress multisite</small>
+                            </div>
+                            
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label class="form-label">WordPress Site URL (optional)</label>
+                                <input type="url" id="wpSiteUrl" value="${currentUrl}" placeholder="https://sitename.sites.gas.travel" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px;">
+                            </div>
+                            
+                            <div style="background: #f0f9ff; border: 1px solid #bae6fd; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                                <strong style="color: #0369a1;">💡 How to find Site ID:</strong>
+                                <ol style="margin: 0.5rem 0 0 1.5rem; color: #0c4a6e; font-size: 0.9rem;">
+                                    <li>Go to sites.gas.travel/wp-admin</li>
+                                    <li>Network Admin → Sites</li>
+                                    <li>Hover over the site - ID is in the URL</li>
+                                </ol>
+                            </div>
+                            
+                            <div style="display: flex; gap: 1rem;">
+                                <button class="btn btn-secondary" onclick="closeModal('wordpressLinkModal')" style="flex: 1;">Cancel</button>
+                                <button class="btn" onclick="saveWordPressLink(${accountId})" style="flex: 1;">Save Link</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        async function saveWordPressLink(accountId) {
+            const siteId = document.getElementById('wpSiteId').value;
+            const siteUrl = document.getElementById('wpSiteUrl').value;
+            
+            if (!siteId) {
+                alert('Please enter a WordPress Site ID');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/accounts/${accountId}/link-wordpress`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        wordpress_site_id: parseInt(siteId),
+                        wordpress_url: siteUrl 
+                    })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('✅ WordPress site linked successfully!', 'success');
+                    closeModal('wordpressLinkModal');
+                    // Clear cache so next save picks up new site ID
+                    if (window.wpSiteIdCache) {
+                        delete window.wpSiteIdCache[accountId];
+                    }
                 } else {
                     alert('Error: ' + result.error);
                 }
