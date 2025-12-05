@@ -8556,7 +8556,14 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Reset to default (most checkboxes default to checked)
                     el.checked = el.hasAttribute('checked');
                 } else if (el.type === 'color') {
-                    // Keep default color values
+                    // Reset color to default value from HTML attribute
+                    const defaultColor = el.getAttribute('value') || '#ffffff';
+                    el.value = defaultColor;
+                    // Also update any associated hex text input
+                    const hexInput = el.parentNode.querySelector('input[type="text"]');
+                    if (hexInput) {
+                        hexInput.value = defaultColor.toUpperCase();
+                    }
                 } else if (el.type === 'range') {
                     // Reset to default value from attribute
                     el.value = el.getAttribute('value') || el.defaultValue;
@@ -8568,7 +8575,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 } else if (el.tagName === 'SELECT') {
                     el.selectedIndex = 0;
                 } else if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
-                    el.value = '';
+                    // Reset text inputs to default value or empty
+                    el.value = el.getAttribute('value') || el.defaultValue || '';
                 }
             });
             
@@ -8994,6 +9002,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             const account = allAccounts.find(a => a.id === accountId);
             if (!account) return;
             
+            // Clear website builder fields before switching
+            clearWebsiteBuilderFields();
+            
             // Set the filter variables
             selectedAccountId = accountId;
             selectedAccountName = account.name;
@@ -9170,6 +9181,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         // selectedAccountId and selectedAccountName are declared at the top with other globals
         
         function setAccountFilter(accountId, accountName) {
+            // Clear website builder fields before switching
+            clearWebsiteBuilderFields();
+            
             selectedAccountId = accountId;
             selectedAccountName = accountName;
             
@@ -9200,6 +9214,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.log('Non-master admin cannot clear account filter');
                 return;
             }
+            
+            // Clear website builder fields before switching
+            clearWebsiteBuilderFields();
             
             selectedAccountId = null;
             selectedAccountName = null;
