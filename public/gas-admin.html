@@ -1233,6 +1233,10 @@
                         <span class="nav-icon">🛒</span>
                         <span>Manage Extras</span>
                     </a>
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="tasks" href="#" onclick="navClick(this, 'tasks'); return false;">
+                        <span class="nav-icon">📝</span>
+                        <span>Tasks</span>
+                    </a>
                 </div>
 
                 <div class="nav-section">
@@ -4812,6 +4816,76 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
             </div>
 
+            <!-- Tasks / To-Do List -->
+            <div id="tasks" class="view">
+                <div class="header">
+                    <h2>📝 Tasks</h2>
+                    <p>Track development tasks, bugs, and feature requests</p>
+                </div>
+
+                <!-- Quick Add Task -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); color: white;">
+                    <h3 style="margin: 0 0 1rem 0; font-size: 1rem;">➕ Quick Add Task</h3>
+                    <div style="display: grid; grid-template-columns: 1fr 150px 150px 100px; gap: 1rem; align-items: end;">
+                        <div>
+                            <label style="font-size: 0.8rem; opacity: 0.9; display: block; margin-bottom: 0.4rem;">Task Title</label>
+                            <input type="text" id="quick-task-title" placeholder="What needs to be done?" style="width: 100%; padding: 0.5rem; border: none; border-radius: 6px; font-size: 0.9rem;">
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; opacity: 0.9; display: block; margin-bottom: 0.4rem;">Priority</label>
+                            <select id="quick-task-priority" style="width: 100%; padding: 0.5rem; border: none; border-radius: 6px; font-size: 0.9rem;">
+                                <option value="low">🟢 Low</option>
+                                <option value="medium" selected>🟡 Medium</option>
+                                <option value="high">🟠 High</option>
+                                <option value="urgent">🔴 Urgent</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-size: 0.8rem; opacity: 0.9; display: block; margin-bottom: 0.4rem;">Category</label>
+                            <select id="quick-task-category" style="width: 100%; padding: 0.5rem; border: none; border-radius: 6px; font-size: 0.9rem;">
+                                <option value="">-- None --</option>
+                                <option value="bug">🐛 Bug</option>
+                                <option value="feature">✨ Feature</option>
+                                <option value="ui">🎨 UI/UX</option>
+                                <option value="api">🔌 API</option>
+                                <option value="wordpress">🌐 WordPress</option>
+                                <option value="billing">💳 Billing</option>
+                                <option value="integration">🔗 Integration</option>
+                                <option value="content">📝 Content</option>
+                                <option value="other">📦 Other</option>
+                            </select>
+                        </div>
+                        <div>
+                            <button onclick="quickAddTask()" style="width: 100%; padding: 0.5rem 1rem; background: white; color: #4f46e5; border: none; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 0.9rem;">
+                                Add
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Filter Bar -->
+                <div class="card" style="margin-bottom: 1rem; padding: 0.75rem 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-small task-filter-btn active" data-status="all" onclick="filterTasks('all')">All</button>
+                            <button class="btn btn-small btn-secondary task-filter-btn" data-status="todo" onclick="filterTasks('todo')">To Do</button>
+                            <button class="btn btn-small btn-secondary task-filter-btn" data-status="in_progress" onclick="filterTasks('in_progress')">In Progress</button>
+                            <button class="btn btn-small btn-secondary task-filter-btn" data-status="done" onclick="filterTasks('done')">Done</button>
+                        </div>
+                        <div style="margin-left: auto;">
+                            <button class="btn btn-small btn-secondary" onclick="loadTasks()">🔄 Refresh</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Task List -->
+                <div class="card">
+                    <div id="tasks-list">
+                        <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading tasks...</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- My Billing (Client View) -->
             <div id="my-billing" class="view">
                 <div class="header">
@@ -7262,6 +7336,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'taxes') loadTaxes();
             if (viewName === 'marketing') loadMarketingProperties();
             if (viewName === 'wordpress') loadWordPressView();
+            if (viewName === 'tasks') loadTasks();
             
             // New sidebar views
             if (viewName === 'app-blog') loadAppBlogPosts();
@@ -15931,6 +16006,227 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Call after auth and when account selection changes
         loadAccountEntitlements();
+
+        // =====================================================
+        // TASKS / TO-DO LIST
+        // =====================================================
+        
+        let allTasks = [];
+        let currentTaskFilter = 'all';
+        
+        async function loadTasks() {
+            const container = document.getElementById('tasks-list');
+            if (!container) return;
+            
+            try {
+                let url = '/api/admin/tasks';
+                if (currentTaskFilter && currentTaskFilter !== 'all') {
+                    url += `?status=${currentTaskFilter}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    allTasks = data.data;
+                    renderTasks();
+                } else {
+                    container.innerHTML = `<p style="color: var(--error); text-align: center; padding: 2rem;">Error: ${data.error}</p>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<p style="color: var(--error); text-align: center; padding: 2rem;">Error loading tasks</p>`;
+            }
+        }
+        
+        function renderTasks() {
+            const container = document.getElementById('tasks-list');
+            if (!container) return;
+            
+            let tasks = allTasks;
+            if (currentTaskFilter && currentTaskFilter !== 'all') {
+                tasks = allTasks.filter(t => t.status === currentTaskFilter);
+            }
+            
+            if (tasks.length === 0) {
+                container.innerHTML = `<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No tasks found. Add one above!</p>`;
+                return;
+            }
+            
+            const priorityColors = {
+                'urgent': '#dc2626',
+                'high': '#f97316',
+                'medium': '#eab308',
+                'low': '#22c55e'
+            };
+            
+            const priorityLabels = {
+                'urgent': '🔴 Urgent',
+                'high': '🟠 High',
+                'medium': '🟡 Medium',
+                'low': '🟢 Low'
+            };
+            
+            const categoryIcons = {
+                'bug': '🐛',
+                'feature': '✨',
+                'ui': '🎨',
+                'api': '🔌',
+                'wordpress': '🌐',
+                'billing': '💳',
+                'integration': '🔗',
+                'content': '📝',
+                'other': '📦'
+            };
+            
+            let html = '<div style="display: flex; flex-direction: column; gap: 0.75rem;">';
+            
+            tasks.forEach(task => {
+                const isDone = task.status === 'done';
+                const borderColor = priorityColors[task.priority] || '#e5e7eb';
+                const categoryIcon = categoryIcons[task.category] || '';
+                
+                html += `
+                    <div style="display: flex; gap: 1rem; align-items: flex-start; padding: 1rem; background: ${isDone ? '#f9fafb' : 'white'}; border-radius: 8px; border-left: 4px solid ${borderColor}; ${isDone ? 'opacity: 0.7;' : ''}">
+                        <div style="padding-top: 0.25rem;">
+                            <input type="checkbox" ${isDone ? 'checked' : ''} onchange="toggleTaskStatus(${task.id}, this.checked)" style="width: 20px; height: 20px; cursor: pointer;">
+                        </div>
+                        <div style="flex: 1; min-width: 0;">
+                            <div style="display: flex; gap: 0.5rem; align-items: center; flex-wrap: wrap; margin-bottom: 0.25rem;">
+                                <strong style="${isDone ? 'text-decoration: line-through; color: var(--text-secondary);' : ''}">${task.title}</strong>
+                                ${task.category ? `<span style="font-size: 0.75rem; background: #f3f4f6; padding: 0.15rem 0.5rem; border-radius: 4px;">${categoryIcon} ${task.category}</span>` : ''}
+                                <span style="font-size: 0.75rem; padding: 0.15rem 0.5rem; border-radius: 4px; background: ${borderColor}20; color: ${borderColor};">${priorityLabels[task.priority] || task.priority}</span>
+                            </div>
+                            ${task.description ? `<p style="margin: 0.5rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">${task.description}</p>` : ''}
+                            <div style="display: flex; gap: 1rem; margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
+                                ${task.account_name ? `<span>👤 ${task.account_name}</span>` : ''}
+                                ${task.due_date ? `<span>📅 ${new Date(task.due_date).toLocaleDateString()}</span>` : ''}
+                                <span>🕐 ${new Date(task.created_at).toLocaleDateString()}</span>
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary btn-small" onclick="editTask(${task.id})" title="Edit">✏️</button>
+                            <button class="btn btn-secondary btn-small" onclick="deleteTask(${task.id})" title="Delete" style="color: #ef4444;">🗑️</button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            container.innerHTML = html;
+        }
+        
+        function filterTasks(status) {
+            currentTaskFilter = status;
+            
+            // Update button states
+            document.querySelectorAll('.task-filter-btn').forEach(btn => {
+                if (btn.dataset.status === status) {
+                    btn.classList.remove('btn-secondary');
+                    btn.classList.add('active');
+                } else {
+                    btn.classList.add('btn-secondary');
+                    btn.classList.remove('active');
+                }
+            });
+            
+            renderTasks();
+        }
+        
+        async function quickAddTask() {
+            const title = document.getElementById('quick-task-title').value.trim();
+            const priority = document.getElementById('quick-task-priority').value;
+            const category = document.getElementById('quick-task-category').value;
+            
+            if (!title) {
+                showNotification('Please enter a task title', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/tasks', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title, priority, category, status: 'todo' })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    document.getElementById('quick-task-title').value = '';
+                    showNotification('Task added!', 'success');
+                    loadTasks();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error adding task', 'error');
+            }
+        }
+        
+        async function toggleTaskStatus(taskId, isDone) {
+            try {
+                const response = await fetch(`/api/admin/tasks/${taskId}/status`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: isDone ? 'done' : 'todo' })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    loadTasks();
+                }
+            } catch (error) {
+                showNotification('Error updating task', 'error');
+            }
+        }
+        
+        async function deleteTask(taskId) {
+            if (!confirm('Delete this task?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/tasks/${taskId}`, { method: 'DELETE' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Task deleted', 'success');
+                    loadTasks();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error deleting task', 'error');
+            }
+        }
+        
+        function editTask(taskId) {
+            const task = allTasks.find(t => t.id === taskId);
+            if (!task) return;
+            
+            // For now, simple prompt editing - can make a modal later
+            const newTitle = prompt('Edit task title:', task.title);
+            if (newTitle && newTitle !== task.title) {
+                updateTask(taskId, { title: newTitle });
+            }
+        }
+        
+        async function updateTask(taskId, updates) {
+            try {
+                const response = await fetch(`/api/admin/tasks/${taskId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Task updated', 'success');
+                    loadTasks();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error updating task', 'error');
+            }
+        }
 
         // =====================================================
         // INSTAWP INTEGRATION
