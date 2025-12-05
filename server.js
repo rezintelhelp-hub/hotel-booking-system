@@ -601,7 +601,7 @@ app.get('/api/setup-accounts', async (req, res) => {
         city VARCHAR(100),
         region VARCHAR(100),
         postcode VARCHAR(20),
-        country VARCHAR(100) DEFAULT 'United Kingdom',
+        country VARCHAR(100) DEFAULT 'GB',
         currency VARCHAR(3) DEFAULT 'GBP',
         timezone VARCHAR(50) DEFAULT 'Europe/London',
         plan VARCHAR(20) DEFAULT 'free',
@@ -1752,7 +1752,7 @@ app.get('/api/setup-clients', async (req, res) => {
         city VARCHAR(100),
         region VARCHAR(100),
         postcode VARCHAR(20),
-        country VARCHAR(100) DEFAULT 'United Kingdom',
+        country VARCHAR(100) DEFAULT 'GB',
         currency VARCHAR(3) DEFAULT 'GBP',
         timezone VARCHAR(50) DEFAULT 'Europe/London',
         plan VARCHAR(20) DEFAULT 'agency',
@@ -1784,7 +1784,7 @@ app.get('/api/setup-clients', async (req, res) => {
         city VARCHAR(100),
         region VARCHAR(100),
         postcode VARCHAR(20),
-        country VARCHAR(100) DEFAULT 'United Kingdom',
+        country VARCHAR(100) DEFAULT 'GB',
         currency VARCHAR(3) DEFAULT 'GBP',
         timezone VARCHAR(50) DEFAULT 'Europe/London',
         date_format VARCHAR(20) DEFAULT 'DD/MM/YYYY',
@@ -12680,7 +12680,7 @@ app.post('/api/admin/clients', async (req, res) => {
       RETURNING *
     `, [
       name, email, phone,
-      address_line1, address_line2, city, region, postcode, country || 'United Kingdom',
+      address_line1, address_line2, city, region, postcode, country || 'GB',
       currency || 'GBP', timezone || 'Europe/London', plan || 'free', notes,
       apiKey
     ]);
@@ -12879,7 +12879,7 @@ app.post('/api/admin/agencies', async (req, res) => {
       name, email, phone, logo_url,
       primary_color || '#6366f1', secondary_color || '#8b5cf6',
       website_url, custom_domain,
-      address_line1, address_line2, city, region, postcode, country || 'United Kingdom',
+      address_line1, address_line2, city, region, postcode, country || 'GB',
       currency || 'GBP', timezone || 'Europe/London', plan || 'agency', notes,
       apiKey
     ]);
