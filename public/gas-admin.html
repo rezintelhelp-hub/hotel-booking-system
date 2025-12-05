@@ -1502,18 +1502,51 @@
             <!-- Bookings View -->
             <div id="bookings" class="view">
                 <div class="header">
-                    <h2>Bookings</h2>
-                    <p>View all reservations</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>Bookings</h2>
+                            <p>View all reservations</p>
+                        </div>
+                        <button class="btn" onclick="openAddBookingModal()">
+                            <span>+</span>
+                            <span>Add Booking</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="bookings-property-select" class="form-input" onchange="loadBookingsForProperty()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                            <select id="bookings-room-select" class="form-input" onchange="loadBookingsForProperty()">
+                                <option value="">All Rooms</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Status</label>
+                            <select id="bookings-status-select" class="form-input" onchange="loadBookingsForProperty()">
+                                <option value="">All Statuses</option>
+                                <option value="confirmed">Confirmed</option>
+                                <option value="pending">Pending</option>
+                                <option value="cancelled">Cancelled</option>
+                                <option value="completed">Completed</option>
+                            </select>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="card">
                     <div id="bookings-list">
-                        <div class="empty-state">
-                            <div class="empty-icon">📅</div>
-                            <h3>No Bookings Yet</h3>
-                            <p>Bookings will appear here when guests make reservations</p>
-                            <a href="/admin-improved.html" class="btn">View Booking Site</a>
-                        </div>
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Select a property to view bookings
+                        </p>
                     </div>
                 </div>
             </div>
@@ -7709,6 +7742,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'upsells') loadUpsells();
             if (viewName === 'fees') loadFees();
             if (viewName === 'taxes') loadTaxes();
+            if (viewName === 'bookings') loadBookings();
             if (viewName === 'marketing') loadMarketingProperties();
             if (viewName === 'wordpress') loadWordPressView();
             
@@ -12767,6 +12801,192 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 alert('Error deleting offer: ' + error.message);
             }
+        }
+
+        // =====================================================
+        // BOOKINGS FUNCTIONS
+        // =====================================================
+        
+        async function loadBookingsPropertySelect() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('bookings-property-select');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties for bookings:', error);
+            }
+        }
+        
+        async function loadBookingsRooms() {
+            const propertyId = document.getElementById('bookings-property-select')?.value;
+            const roomSelect = document.getElementById('bookings-room-select');
+            if (!roomSelect) return;
+            
+            roomSelect.innerHTML = '<option value="">All Rooms</option>';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    data.data.forEach(r => {
+                        roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        async function loadBookingsForProperty() {
+            const propertyId = document.getElementById('bookings-property-select')?.value;
+            const roomId = document.getElementById('bookings-room-select')?.value;
+            const status = document.getElementById('bookings-status-select')?.value;
+            
+            // Also load rooms when property changes
+            if (!roomId) {
+                await loadBookingsRooms();
+            }
+            
+            if (!propertyId) {
+                document.getElementById('bookings-list').innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view bookings
+                    </p>
+                `;
+                return;
+            }
+            
+            try {
+                let url = `/api/admin/bookings?property_id=${propertyId}`;
+                if (roomId) url += `&room_id=${roomId}`;
+                if (status) url += `&status=${status}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderBookings(data.data || []);
+                }
+            } catch (error) {
+                console.error('Error loading bookings:', error);
+            }
+        }
+        
+        async function loadBookings() {
+            // Load property selector first
+            await loadBookingsPropertySelect();
+            
+            // Show message to select property
+            document.getElementById('bookings-list').innerHTML = `
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    Select a property to view bookings
+                </p>
+            `;
+        }
+        
+        function renderBookings(bookings) {
+            const container = document.getElementById('bookings-list');
+            const propertyId = document.getElementById('bookings-property-select')?.value;
+            
+            if (!propertyId) {
+                container.innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view bookings
+                    </p>
+                `;
+                return;
+            }
+            
+            if (!bookings || bookings.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📅</div>
+                        <h3>No Bookings Found</h3>
+                        <p>No bookings match your filters</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <table style="width: 100%; border-collapse: collapse;">
+                    <thead>
+                        <tr style="border-bottom: 2px solid var(--border);">
+                            <th style="text-align: left; padding: 0.75rem;">Guest</th>
+                            <th style="text-align: left; padding: 0.75rem;">Room</th>
+                            <th style="text-align: left; padding: 0.75rem;">Check-in</th>
+                            <th style="text-align: left; padding: 0.75rem;">Check-out</th>
+                            <th style="text-align: left; padding: 0.75rem;">Total</th>
+                            <th style="text-align: center; padding: 0.75rem;">Status</th>
+                            <th style="text-align: right; padding: 0.75rem;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+            
+            const statusColors = {
+                'confirmed': { bg: '#dcfce7', color: '#166534' },
+                'pending': { bg: '#fef3c7', color: '#92400e' },
+                'cancelled': { bg: '#fee2e2', color: '#991b1b' },
+                'completed': { bg: '#e0f2fe', color: '#0369a1' }
+            };
+            
+            for (const booking of bookings) {
+                const statusStyle = statusColors[booking.status] || statusColors['pending'];
+                const checkIn = booking.check_in ? new Date(booking.check_in).toLocaleDateString() : '-';
+                const checkOut = booking.check_out ? new Date(booking.check_out).toLocaleDateString() : '-';
+                
+                html += `
+                    <tr style="border-bottom: 1px solid var(--border);">
+                        <td style="padding: 0.75rem;">
+                            <strong>${booking.guest_name || 'Guest'}</strong>
+                            ${booking.guest_email ? `<br><small style="color: var(--text-secondary);">${booking.guest_email}</small>` : ''}
+                        </td>
+                        <td style="padding: 0.75rem;">${booking.room_name || booking.unit_name || '-'}</td>
+                        <td style="padding: 0.75rem;">${checkIn}</td>
+                        <td style="padding: 0.75rem;">${checkOut}</td>
+                        <td style="padding: 0.75rem; font-weight: 600;">£${parseFloat(booking.total_price || 0).toFixed(2)}</td>
+                        <td style="padding: 0.75rem; text-align: center;">
+                            <span style="background: ${statusStyle.bg}; color: ${statusStyle.color}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; text-transform: capitalize;">
+                                ${booking.status || 'pending'}
+                            </span>
+                        </td>
+                        <td style="padding: 0.75rem; text-align: right;">
+                            <button onclick="viewBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">👁️</button>
+                            <button onclick="editBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">✏️</button>
+                        </td>
+                    </tr>
+                `;
+            }
+            
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+        
+        function openAddBookingModal() {
+            alert('Manual booking creation coming soon!');
+        }
+        
+        function viewBooking(id) {
+            alert('Booking details view coming soon!');
+        }
+        
+        function editBooking(id) {
+            alert('Booking edit coming soon!');
         }
 
         // =====================================================
