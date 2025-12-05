@@ -8134,7 +8134,6 @@ app.get('/api/admin/units/:id/amenities', async (req, res) => {
       SELECT 
         ras.id as selection_id,
         ras.display_order,
-        ras.quantity,
         ma.id as amenity_id,
         ma.amenity_code,
         ma.amenity_name,
@@ -8156,7 +8155,7 @@ app.get('/api/admin/units/:id/amenities', async (req, res) => {
 app.put('/api/admin/units/:id/amenities', async (req, res) => {
   try {
     const { id } = req.params;
-    const { amenities } = req.body; // Array of {id, quantity} objects or just IDs
+    const { amenities } = req.body; // Array of amenity IDs from master_amenities
     
     // Delete existing selections for this room
     await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [id]);
@@ -8164,15 +8163,11 @@ app.put('/api/admin/units/:id/amenities', async (req, res) => {
     // Insert new selections
     if (amenities && amenities.length > 0) {
       for (let i = 0; i < amenities.length; i++) {
-        const item = amenities[i];
-        // Support both simple IDs and {id, quantity} objects
-        const amenityId = typeof item === 'object' ? item.id : item;
-        const quantity = typeof item === 'object' ? (item.quantity || 1) : 1;
-        
+        const amenityId = amenities[i];
         await pool.query(`
-          INSERT INTO room_amenity_selections (room_id, amenity_id, quantity, display_order)
-          VALUES ($1, $2, $3, $4)
-        `, [id, amenityId, quantity, i]);
+          INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
+          VALUES ($1, $2, $3)
+        `, [id, amenityId, i]);
       }
     }
     
@@ -9624,16 +9619,12 @@ app.post('/api/admin/migrate-001-master-amenities', async (req, res) => {
         id SERIAL PRIMARY KEY,
         room_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
         amenity_id INTEGER NOT NULL REFERENCES master_amenities(id) ON DELETE CASCADE,
-        quantity INTEGER DEFAULT 1,
         display_order INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(room_id, amenity_id)
       )
     `);
     console.log('   ✓ Created room_amenity_selections table');
-    
-    // Add quantity column if it doesn't exist
-    await client.query(`ALTER TABLE room_amenity_selections ADD COLUMN IF NOT EXISTS quantity INTEGER DEFAULT 1`);
     
     await client.query('CREATE INDEX IF NOT EXISTS idx_room_amenity_sel_room ON room_amenity_selections(room_id)');
     await client.query('CREATE INDEX IF NOT EXISTS idx_room_amenity_sel_amenity ON room_amenity_selections(amenity_id)');
@@ -11649,23 +11640,21 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       }
     }
     
-    // Get amenities from room_amenity_selections joined with master_amenities
+    // Try to get amenities
     let amenities = { rows: [] };
     try {
       amenities = await pool.query(`
-        SELECT ma.amenity_name as name, ma.category, ma.icon, ras.quantity
-        FROM room_amenity_selections ras
-        JOIN master_amenities ma ON ras.amenity_id = ma.id
-        WHERE ras.room_id = $1
-        ORDER BY ma.category, ras.display_order
+        SELECT amenity_name as name, category, icon
+        FROM bookable_unit_amenities WHERE bookable_unit_id = $1
+        ORDER BY category, display_order
       `, [unitId]);
     } catch (e) {
-      // Fallback to old table structure
+      // Table might have different structure, try room_amenities
       try {
         amenities = await pool.query(`
-          SELECT amenity_name as name, category, icon
-          FROM bookable_unit_amenities WHERE bookable_unit_id = $1
-          ORDER BY category, display_order
+          SELECT name, category, icon
+          FROM room_amenities WHERE room_id = $1
+          ORDER BY category, name
         `, [unitId]);
       } catch (e2) {
         // Neither table exists
