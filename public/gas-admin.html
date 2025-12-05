@@ -1169,7 +1169,11 @@
                         <span class="nav-icon">🏷️</span>
                         <span>Site Identity</span>
                     </a>
-                    <a class="nav-item" data-view="wb-styles" href="#" onclick="navClick(this, 'wb-styles'); return false;">
+                    <a class="nav-item" data-view="wb-global-styles" href="#" onclick="navClick(this, 'wb-global-styles'); return false;">
+                        <span class="nav-icon">🎨</span>
+                        <span>Global Styles</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-colors" href="#" onclick="navClick(this, 'wb-colors'); return false;">
                         <span class="nav-icon">🎨</span>
                         <span>Colors & Branding</span>
                     </a>
@@ -1210,12 +1214,32 @@
                         <span>About Section</span>
                     </a>
                     <a class="nav-item" data-view="wb-cta" href="#" onclick="navClick(this, 'wb-cta'); return false;">
-                        <span class="nav-icon">🚀</span>
+                        <span class="nav-icon">📢</span>
                         <span>CTA Section</span>
                     </a>
                     <a class="nav-item" data-view="wb-footer" href="#" onclick="navClick(this, 'wb-footer'); return false;">
                         <span class="nav-icon">👣</span>
                         <span>Footer</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-contact-info" href="#" onclick="navClick(this, 'wb-contact-info'); return false;">
+                        <span class="nav-icon">📞</span>
+                        <span>Contact Info</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-about-page" href="#" onclick="navClick(this, 'wb-about-page'); return false;">
+                        <span class="nav-icon">📄</span>
+                        <span>About Page</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-contact-page" href="#" onclick="navClick(this, 'wb-contact-page'); return false;">
+                        <span class="nav-icon">📄</span>
+                        <span>Contact Page</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-terms" href="#" onclick="navClick(this, 'wb-terms'); return false;">
+                        <span class="nav-icon">📄</span>
+                        <span>Terms & Conditions</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-privacy" href="#" onclick="navClick(this, 'wb-privacy'); return false;">
+                        <span class="nav-icon">📄</span>
+                        <span>Privacy Policy</span>
                     </a>
                 </div>
 
@@ -4174,146 +4198,306 @@ fetch('/api/public/client/1/rooms')
             </div>
 
             <!-- Website Builder: Styles & Colors -->
-            <div id="wb-styles" class="view">
+            <div id="wb-global-styles" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🎨 Global Styles</h2>
+                            <p>These styles apply across all pages. Use CSS for page-specific overrides.</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('global-styles')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-body">
+                        <!-- Button Colors -->
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">Primary Button Background</label>
+                                <input type="color" id="wb-global-styles-btn-primary-bg" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Primary Button Text</label>
+                                <input type="color" id="wb-global-styles-btn-primary-text" value="#ffffff" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Secondary Button Background</label>
+                                <input type="color" id="wb-global-styles-btn-secondary-bg" value="#ffffff" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Secondary Button Text</label>
+                                <input type="color" id="wb-global-styles-btn-secondary-text" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                        </div>
+                        
+                        <!-- Page Title Size -->
+                        <div class="form-group" style="margin-top: 1.5rem;">
+                            <label class="form-label">Page Title Size (px)</label>
+                            <input type="range" id="wb-global-styles-title-size" min="28" max="72" step="2" value="42" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>28</span>
+                                <span id="wb-global-styles-title-size-val">42px</span>
+                                <span>72</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Body Text Size -->
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Body Text Size (px)</label>
+                            <input type="range" id="wb-global-styles-body-size" min="14" max="20" step="1" value="16" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>14</span>
+                                <span id="wb-global-styles-body-size-val">16px</span>
+                                <span>20</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Button Border Radius -->
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Button Border Radius (px)</label>
+                            <input type="range" id="wb-global-styles-btn-radius" min="0" max="50" step="2" value="8" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>0 = square</span>
+                                <span id="wb-global-styles-btn-radius-val">8px</span>
+                                <span>50 = very rounded</span>
+                            </div>
+                        </div>
+                        
+                        <!-- Link Color -->
+                        <div class="form-group" style="margin-top: 1.5rem;">
+                            <label class="form-label">Link Color</label>
+                            <input type="color" id="wb-global-styles-link-color" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                        </div>
+                        
+                        <!-- Custom CSS -->
+                        <div class="form-group" style="margin-top: 1.5rem;">
+                            <label class="form-label">Custom CSS</label>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Add custom CSS for specific overrides</p>
+                            <textarea class="form-input" id="wb-global-styles-custom-css" rows="6" placeholder="/* Add your custom CSS here */
+.my-class {
+    color: red;
+}" style="font-family: monospace; font-size: 13px;"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Colors & Branding -->
+            <div id="wb-colors" class="view">
                 <div class="header">
                     <div class="header-top">
                         <div>
                             <h2>🎨 Colors & Branding</h2>
-                            <p>These styles apply across all pages</p>
+                            <p>Primary brand colors</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('styles')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('colors')">💾 Save & Sync</button>
                     </div>
                 </div>
-                
-                <!-- Brand Colors -->
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Brand Colors</h3>
                     </div>
                     <div class="card-body">
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1.5rem;">
                             <div class="form-group">
-                                <label class="form-label">Primary Color</label>
-                                <input type="color" id="wb-styles-primary-color" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                                <label class="form-label">Primary Color (Buttons, Links)</label>
+                                <input type="color" id="wb-colors-primary" value="#2563eb" style="width: 100%; height: 60px; border-radius: 8px; cursor: pointer;">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Secondary Color</label>
-                                <input type="color" id="wb-styles-secondary-color" value="#0f172a" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                                <label class="form-label">Secondary Color (Headers, Footer)</label>
+                                <input type="color" id="wb-colors-secondary" value="#0f172a" style="width: 100%; height: 60px; border-radius: 8px; cursor: pointer;">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Accent Color</label>
-                                <input type="color" id="wb-styles-accent-color" value="#10b981" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Link Color</label>
-                                <input type="color" id="wb-styles-link-color" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                                <label class="form-label">Accent Color (Stars, Highlights)</label>
+                                <input type="color" id="wb-colors-accent" value="#f59e0b" style="width: 100%; height: 60px; border-radius: 8px; cursor: pointer;">
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Button Styles -->
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Button Styles</h3>
-                    </div>
-                    <div class="card-body">
-                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Primary Button Background</label>
-                                <input type="color" id="wb-styles-btn-primary-bg" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Primary Button Text</label>
-                                <input type="color" id="wb-styles-btn-primary-text" value="#ffffff" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Secondary Button Background</label>
-                                <input type="color" id="wb-styles-btn-secondary-bg" value="#ffffff" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Secondary Button Text</label>
-                                <input type="color" id="wb-styles-btn-secondary-text" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
-                            </div>
+            </div>
+
+            <!-- Website Builder: Contact Info -->
+            <div id="wb-contact-info" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📞 Contact Info</h2>
+                            <p>Business contact details shown across your site</p>
                         </div>
-                        <div class="form-group" style="margin-top: 1rem;">
-                            <label class="form-label">Button Border Radius (px)</label>
-                            <input type="range" id="wb-styles-btn-radius" min="0" max="50" step="2" value="8" style="width: 100%;">
-                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
-                                <span>0 = square</span>
-                                <span id="wb-styles-btn-radius-val">8px</span>
-                                <span>50 = very rounded</span>
-                            </div>
-                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('contact-info')">💾 Save & Sync</button>
                     </div>
                 </div>
-                
-                <!-- Typography -->
-                <div class="card" style="margin-top: 1rem;">
+                <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Typography</h3>
+                        <h3 class="card-title">Contact Details</h3>
                     </div>
                     <div class="card-body">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
-                                <label class="form-label">Heading Font</label>
-                                <select class="form-select" id="wb-styles-heading-font">
-                                    <option value="playfair">Playfair Display (Elegant)</option>
-                                    <option value="montserrat">Montserrat (Modern)</option>
-                                    <option value="lora">Lora (Classic)</option>
-                                    <option value="poppins">Poppins (Clean)</option>
-                                    <option value="merriweather">Merriweather (Traditional)</option>
-                                    <option value="raleway">Raleway (Light)</option>
-                                    <option value="oswald">Oswald (Bold)</option>
-                                </select>
+                                <label class="form-label">Business Name</label>
+                                <input type="text" class="form-input" id="wb-contact-info-business-name" placeholder="Your Business Name">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Body Font</label>
-                                <select class="form-select" id="wb-styles-body-font">
-                                    <option value="inter">Inter (Modern)</option>
-                                    <option value="roboto">Roboto (Clean)</option>
-                                    <option value="opensans">Open Sans (Friendly)</option>
-                                    <option value="lato">Lato (Professional)</option>
-                                    <option value="sourcesans">Source Sans Pro (Readable)</option>
-                                    <option value="nunito">Nunito (Rounded)</option>
-                                </select>
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-input" id="wb-contact-info-email" placeholder="contact@example.com">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Phone</label>
+                                <input type="text" class="form-input" id="wb-contact-info-phone" placeholder="+44 1234 567890">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">WhatsApp</label>
+                                <input type="text" class="form-input" id="wb-contact-info-whatsapp" placeholder="+44 1234 567890">
                             </div>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Page Title Size (px)</label>
-                                <input type="range" id="wb-styles-title-size" min="28" max="72" step="2" value="42" style="width: 100%;">
-                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
-                                    <span>28</span>
-                                    <span id="wb-styles-title-size-val">42px</span>
-                                    <span>72</span>
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Body Text Size (px)</label>
-                                <input type="range" id="wb-styles-body-size" min="14" max="20" step="1" value="16" style="width: 100%;">
-                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
-                                    <span>14</span>
-                                    <span id="wb-styles-body-size-val">16px</span>
-                                    <span>20</span>
-                                </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Address</label>
+                            <textarea class="form-input" id="wb-contact-info-address" rows="3" placeholder="123 Main Street&#10;City, State 12345&#10;Country"></textarea>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Google Maps Embed</label>
+                            <textarea class="form-input" id="wb-contact-info-map-embed" rows="3" placeholder="Paste your Google Maps iframe embed code here"></textarea>
+                            <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                Google Maps → Share → Embed a map → Copy HTML
                             </div>
                         </div>
                     </div>
                 </div>
-                
-                <!-- Custom CSS -->
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Custom CSS</h3>
+            </div>
+
+            <!-- Website Builder: About Page -->
+            <div id="wb-about-page" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📄 About Page</h2>
+                            <p>Content for your About Us page</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('about-page')">💾 Save & Sync</button>
                     </div>
+                </div>
+                <div class="card">
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Add custom CSS for specific overrides</label>
-                            <textarea class="form-input" id="wb-styles-custom-css" rows="6" placeholder="/* Add your custom CSS here */
-.my-class {
-    color: red;
-}" style="font-family: monospace; font-size: 13px;"></textarea>
+                            <label class="form-label">Page Title</label>
+                            <input type="text" class="form-input" id="wb-about-page-title" placeholder="About Us">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Subtitle</label>
+                            <input type="text" class="form-input" id="wb-about-page-subtitle" placeholder="Our story and what makes us special">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Page Content</label>
+                            <textarea class="form-input" id="wb-about-page-content" rows="12" placeholder="Write your about page content here. You can use HTML for formatting."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Featured Image</label>
+                            <div id="wb-about-page-image-preview" style="width: 100%; height: 150px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+                                <span style="color: #94a3b8;">No image uploaded</span>
+                            </div>
+                            <input type="file" id="wb-about-page-image" accept="image/*">
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Contact Page -->
+            <div id="wb-contact-page" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📄 Contact Page</h2>
+                            <p>Content for your Contact page</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('contact-page')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Page Title</label>
+                            <input type="text" class="form-input" id="wb-contact-page-title" placeholder="Contact Us">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Intro Text</label>
+                            <textarea class="form-input" id="wb-contact-page-intro" rows="3" placeholder="We'd love to hear from you. Get in touch with us using the form below."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="wb-contact-page-show-form" checked> Show Contact Form
+                            </label>
+                        </div>
+                        <div class="form-group">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="wb-contact-page-show-map" checked> Show Google Map
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Terms & Conditions -->
+            <div id="wb-terms" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📄 Terms & Conditions</h2>
+                            <p>Your booking terms and conditions</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('terms')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Page Title</label>
+                            <input type="text" class="form-input" id="wb-terms-title" placeholder="Terms & Conditions">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
+                            <textarea class="form-input" id="wb-terms-content" rows="15" placeholder="Enter your terms and conditions here. You can use HTML for formatting.
+
+Common sections include:
+- Booking conditions
+- Payment terms  
+- Cancellation policy
+- House rules
+- Liability
+- Data protection"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Privacy Policy -->
+            <div id="wb-privacy" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📄 Privacy Policy</h2>
+                            <p>Your privacy policy</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('privacy')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Page Title</label>
+                            <input type="text" class="form-input" id="wb-privacy-title" placeholder="Privacy Policy">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
+                            <textarea class="form-input" id="wb-privacy-content" rows="15" placeholder="Enter your privacy policy here. You can use HTML for formatting.
+
+Common sections include:
+- What data we collect
+- How we use your data
+- Cookies
+- Third-party services
+- Your rights
+- Contact information"></textarea>
                         </div>
                     </div>
                 </div>
@@ -13177,9 +13361,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 { id: 'wb-search-radius', suffix: 'px' },
                 { id: 'wb-search-max-width', suffix: 'px' },
                 { id: 'wb-search-scale', suffix: '%' },
-                { id: 'wb-styles-btn-radius', suffix: 'px' },
-                { id: 'wb-styles-title-size', suffix: 'px' },
-                { id: 'wb-styles-body-size', suffix: 'px' }
+                { id: 'wb-global-styles-btn-radius', suffix: 'px' },
+                { id: 'wb-global-styles-title-size', suffix: 'px' },
+                { id: 'wb-global-styles-body-size', suffix: 'px' }
             ];
             
             rangeSliders.forEach(slider => {
