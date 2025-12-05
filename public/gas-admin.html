@@ -8495,6 +8495,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 el.checked = settings[key];
                             } else if (el.type === 'color') {
                                 el.value = settings[key] || el.value;
+                                // Also update the hex text input if it exists
+                                const hexInput = el.parentNode.querySelector('input[type="text"]');
+                                if (hexInput) {
+                                    hexInput.value = el.value.toUpperCase();
+                                }
                             } else if (el.type === 'range') {
                                 el.value = settings[key] || el.value;
                                 // Update the display value
@@ -9039,8 +9044,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 loadAccountEntitlements();
             }
             
-            // Navigate to dashboard with new filter
-            showView('dashboard');
+            // If we're in a Website Builder section, stay there and reload
+            if (currentWbSection) {
+                loadWebsiteBuilderSection(currentWbSection);
+            } else {
+                // Navigate to dashboard with new filter
+                showView('dashboard');
+            }
         }
         
         // Load plan badge for an account
