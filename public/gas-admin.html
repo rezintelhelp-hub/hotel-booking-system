@@ -13640,18 +13640,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             try {
-                const queryString = buildQueryString();
-                const response = await fetch(`/api/admin/taxes${queryString}&property_id=${propertyId}${roomId ? '&room_id=' + roomId : ''}`);
+                // Just pass property_id - server handles the rest
+                const response = await fetch(`/api/admin/taxes?property_id=${propertyId}${roomId ? '&room_id=' + roomId : ''}`);
                 const data = await response.json();
                 
                 if (data.success) {
-                    // Filter to show only taxes for this property
-                    taxesData = (data.data || []).filter(t => 
-                        t.property_id == propertyId || !t.property_id
-                    );
-                    if (roomId) {
-                        taxesData = taxesData.filter(t => t.room_id == roomId || !t.room_id);
-                    }
+                    taxesData = data.data || [];
                     renderTaxes(taxesData);
                 }
             } catch (error) {
