@@ -1593,10 +1593,13 @@
                             <h2>Amenities</h2>
                             <p>Manage property and room amenities</p>
                         </div>
-                        <button class="btn" onclick="openAddAmenityModal()">
-                            <span>+</span>
-                            <span>Add Amenity</span>
-                        </button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="syncAmenitiesFromFile()">📥 Sync from File</button>
+                            <button class="btn" onclick="openAddAmenityModal()">
+                                <span>+</span>
+                                <span>Add Amenity</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -6658,21 +6661,72 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Room Type</label>
-                            <input type="text" class="form-input" id="edit-room-type" readonly style="background: var(--bg-primary);">
+                            <input type="text" class="form-input" id="edit-room-type" placeholder="e.g., Studio, Suite, Apartment">
                         </div>
                     </div>
                     <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Max Guests</label>
-                            <input type="text" class="form-input" id="edit-room-maxguests" readonly style="background: var(--bg-primary);">
+                            <input type="number" class="form-input" id="edit-room-maxguests" min="1">
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Max Adults</label>
-                            <input type="text" class="form-input" id="edit-room-maxadults" readonly style="background: var(--bg-primary);">
+                            <input type="number" class="form-input" id="edit-room-maxadults" min="1">
                         </div>
                         <div class="form-group" style="margin-bottom: 0;">
                             <label class="form-label">Max Children</label>
-                            <input type="text" class="form-input" id="edit-room-maxchildren" readonly style="background: var(--bg-primary);">
+                            <input type="number" class="form-input" id="edit-room-maxchildren" min="0">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Bed Configuration -->
+                <div style="font-size: 0.75rem; color: var(--accent); margin-bottom: 0.5rem; margin-top: 1rem;">🛏️ Bed Configuration</div>
+                <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-single" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛏️ Single</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-twin" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛏️ Twin</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-double" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛏️ Double</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-queen" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛏️ Queen</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-king" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛏️ King</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-superking" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛏️ Super King</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-sofasingle" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛋️ Sofa (Single)</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-sofadouble" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛋️ Sofa (Double)</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-bunk" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛏️ Bunk Bed</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-cot" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">👶 Cot/Crib</label>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" class="form-input" id="bed-futon" min="0" value="0" style="width: 60px; padding: 0.3rem;">
+                            <label style="font-size: 0.85rem;">🛏️ Futon</label>
                         </div>
                     </div>
                 </div>
@@ -9350,6 +9404,24 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error deleting amenity:', error);
                 alert('Error deleting amenity');
+            }
+        }
+        
+        async function syncAmenitiesFromFile() {
+            if (!confirm('This will import/update amenities from amenities.json. Continue?')) return;
+            
+            try {
+                const response = await fetch('/api/admin/amenities/sync-from-file', { method: 'POST' });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    loadAmenities();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error syncing amenities', 'error');
             }
         }
 
@@ -13962,16 +14034,30 @@ const promo = await fetch('/api/v1/offers/validate', {
                     const room = data.data;
                     document.getElementById('edit-room-id').value = room.id;
                     
-                    // CM Data (read-only display)
+                    // CM Data (now editable)
                     document.getElementById('edit-room-name').value = room.name || '';
-                    document.getElementById('edit-room-type').value = room.unit_type || '';
-                    document.getElementById('edit-room-maxguests').value = room.max_guests || '-';
-                    document.getElementById('edit-room-maxadults').value = room.max_adults || '-';
-                    document.getElementById('edit-room-maxchildren').value = room.max_children || '-';
+                    document.getElementById('edit-room-type').value = room.unit_type || room.room_type || '';
+                    document.getElementById('edit-room-maxguests').value = room.max_guests || '';
+                    document.getElementById('edit-room-maxadults').value = room.max_adults || '';
+                    document.getElementById('edit-room-maxchildren').value = room.max_children || '';
                     
                     // GAS Controls
                     document.getElementById('edit-room-quantity').value = room.quantity || 1;
                     document.getElementById('edit-room-status').value = room.status || 'available';
+                    
+                    // Load bed configuration
+                    const beds = room.bed_configuration || room.beds || {};
+                    document.getElementById('bed-single').value = beds.single || 0;
+                    document.getElementById('bed-twin').value = beds.twin || 0;
+                    document.getElementById('bed-double').value = beds.double || 0;
+                    document.getElementById('bed-queen').value = beds.queen || 0;
+                    document.getElementById('bed-king').value = beds.king || 0;
+                    document.getElementById('bed-superking').value = beds.superking || beds.super_king || 0;
+                    document.getElementById('bed-sofasingle').value = beds.sofa_single || beds.sofasingle || 0;
+                    document.getElementById('bed-sofadouble').value = beds.sofa_double || beds.sofadouble || 0;
+                    document.getElementById('bed-bunk').value = beds.bunk || 0;
+                    document.getElementById('bed-cot').value = beds.cot || beds.crib || 0;
+                    document.getElementById('bed-futon').value = beds.futon || 0;
                     
                     // Load all available amenities and room's current selections
                     const amenitiesContainer = document.getElementById('edit-room-amenities');
@@ -14098,10 +14184,30 @@ const promo = await fetch('/api/v1/offers/validate', {
             e.preventDefault();
             const id = document.getElementById('edit-room-id').value;
             
-            // Get GAS-controlled fields
+            // Build bed configuration object
+            const bedConfig = {
+                single: parseInt(document.getElementById('bed-single').value) || 0,
+                twin: parseInt(document.getElementById('bed-twin').value) || 0,
+                double: parseInt(document.getElementById('bed-double').value) || 0,
+                queen: parseInt(document.getElementById('bed-queen').value) || 0,
+                king: parseInt(document.getElementById('bed-king').value) || 0,
+                superking: parseInt(document.getElementById('bed-superking').value) || 0,
+                sofa_single: parseInt(document.getElementById('bed-sofasingle').value) || 0,
+                sofa_double: parseInt(document.getElementById('bed-sofadouble').value) || 0,
+                bunk: parseInt(document.getElementById('bed-bunk').value) || 0,
+                cot: parseInt(document.getElementById('bed-cot').value) || 0,
+                futon: parseInt(document.getElementById('bed-futon').value) || 0
+            };
+            
+            // Get all fields including new editable ones
             const data = {
+                room_type: document.getElementById('edit-room-type').value || null,
+                max_guests: parseInt(document.getElementById('edit-room-maxguests').value) || null,
+                max_adults: parseInt(document.getElementById('edit-room-maxadults').value) || null,
+                max_children: parseInt(document.getElementById('edit-room-maxchildren').value) || null,
                 quantity: document.getElementById('edit-room-quantity').value || 1,
-                status: document.getElementById('edit-room-status').value
+                status: document.getElementById('edit-room-status').value,
+                bed_configuration: bedConfig
             };
             
             // Get selected amenities
@@ -14133,15 +14239,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const amenitiesResult = await amenitiesResponse.json();
                 if (amenitiesResult.success) {
-                    alert('Room updated successfully!');
+                    showNotification('Room updated successfully!', 'success');
                     closeModal('editRoomModal');
                     loadRooms();
                 } else {
-                    alert('Room updated but error updating amenities: ' + amenitiesResult.error);
+                    showNotification('Room updated but error updating amenities: ' + amenitiesResult.error, 'error');
                 }
             } catch (error) {
                 console.error('Error saving room:', error);
-                alert('Error saving room');
+                showNotification('Error saving room', 'error');
             }
             
             return false;
