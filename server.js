@@ -1398,6 +1398,100 @@ app.get('/api/admin/accounts/:id/subscription', async (req, res) => {
 });
 
 // =====================================================
+// ACCOUNT SETTINGS (WordPress site linking, etc.)
+// =====================================================
+
+// Get account settings
+app.get('/api/admin/accounts/:id/settings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(
+      'SELECT settings FROM accounts WHERE id = $1',
+      [id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      settings: result.rows[0].settings || {}
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update account settings
+app.post('/api/admin/accounts/:id/settings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { settings } = req.body;
+    
+    // Merge with existing settings
+    const existing = await pool.query(
+      'SELECT settings FROM accounts WHERE id = $1',
+      [id]
+    );
+    
+    if (existing.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    const currentSettings = existing.rows[0].settings || {};
+    const newSettings = { ...currentSettings, ...settings };
+    
+    await pool.query(
+      'UPDATE accounts SET settings = $1 WHERE id = $2',
+      [JSON.stringify(newSettings), id]
+    );
+    
+    res.json({ success: true, settings: newSettings });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Link account to WordPress site
+app.post('/api/admin/accounts/:id/link-wordpress', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { wordpress_site_id, wordpress_url } = req.body;
+    
+    const existing = await pool.query(
+      'SELECT settings FROM accounts WHERE id = $1',
+      [id]
+    );
+    
+    if (existing.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    const currentSettings = existing.rows[0].settings || {};
+    const newSettings = { 
+      ...currentSettings, 
+      wordpress_site_id,
+      wordpress_url 
+    };
+    
+    await pool.query(
+      'UPDATE accounts SET settings = $1 WHERE id = $2',
+      [JSON.stringify(newSettings), id]
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'WordPress site linked successfully',
+      settings: newSettings 
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // TASKS / TO-DO LIST
 // =====================================================
 
@@ -14453,21 +14547,21 @@ pool.query(`
 app.get('/api/admin/website-builder/:section', async (req, res) => {
   try {
     const { section } = req.params;
-    const { client_id } = req.query;
+    const accountId = req.query.account_id || req.query.client_id;
     
-    if (!client_id) {
-      return res.json({ success: false, error: 'Client ID required' });
+    if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
     }
     
     const result = await pool.query(`
       SELECT settings FROM website_settings
-      WHERE client_id = $1 AND section = $2
-    `, [client_id, section]);
+      WHERE account_id = $1 AND section = $2
+    `, [accountId, section]);
     
     if (result.rows.length > 0) {
       res.json({ success: true, settings: result.rows[0].settings });
     } else {
-      res.json({ success: true, settings: {} });
+      res.json({ success: true, settings: null });
     }
   } catch (error) {
     console.error('Get website settings error:', error);
@@ -14479,23 +14573,50 @@ app.get('/api/admin/website-builder/:section', async (req, res) => {
 app.post('/api/admin/website-builder/:section', async (req, res) => {
   try {
     const { section } = req.params;
-    const { client_id, settings } = req.body;
+    const { account_id, client_id, settings } = req.body;
+    const accountId = account_id || client_id;
     
-    if (!client_id) {
-      return res.json({ success: false, error: 'Client ID required' });
+    if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
     }
     
     // Upsert the settings
     await pool.query(`
-      INSERT INTO website_settings (client_id, section, settings, updated_at)
+      INSERT INTO website_settings (account_id, section, settings, updated_at)
       VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-      ON CONFLICT (client_id, section)
+      ON CONFLICT (account_id, section)
       DO UPDATE SET settings = $3, updated_at = CURRENT_TIMESTAMP
-    `, [client_id, section, JSON.stringify(settings)]);
+    `, [accountId, section, JSON.stringify(settings)]);
     
-    res.json({ success: true });
+    res.json({ success: true, message: 'Settings saved' });
   } catch (error) {
     console.error('Save website settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all website builder settings for an account (admin use)
+app.get('/api/admin/website-builder', async (req, res) => {
+  try {
+    const accountId = req.query.account_id || req.query.client_id;
+    
+    if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    const result = await pool.query(
+      'SELECT section, settings FROM website_settings WHERE account_id = $1',
+      [accountId]
+    );
+    
+    const allSettings = {};
+    result.rows.forEach(row => {
+      allSettings[row.section] = row.settings;
+    });
+    
+    res.json({ success: true, settings: allSettings });
+  } catch (error) {
+    console.error('Get all website settings error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -14505,7 +14626,7 @@ app.get('/api/v1/website-settings', validateApiKey, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT section, settings FROM website_settings
-      WHERE client_id = $1
+      WHERE account_id = $1
     `, [req.client.id]);
     
     // Convert to object keyed by section
@@ -14765,92 +14886,6 @@ app.post('/api/chat', async (req, res) => {
       success: false, 
       error: 'Sorry, I encountered an error. Please try again or contact support@gettingautomated.com' 
     });
-  }
-});
-
-// =========================================================
-// WEBSITE BUILDER SETTINGS ENDPOINTS
-// =========================================================
-
-// GET website builder settings for a section
-app.get('/api/admin/website-builder/:section', async (req, res) => {
-  try {
-    const { section } = req.params;
-    const accountId = req.query.account_id || req.query.client_id;
-    
-    if (!accountId) {
-      return res.json({ success: false, error: 'account_id required' });
-    }
-    
-    const result = await pool.query(
-      'SELECT settings FROM website_settings WHERE account_id = $1 AND section = $2',
-      [accountId, section]
-    );
-    
-    if (result.rows.length > 0) {
-      res.json({ success: true, settings: result.rows[0].settings });
-    } else {
-      res.json({ success: true, settings: null });
-    }
-  } catch (error) {
-    console.error('Get website settings error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// POST save website builder settings for a section
-app.post('/api/admin/website-builder/:section', async (req, res) => {
-  try {
-    const { section } = req.params;
-    const { account_id, client_id, settings } = req.body;
-    const accountId = account_id || client_id;
-    
-    if (!accountId) {
-      return res.json({ success: false, error: 'account_id required' });
-    }
-    
-    if (!settings) {
-      return res.json({ success: false, error: 'settings required' });
-    }
-    
-    // Upsert - insert or update
-    await pool.query(`
-      INSERT INTO website_settings (account_id, section, settings)
-      VALUES ($1, $2, $3)
-      ON CONFLICT (account_id, section) 
-      DO UPDATE SET settings = $3, updated_at = NOW()
-    `, [accountId, section, JSON.stringify(settings)]);
-    
-    res.json({ success: true, message: 'Settings saved' });
-  } catch (error) {
-    console.error('Save website settings error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// GET all website builder settings for an account
-app.get('/api/admin/website-builder', async (req, res) => {
-  try {
-    const accountId = req.query.account_id || req.query.client_id;
-    
-    if (!accountId) {
-      return res.json({ success: false, error: 'account_id required' });
-    }
-    
-    const result = await pool.query(
-      'SELECT section, settings FROM website_settings WHERE account_id = $1',
-      [accountId]
-    );
-    
-    const allSettings = {};
-    for (const row of result.rows) {
-      allSettings[row.section] = row.settings;
-    }
-    
-    res.json({ success: true, settings: allSettings });
-  } catch (error) {
-    console.error('Get all website settings error:', error);
-    res.status(500).json({ success: false, error: error.message });
   }
 });
 
