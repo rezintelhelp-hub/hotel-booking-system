@@ -17063,8 +17063,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                     closeApiKeyModal();
                     loadApiKeys();
                     
-                    // Show the new key
-                    alert('API Key Created!\n\nYour new key:\n' + result.api_key.api_key + '\n\nCopy this key now - you won\'t be able to see the full key again.');
+                    // Show the new key in a copyable way
+                    const keyValue = result.api_key.api_key;
+                    const copyDialog = document.createElement('div');
+                    copyDialog.innerHTML = `
+                        <div style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); z-index: 10000; display: flex; align-items: center; justify-content: center;">
+                            <div style="background: white; padding: 2rem; border-radius: 12px; max-width: 500px; text-align: center;">
+                                <h3 style="margin-bottom: 1rem; color: #22c55e;">✅ API Key Created!</h3>
+                                <p style="margin-bottom: 1rem;">Copy this key now - you won't see it again:</p>
+                                <input type="text" value="${keyValue}" readonly style="width: 100%; padding: 0.75rem; font-family: monospace; font-size: 0.9rem; border: 2px solid #e2e8f0; border-radius: 8px; text-align: center; margin-bottom: 1rem;" onclick="this.select()">
+                                <div style="display: flex; gap: 1rem; justify-content: center;">
+                                    <button onclick="navigator.clipboard.writeText('${keyValue}'); this.textContent='✅ Copied!'" style="background: #6366f1; color: white; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer;">📋 Copy Key</button>
+                                    <button onclick="this.closest('div').parentNode.parentNode.remove()" style="background: #e2e8f0; color: #374151; border: none; padding: 0.75rem 1.5rem; border-radius: 8px; cursor: pointer;">Close</button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    document.body.appendChild(copyDialog);
                 } else {
                     alert('Error: ' + result.error);
                 }
