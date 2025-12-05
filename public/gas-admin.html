@@ -8505,22 +8505,29 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         // Load rooms list for Featured Properties section
         async function loadFeaturedRoomsList() {
-            const clientId = getClientId();
             const container = document.getElementById('wb-featured-rooms-list');
-            if (!container || !clientId) return;
+            if (!container) return;
+            
+            // Get the selected account ID (same as used in loadRooms)
+            const accountId = selectedAccountId || getClientId();
+            if (!accountId) {
+                container.innerHTML = '<p style="color: var(--text-secondary); padding: 0.5rem;">Select a client to load rooms</p>';
+                return;
+            }
             
             container.innerHTML = '<p style="color: var(--text-secondary); padding: 0.5rem;">Loading rooms...</p>';
             
             try {
-                // Try to get rooms from the rooms data we may have loaded
-                const response = await fetch(`https://hotel-booking-system-production-d6db.up.railway.app/api/admin/rooms?owner_id=${clientId}`);
+                // Use same endpoint as main rooms list
+                const response = await fetch(`/api/admin/units?account_id=${accountId}`);
                 const data = await response.json();
                 
-                if (data.success && data.rooms && data.rooms.length > 0) {
-                    container.innerHTML = data.rooms.map(room => `
+                if (data.success && data.data && data.data.length > 0) {
+                    container.innerHTML = data.data.map(room => `
                         <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.5rem; cursor: pointer; border-bottom: 1px solid var(--border);">
                             <input type="checkbox" name="wb-featured-room" value="${room.id}" data-room-name="${room.name}">
                             <span>${room.name}</span>
+                            <span style="color: var(--text-secondary); font-size: 0.8rem; margin-left: auto;">${room.property_name || ''}</span>
                         </label>
                     `).join('');
                 } else {
