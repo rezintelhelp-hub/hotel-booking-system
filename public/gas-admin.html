@@ -100,9 +100,39 @@
             text-transform: uppercase;
             letter-spacing: 0.08em;
             color: var(--text-muted);
-            padding: 0 0.75rem;
-            margin-bottom: 0.5rem;
+            padding: 0.5rem 0.75rem;
+            margin-bottom: 0.25rem;
             font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-radius: 6px;
+            transition: background 0.15s;
+        }
+        
+        .nav-label:hover {
+            background: var(--sidebar-hover);
+        }
+        
+        .nav-label::after {
+            content: '▼';
+            font-size: 0.5rem;
+            transition: transform 0.2s;
+        }
+        
+        .nav-section.collapsed .nav-label::after {
+            transform: rotate(-90deg);
+        }
+        
+        .nav-section-items {
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+            max-height: 500px;
+        }
+        
+        .nav-section.collapsed .nav-section-items {
+            max-height: 0;
         }
 
         .nav-item {
@@ -1088,23 +1118,28 @@
 
             <nav class="nav">
                 <div class="nav-section">
-                    <div class="nav-label">Overview</div>
+                    <div class="nav-label" onclick="toggleNavSection(this)">Overview</div>
+                    <div class="nav-section-items">
                     <a class="nav-item active" data-view="dashboard" href="#" onclick="navClick(this, 'dashboard'); return false;">
                         <span class="nav-icon">📊</span>
                         <span>Dashboard</span>
                     </a>
+                    </div>
                 </div>
 
                 <div class="nav-section">
-                    <div class="nav-label">Accounts</div>
+                    <div class="nav-label" onclick="toggleNavSection(this)">Accounts</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="accounts" href="#" onclick="navClick(this, 'accounts'); return false;">
                         <span class="nav-icon">👥</span>
                         <span>All Accounts</span>
                     </a>
+                    </div>
                 </div>
 
                 <div class="nav-section">
-                    <div class="nav-label">Property Management</div>
+                    <div class="nav-label" onclick="toggleNavSection(this)">Property Management</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="properties" href="#" onclick="navClick(this, 'properties'); return false;">
                         <span class="nav-icon">🏨</span>
                         <span>Properties</span>
@@ -1129,10 +1164,12 @@
                         <span class="nav-icon">📅</span>
                         <span>Availability</span>
                     </a>
+                    </div>
                 </div>
 
                 <div class="nav-section">
-                    <div class="nav-label">Bookings & Revenue</div>
+                    <div class="nav-label" onclick="toggleNavSection(this)">Bookings & Revenue</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="bookings" href="#" onclick="navClick(this, 'bookings'); return false;">
                         <span class="nav-icon">📅</span>
                         <span>Bookings</span>
@@ -1153,18 +1190,22 @@
                         <span class="nav-icon">🏛️</span>
                         <span>Taxes</span>
                     </a>
+                    </div>
                 </div>
 
                 <div class="nav-section">
-                    <div class="nav-label">Marketing</div>
+                    <div class="nav-label" onclick="toggleNavSection(this)">Marketing</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="marketing" href="#" onclick="navClick(this, 'marketing'); return false;">
                         <span class="nav-icon">📣</span>
                         <span>Features & Tags</span>
                     </a>
+                    </div>
                 </div>
 
-                <div class="nav-section">
-                    <div class="nav-label">Website Builder</div>
+                <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Website Builder</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="wb-header" href="#" onclick="navClick(this, 'wb-header'); return false;">
                         <span class="nav-icon">📌</span>
                         <span>Header & Logo</span>
@@ -1197,10 +1238,12 @@
                         <span class="nav-icon">🎨</span>
                         <span>Styles & Colors</span>
                     </a>
+                    </div>
                 </div>
 
-                <div class="nav-section">
-                    <div class="nav-label">Knowledge Base</div>
+                <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Knowledge Base</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="kb-articles" href="#" onclick="navClick(this, 'kb-articles'); return false;">
                         <span class="nav-icon">📚</span>
                         <span>Articles</span>
@@ -1209,10 +1252,12 @@
                         <span class="nav-icon">❓</span>
                         <span>Unanswered</span>
                     </a>
+                    </div>
                 </div>
 
-                <div class="nav-section" id="nav-billing-section">
-                    <div class="nav-label">Billing</div>
+                <div class="nav-section collapsed" id="nav-billing-section">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Billing</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="my-billing" href="#" onclick="navClick(this, 'my-billing'); return false;">
                         <span class="nav-icon">💳</span>
                         <span>Plans & Extras</span>
@@ -1233,10 +1278,16 @@
                         <span class="nav-icon">🛒</span>
                         <span>Manage Extras</span>
                     </a>
+                    </div>
                 </div>
 
                 <div class="nav-section">
-                    <div class="nav-label">System</div>
+                    <div class="nav-label" onclick="toggleNavSection(this)">System</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="tasks" href="#" onclick="navClick(this, 'tasks'); return false;">
+                        <span class="nav-icon">✅</span>
+                        <span>Tasks</span>
+                    </a>
                     <a class="nav-item" data-view="integrations" href="#" onclick="navClick(this, 'integrations'); return false;">
                         <span class="nav-icon">🔗</span>
                         <span>Integrations</span>
@@ -1245,10 +1296,12 @@
                         <span class="nav-icon">⚙️</span>
                         <span>Settings</span>
                     </a>
+                    </div>
                 </div>
 
-                <div class="nav-section">
-                    <div class="nav-label">Apps</div>
+                <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Apps</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="app-blog" data-requires-feature="blog_module" href="#" onclick="return handleFeatureClick(this, 'app-blog', 'blog_module');">
                         <span class="nav-icon">📝</span>
                         <span>Blog</span>
@@ -1264,24 +1317,29 @@
                         <span>Reviews</span>
                         <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
+                    </div>
                 </div>
 
-                <div class="nav-section">
-                    <div class="nav-label">Developers</div>
+                <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Developers</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="api-docs" data-requires-feature="api_access" href="#" onclick="return handleFeatureClick(this, 'api-docs', 'api_access');">
                         <span class="nav-icon">🔌</span>
                         <span>API</span>
                         <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
+                    </div>
                 </div>
 
-                <div class="nav-section">
-                    <div class="nav-label">Website</div>
+                <div class="nav-section collapsed">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Website</div>
+                    <div class="nav-section-items">
                     <a class="nav-item" data-view="wordpress" data-requires-feature="has_subscription" href="#" onclick="return handleFeatureClick(this, 'wordpress', 'has_subscription');">
                         <span class="nav-icon"><svg width="18" height="18" viewBox="0 0 122.5 122.5" fill="currentColor"><path d="M8.7 61.3c0 20.8 12.1 38.8 29.6 47.3L13 40.3c-2.8 6.5-4.3 13.7-4.3 21zm88.6-2.7c0-6.5-2.3-11-4.3-14.5-2.7-4.3-5.2-8-5.2-12.3 0-4.8 3.7-9.3 8.9-9.3h.7c-9.4-8.6-21.9-13.9-35.7-13.9-18.5 0-34.7 9.5-44.2 23.8h3.4c5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.8.3-6 .5l19.1 57 11.5-34.5-8.2-22.5c-2.8-.2-5.5-.5-5.5-.5-2.8-.2-2.5-4.5.3-4.3 0 0 8.7.7 13.9.7 5.5 0 14-.7 14-.7 2.8-.2 3.2 4 .3 4.3 0 0-2.9.3-6 .5l19 56.5 5.2-17.5c2.3-7.3 4-12.5 4-17zm-36.3 7.6l-15.8 45.8c4.7 1.4 9.7 2.2 14.8 2.2 6.1 0 12-1.1 17.4-3-.1-.2-.3-.5-.4-.7l-16-43.3zm45.1-29.8c.5 3.4.7 7 .7 10.9 0 10.8-2 22.9-8 38l-21.8 63.1c21.2-12.4 35.5-35.5 35.5-62.1 0-17.9-6.2-34.3-16.4-47.9zM61.3 0C27.5 0 0 27.5 0 61.3c0 33.8 27.5 61.3 61.3 61.3 33.8 0 61.3-27.5 61.3-61.3C122.5 27.5 95 0 61.3 0zm0 119.7c-32.2 0-58.5-26.2-58.5-58.5 0-32.2 26.2-58.5 58.5-58.5 32.2 0 58.5 26.2 58.5 58.5-.1 32.3-26.3 58.5 58.5z"/></svg></span>
                         <span>WordPress</span>
                         <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
+                    </div>
                 </div>
                 
                 <!-- User Profile Section -->
@@ -4038,6 +4096,31 @@ fetch('/api/public/client/1/rooms')
                                 <option value="pill">Pill</option>
                                 <option value="square">Square</option>
                             </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tasks View -->
+            <div id="tasks" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Tasks</h2>
+                            <p>Development and implementation tasks</p>
+                        </div>
+                        <button class="btn" onclick="window.open('/tasks.json', '_blank')">
+                            <span>📋</span>
+                            <span>View JSON</span>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="tasks-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading tasks...</p>
                         </div>
                     </div>
                 </div>
@@ -7583,6 +7666,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Run auth check after global state is declared
         checkAuth();
         
+        // Restore nav collapsed states
+        restoreNavState();
+        
         // Helper function to get account query param
         function getAccountParam() {
             if (selectedAccountId) {
@@ -7745,10 +7831,58 @@ const promo = await fetch('/api/v1/offers/validate', {
         }
         
         // Simple navigation click handler
+        // Toggle nav section collapse/expand
+        function toggleNavSection(labelEl) {
+            const section = labelEl.closest('.nav-section');
+            section.classList.toggle('collapsed');
+            
+            // Save collapsed state to localStorage
+            saveNavState();
+        }
+        
+        // Save nav collapsed states
+        function saveNavState() {
+            const sections = document.querySelectorAll('.nav-section');
+            const states = {};
+            sections.forEach((section, index) => {
+                const label = section.querySelector('.nav-label');
+                if (label) {
+                    states[label.textContent.trim()] = section.classList.contains('collapsed');
+                }
+            });
+            localStorage.setItem('gas_nav_states', JSON.stringify(states));
+        }
+        
+        // Restore nav collapsed states
+        function restoreNavState() {
+            try {
+                const states = JSON.parse(localStorage.getItem('gas_nav_states') || '{}');
+                document.querySelectorAll('.nav-section').forEach(section => {
+                    const label = section.querySelector('.nav-label');
+                    if (label && states[label.textContent.trim()] !== undefined) {
+                        if (states[label.textContent.trim()]) {
+                            section.classList.add('collapsed');
+                        } else {
+                            section.classList.remove('collapsed');
+                        }
+                    }
+                });
+            } catch (e) {
+                console.error('Error restoring nav state:', e);
+            }
+        }
+        
         function navClick(el, viewName) {
             // Update active state
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
             el.classList.add('active');
+            
+            // Expand the section if it's collapsed
+            const section = el.closest('.nav-section');
+            if (section && section.classList.contains('collapsed')) {
+                section.classList.remove('collapsed');
+                saveNavState();
+            }
             
             // Show the view
             showView(viewName);
@@ -7778,6 +7912,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'content') loadContentView();
             if (viewName === 'availability') loadAvailabilityView();
+            if (viewName === 'tasks') loadTasks();
             if (viewName === 'integrations') loadIntegrations();
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
@@ -10386,6 +10521,79 @@ const promo = await fetch('/api/v1/offers/validate', {
                     imgCard.style.opacity = '1';
                     imgCard.style.pointerEvents = 'auto';
                 }
+            }
+        }
+
+        async function loadTasks() {
+            const container = document.getElementById('tasks-list');
+            try {
+                const response = await fetch('/tasks.json');
+                const data = await response.json();
+                
+                if (data && data.categories) {
+                    let html = '';
+                    
+                    data.categories.forEach(category => {
+                        const completedCount = category.tasks.filter(t => t.status === 'done').length;
+                        const totalCount = category.tasks.length;
+                        const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
+                        
+                        html += `
+                            <div style="margin-bottom: 2rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                    <h3 style="margin: 0;">${category.name}</h3>
+                                    <span style="color: var(--text-secondary); font-size: 0.9rem;">${completedCount}/${totalCount} (${progressPercent}%)</span>
+                                </div>
+                                <div style="background: var(--bg-secondary); border-radius: 4px; height: 8px; margin-bottom: 1rem; overflow: hidden;">
+                                    <div style="background: var(--primary); height: 100%; width: ${progressPercent}%; transition: width 0.3s;"></div>
+                                </div>
+                                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                                    ${category.tasks.map(task => {
+                                        const statusColors = {
+                                            'done': '#10b981',
+                                            'in-progress': '#f59e0b',
+                                            'pending': '#6b7280'
+                                        };
+                                        const statusIcons = {
+                                            'done': '✅',
+                                            'in-progress': '🔄',
+                                            'pending': '⏳'
+                                        };
+                                        return `
+                                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid ${statusColors[task.status] || '#6b7280'};">
+                                                <span>${statusIcons[task.status] || '⏳'}</span>
+                                                <div style="flex: 1;">
+                                                    <div style="font-weight: 500;">${task.name}</div>
+                                                    ${task.description ? `<div style="font-size: 0.85rem; color: var(--text-secondary);">${task.description}</div>` : ''}
+                                                </div>
+                                                <span class="badge ${task.status === 'done' ? 'badge-success' : task.status === 'in-progress' ? 'badge-warning' : 'badge-secondary'}" style="font-size: 0.75rem;">${task.status}</span>
+                                            </div>
+                                        `;
+                                    }).join('')}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📋</div>
+                            <h3>No Tasks Found</h3>
+                            <p>Tasks file not found or empty</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading tasks:', error);
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <h3>Tasks</h3>
+                        <p>Could not load tasks.json</p>
+                    </div>
+                `;
             }
         }
 
