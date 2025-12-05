@@ -8155,7 +8155,7 @@ app.get('/api/admin/units/:id/amenities', async (req, res) => {
 app.put('/api/admin/units/:id/amenities', async (req, res) => {
   try {
     const { id } = req.params;
-    const { amenities } = req.body; // Array of amenity IDs from master_amenities
+    const { amenities } = req.body; // Array of amenity IDs
     
     // Delete existing selections for this room
     await pool.query('DELETE FROM room_amenity_selections WHERE room_id = $1', [id]);
@@ -8163,7 +8163,7 @@ app.put('/api/admin/units/:id/amenities', async (req, res) => {
     // Insert new selections
     if (amenities && amenities.length > 0) {
       for (let i = 0; i < amenities.length; i++) {
-        const amenityId = amenities[i];
+        const amenityId = typeof amenities[i] === 'object' ? amenities[i].id : amenities[i];
         await pool.query(`
           INSERT INTO room_amenity_selections (room_id, amenity_id, display_order)
           VALUES ($1, $2, $3)
@@ -9619,6 +9619,7 @@ app.post('/api/admin/migrate-001-master-amenities', async (req, res) => {
         id SERIAL PRIMARY KEY,
         room_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
         amenity_id INTEGER NOT NULL REFERENCES master_amenities(id) ON DELETE CASCADE,
+        quantity INTEGER DEFAULT 1,
         display_order INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT NOW(),
         UNIQUE(room_id, amenity_id)
@@ -11640,21 +11641,23 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       }
     }
     
-    // Try to get amenities
+    // Get amenities from room_amenity_selections joined with master_amenities
     let amenities = { rows: [] };
     try {
       amenities = await pool.query(`
-        SELECT amenity_name as name, category, icon
-        FROM bookable_unit_amenities WHERE bookable_unit_id = $1
-        ORDER BY category, display_order
+        SELECT ma.amenity_name as name, ma.category, ma.icon
+        FROM room_amenity_selections ras
+        JOIN master_amenities ma ON ras.amenity_id = ma.id
+        WHERE ras.room_id = $1
+        ORDER BY ma.category, ras.display_order
       `, [unitId]);
     } catch (e) {
-      // Table might have different structure, try room_amenities
+      // Fallback to old table structure
       try {
         amenities = await pool.query(`
-          SELECT name, category, icon
-          FROM room_amenities WHERE room_id = $1
-          ORDER BY category, name
+          SELECT amenity_name as name, category, icon
+          FROM bookable_unit_amenities WHERE bookable_unit_id = $1
+          ORDER BY category, display_order
         `, [unitId]);
       } catch (e2) {
         // Neither table exists
