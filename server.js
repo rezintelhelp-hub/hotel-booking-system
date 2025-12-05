@@ -7528,14 +7528,24 @@ app.get('/api/admin/taxes', async (req, res) => {
     let result;
     
     if (accountId) {
-      // Show taxes that belong to this account (by user_id) or are linked to properties owned by this account
+      // Show taxes that:
+      // 1. Have user_id matching this account, OR
+      // 2. Are linked to properties owned by this account
       result = await pool.query(`
-        SELECT t.* FROM taxes t
-        WHERE t.user_id = $1
+        SELECT DISTINCT t.*, p.name as property_name 
+        FROM taxes t
+        LEFT JOIN properties p ON t.property_id = p.id
+        WHERE t.user_id = $1 
+           OR p.account_id = $1
         ORDER BY t.name
       `, [accountId]);
     } else {
-      result = await pool.query('SELECT * FROM taxes ORDER BY name');
+      result = await pool.query(`
+        SELECT t.*, p.name as property_name 
+        FROM taxes t
+        LEFT JOIN properties p ON t.property_id = p.id
+        ORDER BY t.name
+      `);
     }
     res.json({ success: true, data: result.rows });
   } catch (error) {
@@ -7547,6 +7557,8 @@ app.post('/api/admin/taxes', async (req, res) => {
   try {
     const { name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, account_id } = req.body;
     
+    // user_id = creator (account_id)
+    // Visibility is handled by GET which checks property ownership
     const result = await pool.query(`
       INSERT INTO taxes (name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, user_id)
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
