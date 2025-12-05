@@ -8225,6 +8225,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         let selectedAccountId = null;
         let selectedAccountName = null;
         
+        // Track current Website Builder section for reloading on account switch
+        let currentWbSection = null;
+        
         // Run auth check after global state is declared
         checkAuth();
         
@@ -8447,7 +8450,12 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
             
             // Website Builder views
-            if (viewName.startsWith('wb-')) loadWebsiteBuilderSection(viewName.replace('wb-', ''));
+            if (viewName.startsWith('wb-')) {
+                currentWbSection = viewName.replace('wb-', '');
+                loadWebsiteBuilderSection(currentWbSection);
+            } else {
+                currentWbSection = null;
+            }
         }
 
         // =========================================================
@@ -8463,6 +8471,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 // Get account ID - either from filter or current logged-in account
                 const accountId = selectedAccountId || (currentAccount ? currentAccount.id : null);
+                console.log('Loading section:', section, 'for account:', accountId);
+                
                 if (!accountId) {
                     console.log('No account selected, using default values');
                     return;
@@ -8471,9 +8481,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 // Load from server API
                 const response = await fetch(`/api/admin/website-builder/${section}?account_id=${accountId}`);
                 const data = await response.json();
+                console.log('Load response:', data);
                 
                 if (data.success && data.settings) {
                     const settings = data.settings;
+                    console.log('Applying settings:', settings);
                     
                     // Populate form fields based on section
                     Object.keys(settings).forEach(key => {
@@ -8598,6 +8610,8 @@ const promo = await fetch('/api/v1/offers/validate', {
             try {
                 // Get the account ID - either from filter or current logged-in account
                 const accountId = selectedAccountId || (currentAccount ? currentAccount.id : null);
+                console.log('Saving section:', section, 'for account:', accountId);
+                
                 if (!accountId) {
                     alert('Please select an account first from the Accounts page');
                     return;
@@ -8618,6 +8632,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 });
                 
+                console.log('Settings to save:', settings);
+                
                 // Save to GAS database
                 const response = await fetch(`/api/admin/website-builder/${section}`, {
                     method: 'POST',
@@ -8625,6 +8641,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     body: JSON.stringify({ account_id: accountId, settings })
                 });
                 const data = await response.json();
+                console.log('Save response:', data);
                 
                 if (!data.success) {
                     showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
@@ -9206,6 +9223,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const viewName = activeView.getAttribute('data-view');
                 showView(viewName);
             }
+            
+            // If we're in a Website Builder section, reload it
+            if (currentWbSection) {
+                loadWebsiteBuilderSection(currentWbSection);
+            }
         }
         
         function clearAccountFilter() {
@@ -9239,6 +9261,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (activeView) {
                 const viewName = activeView.getAttribute('data-view');
                 showView(viewName);
+            }
+            
+            // If we're in a Website Builder section, reload it
+            if (currentWbSection) {
+                loadWebsiteBuilderSection(currentWbSection);
             }
         }
         
