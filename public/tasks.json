@@ -65,6 +65,48 @@
       "status": "todo"
     },
     {
+      "title": "Cancellation Policy from GAS",
+      "description": "WordPress plugin has '48 hours' hardcoded (line 2483). Should pull from GAS Admin Content → Policies or add to WP plugin settings.",
+      "priority": "medium",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Country Code Migration",
+      "description": "Standardize existing database entries to ISO 2-letter codes. Some have 'Switzerland', 'United Kingdom' instead of CH, GB.",
+      "priority": "low",
+      "category": "data",
+      "status": "todo"
+    },
+    {
+      "title": "Vouchers UI Property Selector",
+      "description": "Add Property/Room selector to Vouchers like Taxes now has (match Offers pattern)",
+      "priority": "medium",
+      "category": "ui",
+      "status": "todo"
+    },
+    {
+      "title": "Upsells UI Property Selector",
+      "description": "Add Property/Room selector to Upsells like Taxes now has (match Offers pattern)",
+      "priority": "medium",
+      "category": "ui",
+      "status": "todo"
+    },
+    {
+      "title": "Extras Not Displaying on Checkout",
+      "description": "User reported extras/upsells not showing on WP checkout - needs investigation",
+      "priority": "high",
+      "category": "bug",
+      "status": "todo"
+    },
+    {
+      "title": "Tax Visibility in Master Account",
+      "description": "Master should see taxes when selecting client properties in dropdown",
+      "priority": "high",
+      "category": "bug",
+      "status": "in_progress"
+    },
+    {
       "title": "Audit WP Plugin Fields vs GAS",
       "description": "Review all fields in WordPress plugin and ensure matching fields exist in GAS database/API",
       "priority": "urgent",
@@ -160,6 +202,30 @@
       "description": "Added Tasks view to GAS Admin with sync from tasks.json file",
       "priority": "medium",
       "category": "feature",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Tax Property Selector UI",
+      "description": "Added Property/Room dropdown to Taxes page matching Offers pattern",
+      "priority": "high",
+      "category": "ui",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Tax Display on WP Checkout",
+      "description": "Fixed calculate-price endpoint to filter taxes by property_id",
+      "priority": "high",
+      "category": "bug",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Rate Toggle on Checkout",
+      "description": "Fixed offer discount only showing when rate=offer in URL",
+      "priority": "high",
+      "category": "bug",
       "status": "done",
       "completed": "2025-12-05"
     }
