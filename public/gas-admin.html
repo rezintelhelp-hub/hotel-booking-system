@@ -9619,9 +9619,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     `;
                     
                     // Sort categories
-                    const sortOrder = ['beds', 'bathrooms', 'essentials', 'kitchen', 'entertainment', 'outdoor', 'wellness', 'parking', 'family', 'work', 'safety', 'laundry', 'other'];
+                    // Sort categories alphabetically (beds, bathrooms near top)
                     const sortedCategories = Object.entries(categories).sort((a, b) => 
-                        sortOrder.indexOf(a[0]) - sortOrder.indexOf(b[0])
+                        a[0].localeCompare(b[0])
                     );
                     
                     sortedCategories.forEach(([cat, items]) => {
