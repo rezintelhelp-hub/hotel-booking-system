@@ -14768,6 +14768,92 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// =========================================================
+// WEBSITE BUILDER SETTINGS ENDPOINTS
+// =========================================================
+
+// GET website builder settings for a section
+app.get('/api/admin/website-builder/:section', async (req, res) => {
+  try {
+    const { section } = req.params;
+    const accountId = req.query.account_id || req.query.client_id;
+    
+    if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    const result = await pool.query(
+      'SELECT settings FROM website_settings WHERE account_id = $1 AND section = $2',
+      [accountId, section]
+    );
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, settings: result.rows[0].settings });
+    } else {
+      res.json({ success: true, settings: null });
+    }
+  } catch (error) {
+    console.error('Get website settings error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST save website builder settings for a section
+app.post('/api/admin/website-builder/:section', async (req, res) => {
+  try {
+    const { section } = req.params;
+    const { account_id, client_id, settings } = req.body;
+    const accountId = account_id || client_id;
+    
+    if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    if (!settings) {
+      return res.json({ success: false, error: 'settings required' });
+    }
+    
+    // Upsert - insert or update
+    await pool.query(`
+      INSERT INTO website_settings (account_id, section, settings)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (account_id, section) 
+      DO UPDATE SET settings = $3, updated_at = NOW()
+    `, [accountId, section, JSON.stringify(settings)]);
+    
+    res.json({ success: true, message: 'Settings saved' });
+  } catch (error) {
+    console.error('Save website settings error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// GET all website builder settings for an account
+app.get('/api/admin/website-builder', async (req, res) => {
+  try {
+    const accountId = req.query.account_id || req.query.client_id;
+    
+    if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    const result = await pool.query(
+      'SELECT section, settings FROM website_settings WHERE account_id = $1',
+      [accountId]
+    );
+    
+    const allSettings = {};
+    for (const row of result.rows) {
+      allSettings[row.section] = row.settings;
+    }
+    
+    res.json({ success: true, settings: allSettings });
+  } catch (error) {
+    console.error('Get all website settings error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
