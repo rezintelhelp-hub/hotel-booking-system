@@ -7241,9 +7241,17 @@ app.delete('/api/admin/offers/:id', async (req, res) => {
 app.get('/api/admin/vouchers', async (req, res) => {
   try {
     const accountId = req.query.account_id;
+    const propertyId = req.query.property_id;
     let result;
     
-    if (accountId) {
+    if (propertyId) {
+      // Filter by specific property
+      result = await pool.query(`
+        SELECT v.* FROM vouchers v
+        WHERE v.property_id = $1
+        ORDER BY v.created_at DESC
+      `, [propertyId]);
+    } else if (accountId) {
       // Filter by account - only vouchers linked to properties owned by this account
       result = await pool.query(`
         SELECT v.* FROM vouchers v
