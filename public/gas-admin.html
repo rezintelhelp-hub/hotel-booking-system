@@ -4178,69 +4178,142 @@ fetch('/api/public/client/1/rooms')
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🎨 Styles & Colors</h2>
-                            <p>Customize your website appearance</p>
+                            <h2>🎨 Colors & Branding</h2>
+                            <p>These styles apply across all pages</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('styles')">💾 Save & Sync</button>
                     </div>
                 </div>
+                
+                <!-- Brand Colors -->
                 <div class="card">
                     <div class="card-header">
-                        <h3 class="card-title">Colors</h3>
+                        <h3 class="card-title">Brand Colors</h3>
                     </div>
                     <div class="card-body">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Primary Color</label>
-                                <input type="color" id="wb-style-primary" value="#6366f1" style="width: 100%; height: 50px; border-radius: 8px;">
+                                <input type="color" id="wb-styles-primary-color" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Secondary Color</label>
-                                <input type="color" id="wb-style-secondary" value="#8b5cf6" style="width: 100%; height: 50px; border-radius: 8px;">
+                                <input type="color" id="wb-styles-secondary-color" value="#0f172a" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Accent Color</label>
-                                <input type="color" id="wb-style-accent" value="#10b981" style="width: 100%; height: 50px; border-radius: 8px;">
+                                <input type="color" id="wb-styles-accent-color" value="#10b981" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Text Color</label>
-                                <input type="color" id="wb-style-text" value="#1e293b" style="width: 100%; height: 50px; border-radius: 8px;">
+                                <label class="form-label">Link Color</label>
+                                <input type="color" id="wb-styles-link-color" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
                             </div>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Button Styles -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Button Styles</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Primary Button Background</label>
+                                <input type="color" id="wb-styles-btn-primary-bg" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Primary Button Text</label>
+                                <input type="color" id="wb-styles-btn-primary-text" value="#ffffff" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Secondary Button Background</label>
+                                <input type="color" id="wb-styles-btn-secondary-bg" value="#ffffff" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Secondary Button Text</label>
+                                <input type="color" id="wb-styles-btn-secondary-text" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Button Border Radius (px)</label>
+                            <input type="range" id="wb-styles-btn-radius" min="0" max="50" step="2" value="8" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>0 = square</span>
+                                <span id="wb-styles-btn-radius-val">8px</span>
+                                <span>50 = very rounded</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Typography -->
                 <div class="card" style="margin-top: 1rem;">
                     <div class="card-header">
                         <h3 class="card-title">Typography</h3>
                     </div>
                     <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Heading Font</label>
-                            <select class="form-select" id="wb-style-heading-font">
-                                <option value="Playfair Display">Playfair Display (Elegant)</option>
-                                <option value="Montserrat">Montserrat (Modern)</option>
-                                <option value="Roboto">Roboto (Clean)</option>
-                                <option value="Lora">Lora (Classic)</option>
-                                <option value="Open Sans">Open Sans (Friendly)</option>
-                            </select>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Heading Font</label>
+                                <select class="form-select" id="wb-styles-heading-font">
+                                    <option value="playfair">Playfair Display (Elegant)</option>
+                                    <option value="montserrat">Montserrat (Modern)</option>
+                                    <option value="lora">Lora (Classic)</option>
+                                    <option value="poppins">Poppins (Clean)</option>
+                                    <option value="merriweather">Merriweather (Traditional)</option>
+                                    <option value="raleway">Raleway (Light)</option>
+                                    <option value="oswald">Oswald (Bold)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Body Font</label>
+                                <select class="form-select" id="wb-styles-body-font">
+                                    <option value="inter">Inter (Modern)</option>
+                                    <option value="roboto">Roboto (Clean)</option>
+                                    <option value="opensans">Open Sans (Friendly)</option>
+                                    <option value="lato">Lato (Professional)</option>
+                                    <option value="sourcesans">Source Sans Pro (Readable)</option>
+                                    <option value="nunito">Nunito (Rounded)</option>
+                                </select>
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Body Font</label>
-                            <select class="form-select" id="wb-style-body-font">
-                                <option value="Inter">Inter (Modern)</option>
-                                <option value="Roboto">Roboto (Clean)</option>
-                                <option value="Open Sans">Open Sans (Friendly)</option>
-                                <option value="Lato">Lato (Warm)</option>
-                                <option value="Source Sans Pro">Source Sans Pro (Professional)</option>
-                            </select>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Page Title Size (px)</label>
+                                <input type="range" id="wb-styles-title-size" min="28" max="72" step="2" value="42" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                    <span>28</span>
+                                    <span id="wb-styles-title-size-val">42px</span>
+                                    <span>72</span>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Body Text Size (px)</label>
+                                <input type="range" id="wb-styles-body-size" min="14" max="20" step="1" value="16" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                    <span>14</span>
+                                    <span id="wb-styles-body-size-val">16px</span>
+                                    <span>20</span>
+                                </div>
+                            </div>
                         </div>
+                    </div>
+                </div>
+                
+                <!-- Custom CSS -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Custom CSS</h3>
+                    </div>
+                    <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Button Style</label>
-                            <select class="form-select" id="wb-style-button">
-                                <option value="rounded">Rounded</option>
-                                <option value="pill">Pill</option>
-                                <option value="square">Square</option>
-                            </select>
+                            <label class="form-label">Add custom CSS for specific overrides</label>
+                            <textarea class="form-input" id="wb-styles-custom-css" rows="6" placeholder="/* Add your custom CSS here */
+.my-class {
+    color: red;
+}" style="font-family: monospace; font-size: 13px;"></textarea>
                         </div>
                     </div>
                 </div>
@@ -13103,7 +13176,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 { id: 'wb-search-opacity', suffix: '%' },
                 { id: 'wb-search-radius', suffix: 'px' },
                 { id: 'wb-search-max-width', suffix: 'px' },
-                { id: 'wb-search-scale', suffix: '%' }
+                { id: 'wb-search-scale', suffix: '%' },
+                { id: 'wb-styles-btn-radius', suffix: 'px' },
+                { id: 'wb-styles-title-size', suffix: 'px' },
+                { id: 'wb-styles-body-size', suffix: 'px' }
             ];
             
             rangeSliders.forEach(slider => {
