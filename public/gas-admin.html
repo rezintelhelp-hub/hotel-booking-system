@@ -8723,7 +8723,19 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadPropertiesForWordPress() {
             try {
-                const response = await fetch('/api/db/properties');
+                // Build query params for filtering by account
+                let queryParams = [];
+                if (selectedAccountId) {
+                    queryParams.push(`account_id=${selectedAccountId}`);
+                } else {
+                    const user = JSON.parse(localStorage.getItem('gas_user') || '{}');
+                    if (user.account_id && user.role !== 'master_admin') {
+                        queryParams.push(`account_id=${user.account_id}`);
+                    }
+                }
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+                
+                const response = await fetch('/api/db/properties' + queryString);
                 const data = await response.json();
                 
                 const select = document.getElementById('wp-create-property');
@@ -8766,31 +8778,53 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success && data.sites && data.sites.length > 0) {
+                    // Filter by account if not master admin
+                    const user = JSON.parse(localStorage.getItem('gas_user') || '{}');
+                    const isMasterAdmin = user.role === 'master_admin';
+                    const filterAccountId = selectedAccountId || (isMasterAdmin ? null : user.account_id);
+                    
+                    let filteredSites = data.sites;
+                    if (filterAccountId) {
+                        filteredSites = data.sites.filter(site => 
+                            site.blog_id === '1' || // Always show main site to master admin
+                            site.account_id === String(filterAccountId)
+                        );
+                    }
+                    
+                    if (filteredSites.length === 0) {
+                        container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 2rem;">No WordPress sites for this account. Create one above!</p>';
+                        return;
+                    }
+                    
                     let html = `
                         <table style="width: 100%; border-collapse: collapse;">
                             <thead>
                                 <tr style="border-bottom: 2px solid var(--border); text-align: left;">
                                     <th style="padding: 0.75rem; width: 60px;">ID</th>
                                     <th style="padding: 0.75rem;">Site URL</th>
-                                    <th style="padding: 0.75rem; width: 180px;">Created</th>
-                                    <th style="padding: 0.75rem; width: 200px;">Actions</th>
+                                    ${isMasterAdmin ? '<th style="padding: 0.75rem; width: 100px;">Account</th>' : ''}
+                                    <th style="padding: 0.75rem; width: 160px;">Created</th>
+                                    <th style="padding: 0.75rem; width: 180px;">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${data.sites.map(site => {
+                                ${filteredSites.map(site => {
                                     const siteUrl = site.url.replace('http://', 'https://');
+                                    const isMainSite = site.blog_id === '1';
                                     return `
                                     <tr style="border-bottom: 1px solid var(--border);">
                                         <td style="padding: 0.75rem;"><code style="background: #f1f5f9; padding: 4px 10px; border-radius: 4px; font-weight: 600;">${site.blog_id}</code></td>
                                         <td style="padding: 0.75rem;">
                                             <a href="${siteUrl}" target="_blank" style="color: var(--accent); font-weight: 500;">${siteUrl}</a>
+                                            ${site.property_id ? `<span style="font-size: 0.75rem; color: var(--text-secondary); margin-left: 0.5rem;">Property #${site.property_id}</span>` : ''}
                                         </td>
-                                        <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">${site.registered || '-'}</td>
+                                        ${isMasterAdmin ? `<td style="padding: 0.75rem;"><code style="background: #e0e7ff; padding: 2px 8px; border-radius: 4px; font-size: 0.8rem;">${site.account_id || '-'}</code></td>` : ''}
+                                        <td style="padding: 0.75rem; font-size: 0.85rem; color: var(--text-secondary);">${site.registered ? site.registered.split(' ')[0] : '-'}</td>
                                         <td style="padding: 0.75rem;">
                                             <div style="display: flex; gap: 0.5rem;">
                                                 <a href="${siteUrl}" target="_blank" class="btn btn-secondary btn-small" style="text-decoration: none;">🔗 Visit</a>
                                                 <a href="${siteUrl}wp-admin/" target="_blank" class="btn btn-secondary btn-small" style="text-decoration: none;">⚙️ Admin</a>
-                                                ${site.blog_id !== '1' ? `<button class="btn btn-secondary btn-small" onclick="deleteWordPressSite('${site.blog_id}')" style="color: #ef4444;">🗑️</button>` : ''}
+                                                ${!isMainSite ? `<button class="btn btn-secondary btn-small" onclick="deleteWordPressSite('${site.blog_id}')" style="color: #ef4444;">🗑️</button>` : ''}
                                             </div>
                                         </td>
                                     </tr>
@@ -8804,7 +8838,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 }
             } catch (error) {
                 console.error('Error loading WordPress sites:', error);
-                container.innerHTML = `<p style="text-align: center; color: var(--error); padding: 2rem;">Cannot connect to WordPress server. Make sure gas-api.php is installed on your Hostinger VPS.</p>`;
+                container.innerHTML = `<p style="text-align: center; color: var(--error); padding: 2rem;">Cannot connect to WordPress server. Check settings below.</p>`;
             }
         }
         
