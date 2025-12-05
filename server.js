@@ -7525,9 +7525,21 @@ app.delete('/api/admin/fees/:id', async (req, res) => {
 app.get('/api/admin/taxes', async (req, res) => {
   try {
     const accountId = req.query.account_id;
+    const propertyId = req.query.property_id;
+    const roomId = req.query.room_id;
     let result;
     
-    if (accountId) {
+    if (propertyId) {
+      // Filter by specific property - show all taxes for this property
+      let query = `
+        SELECT DISTINCT t.*, p.name as property_name 
+        FROM taxes t
+        LEFT JOIN properties p ON t.property_id = p.id
+        WHERE t.property_id = $1 OR (t.property_id IS NULL AND p.id = $1)
+        ORDER BY t.name
+      `;
+      result = await pool.query(query, [propertyId]);
+    } else if (accountId) {
       // Show taxes that:
       // 1. Have user_id matching this account, OR
       // 2. Are linked to properties owned by this account
@@ -11827,15 +11839,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
     let taxTotal = 0;
     const taxBreakdown = [];
     
-    // Get regular taxes - filtered by account_id to prevent cross-account tax bleeding
+    // Get taxes for this specific property
     let taxes = { rows: [] };
     try {
       taxes = await pool.query(`
         SELECT t.* FROM taxes t
         WHERE t.active = true
-          AND (t.property_id IS NULL OR t.property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+          AND t.property_id = (SELECT property_id FROM bookable_units WHERE id = $1)
           AND (t.room_id IS NULL OR t.room_id = $1)
-          AND t.user_id = (SELECT p.account_id FROM properties p JOIN bookable_units bu ON bu.property_id = p.id WHERE bu.id = $1)
       `, [unit_id]);
     } catch (taxQueryError) {
       console.log('Tax query fallback - trying simpler query');
