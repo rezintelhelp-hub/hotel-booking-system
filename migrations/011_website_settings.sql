@@ -1,19 +1,11 @@
 -- Website Builder Settings per Client
 -- Each client can have their own website builder settings stored by section
 
--- First, try to rename client_id to account_id if the column exists
-DO $$
-BEGIN
-    IF EXISTS (
-        SELECT 1 FROM information_schema.columns 
-        WHERE table_name = 'website_settings' AND column_name = 'client_id'
-    ) THEN
-        ALTER TABLE website_settings RENAME COLUMN client_id TO account_id;
-    END IF;
-END $$;
+-- Drop the old table if it exists with wrong schema
+DROP TABLE IF EXISTS website_settings CASCADE;
 
--- Create table if it doesn't exist
-CREATE TABLE IF NOT EXISTS website_settings (
+-- Create fresh table with account_id
+CREATE TABLE website_settings (
     id SERIAL PRIMARY KEY,
     account_id INTEGER NOT NULL,
     section VARCHAR(50) NOT NULL,
