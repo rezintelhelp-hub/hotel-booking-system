@@ -1576,6 +1576,68 @@ app.post('/api/admin/tasks/sync-from-file', async (req, res) => {
   }
 });
 
+// Sync amenities from amenities.json file
+app.post('/api/admin/amenities/sync-from-file', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const filePath = path.join(__dirname, 'public', 'amenities.json');
+    
+    if (!fs.existsSync(filePath)) {
+      return res.json({ success: false, error: 'amenities.json not found in public folder' });
+    }
+    
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    const data = JSON.parse(fileContent);
+    
+    if (!data.amenities || !Array.isArray(data.amenities)) {
+      return res.json({ success: false, error: 'Invalid amenities.json format' });
+    }
+    
+    // Add level column if missing
+    await pool.query(`
+      ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS level VARCHAR(20) DEFAULT 'room'
+    `);
+    
+    let imported = 0;
+    let updated = 0;
+    
+    for (const amenity of data.amenities) {
+      // Build amenity_name JSONB
+      const amenityNameJson = JSON.stringify({ en: amenity.name });
+      
+      // Check if amenity exists by code
+      const existing = await pool.query('SELECT id FROM master_amenities WHERE amenity_code = $1', [amenity.code]);
+      
+      if (existing.rows.length > 0) {
+        // Update existing
+        await pool.query(`
+          UPDATE master_amenities SET 
+            amenity_name = $1, category = $2, icon = $3, level = $4, updated_at = NOW()
+          WHERE amenity_code = $5
+        `, [amenityNameJson, amenity.category, amenity.icon, amenity.level || 'room', amenity.code]);
+        updated++;
+      } else {
+        // Insert new
+        await pool.query(`
+          INSERT INTO master_amenities (amenity_code, amenity_name, category, icon, level)
+          VALUES ($1, $2, $3, $4, $5)
+        `, [amenity.code, amenityNameJson, amenity.category, amenity.icon, amenity.level || 'room']);
+        imported++;
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Imported ${imported} new, updated ${updated} existing amenities`,
+      updated: data.updated 
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/setup-clients', async (req, res) => {
   try {
     // 0. Create agencies table first (agencies manage multiple clients)
@@ -7778,18 +7840,32 @@ app.get('/api/admin/units/:id', async (req, res) => {
 app.put('/api/admin/units/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { quantity, status } = req.body;
+    const { 
+      quantity, 
+      status, 
+      room_type,
+      max_guests,
+      max_adults, 
+      max_children,
+      bed_configuration 
+    } = req.body;
     
-    // Only update GAS-controlled fields
+    // Update all fields (GAS-controlled and editable)
     const result = await pool.query(`
       UPDATE bookable_units 
       SET 
         quantity = COALESCE($1, quantity),
         status = COALESCE($2, status),
+        unit_type = COALESCE($3, unit_type),
+        max_guests = COALESCE($4, max_guests),
+        max_adults = COALESCE($5, max_adults),
+        max_children = COALESCE($6, max_children),
+        bed_configuration = COALESCE($7, bed_configuration),
         updated_at = NOW()
-      WHERE id = $3
+      WHERE id = $8
       RETURNING *
-    `, [quantity, status, id]);
+    `, [quantity, status, room_type, max_guests, max_adults, max_children, 
+        bed_configuration ? JSON.stringify(bed_configuration) : null, id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
