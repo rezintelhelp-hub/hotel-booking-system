@@ -14914,19 +14914,26 @@ app.get('/api/admin/fix-website-settings-table', async (req, res) => {
 // ONE-TIME FIX: Create client_api_keys table
 app.get('/api/admin/fix-api-keys-table', async (req, res) => {
   try {
+    await pool.query('DROP TABLE IF EXISTS client_api_keys CASCADE');
     await pool.query(`
-      CREATE TABLE IF NOT EXISTS client_api_keys (
+      CREATE TABLE client_api_keys (
         id SERIAL PRIMARY KEY,
-        account_id INTEGER NOT NULL,
+        client_id INTEGER NOT NULL,
+        key_name VARCHAR(100) DEFAULT 'Default',
         api_key VARCHAR(64) NOT NULL UNIQUE,
-        name VARCHAR(100) DEFAULT 'Default',
+        permissions JSONB DEFAULT '{}',
+        rate_limit_per_minute INTEGER DEFAULT 60,
+        rate_limit_per_day INTEGER DEFAULT 10000,
+        total_requests INTEGER DEFAULT 0,
+        allowed_origins TEXT,
+        expires_at TIMESTAMP,
         is_active BOOLEAN DEFAULT true,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        last_used_at TIMESTAMP,
-        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used_at TIMESTAMP
       )
     `);
-    await pool.query('CREATE INDEX IF NOT EXISTS idx_api_keys_account ON client_api_keys(account_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_api_keys_client ON client_api_keys(client_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_api_keys_key ON client_api_keys(api_key)');
     res.json({ success: true, message: 'API keys table created successfully!' });
   } catch (error) {
