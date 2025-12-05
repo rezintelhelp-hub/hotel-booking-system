@@ -1,0 +1,177 @@
+{
+  "updated": "2025-12-05",
+  "tasks": [
+    {
+      "title": "CM Webhooks - Beds24",
+      "description": "Set up webhook endpoint to receive booking notifications from Beds24 in real-time",
+      "priority": "high",
+      "category": "integration",
+      "status": "todo"
+    },
+    {
+      "title": "CM Webhooks - Smoobu",
+      "description": "Set up webhook endpoint to receive booking notifications from Smoobu",
+      "priority": "medium",
+      "category": "integration",
+      "status": "todo"
+    },
+    {
+      "title": "CM Property Sync Button",
+      "description": "Add Pull Properties button in Integrations to manually sync and compare properties from CM. Flag new/removed/changed properties.",
+      "priority": "high",
+      "category": "integration",
+      "status": "todo"
+    },
+    {
+      "title": "CM Auto-Sync Schedule",
+      "description": "Optional daily auto-check to compare CM properties with GAS properties",
+      "priority": "low",
+      "category": "integration",
+      "status": "todo"
+    },
+    {
+      "title": "Stripe Integration for GAS Subscriptions",
+      "description": "Connect Stripe for recurring billing on plans (Starter £29, Pro £59, Business £99, Enterprise £199)",
+      "priority": "high",
+      "category": "billing",
+      "status": "todo"
+    },
+    {
+      "title": "Stripe Webhook Handler",
+      "description": "Handle subscription.created, invoice.paid, subscription.cancelled events from Stripe",
+      "priority": "high",
+      "category": "billing",
+      "status": "todo"
+    },
+    {
+      "title": "Payment Provider Settings per Property",
+      "description": "Allow each property to configure their payment approach: Beds24 Stripe, Direct Stripe, ChargeAutomation, Chekin, etc.",
+      "priority": "high",
+      "category": "billing",
+      "status": "todo"
+    },
+    {
+      "title": "ChargeAutomation Integration",
+      "description": "Integration with chargeautomation.com for payments, deposits, damage waivers",
+      "priority": "medium",
+      "category": "integration",
+      "status": "todo"
+    },
+    {
+      "title": "Chekin Integration",
+      "description": "Integration with Chekin for ID verification + payment collection",
+      "priority": "medium",
+      "category": "integration",
+      "status": "todo"
+    },
+    {
+      "title": "Audit WP Plugin Fields vs GAS",
+      "description": "Review all fields in WordPress plugin and ensure matching fields exist in GAS database/API",
+      "priority": "urgent",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Property Fields Sync",
+      "description": "Ensure all property fields (name, description, address, policies, etc.) flow from GAS to WP",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Room Fields Sync",
+      "description": "Ensure all room fields (name, description, capacity, beds, amenities) flow from GAS to WP",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Site-Level Override System",
+      "description": "Allow WP site to override GAS values OR pull from GAS. Store override preference in GAS.",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "GAS Override Management UI",
+      "description": "In GAS Admin, show which fields are overridden at site level for each property",
+      "priority": "medium",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Bed Config Data Model Review",
+      "description": "Review and fix bed configuration storage - ensure proper bed types, quantities, sizes",
+      "priority": "high",
+      "category": "bug",
+      "status": "todo"
+    },
+    {
+      "title": "Bed Config UI in GAS Admin",
+      "description": "Improve room bed configuration UI - add/remove beds, bed types dropdown",
+      "priority": "medium",
+      "category": "ui",
+      "status": "todo"
+    },
+    {
+      "title": "Bed Config Display on WP",
+      "description": "Ensure bed configuration displays correctly on WordPress room pages",
+      "priority": "medium",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Amenities System Review",
+      "description": "Review amenities/features system - ensure comprehensive list and proper categorization",
+      "priority": "high",
+      "category": "feature",
+      "status": "todo"
+    },
+    {
+      "title": "Property-Level Amenities",
+      "description": "Amenities that apply to whole property (parking, wifi, pool, etc.)",
+      "priority": "medium",
+      "category": "feature",
+      "status": "todo"
+    },
+    {
+      "title": "Room-Level Amenities",
+      "description": "Amenities specific to rooms (TV, AC, minibar, etc.)",
+      "priority": "medium",
+      "category": "feature",
+      "status": "todo"
+    },
+    {
+      "title": "WordPress Multisite on Hostinger VPS",
+      "description": "Set up sites.gas.travel with wildcard SSL, WordPress Multisite, GAS plugins",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "done",
+      "completed": "2025-12-04"
+    },
+    {
+      "title": "GAS Admin → WordPress Site Creation",
+      "description": "Create/delete WP sites from GAS Admin via API, auto-configure plugins",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "done",
+      "completed": "2025-12-04"
+    },
+    {
+      "title": "ID Columns in GAS Admin",
+      "description": "Added ID columns to Accounts, Properties, Agencies tables",
+      "priority": "medium",
+      "category": "ui",
+      "status": "done",
+      "completed": "2025-12-04"
+    },
+    {
+      "title": "Lehmann House Site Live",
+      "description": "https://lehmannhouse.sites.gas.travel created and configured",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "done",
+      "completed": "2025-12-04"
+    }
+  ]
+}
