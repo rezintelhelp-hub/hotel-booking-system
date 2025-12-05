@@ -7974,9 +7974,21 @@ app.get('/api/admin/debug', async (req, res) => {
 app.get('/api/admin/units', async (req, res) => {
   try {
     const accountId = req.query.account_id;
+    const propertyId = req.query.property_id;
     let result;
     
-    if (accountId) {
+    if (propertyId) {
+      // Filter by specific property
+      result = await pool.query(`
+        SELECT 
+          bu.*,
+          p.name as property_name
+        FROM bookable_units bu
+        LEFT JOIN properties p ON bu.property_id = p.id
+        WHERE bu.property_id = $1
+        ORDER BY bu.name
+      `, [propertyId]);
+    } else if (accountId) {
       result = await pool.query(`
         SELECT 
           bu.*,
