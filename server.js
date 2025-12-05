@@ -7644,6 +7644,56 @@ app.delete('/api/admin/taxes/:id', async (req, res) => {
   }
 });
 
+// =====================================================
+// BOOKINGS API
+// =====================================================
+
+app.get('/api/admin/bookings', async (req, res) => {
+  try {
+    const { account_id, property_id, room_id, status } = req.query;
+    let query = `
+      SELECT b.*, 
+             bu.name as unit_name,
+             p.name as property_name
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON b.unit_id = bu.id
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (property_id) {
+      query += ` AND bu.property_id = $${paramIndex}`;
+      params.push(property_id);
+      paramIndex++;
+    } else if (account_id) {
+      query += ` AND p.account_id = $${paramIndex}`;
+      params.push(account_id);
+      paramIndex++;
+    }
+    
+    if (room_id) {
+      query += ` AND b.unit_id = $${paramIndex}`;
+      params.push(room_id);
+      paramIndex++;
+    }
+    
+    if (status) {
+      query += ` AND b.status = $${paramIndex}`;
+      params.push(status);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY b.check_in DESC`;
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Validate voucher code (for booking widget)
 app.post('/api/vouchers/validate', async (req, res) => {
   try {
