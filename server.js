@@ -12144,7 +12144,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
-      WHERE p.client_id = $1
+      WHERE p.account_id = $1
     `;
     
     const params = [clientId];
@@ -12187,7 +12187,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       SELECT MAX(COALESCE(bu.max_guests, bu.max_adults, 2)) as max_guests
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
-      WHERE p.client_id = $1
+      WHERE p.account_id = $1
     `, [clientId]);
     
     res.json({
