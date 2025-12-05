@@ -1165,13 +1165,29 @@
 
                 <div class="nav-section">
                     <div class="nav-label">Website Builder</div>
+                    <a class="nav-item" data-view="wb-identity" href="#" onclick="navClick(this, 'wb-identity'); return false;">
+                        <span class="nav-icon">🏷️</span>
+                        <span>Site Identity</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-styles" href="#" onclick="navClick(this, 'wb-styles'); return false;">
+                        <span class="nav-icon">🎨</span>
+                        <span>Colors & Branding</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-typography" href="#" onclick="navClick(this, 'wb-typography'); return false;">
+                        <span class="nav-icon">✏️</span>
+                        <span>Typography</span>
+                    </a>
                     <a class="nav-item" data-view="wb-header" href="#" onclick="navClick(this, 'wb-header'); return false;">
                         <span class="nav-icon">📌</span>
-                        <span>Header & Logo</span>
+                        <span>Header & Menu</span>
                     </a>
                     <a class="nav-item" data-view="wb-hero" href="#" onclick="navClick(this, 'wb-hero'); return false;">
                         <span class="nav-icon">🖼️</span>
                         <span>Hero Section</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-search" href="#" onclick="navClick(this, 'wb-search'); return false;">
+                        <span class="nav-icon">🔍</span>
+                        <span>Search Widget</span>
                     </a>
                     <a class="nav-item" data-view="wb-intro" href="#" onclick="navClick(this, 'wb-intro'); return false;">
                         <span class="nav-icon">📝</span>
@@ -1181,9 +1197,17 @@
                         <span class="nav-icon">🏨</span>
                         <span>Featured Properties</span>
                     </a>
+                    <a class="nav-item" data-view="wb-backgrounds" href="#" onclick="navClick(this, 'wb-backgrounds'); return false;">
+                        <span class="nav-icon">📦</span>
+                        <span>Section Backgrounds</span>
+                    </a>
                     <a class="nav-item" data-view="wb-reviews" href="#" onclick="navClick(this, 'wb-reviews'); return false;">
                         <span class="nav-icon">⭐</span>
-                        <span>Reviews</span>
+                        <span>Reviews Section</span>
+                    </a>
+                    <a class="nav-item" data-view="wb-about" href="#" onclick="navClick(this, 'wb-about'); return false;">
+                        <span class="nav-icon">ℹ️</span>
+                        <span>About Section</span>
                     </a>
                     <a class="nav-item" data-view="wb-cta" href="#" onclick="navClick(this, 'wb-cta'); return false;">
                         <span class="nav-icon">🚀</span>
@@ -1192,10 +1216,6 @@
                     <a class="nav-item" data-view="wb-footer" href="#" onclick="navClick(this, 'wb-footer'); return false;">
                         <span class="nav-icon">👣</span>
                         <span>Footer</span>
-                    </a>
-                    <a class="nav-item" data-view="wb-styles" href="#" onclick="navClick(this, 'wb-styles'); return false;">
-                        <span class="nav-icon">🎨</span>
-                        <span>Styles & Colors</span>
                     </a>
                 </div>
 
@@ -1792,6 +1812,13 @@
                             <div class="form-group">
                                 <label class="form-label">Longitude</label>
                                 <input type="text" class="form-input" id="contact-longitude" placeholder="-0.1278">
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Map Embed Code</label>
+                            <textarea class="form-input" id="contact-map-embed" rows="4" placeholder="Paste your Google Maps embed code here (the full iframe code)"></textarea>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                                Go to Google Maps → Share → Embed a map → Copy the iframe code
                             </div>
                         </div>
                         
@@ -3390,6 +3417,213 @@ fetch('/api/public/client/1/rooms')
                 </div>
             </div>
 
+            <!-- Website Builder: Site Identity -->
+            <div id="wb-identity" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🏷️ Site Identity</h2>
+                            <p>Logo, site name, and tagline</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('identity')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Site Identity</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Logo</label>
+                            <div id="wb-identity-logo-preview" style="width: 200px; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0;">
+                                <span style="color: #94a3b8;">No logo uploaded</span>
+                            </div>
+                            <input type="file" id="wb-identity-logo" accept="image/*" onchange="previewWebsiteImage('identity-logo')">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Site Name</label>
+                            <input type="text" class="form-input" id="wb-identity-site-name" placeholder="e.g., The Grand Hotel">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tagline</label>
+                            <input type="text" class="form-input" id="wb-identity-tagline" placeholder="e.g., Luxury Accommodation Since 1985">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Favicon</label>
+                            <div id="wb-identity-favicon-preview" style="width: 32px; height: 32px; background: #f1f5f9; border-radius: 4px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0;">
+                                <span style="color: #94a3b8; font-size: 0.6rem;">ico</span>
+                            </div>
+                            <input type="file" id="wb-identity-favicon" accept="image/*" onchange="previewWebsiteImage('identity-favicon')">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">32x32px recommended</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Typography -->
+            <div id="wb-typography" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>✏️ Typography</h2>
+                            <p>Fonts and text styles</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('typography')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Font Selection</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Heading Font</label>
+                                <select class="form-input" id="wb-typography-heading-font">
+                                    <option value="playfair">Playfair Display (Elegant)</option>
+                                    <option value="montserrat">Montserrat (Modern)</option>
+                                    <option value="lora">Lora (Classic)</option>
+                                    <option value="poppins">Poppins (Clean)</option>
+                                    <option value="merriweather">Merriweather (Traditional)</option>
+                                    <option value="raleway">Raleway (Light)</option>
+                                    <option value="oswald">Oswald (Bold)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Body Font</label>
+                                <select class="form-input" id="wb-typography-body-font">
+                                    <option value="inter">Inter (Modern)</option>
+                                    <option value="roboto">Roboto (Clean)</option>
+                                    <option value="opensans">Open Sans (Friendly)</option>
+                                    <option value="lato">Lato (Professional)</option>
+                                    <option value="sourcesans">Source Sans Pro (Readable)</option>
+                                    <option value="nunito">Nunito (Rounded)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Font Sizes</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Page Title Size (px)</label>
+                                <input type="range" id="wb-typography-title-size" min="28" max="72" step="2" value="42" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);"><span>28px</span><span id="wb-typography-title-size-val">42px</span><span>72px</span></div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Body Text Size (px)</label>
+                                <input type="range" id="wb-typography-body-size" min="14" max="20" step="1" value="16" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);"><span>14px</span><span id="wb-typography-body-size-val">16px</span><span>20px</span></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Search Widget -->
+            <div id="wb-search" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🔍 Search Widget</h2>
+                            <p>Booking search box appearance</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('search')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Search Widget Styles</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <input type="color" id="wb-search-bg-color" value="#ffffff" style="width: 100%; height: 40px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Color</label>
+                                <input type="color" id="wb-search-btn-color" value="#2563eb" style="width: 100%; height: 40px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <input type="color" id="wb-search-btn-text" value="#ffffff" style="width: 100%; height: 40px; border-radius: 8px;">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Opacity (%)</label>
+                                <input type="range" id="wb-search-opacity" min="0" max="100" step="5" value="100" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);"><span>Transparent</span><span id="wb-search-opacity-val">100%</span><span>Solid</span></div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Corner Radius (px)</label>
+                                <input type="range" id="wb-search-radius" min="0" max="30" step="2" value="16" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);"><span>Square</span><span id="wb-search-radius-val">16px</span><span>Rounded</span></div>
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Max Width (px)</label>
+                                <input type="range" id="wb-search-max-width" min="500" max="1200" step="50" value="900" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);"><span>500px</span><span id="wb-search-max-width-val">900px</span><span>1200px</span></div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Size Scale (%)</label>
+                                <input type="range" id="wb-search-scale" min="70" max="120" step="5" value="100" style="width: 100%;">
+                                <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);"><span>Smaller</span><span id="wb-search-scale-val">100%</span><span>Larger</span></div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Text Below Search Widget</label>
+                            <textarea class="form-input" id="wb-search-below-text" rows="2" placeholder="e.g., Best Rate Guarantee - Book Direct & Save!"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: Section Backgrounds -->
+            <div id="wb-backgrounds" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📦 Section Backgrounds</h2>
+                            <p>Background colors for each homepage section</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('backgrounds')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Section Background Colors</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">🏨 Featured Properties</label>
+                                <input type="color" id="wb-backgrounds-featured" value="#ffffff" style="width: 100%; height: 50px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">ℹ️ About Section</label>
+                                <input type="color" id="wb-backgrounds-about" value="#f8fafc" style="width: 100%; height: 50px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">⭐ Reviews/Testimonials</label>
+                                <input type="color" id="wb-backgrounds-testimonials" value="#0f172a" style="width: 100%; height: 50px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">🚀 CTA Section</label>
+                                <input type="color" id="wb-backgrounds-cta" value="#2563eb" style="width: 100%; height: 50px; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Website Builder: Header & Logo -->
             <div id="wb-header" class="view">
                 <div class="header">
@@ -3647,6 +3881,108 @@ fetch('/api/public/client/1/rooms')
                 </div>
             </div>
 
+            <!-- Website Builder: About Section (Homepage) -->
+            <div id="wb-about" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>ℹ️ About Section</h2>
+                            <p>Homepage about block with image and features</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('about')">💾 Save & Sync</button>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">About Content</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">About Image</label>
+                            <div id="wb-about-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
+                                <span style="color: #94a3b8;">Upload an image</span>
+                            </div>
+                            <input type="file" id="wb-about-image" accept="image/*" onchange="previewWebsiteImage('about')">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-input" id="wb-about-title" placeholder="e.g., Experience Luxury & Comfort">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-input" id="wb-about-text" rows="4" placeholder="Describe your property and what makes it special..."></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Layout</label>
+                            <select class="form-input" id="wb-about-layout">
+                                <option value="image-left">Image Left, Text Right</option>
+                                <option value="image-right">Image Right, Text Left</option>
+                                <option value="image-top">Image Top, Text Below</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Button</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text</label>
+                                <input type="text" class="form-input" id="wb-about-btn-text" placeholder="Learn More">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button URL</label>
+                                <input type="text" class="form-input" id="wb-about-btn-url" placeholder="/about/">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Background</label>
+                                <input type="color" id="wb-about-btn-bg" value="#2563eb" style="width: 100%; height: 40px; border-radius: 8px;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <input type="color" id="wb-about-btn-text-color" value="#ffffff" style="width: 100%; height: 40px; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="card">
+                    <div class="card-header">
+                        <h3 class="card-title">Feature Highlights</h3>
+                    </div>
+                    <div class="card-body">
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Add up to 6 feature highlights (leave empty to hide)</p>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Feature 1</label>
+                                <input type="text" class="form-input" id="wb-about-feature-1" placeholder="Spacious Bedrooms">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 2</label>
+                                <input type="text" class="form-input" id="wb-about-feature-2" placeholder="Luxury Bathrooms">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 3</label>
+                                <input type="text" class="form-input" id="wb-about-feature-3" placeholder="Prime Location">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 4</label>
+                                <input type="text" class="form-input" id="wb-about-feature-4" placeholder="Full Amenities">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 5</label>
+                                <input type="text" class="form-input" id="wb-about-feature-5" placeholder="Entertainment Areas">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 6</label>
+                                <input type="text" class="form-input" id="wb-about-feature-6" placeholder="Private Parking">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Website Builder: CTA Section -->
             <div id="wb-cta" class="view">
                 <div class="header">
@@ -3816,6 +4152,22 @@ fetch('/api/public/client/1/rooms')
                         <div class="form-group">
                             <label class="form-label">Twitter/X URL</label>
                             <input type="text" class="form-input" id="wb-footer-twitter" placeholder="https://twitter.com/yourpage">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">TripAdvisor URL</label>
+                            <input type="text" class="form-input" id="wb-footer-tripadvisor" placeholder="https://tripadvisor.com/yourproperty">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">YouTube URL</label>
+                            <input type="text" class="form-input" id="wb-footer-youtube" placeholder="https://youtube.com/yourchannel">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">WhatsApp Number</label>
+                            <input type="text" class="form-input" id="wb-footer-whatsapp" placeholder="+44 1234 567890">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">LinkedIn URL</label>
+                            <input type="text" class="form-input" id="wb-footer-linkedin" placeholder="https://linkedin.com/company/yourcompany">
                         </div>
                     </div>
                 </div>
@@ -4010,12 +4362,94 @@ fetch('/api/public/client/1/rooms')
                     <p>Configure your system</p>
                 </div>
 
-                <div class="card">
+                <!-- Website URL Settings -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 class="card-title">🌐 Website URL Settings</h3>
+                        <button class="btn btn-small" onclick="saveWebsiteURLSettings()">💾 Save</button>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure the page URLs used by your WordPress booking plugin</p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Rooms/Search Results Page</label>
+                            <input type="text" class="form-input" id="settings-rooms-url" placeholder="/rooms/" value="/rooms/">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Page showing all available rooms</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Individual Room Page Base</label>
+                            <input type="text" class="form-input" id="settings-room-url" placeholder="/room/" value="/room/">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Room details will be at /room/room-name/</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Checkout Page</label>
+                            <input type="text" class="form-input" id="settings-checkout-url" placeholder="/checkout/" value="/checkout/">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Page with [gas_checkout] shortcode</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Offers/Specials Page</label>
+                            <input type="text" class="form-input" id="settings-offers-url" placeholder="/offers/" value="/offers/">
+                            <div style="font-size: 0.75rem; color: var(--text-secondary);">Page showing special offers</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">About Page</label>
+                            <input type="text" class="form-input" id="settings-about-url" placeholder="/about/" value="/about/">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contact Page</label>
+                            <input type="text" class="form-input" id="settings-contact-url" placeholder="/contact/" value="/contact/">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Terms & Conditions Page</label>
+                            <input type="text" class="form-input" id="settings-terms-url" placeholder="/terms/" value="/terms/">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Privacy Policy Page</label>
+                            <input type="text" class="form-input" id="settings-privacy-url" placeholder="/privacy/" value="/privacy/">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Booking Widget Settings -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 class="card-title">🔧 Booking Widget Settings</h3>
+                        <button class="btn btn-small" onclick="saveWidgetSettings()">💾 Save</button>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure the search widget appearance and behavior</p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Currency Symbol</label>
+                            <select class="form-input" id="settings-currency-symbol">
+                                <option value="£">£ GBP</option>
+                                <option value="$">$ USD</option>
+                                <option value="€">€ EUR</option>
+                                <option value="CHF">CHF</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Max Guests in Dropdown</label>
+                            <input type="number" class="form-input" id="settings-max-guests" placeholder="10" value="10" min="1" max="50">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Search Widget Max Width</label>
+                            <input type="text" class="form-input" id="settings-search-width" placeholder="800px" value="800px">
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-top: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="settings-center-search" checked> Center search widget on page
+                        </label>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">System Settings</h3>
                     <p style="color: var(--text-secondary); margin-top: 0.5rem;">Configure general system preferences, defaults, and behaviors.</p>
                 </div>
 
-                <div class="card">
+                <div class="card" style="margin-bottom: 1.5rem;">
                     <h3 class="card-title">User Management</h3>
                     <p style="color: var(--text-secondary); margin-top: 0.5rem;">Manage admin users and access permissions.</p>
                 </div>
@@ -7384,6 +7818,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'content') loadContentView();
             if (viewName === 'availability') loadAvailabilityView();
             if (viewName === 'integrations') loadIntegrations();
+            if (viewName === 'settings') loadSettingsView();
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
             if (viewName === 'upsells') loadUpsells();
@@ -7485,6 +7920,110 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error saving website section:', error);
                 alert('Error saving. Please try again.');
+            }
+        }
+        
+        async function saveWebsiteURLSettings() {
+            try {
+                const clientId = getClientId();
+                if (!clientId) {
+                    showNotification('Please select a client first', 'error');
+                    return;
+                }
+                
+                const settings = {
+                    rooms_url: document.getElementById('settings-rooms-url').value,
+                    room_url: document.getElementById('settings-room-url').value,
+                    checkout_url: document.getElementById('settings-checkout-url').value,
+                    offers_url: document.getElementById('settings-offers-url').value,
+                    about_url: document.getElementById('settings-about-url').value,
+                    contact_url: document.getElementById('settings-contact-url').value,
+                    terms_url: document.getElementById('settings-terms-url').value,
+                    privacy_url: document.getElementById('settings-privacy-url').value
+                };
+                
+                const response = await fetch('/api/admin/website-builder/urls', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, settings })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('URL settings saved!', 'success');
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving settings', 'error');
+            }
+        }
+        
+        async function saveWidgetSettings() {
+            try {
+                const clientId = getClientId();
+                if (!clientId) {
+                    showNotification('Please select a client first', 'error');
+                    return;
+                }
+                
+                const settings = {
+                    currency_symbol: document.getElementById('settings-currency-symbol').value,
+                    max_guests: document.getElementById('settings-max-guests').value,
+                    search_width: document.getElementById('settings-search-width').value,
+                    center_search: document.getElementById('settings-center-search').checked
+                };
+                
+                const response = await fetch('/api/admin/website-builder/widget', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ client_id: clientId, settings })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Widget settings saved!', 'success');
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving settings', 'error');
+            }
+        }
+        
+        async function loadSettingsView() {
+            try {
+                const clientId = getClientId();
+                if (!clientId) return;
+                
+                const response = await fetch(`/api/admin/website-builder/urls?client_id=${clientId}`);
+                const data = await response.json();
+                
+                if (data.success && data.settings) {
+                    const s = data.settings;
+                    document.getElementById('settings-rooms-url').value = s.rooms_url || '/rooms/';
+                    document.getElementById('settings-room-url').value = s.room_url || '/room/';
+                    document.getElementById('settings-checkout-url').value = s.checkout_url || '/checkout/';
+                    document.getElementById('settings-offers-url').value = s.offers_url || '/offers/';
+                    document.getElementById('settings-about-url').value = s.about_url || '/about/';
+                    document.getElementById('settings-contact-url').value = s.contact_url || '/contact/';
+                    document.getElementById('settings-terms-url').value = s.terms_url || '/terms/';
+                    document.getElementById('settings-privacy-url').value = s.privacy_url || '/privacy/';
+                }
+                
+                // Load widget settings
+                const widgetResponse = await fetch(`/api/admin/website-builder/widget?client_id=${clientId}`);
+                const widgetData = await widgetResponse.json();
+                
+                if (widgetData.success && widgetData.settings) {
+                    const w = widgetData.settings;
+                    document.getElementById('settings-currency-symbol').value = w.currency_symbol || '£';
+                    document.getElementById('settings-max-guests').value = w.max_guests || 10;
+                    document.getElementById('settings-search-width').value = w.search_width || '800px';
+                    document.getElementById('settings-center-search').checked = w.center_search !== false;
+                }
+            } catch (error) {
+                console.error('Error loading settings:', error);
             }
         }
         
@@ -12556,6 +13095,26 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (discountType) {
                 discountType.addEventListener('change', updateDiscountDisplay);
             }
+            
+            // Range slider value display handlers for Website Builder
+            const rangeSliders = [
+                { id: 'wb-typography-title-size', suffix: 'px' },
+                { id: 'wb-typography-body-size', suffix: 'px' },
+                { id: 'wb-search-opacity', suffix: '%' },
+                { id: 'wb-search-radius', suffix: 'px' },
+                { id: 'wb-search-max-width', suffix: 'px' },
+                { id: 'wb-search-scale', suffix: '%' }
+            ];
+            
+            rangeSliders.forEach(slider => {
+                const el = document.getElementById(slider.id);
+                const valEl = document.getElementById(slider.id + '-val');
+                if (el && valEl) {
+                    el.addEventListener('input', function() {
+                        valEl.textContent = this.value + slider.suffix;
+                    });
+                }
+            });
         });
         
         async function loadPropertiesForOfferDropdown() {
