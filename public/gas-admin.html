@@ -16927,7 +16927,8 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadApiKeys() {
             try {
-                const response = await fetch(`/api/admin/api-keys?client_id=${getClientId()}`);
+                const clientId = selectedAccountId || (currentAccount ? currentAccount.id : null);
+                const response = await fetch(`/api/admin/api-keys?client_id=${clientId || ''}`);
                 const data = await response.json();
                 
                 const container = document.getElementById('api-keys-list');
@@ -17025,6 +17026,13 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return;
             }
             
+            // Get client ID from account filter or current account
+            const clientId = selectedAccountId || (currentAccount ? currentAccount.id : null);
+            if (!clientId) {
+                alert('Please select an account first');
+                return;
+            }
+            
             const permissions = [];
             if (document.getElementById('perm-read-rooms').checked) permissions.push('read:rooms');
             if (document.getElementById('perm-read-availability').checked) permissions.push('read:availability');
@@ -17036,7 +17044,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             const allowed_origins = originsText ? originsText.split(',').map(s => s.trim()).filter(Boolean) : [];
             
             const keyData = {
-                client_id: getClientId(),
+                client_id: clientId,
                 key_name: name,
                 permissions: permissions,
                 rate_limit_per_minute: parseInt(document.getElementById('api-key-rate-limit').value) || 60,
