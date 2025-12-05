@@ -10530,43 +10530,90 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const response = await fetch('/tasks.json');
                 const data = await response.json();
                 
-                if (data && data.categories) {
-                    let html = '';
+                if (data && data.tasks) {
+                    // Group tasks by category
+                    const categories = {};
+                    data.tasks.forEach(task => {
+                        const cat = task.category || 'other';
+                        if (!categories[cat]) categories[cat] = [];
+                        categories[cat].push(task);
+                    });
                     
-                    data.categories.forEach(category => {
-                        const completedCount = category.tasks.filter(t => t.status === 'done').length;
-                        const totalCount = category.tasks.length;
+                    // Category display names
+                    const categoryNames = {
+                        'integration': '🔗 Integrations',
+                        'billing': '💳 Billing',
+                        'wordpress': '📝 WordPress',
+                        'ui': '🎨 UI/UX',
+                        'bug': '🐛 Bug Fixes',
+                        'feature': '✨ Features',
+                        'data': '🗄️ Data',
+                        'other': '📦 Other'
+                    };
+                    
+                    // Priority order for categories
+                    const categoryOrder = ['bug', 'wordpress', 'integration', 'billing', 'ui', 'feature', 'data', 'other'];
+                    
+                    let html = `
+                        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <span>Last updated: <strong>${data.updated || 'Unknown'}</strong></span>
+                                <span>${data.tasks.filter(t => t.status === 'done').length} / ${data.tasks.length} completed</span>
+                            </div>
+                        </div>
+                    `;
+                    
+                    // Sort categories
+                    const sortedCategories = Object.entries(categories).sort((a, b) => {
+                        return categoryOrder.indexOf(a[0]) - categoryOrder.indexOf(b[0]);
+                    });
+                    
+                    sortedCategories.forEach(([cat, tasks]) => {
+                        // Sort tasks: todo/in_progress first, then done
+                        tasks.sort((a, b) => {
+                            const order = { 'in_progress': 0, 'todo': 1, 'done': 2 };
+                            return (order[a.status] || 1) - (order[b.status] || 1);
+                        });
+                        
+                        const completedCount = tasks.filter(t => t.status === 'done').length;
+                        const totalCount = tasks.length;
                         const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
                         
                         html += `
                             <div style="margin-bottom: 2rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                    <h3 style="margin: 0;">${category.name}</h3>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                    <h3 style="margin: 0;">${categoryNames[cat] || cat}</h3>
                                     <span style="color: var(--text-secondary); font-size: 0.9rem;">${completedCount}/${totalCount} (${progressPercent}%)</span>
                                 </div>
-                                <div style="background: var(--bg-secondary); border-radius: 4px; height: 8px; margin-bottom: 1rem; overflow: hidden;">
-                                    <div style="background: var(--primary); height: 100%; width: ${progressPercent}%; transition: width 0.3s;"></div>
+                                <div style="background: var(--bg-secondary); border-radius: 4px; height: 6px; margin-bottom: 1rem; overflow: hidden;">
+                                    <div style="background: linear-gradient(90deg, #10b981, #34d399); height: 100%; width: ${progressPercent}%; transition: width 0.3s;"></div>
                                 </div>
                                 <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                    ${category.tasks.map(task => {
+                                    ${tasks.map(task => {
                                         const statusColors = {
                                             'done': '#10b981',
-                                            'in-progress': '#f59e0b',
-                                            'pending': '#6b7280'
+                                            'in_progress': '#f59e0b',
+                                            'todo': '#6b7280'
                                         };
                                         const statusIcons = {
                                             'done': '✅',
-                                            'in-progress': '🔄',
-                                            'pending': '⏳'
+                                            'in_progress': '🔄',
+                                            'todo': '⏳'
+                                        };
+                                        const priorityBadges = {
+                                            'urgent': '<span style="background: #ef4444; color: white; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">URGENT</span>',
+                                            'high': '<span style="background: #f97316; color: white; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">HIGH</span>',
+                                            'medium': '',
+                                            'low': ''
                                         };
                                         return `
-                                            <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; border-left: 3px solid ${statusColors[task.status] || '#6b7280'};">
-                                                <span>${statusIcons[task.status] || '⏳'}</span>
+                                            <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; background: ${task.status === 'done' ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-secondary)'}; border-radius: 6px; border-left: 3px solid ${statusColors[task.status] || '#6b7280'};">
+                                                <span style="margin-top: 2px;">${statusIcons[task.status] || '⏳'}</span>
                                                 <div style="flex: 1;">
-                                                    <div style="font-weight: 500;">${task.name}</div>
-                                                    ${task.description ? `<div style="font-size: 0.85rem; color: var(--text-secondary);">${task.description}</div>` : ''}
+                                                    <div style="font-weight: 500; ${task.status === 'done' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">${task.title}${priorityBadges[task.priority] || ''}</div>
+                                                    ${task.description ? `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">${task.description}</div>` : ''}
+                                                    ${task.completed ? `<div style="font-size: 0.75rem; color: #10b981; margin-top: 0.25rem;">✓ Completed ${task.completed}</div>` : ''}
                                                 </div>
-                                                <span class="badge ${task.status === 'done' ? 'badge-success' : task.status === 'in-progress' ? 'badge-warning' : 'badge-secondary'}" style="font-size: 0.75rem;">${task.status}</span>
                                             </div>
                                         `;
                                     }).join('')}
