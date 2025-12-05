@@ -2657,6 +2657,24 @@ fetch('/api/public/client/1/rooms')
                     </div>
                 </div>
 
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="vouchers-property-select" class="form-input" onchange="loadVouchersForProperty()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                            <select id="vouchers-room-select" class="form-input" onchange="loadVouchersForProperty()">
+                                <option value="">All Rooms</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Quick Add Presets -->
                 <div class="card" style="margin-bottom: 1rem;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
@@ -12755,28 +12773,110 @@ const promo = await fetch('/api/v1/offers/validate', {
         // VOUCHERS FUNCTIONS
         // =====================================================
         
-        async function loadVouchers() {
+        async function loadVouchersPropertySelect() {
             try {
                 const queryString = buildQueryString();
-                const response = await fetch(`/api/admin/vouchers${queryString}`);
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('vouchers-property-select');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties for vouchers:', error);
+            }
+        }
+        
+        async function loadVouchersRooms() {
+            const propertyId = document.getElementById('vouchers-property-select')?.value;
+            const roomSelect = document.getElementById('vouchers-room-select');
+            if (!roomSelect) return;
+            
+            roomSelect.innerHTML = '<option value="">All Rooms</option>';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    data.data.forEach(r => {
+                        roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        async function loadVouchersForProperty() {
+            const propertyId = document.getElementById('vouchers-property-select')?.value;
+            const roomId = document.getElementById('vouchers-room-select')?.value;
+            
+            // Also load rooms when property changes
+            if (!roomId) {
+                await loadVouchersRooms();
+            }
+            
+            if (!propertyId) {
+                document.getElementById('vouchers-list').innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view and manage vouchers
+                    </p>
+                `;
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/vouchers?property_id=${propertyId}${roomId ? '&room_id=' + roomId : ''}`);
                 const data = await response.json();
                 
                 if (data.success) {
-                    renderVouchers(data.data);
+                    renderVouchers(data.data || []);
                 }
             } catch (error) {
                 console.error('Error loading vouchers:', error);
             }
         }
         
+        async function loadVouchers() {
+            // Load property selector first
+            await loadVouchersPropertySelect();
+            
+            // Show message to select property
+            document.getElementById('vouchers-list').innerHTML = `
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    Select a property to view and manage vouchers
+                </p>
+            `;
+        }
+        
         function renderVouchers(vouchers) {
             const container = document.getElementById('vouchers-list');
+            const propertyId = document.getElementById('vouchers-property-select')?.value;
+            
+            if (!propertyId) {
+                container.innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view and manage vouchers
+                    </p>
+                `;
+                return;
+            }
             
             if (!vouchers || vouchers.length === 0) {
                 container.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon">🎟️</div>
-                        <h3>No Vouchers Created</h3>
+                        <h3>No Vouchers for This Property</h3>
                         <p>Click any template above or create a custom voucher</p>
                         <button class="btn" onclick="openAddVoucherModal()">Create Custom Voucher</button>
                     </div>
@@ -12922,7 +13022,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('voucher-active').checked = true;
             
             // Load properties
-            await loadVoucherProperties();
+            await loadVoucherPropertiesForModal();
             
             document.querySelector('#addVoucherModal .modal-title').textContent = '🎟️ Create: ' + name;
             openModal('addVoucherModal');
@@ -12933,18 +13033,26 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('voucher-id').value = '';
             document.getElementById('voucher-active').checked = true;
             document.querySelector('#addVoucherModal .modal-title').textContent = '🎟️ Create New Voucher';
-            loadVoucherProperties();
+            
+            // Pre-select property from page filter
+            const selectedProperty = document.getElementById('vouchers-property-select')?.value;
+            loadVoucherPropertiesForModal().then(() => {
+                if (selectedProperty) {
+                    document.getElementById('voucher-property').value = selectedProperty;
+                    loadVoucherUnits();
+                }
+            });
             openModal('addVoucherModal');
         }
         
-        async function loadVoucherProperties() {
+        async function loadVoucherPropertiesForModal() {
             try {
                 const queryString = buildQueryString();
                 const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
                 const select = document.getElementById('voucher-property');
-                select.innerHTML = '<option value="">All Properties</option>';
+                select.innerHTML = '<option value="">Select Property...</option>';
                 
                 if (data.success && data.data) {
                     data.data.forEach(p => {
@@ -13044,7 +13152,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 if (data.success) {
                     closeModal('addVoucherModal');
-                    loadVouchers();
+                    loadVouchersForProperty();
                     alert('✅ Voucher saved successfully!');
                 } else {
                     alert('Error: ' + data.error);
@@ -13062,7 +13170,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const data = await response.json();
                 
                 if (data.success) {
-                    loadVouchers();
+                    loadVouchersForProperty();
                 } else {
                     alert('Error: ' + data.error);
                 }
