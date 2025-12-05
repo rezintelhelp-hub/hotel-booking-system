@@ -14889,6 +14889,28 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
+// ONE-TIME FIX: Recreate website_settings table (visit once then remove)
+app.get('/api/admin/fix-website-settings-table', async (req, res) => {
+  try {
+    await pool.query('DROP TABLE IF EXISTS website_settings CASCADE');
+    await pool.query(`
+      CREATE TABLE website_settings (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL,
+        section VARCHAR(50) NOT NULL,
+        settings JSONB DEFAULT '{}',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(account_id, section)
+      )
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_website_settings_account ON website_settings(account_id)');
+    res.json({ success: true, message: 'Table recreated successfully!' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
