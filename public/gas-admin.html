@@ -9569,12 +9569,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (allAmenitiesData.success) {
                     const allAmenities = allAmenitiesData.amenities || [];
                     
-                    // Get selected amenity IDs and quantities
-                    const selectedMap = new Map(); // amenity_id -> quantity
+                    // Get selected amenity IDs
+                    const selectedIds = new Set();
                     if (roomAmenitiesData.success && roomAmenitiesData.data) {
-                        roomAmenitiesData.data.forEach(a => {
-                            selectedMap.set(a.amenity_id, a.quantity || 1);
-                        });
+                        roomAmenitiesData.data.forEach(a => selectedIds.add(a.amenity_id));
                     }
                     
                     // Group by category
@@ -9602,10 +9600,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         'other': '📦 Other'
                     };
                     
-                    // Categories that support quantities
-                    const quantityCategories = ['beds', 'bathrooms'];
-                    
-                    const selectedCount = selectedMap.size;
+                    const selectedCount = selectedIds.size;
                     let html = `
                         <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                             <div>
@@ -9618,19 +9613,16 @@ const promo = await fetch('/api/v1/offers/validate', {
                         </div>
                     `;
                     
-                    // Sort categories
-                    // Sort categories alphabetically (beds, bathrooms near top)
+                    // Sort categories alphabetically
                     const sortedCategories = Object.entries(categories).sort((a, b) => 
                         a[0].localeCompare(b[0])
                     );
                     
                     sortedCategories.forEach(([cat, items]) => {
-                        const supportsQuantity = quantityCategories.includes(cat);
-                        
                         // Sort items: selected first
                         items.sort((a, b) => {
-                            const aSelected = selectedMap.has(a.id);
-                            const bSelected = selectedMap.has(b.id);
+                            const aSelected = selectedIds.has(a.id);
+                            const bSelected = selectedIds.has(b.id);
                             if (aSelected && !bSelected) return -1;
                             if (!aSelected && bSelected) return 1;
                             return (a.display_order || 0) - (b.display_order || 0);
@@ -9640,35 +9632,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div style="margin-bottom: 2rem;">
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                                     <h3 style="margin: 0; color: var(--text-primary);">${categoryNames[cat] || cat}</h3>
-                                    <span style="color: var(--text-secondary); font-size: 0.85rem;">${items.filter(a => selectedMap.has(a.id)).length} / ${items.length}</span>
+                                    <span style="color: var(--text-secondary); font-size: 0.85rem;">${items.filter(a => selectedIds.has(a.id)).length} / ${items.length}</span>
                                 </div>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(${supportsQuantity ? '280px' : '250px'}, 1fr)); gap: 0.75rem;">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
                                     ${items.map(a => {
                                         const name = typeof a.amenity_name === 'string' ? 
                                             (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name) :
                                             a.amenity_name?.en || a.amenity_code;
-                                        const isSelected = selectedMap.has(a.id);
-                                        const quantity = selectedMap.get(a.id) || 1;
-                                        
-                                        if (supportsQuantity) {
-                                            return `
-                                            <div style="display: flex; align-items: center; gap: 0.5rem; background: ${isSelected ? '#dcfce7' : 'var(--bg-secondary)'}; border: 1px solid ${isSelected ? '#10b981' : 'var(--border)'}; padding: 0.75rem; border-radius: 6px; transition: all 0.2s;">
-                                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; flex: 1;">
-                                                    <input type="checkbox" class="room-amenity-checkbox" value="${a.id}" data-category="${cat}" ${isSelected ? 'checked' : ''} onchange="toggleQuantityInput(this)" style="width: 18px; height: 18px; cursor: pointer;">
-                                                    <span style="font-weight: 500;">${a.icon || ''} ${name}</span>
-                                                </label>
-                                                <input type="number" class="amenity-quantity" data-amenity-id="${a.id}" value="${quantity}" min="1" max="10" style="width: 50px; padding: 0.25rem; border-radius: 4px; border: 1px solid var(--border); text-align: center; display: ${isSelected ? 'block' : 'none'};">
-                                            </div>
-                                        `;
-                                        } else {
-                                            return `
-                                            <label style="display: flex; align-items: center; gap: 0.75rem; background: ${isSelected ? '#dcfce7' : 'var(--bg-secondary)'}; border: 1px solid ${isSelected ? '#10b981' : 'var(--border)'}; padding: 0.75rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
-                                                <input type="checkbox" class="room-amenity-checkbox" value="${a.id}" ${isSelected ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
-                                                <span style="font-weight: 500;">${a.icon || ''} ${name}</span>
-                                            </label>
-                                        `;
-                                        }
-                                    }).join('')}
+                                        const isSelected = selectedIds.has(a.id);
+                                        return `
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; background: ${isSelected ? '#dcfce7' : 'var(--bg-secondary)'}; border: 1px solid ${isSelected ? '#10b981' : 'var(--border)'}; padding: 0.75rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+                                            <input type="checkbox" class="room-amenity-checkbox" value="${a.id}" ${isSelected ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
+                                            <span style="font-weight: 500;">${a.icon || ''} ${name}</span>
+                                        </label>
+                                    `}).join('')}
                                 </div>
                             </div>
                         `;
@@ -9690,20 +9667,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
-        function toggleQuantityInput(checkbox) {
-            const container = checkbox.closest('div');
-            const quantityInput = container.querySelector('.amenity-quantity');
-            if (quantityInput) {
-                quantityInput.style.display = checkbox.checked ? 'block' : 'none';
-                if (checkbox.checked && quantityInput.value === '') {
-                    quantityInput.value = 1;
-                }
-            }
-            // Update background color
-            container.style.background = checkbox.checked ? '#dcfce7' : 'var(--bg-secondary)';
-            container.style.borderColor = checkbox.checked ? '#10b981' : 'var(--border)';
-        }
-        
         async function saveRoomAmenities() {
             const roomId = document.getElementById('amenities-room-select')?.value;
             if (!roomId) {
@@ -9711,14 +9674,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                 return;
             }
             
-            // Get selected amenities with quantities
+            // Get selected amenities
             const selectedAmenities = [];
             document.querySelectorAll('.room-amenity-checkbox:checked').forEach(checkbox => {
-                const amenityId = checkbox.value;
-                const quantityInput = document.querySelector(`.amenity-quantity[data-amenity-id="${amenityId}"]`);
-                const quantity = quantityInput ? parseInt(quantityInput.value) || 1 : 1;
-                selectedAmenities.push({ id: amenityId, quantity: quantity });
-            });
                 selectedAmenities.push(checkbox.value);
             });
             
