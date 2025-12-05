@@ -1566,8 +1566,26 @@
                     </div>
                 </div>
 
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="images-property-select" class="form-input" onchange="loadImagesForProperty()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                            <select id="images-room-select" class="form-input" onchange="loadImagesForProperty()">
+                                <option value="">All Rooms</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Image Stats Summary -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div id="images-stats" style="display: none; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                     <div class="card" style="padding: 1.5rem;">
                         <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Property Images</div>
                         <div style="font-size: 2rem; font-weight: 700; color: var(--accent);" id="property-image-count">0</div>
@@ -1587,7 +1605,7 @@
                 </div>
 
                 <!-- Filter Tabs -->
-                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
+                <div id="images-filter-tabs" style="display: none; gap: 0.5rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
                     <button class="filter-tab active" data-filter="all" onclick="filterImages('all')">
                         All Images
                     </button>
@@ -1604,12 +1622,9 @@
 
                 <div class="card">
                     <div id="images-gallery">
-                        <div class="empty-state">
-                            <div class="empty-icon">🖼️</div>
-                            <h3>No Images Yet</h3>
-                            <p>Upload images to showcase your properties</p>
-                            <button class="btn" onclick="openImageUploadModal()">Upload Images</button>
-                        </div>
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Select a property to view and manage images
+                        </p>
                     </div>
                 </div>
             </div>
@@ -9541,63 +9556,120 @@ const promo = await fetch('/api/v1/offers/validate', {
         let currentFilter = 'all';
         let allImages = [];
 
-        async function loadImages() {
+        async function loadImagesPropertySelect() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('images-property-select');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties for images:', error);
+            }
+        }
+        
+        async function loadImagesRooms() {
+            const propertyId = document.getElementById('images-property-select')?.value;
+            const roomSelect = document.getElementById('images-room-select');
+            if (!roomSelect) return;
+            
+            roomSelect.innerHTML = '<option value="">All Rooms</option>';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    data.data.forEach(r => {
+                        roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        async function loadImagesForProperty() {
+            const propertyId = document.getElementById('images-property-select')?.value;
+            const roomId = document.getElementById('images-room-select')?.value;
+            
+            // Also load rooms when property changes
+            if (!roomId) {
+                await loadImagesRooms();
+            }
+            
+            if (!propertyId) {
+                document.getElementById('images-stats').style.display = 'none';
+                document.getElementById('images-filter-tabs').style.display = 'none';
+                document.getElementById('images-gallery').innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view and manage images
+                    </p>
+                `;
+                return;
+            }
+            
+            // Show stats and filter tabs
+            document.getElementById('images-stats').style.display = 'grid';
+            document.getElementById('images-filter-tabs').style.display = 'flex';
+            
             try {
                 allImages = [];
                 let propertyCount = 0;
                 let roomCount = 0;
                 let locationCount = 0;
-
-                // Load all properties (filtered by account)
-                let properties = [];
-                try {
-                    const queryString = buildQueryString();
-                    const propsResp = await fetch(`/api/db/properties${queryString}`);
-                    if (propsResp.ok) {
-                        const propsData = await propsResp.json();
-                        properties = propsData.data || [];
-                    }
-                } catch (e) {
-                    console.log('No properties found:', e.message);
-                }
-
-                // Load all rooms (filtered by account)
-                let rooms = [];
-                try {
-                    const queryString = buildQueryString();
-                    const roomsResp = await fetch(`/api/db/bookable-units${queryString}`);
-                    if (roomsResp.ok) {
-                        const roomsData = await roomsResp.json();
-                        rooms = roomsData.data || [];
-                    }
-                } catch (e) {
-                    console.log('No rooms found:', e.message);
-                }
-
+                
                 // Load property images
-                for (const prop of properties) {
-                    try {
-                        const imgResp = await fetch(`/api/admin/properties/${prop.id}/images`);
-                        if (imgResp.ok) {
-                            const imgData = await imgResp.json();
-                            if (imgData.success && imgData.images) {
-                                imgData.images.forEach(img => {
-                                    allImages.push({
-                                        ...img,
-                                        type: 'property',
-                                        entityId: prop.id,
-                                        entityName: prop.name
-                                    });
+                try {
+                    const imgResp = await fetch(`/api/admin/properties/${propertyId}/images`);
+                    if (imgResp.ok) {
+                        const imgData = await imgResp.json();
+                        if (imgData.success && imgData.images) {
+                            const propSelect = document.getElementById('images-property-select');
+                            const propName = propSelect.options[propSelect.selectedIndex]?.text || 'Property';
+                            imgData.images.forEach(img => {
+                                allImages.push({
+                                    ...img,
+                                    type: 'property',
+                                    entityId: propertyId,
+                                    entityName: propName
                                 });
-                                propertyCount += imgData.images.length;
-                            }
+                            });
+                            propertyCount = imgData.images.length;
+                        }
+                    }
+                } catch (e) {
+                    console.log('Error loading property images:', e.message);
+                }
+                
+                // Load room images (either specific room or all rooms for property)
+                let rooms = [];
+                if (roomId) {
+                    const roomSelect = document.getElementById('images-room-select');
+                    rooms = [{ id: roomId, name: roomSelect.options[roomSelect.selectedIndex]?.text || 'Room' }];
+                } else {
+                    try {
+                        const roomsResp = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
+                        if (roomsResp.ok) {
+                            const roomsData = await roomsResp.json();
+                            rooms = roomsData.data || [];
                         }
                     } catch (e) {
-                        console.log(`Error loading images for property ${prop.id}:`, e.message);
+                        console.log('No rooms found:', e.message);
                     }
                 }
-
-                // Load room images
+                
                 for (const room of rooms) {
                     try {
                         const imgResp = await fetch(`/api/admin/rooms/${room.id}/images`);
@@ -9630,17 +9702,23 @@ const promo = await fetch('/api/v1/offers/validate', {
                 displayImages();
             } catch (error) {
                 console.error('Error loading images:', error);
-                // Show empty state on error
-                const gallery = document.getElementById('images-gallery');
-                gallery.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">🖼️</div>
-                        <h3>No Images Yet</h3>
-                        <p>Upload images to showcase your properties</p>
-                        <button class="btn" onclick="openImageUploadModal()">Upload Images</button>
-                    </div>
-                `;
             }
+        }
+        
+        async function loadImages() {
+            // Load property selector first
+            await loadImagesPropertySelect();
+            
+            // Hide stats and filter tabs until property selected
+            document.getElementById('images-stats').style.display = 'none';
+            document.getElementById('images-filter-tabs').style.display = 'none';
+            
+            // Show message to select property
+            document.getElementById('images-gallery').innerHTML = `
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    Select a property to view and manage images
+                </p>
+            `;
         }
 
         function filterImages(filter) {
@@ -9659,6 +9737,16 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         function displayImages() {
             const gallery = document.getElementById('images-gallery');
+            const propertyId = document.getElementById('images-property-select')?.value;
+            
+            if (!propertyId) {
+                gallery.innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view and manage images
+                    </p>
+                `;
+                return;
+            }
             
             let filteredImages = allImages;
             if (currentFilter !== 'all') {
@@ -9673,8 +9761,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 gallery.innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon">🖼️</div>
-                        <h3>No Images Yet</h3>
-                        <p>Upload images to showcase your properties</p>
+                        <h3>No Images for This Property</h3>
+                        <p>Upload images to showcase this property</p>
                         <button class="btn" onclick="openImageUploadModal()">Upload Images</button>
                     </div>
                 `;
@@ -9786,19 +9874,29 @@ const promo = await fetch('/api/v1/offers/validate', {
 
         async function loadRoomCheckboxes() {
             try {
-                // Build query params for account filtering
-                let queryParams = [];
-                if (selectedAccountId) {
-                    queryParams.push(`account_id=${selectedAccountId}`);
+                // Get property from page selector
+                const propertyId = document.getElementById('images-property-select')?.value;
+                
+                let url = '/api/db/bookable-units';
+                if (propertyId) {
+                    url += `?property_id=${propertyId}`;
                 } else {
-                    const user = JSON.parse(localStorage.getItem('gas_account') || '{}');
-                    if (user.account_id) {
-                        queryParams.push(`account_id=${user.account_id}`);
+                    // Fall back to account filtering
+                    let queryParams = [];
+                    if (selectedAccountId) {
+                        queryParams.push(`account_id=${selectedAccountId}`);
+                    } else {
+                        const user = JSON.parse(localStorage.getItem('gas_account') || '{}');
+                        if (user.account_id) {
+                            queryParams.push(`account_id=${user.account_id}`);
+                        }
+                    }
+                    if (queryParams.length > 0) {
+                        url += '?' + queryParams.join('&');
                     }
                 }
-                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
                 
-                const response = await fetch('/api/db/bookable-units' + queryString);
+                const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error('Failed to load rooms');
                 }
@@ -9807,7 +9905,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 const container = document.getElementById('roomCheckboxes');
                 if (rooms.length === 0) {
-                    container.innerHTML = '<p style="color: var(--text-secondary);">No rooms available for this account.</p>';
+                    container.innerHTML = '<p style="color: var(--text-secondary);">No rooms available. Select a property first.</p>';
                     return;
                 }
                 
@@ -9903,10 +10001,17 @@ const promo = await fetch('/api/v1/offers/validate', {
             const destinations = [];
             
             if (isProperty) {
-                const propsResp = await fetch('/api/db/properties');
-                const propsData = await propsResp.json();
-                if (propsData.data && propsData.data.length > 0) {
-                    destinations.push({ type: 'property', id: propsData.data[0].id });
+                // Use the property selected on the page
+                const propertyId = document.getElementById('images-property-select')?.value;
+                if (propertyId) {
+                    destinations.push({ type: 'property', id: propertyId });
+                } else {
+                    // Fall back to first property if none selected
+                    const propsResp = await fetch('/api/db/properties');
+                    const propsData = await propsResp.json();
+                    if (propsData.data && propsData.data.length > 0) {
+                        destinations.push({ type: 'property', id: propsData.data[0].id });
+                    }
                 }
             }
 
@@ -9953,7 +10058,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             setTimeout(() => {
                 closeModal('imageUploadModal');
-                loadImages();
+                loadImagesForProperty();
             }, 1500);
         }
 
@@ -9974,7 +10079,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const result = await response.json();
                 
                 if (result.success) {
-                    await loadImages(); // await the refresh
+                    await loadImagesForProperty(); // await the refresh
                 } else {
                     alert('Error: ' + result.error);
                     if (imgCard) {
@@ -10020,7 +10125,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                         setTimeout(() => imgCard.remove(), 300);
                     }
                     // Then refresh to update counts etc
-                    await loadImages();
+                    await loadImagesForProperty();
                 } else {
                     alert('Error: ' + result.error);
                     const imgCard = document.querySelector(`[data-image-id="${imageId}"]`);
@@ -10077,7 +10182,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const result = await response.json();
                 
                 if (result.success) {
-                    await loadImages();
+                    await loadImagesForProperty();
                 } else {
                     alert('Error: ' + result.error);
                     if (imgCard) {
