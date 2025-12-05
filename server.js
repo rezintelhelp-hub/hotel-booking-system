@@ -12246,7 +12246,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         LEFT JOIN properties p ON o.property_id = p.id
         WHERE o.active = true
           AND o.available_website = true
-          AND (o.user_id = $1 OR o.user_id IS NULL)
+          AND (p.account_id = $1 OR o.user_id = $1)
           AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
           AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
           AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
@@ -12280,7 +12280,7 @@ app.get('/api/public/client/:clientId/offers', async (req, res) => {
         LEFT JOIN properties p ON o.property_id = p.id
         WHERE o.active = true
           AND o.available_website = true
-          AND (o.user_id = $1 OR o.user_id IS NULL)
+          AND (p.account_id = $1 OR o.user_id = $1)
           AND (o.valid_from IS NULL OR o.valid_from <= CURRENT_DATE)
           AND (o.valid_until IS NULL OR o.valid_until >= CURRENT_DATE)
           AND ($2::integer IS NULL OR o.room_id IS NULL OR o.room_id = $2)
