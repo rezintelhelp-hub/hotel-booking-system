@@ -1646,21 +1646,38 @@
                     <div class="header-top">
                         <div>
                             <h2>Amenities</h2>
-                            <p>Manage property and room amenities</p>
+                            <p>Manage amenities for each room</p>
                         </div>
                         <button class="btn" onclick="openAddAmenityModal()">
                             <span>+</span>
-                            <span>Add Amenity</span>
+                            <span>Add Custom Amenity</span>
                         </button>
+                    </div>
+                </div>
+
+                <!-- Property/Room Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="amenities-property-select" class="form-input" onchange="loadAmenitiesRooms()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Room/Unit</label>
+                            <select id="amenities-room-select" class="form-input" onchange="loadAmenitiesForRoom()">
+                                <option value="">Select Room...</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div id="amenities-list">
-                        <div class="loading">
-                            <div class="spinner"></div>
-                            <p style="margin-top: 1rem;">Loading amenities...</p>
-                        </div>
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Select a property and room to manage amenities
+                        </p>
                     </div>
                 </div>
             </div>
@@ -9471,100 +9488,180 @@ const promo = await fetch('/api/v1/offers/validate', {
             `;
         }
 
-        async function loadAmenities() {
-            const container = document.getElementById('amenities-list');
+        async function loadAmenitiesPropertySelect() {
             try {
-                const response = await fetch('/api/admin/amenities');
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
-                if (data.success) {
-                    const amenitiesList = data.amenities || [];
+                const select = document.getElementById('amenities-property-select');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+                
+                // Reset room select
+                const roomSelect = document.getElementById('amenities-room-select');
+                if (roomSelect) {
+                    roomSelect.innerHTML = '<option value="">Select Room...</option>';
+                }
+            } catch (error) {
+                console.error('Error loading properties for amenities:', error);
+            }
+        }
+        
+        async function loadAmenitiesRooms() {
+            const propertyId = document.getElementById('amenities-property-select')?.value;
+            const roomSelect = document.getElementById('amenities-room-select');
+            if (!roomSelect) return;
+            
+            roomSelect.innerHTML = '<option value="">Select Room...</option>';
+            
+            // Reset amenities display
+            document.getElementById('amenities-list').innerHTML = `
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    Select a room to manage amenities
+                </p>
+            `;
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    data.data.forEach(r => {
+                        roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        async function loadAmenitiesForRoom() {
+            const roomId = document.getElementById('amenities-room-select')?.value;
+            const container = document.getElementById('amenities-list');
+            
+            if (!roomId) {
+                container.innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a room to manage amenities
+                    </p>
+                `;
+                return;
+            }
+            
+            try {
+                // Get all master amenities
+                const allAmenitiesResp = await fetch('/api/admin/amenities');
+                const allAmenitiesData = await allAmenitiesResp.json();
+                
+                // Get this room's current amenities
+                const roomAmenitiesResp = await fetch(`/api/admin/units/${roomId}/amenities`);
+                const roomAmenitiesData = await roomAmenitiesResp.json();
+                
+                if (allAmenitiesData.success) {
+                    const allAmenities = allAmenitiesData.amenities || [];
                     
-                    if (amenitiesList.length > 0) {
-                        // Group by category
-                        const categories = {};
-                        amenitiesList.forEach(a => {
-                            const cat = a.category || 'other';
-                            if (!categories[cat]) categories[cat] = [];
-                            categories[cat].push(a);
-                        });
-                        
-                        // Category display names with icons
-                        const categoryNames = {
-                            'beds': '🛏️ Beds',
-                            'bathrooms': '🚿 Bathrooms',
-                            'essentials': '⭐ Essentials',
-                            'kitchen': '🍳 Kitchen',
-                            'entertainment': '📺 Entertainment',
-                            'wellness': '💆 Wellness',
-                            'parking': '🚗 Parking',
-                            'outdoor': '🌳 Outdoor',
-                            'family': '👨‍👩‍👧 Family',
-                            'work': '💼 Work',
-                            'safety': '🚨 Safety',
-                            'laundry': '🧺 Laundry',
-                            'other': '📦 Other'
-                        };
-                        
-                        let html = `
-                            <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; display: flex; justify-content: space-between; align-items: center;">
-                                <div>
-                                    <strong style="font-size: 1.1rem;">${amenitiesList.length}</strong> master amenities available
-                                    <span style="color: var(--text-secondary); margin-left: 1rem; font-size: 0.9rem;">
-                                        Select amenities for each room in the room editor
-                                    </span>
-                                </div>
-                            </div>
-                        `;
-                        
-                        // Sort categories
-                        const sortedCategories = Object.entries(categories).sort((a, b) => {
-                            const order = ['beds', 'bathrooms', 'essentials', 'kitchen', 'entertainment', 'outdoor', 'wellness', 'parking', 'family', 'work', 'safety', 'laundry', 'other'];
-                            return order.indexOf(a[0]) - order.indexOf(b[0]);
-                        });
-                        
-                        sortedCategories.forEach(([cat, items]) => {
-                            html += `
-                                <div style="margin-bottom: 2rem;">
-                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                                        <h3 style="margin: 0; color: var(--text-primary);">${categoryNames[cat] || cat}</h3>
-                                        <span style="color: var(--text-secondary); font-size: 0.85rem;">${items.length} items</span>
-                                    </div>
-                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
-                                        ${items.map(a => {
-                                            const name = typeof a.amenity_name === 'string' ? 
-                                                (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name) :
-                                                a.amenity_name?.en || a.amenity_code;
-                                            return `
-                                            <div style="display: flex; justify-content: space-between; align-items: center; background: var(--bg-secondary); border: 1px solid var(--border); padding: 0.75rem; border-radius: 6px;">
-                                                <div style="flex: 1;">
-                                                    <div style="font-weight: 500;">${a.icon || ''} ${name}</div>
-                                                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                                                        ${a.is_system ? 'System' : 'Custom'}
-                                                    </div>
-                                                </div>
-                                                ${!a.is_system ? `
-                                                    <button onclick="deleteAmenity(${a.id})" class="btn btn-secondary btn-small" style="background: var(--error); border-color: var(--error); color: white; padding: 0.25rem 0.5rem; margin-left: 0.5rem;">
-                                                        Delete
-                                                    </button>
-                                                ` : ''}
-                                            </div>
-                                        `}).join('')}
-                                    </div>
-                                </div>
-                            `;
-                        });
-                        
-                        container.innerHTML = html;
-                    } else {
-                        container.innerHTML = `
-                            <div class="empty-state">
-                                <div class="empty-icon">⭐</div>
-                                <h3>No Amenities Yet</h3>
-                                <p>Run the migration to create standard amenities</p>
-                            </div>
-                        `;
+                    // Get selected amenity IDs
+                    const selectedIds = new Set();
+                    if (roomAmenitiesData.success && roomAmenitiesData.data) {
+                        roomAmenitiesData.data.forEach(a => selectedIds.add(a.amenity_id));
                     }
+                    
+                    // Group by category
+                    const categories = {};
+                    allAmenities.forEach(a => {
+                        const cat = a.category || 'other';
+                        if (!categories[cat]) categories[cat] = [];
+                        categories[cat].push(a);
+                    });
+                    
+                    // Category display names with icons
+                    const categoryNames = {
+                        'beds': '🛏️ Beds',
+                        'bathrooms': '🚿 Bathrooms',
+                        'essentials': '⭐ Essentials',
+                        'kitchen': '🍳 Kitchen',
+                        'entertainment': '📺 Entertainment',
+                        'wellness': '💆 Wellness',
+                        'parking': '🚗 Parking',
+                        'outdoor': '🌳 Outdoor',
+                        'family': '👨‍👩‍👧 Family',
+                        'work': '💼 Work',
+                        'safety': '🚨 Safety',
+                        'laundry': '🧺 Laundry',
+                        'other': '📦 Other'
+                    };
+                    
+                    const selectedCount = selectedIds.size;
+                    let html = `
+                        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div>
+                                <strong style="font-size: 1.1rem;">${selectedCount}</strong> amenities selected
+                                <span style="color: var(--text-secondary); margin-left: 1rem; font-size: 0.9rem;">
+                                    out of ${allAmenities.length} available
+                                </span>
+                            </div>
+                            <button class="btn" onclick="saveRoomAmenities()">💾 Save Changes</button>
+                        </div>
+                    `;
+                    
+                    // Sort categories
+                    const sortOrder = ['beds', 'bathrooms', 'essentials', 'kitchen', 'entertainment', 'outdoor', 'wellness', 'parking', 'family', 'work', 'safety', 'laundry', 'other'];
+                    const sortedCategories = Object.entries(categories).sort((a, b) => 
+                        sortOrder.indexOf(a[0]) - sortOrder.indexOf(b[0])
+                    );
+                    
+                    sortedCategories.forEach(([cat, items]) => {
+                        // Sort items: selected first
+                        items.sort((a, b) => {
+                            const aSelected = selectedIds.has(a.id);
+                            const bSelected = selectedIds.has(b.id);
+                            if (aSelected && !bSelected) return -1;
+                            if (!aSelected && bSelected) return 1;
+                            return (a.display_order || 0) - (b.display_order || 0);
+                        });
+                        
+                        html += `
+                            <div style="margin-bottom: 2rem;">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                    <h3 style="margin: 0; color: var(--text-primary);">${categoryNames[cat] || cat}</h3>
+                                    <span style="color: var(--text-secondary); font-size: 0.85rem;">${items.filter(a => selectedIds.has(a.id)).length} / ${items.length}</span>
+                                </div>
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
+                                    ${items.map(a => {
+                                        const name = typeof a.amenity_name === 'string' ? 
+                                            (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name) :
+                                            a.amenity_name?.en || a.amenity_code;
+                                        const isSelected = selectedIds.has(a.id);
+                                        return `
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; background: ${isSelected ? '#dcfce7' : 'var(--bg-secondary)'}; border: 1px solid ${isSelected ? '#10b981' : 'var(--border)'}; padding: 0.75rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
+                                            <input type="checkbox" class="room-amenity-checkbox" value="${a.id}" ${isSelected ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
+                                            <span style="font-weight: 500;">${a.icon || ''} ${name}</span>
+                                        </label>
+                                    `}).join('')}
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">⭐</div>
+                            <h3>No Amenities Available</h3>
+                            <p>Run the migration to create standard amenities</p>
+                        </div>
+                    `;
                 }
             } catch (error) {
                 console.error('Error loading amenities:', error);
@@ -9572,8 +9669,53 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
+        async function saveRoomAmenities() {
+            const roomId = document.getElementById('amenities-room-select')?.value;
+            if (!roomId) {
+                alert('Please select a room first');
+                return;
+            }
+            
+            // Get selected amenities
+            const selectedAmenities = [];
+            document.querySelectorAll('.room-amenity-checkbox:checked').forEach(checkbox => {
+                selectedAmenities.push(checkbox.value);
+            });
+            
+            try {
+                const response = await fetch(`/api/admin/units/${roomId}/amenities`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amenities: selectedAmenities })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ Amenities saved successfully!');
+                    loadAmenitiesForRoom(); // Refresh to update counts
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving amenities:', error);
+                alert('Error saving amenities');
+            }
+        }
+        
+        async function loadAmenities() {
+            // Load property selector first
+            await loadAmenitiesPropertySelect();
+            
+            // Show message to select property/room
+            document.getElementById('amenities-list').innerHTML = `
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    Select a property and room to manage amenities
+                </p>
+            `;
+        }
+        
         async function deleteAmenity(id) {
-            if (!confirm(`Delete this amenity?\n\nThis action cannot be undone.`)) {
+            if (!confirm('Delete this amenity? This cannot be undone.')) {
                 return;
             }
             
@@ -9585,7 +9727,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const result = await response.json();
                 if (result.success) {
                     alert('Amenity deleted successfully!');
-                    loadAmenities();
+                    loadAmenitiesForRoom();
                 } else {
                     alert('Error: ' + result.error);
                 }
@@ -9594,6 +9736,8 @@ const promo = await fetch('/api/v1/offers/validate', {
                 alert('Error deleting amenity');
             }
         }
+
+        // Images functions
 
         // =========================================================
         // IMAGE MANAGEMENT FUNCTIONS
