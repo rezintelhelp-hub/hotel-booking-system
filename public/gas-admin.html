@@ -3789,7 +3789,7 @@ fetch('/api/public/client/1/rooms')
                     <div class="header-top">
                         <div>
                             <h2>📝 Intro Section</h2>
-                            <p>Welcome text and feature highlights</p>
+                            <p>Optional section between hero and featured properties</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('intro')">💾 Save & Sync</button>
                     </div>
@@ -3797,28 +3797,86 @@ fetch('/api/public/client/1/rooms')
                 <div class="card">
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Section Title</label>
-                            <input type="text" class="form-input" id="wb-intro-title" placeholder="e.g., Why Choose Us">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="wb-intro-enabled" checked> Enable Intro Section
+                            </label>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Intro Text</label>
-                            <textarea class="form-textarea" id="wb-intro-text" rows="4" placeholder="Welcome text about your property..."></textarea>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <input type="color" id="wb-intro-bg-color" value="#ffffff" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <input type="color" id="wb-intro-text-color" value="#1e293b" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Feature 1</label>
-                            <input type="text" class="form-input" id="wb-intro-feature1" placeholder="e.g., 🌊 Beachfront Location">
+                        
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-input" id="wb-intro-title" placeholder="Welcome to Our Property">
                         </div>
+                        
                         <div class="form-group">
-                            <label class="form-label">Feature 2</label>
-                            <input type="text" class="form-input" id="wb-intro-feature2" placeholder="e.g., 🍳 Award-winning Breakfast">
+                            <label class="form-label">Title Font Size (px)</label>
+                            <input type="range" id="wb-intro-title-size" min="20" max="60" step="2" value="36" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>20</span>
+                                <span id="wb-intro-title-size-val">36px</span>
+                                <span>60</span>
+                            </div>
                         </div>
+                        
                         <div class="form-group">
-                            <label class="form-label">Feature 3</label>
-                            <input type="text" class="form-input" id="wb-intro-feature3" placeholder="e.g., 🚗 Free Parking">
+                            <label class="form-label">Text</label>
+                            <textarea class="form-input" id="wb-intro-text" rows="3" placeholder="We are delighted to have you here. Explore our beautiful accommodations and find your perfect stay."></textarea>
                         </div>
+                        
                         <div class="form-group">
-                            <label class="form-label">Feature 4</label>
-                            <input type="text" class="form-input" id="wb-intro-feature4" placeholder="e.g., 📶 Fast WiFi">
+                            <label class="form-label">Text Font Size (px)</label>
+                            <input type="range" id="wb-intro-text-size" min="14" max="24" step="1" value="18" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>14</span>
+                                <span id="wb-intro-text-size-val">18px</span>
+                                <span>24</span>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Content Max Width (px)</label>
+                            <input type="range" id="wb-intro-max-width" min="600" max="1200" step="50" value="800" style="width: 100%;">
+                            <div style="display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text-secondary);">
+                                <span>600</span>
+                                <span id="wb-intro-max-width-val">800px</span>
+                                <span>1200</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Button (Optional)</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text</label>
+                                <input type="text" class="form-input" id="wb-intro-btn-text" placeholder="Leave empty to hide button">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button URL</label>
+                                <input type="text" class="form-input" id="wb-intro-btn-url" placeholder="/about/">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Background Color</label>
+                                <input type="color" id="wb-intro-btn-bg" value="#2563eb" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <input type="color" id="wb-intro-btn-text-color" value="#ffffff" style="width: 100%; height: 45px; border-radius: 8px; cursor: pointer;">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -13363,7 +13421,10 @@ const promo = await fetch('/api/v1/offers/validate', {
                 { id: 'wb-search-scale', suffix: '%' },
                 { id: 'wb-global-styles-btn-radius', suffix: 'px' },
                 { id: 'wb-global-styles-title-size', suffix: 'px' },
-                { id: 'wb-global-styles-body-size', suffix: 'px' }
+                { id: 'wb-global-styles-body-size', suffix: 'px' },
+                { id: 'wb-intro-title-size', suffix: 'px' },
+                { id: 'wb-intro-text-size', suffix: 'px' },
+                { id: 'wb-intro-max-width', suffix: 'px' }
             ];
             
             rangeSliders.forEach(slider => {
