@@ -1532,6 +1532,50 @@ app.delete('/api/admin/tasks/:id', async (req, res) => {
   }
 });
 
+// Sync tasks from tasks.json file
+app.post('/api/admin/tasks/sync-from-file', async (req, res) => {
+  try {
+    const fs = require('fs');
+    const path = require('path');
+    
+    const filePath = path.join(__dirname, 'public', 'tasks.json');
+    
+    if (!fs.existsSync(filePath)) {
+      return res.json({ success: false, error: 'tasks.json not found in public folder' });
+    }
+    
+    const fileContent = fs.readFileSync(filePath, 'utf8');
+    const data = JSON.parse(fileContent);
+    
+    if (!data.tasks || !Array.isArray(data.tasks)) {
+      return res.json({ success: false, error: 'Invalid tasks.json format' });
+    }
+    
+    // Clear existing tasks and insert new ones
+    await pool.query('DELETE FROM tasks');
+    
+    let imported = 0;
+    for (const task of data.tasks) {
+      await pool.query(`
+        INSERT INTO tasks (title, description, status, priority, category, completed_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+      `, [
+        task.title,
+        task.description || null,
+        task.status || 'todo',
+        task.priority || 'medium',
+        task.category || null,
+        task.completed ? new Date(task.completed) : null
+      ]);
+      imported++;
+    }
+    
+    res.json({ success: true, message: `Imported ${imported} tasks from tasks.json`, updated: data.updated });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/setup-clients', async (req, res) => {
   try {
     // 0. Create agencies table first (agencies manage multiple clients)
