@@ -3449,7 +3449,10 @@ fetch('/api/public/client/1/rooms')
                             <h2>🏷️ Site Identity</h2>
                             <p>Logo, site name, and tagline</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('identity')">💾 Save & Sync</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" style="background: #059669;" onclick="loadLehmannHouseProfile()">📥 Load Lehmann House Profile</button>
+                            <button class="btn" onclick="saveWebsiteSection('identity')">💾 Save & Sync</button>
+                        </div>
                     </div>
                 </div>
                 <div class="card">
@@ -8485,6 +8488,167 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error loading website builder section:', error);
             }
+        }
+        
+        // Load Lehmann House profile settings into Website Builder
+        function loadLehmannHouseProfile() {
+            const settings = {
+                // Site Identity
+                'wb-identity-site-name': 'Lehmann House Bed and Breakfast',
+                'wb-identity-tagline': 'The ultimate St. Louis experience.',
+                
+                // Colors
+                'wb-colors-primary': '#2563eb',
+                'wb-colors-secondary': '#0f172a',
+                'wb-colors-accent': '#f59e0b',
+                
+                // Typography
+                'wb-typography-heading-font': 'playfair',
+                'wb-typography-body-font': 'inter',
+                
+                // Header
+                'wb-header-menu-layout': 'logo-left',
+                'wb-header-bg-color': '#ffffff',
+                'wb-header-link-color': '#1e293b',
+                'wb-header-logo-color': '#0f172a',
+                'wb-header-cta-bg': '#2563eb',
+                'wb-header-cta-text': '#ffffff',
+                'wb-header-menu-font': 'inter',
+                'wb-header-font-weight': '500',
+                'wb-header-text-transform': 'none',
+                'wb-header-font-size': '15',
+                'wb-header-border-color': '#e2e8f0',
+                'wb-header-sticky': true,
+                'wb-header-show-border': false,
+                'wb-header-transparent': false,
+                
+                // Hero
+                'wb-hero-overlay-color': '#0f172a',
+                'wb-hero-overlay-opacity': '30',
+                'wb-hero-height': '90',
+                'wb-hero-badge-text': 'Lehmann House Bed and Breakfast',
+                'wb-hero-badge-bg': 'rgba(255,255,255,0.15)',
+                'wb-hero-badge-text-color': '#ffffff',
+                'wb-hero-badge-border': 'rgba(255,255,255,0.3)',
+                'wb-hero-title': 'The ultimate St. Louis experience.',
+                'wb-hero-subtitle': 'Located in the heart of Lafayette Square in the historic district of St, Louis, MO',
+                'wb-hero-trust-1': 'Instant Booking',
+                'wb-hero-trust-2': 'Best Price Guarantee',
+                'wb-hero-trust-3': '24/7 Support',
+                
+                // Intro Section
+                'wb-intro-enabled': true,
+                'wb-intro-bg-color': '#ffffff',
+                'wb-intro-text-color': '#1e293b',
+                'wb-intro-title': 'Lehmann House Bed and Breakfast',
+                'wb-intro-title-size': '36',
+                'wb-intro-text': "Located in the heart of Lafayette Square in the historic district of St, Louis, MO, you'll find elegance and space in our grand 26 room mansion, formerly owned by local dignitary, Frederick W. Lehmann.\n\nChoose from several large and beautifully furnished rooms, all with private baths. Enjoy a book in quiet of the expansive and stunning library. If music is your pleasure, the baby grand is waiting for you in the parlor.\n\nYour delicious, freshly prepared breakfast is served in the formal dining room, much as the Lehmann's did back in the day. You can also enjoy early coffee on the wrap-around Victorian porch, reading the newspaper, a good book or simply experience the quiet of the early morning.\n\nWe welcome couples, single travelers, business travelers and small groups for the ultimate St. Louis experience.",
+                'wb-intro-text-size': '18',
+                'wb-intro-max-width': '800',
+                'wb-intro-btn-bg': '#2563eb',
+                'wb-intro-btn-text-color': '#ffffff',
+                
+                // Featured Properties
+                'wb-featured-mode': 'all',
+                'wb-featured-count': '3',
+                'wb-featured-title': 'Featured Rooms',
+                'wb-featured-subtitle': 'Here is a snapshot of some of our favorite rooms',
+                'wb-featured-btn-text': 'View All Properties',
+                'wb-featured-btn-url': '/book-now/',
+                'wb-featured-btn-bg': '#2563eb',
+                'wb-featured-btn-text-color': '#ffffff',
+                
+                // Section Backgrounds
+                'wb-backgrounds-featured': '#ffffff',
+                'wb-backgrounds-about': '#f8fafc',
+                'wb-backgrounds-testimonials': '#0f172a',
+                'wb-backgrounds-cta': '#2563eb',
+                
+                // About Section
+                'wb-about-title': 'Experience St. Louis from Lehmann House',
+                'wb-about-text': "Discover the heart of St. Louis while staying at Lehmann House — a beautiful, centrally located home that combines classic charm with modern comfort. Whether you're exploring local attractions, attending events, or simply unwinding, Lehmann House is your perfect base in the city.",
+                'wb-about-layout': 'image-left',
+                'wb-about-btn-text': 'Learn More',
+                'wb-about-btn-url': '/about/',
+                'wb-about-btn-bg': '#2563eb',
+                'wb-about-btn-text-color': '#ffffff',
+                'wb-about-feature-1': 'Spacious Bedrooms',
+                'wb-about-feature-2': 'Luxury Bathrooms',
+                'wb-about-feature-3': 'Prime Location',
+                'wb-about-feature-4': 'Full Amenities',
+                'wb-about-feature-5': 'Quality Breakfast',
+                'wb-about-feature-6': 'Private Parking',
+                
+                // Reviews Section
+                'wb-reviews-enabled': true,
+                'wb-reviews-title': 'What Our Guests Say',
+                'wb-reviews-subtitle': 'Real reviews from real guests across all platforms',
+                'wb-reviews-bg-color': '#0f172a',
+                'wb-reviews-text-color': '#ffffff',
+                'wb-reviews-style': 'slider',
+                'wb-reviews-limit': '6',
+                
+                // CTA Section
+                'wb-cta-enabled': true,
+                'wb-cta-title': 'Ready to Book Your Stay?',
+                'wb-cta-title-size': '36',
+                'wb-cta-text': 'Find your perfect vacation rental today and create memories that last a lifetime.',
+                'wb-cta-text-size': '18',
+                'wb-cta-bg-color': '#2563eb',
+                'wb-cta-text-color': '#ffffff',
+                'wb-cta-btn-text': 'Browse Properties',
+                'wb-cta-btn-url': '/book-now/',
+                'wb-cta-btn-bg': '#ffffff',
+                'wb-cta-btn-text-color': '#2563eb',
+                
+                // Footer
+                'wb-footer-bg-color': '#0f172a',
+                'wb-footer-text-color': '#ffffff',
+                'wb-footer-layout': '4-columns',
+                'wb-footer-link-home': true,
+                'wb-footer-link-rooms': true,
+                'wb-footer-link-about': true,
+                'wb-footer-link-contact': true,
+                'wb-footer-link-blog': true,
+                'wb-footer-link-terms': true,
+                'wb-footer-link-privacy': true,
+                
+                // Contact Info
+                'wb-contact-info-business-name': 'Lehmann House Bed and Breakfast',
+                'wb-contact-info-address': 'Lafayette Square, St. Louis, MO',
+                
+                // Global Styles
+                'wb-global-styles-btn-primary-bg': '#2563eb',
+                'wb-global-styles-btn-primary-text': '#ffffff',
+                'wb-global-styles-btn-secondary-bg': '#0f172a',
+                'wb-global-styles-btn-secondary-text': '#ffffff',
+                'wb-global-styles-title-size': '42',
+                'wb-global-styles-body-size': '16',
+                'wb-global-styles-btn-radius': '8',
+                'wb-global-styles-link-color': '#2563eb'
+            };
+            
+            // Apply all settings to form fields
+            Object.keys(settings).forEach(id => {
+                const el = document.getElementById(id);
+                if (el) {
+                    if (el.type === 'checkbox') {
+                        el.checked = settings[id];
+                    } else if (el.type === 'range') {
+                        el.value = settings[id];
+                        // Update the displayed value
+                        const valSpan = document.getElementById(id + '-val');
+                        if (valSpan) {
+                            const suffix = id.includes('opacity') ? '%' : (id.includes('height') ? 'vh' : 'px');
+                            valSpan.textContent = settings[id] + suffix;
+                        }
+                    } else {
+                        el.value = settings[id];
+                    }
+                }
+            });
+            
+            showNotification('Lehmann House profile loaded! Don\'t forget to save each section.', 'success');
         }
         
         async function saveWebsiteSection(section) {
