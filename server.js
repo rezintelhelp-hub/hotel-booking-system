@@ -14911,6 +14911,29 @@ app.get('/api/admin/fix-website-settings-table', async (req, res) => {
   }
 });
 
+// ONE-TIME FIX: Create client_api_keys table
+app.get('/api/admin/fix-api-keys-table', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS client_api_keys (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL,
+        api_key VARCHAR(64) NOT NULL UNIQUE,
+        name VARCHAR(100) DEFAULT 'Default',
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used_at TIMESTAMP,
+        FOREIGN KEY (account_id) REFERENCES accounts(id) ON DELETE CASCADE
+      )
+    `);
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_api_keys_account ON client_api_keys(account_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_api_keys_key ON client_api_keys(api_key)');
+    res.json({ success: true, message: 'API keys table created successfully!' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
