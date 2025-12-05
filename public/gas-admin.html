@@ -8495,11 +8495,15 @@ const promo = await fetch('/api/v1/offers/validate', {
                                 el.checked = settings[key];
                             } else if (el.type === 'color') {
                                 el.value = settings[key] || el.value;
-                                // Also update the hex text input if it exists
-                                const hexInput = el.parentNode.querySelector('input[type="text"]');
-                                if (hexInput) {
-                                    hexInput.value = el.value.toUpperCase();
+                                // Also update the hex text input if it exists (it's a sibling in the wrapper)
+                                if (el.parentNode) {
+                                    const hexInput = el.parentNode.querySelector('input[type="text"]');
+                                    if (hexInput) {
+                                        hexInput.value = el.value.toUpperCase();
+                                    }
                                 }
+                                // Trigger change event to sync any listeners
+                                el.dispatchEvent(new Event('input', { bubbles: true }));
                             } else if (el.type === 'range') {
                                 el.value = settings[key] || el.value;
                                 // Update the display value
