@@ -2,6 +2,69 @@
   "updated": "2025-12-05",
   "tasks": [
     {
+      "title": "WordPress Site Full Sync from GAS",
+      "description": "Priority focus: Ensure all GAS data (properties, rooms, amenities, content, images) flows correctly to WordPress sites",
+      "priority": "urgent",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Amenities Display on WP Checkout",
+      "description": "Features tab should show room amenities - verify API returns data correctly after today's fixes",
+      "priority": "urgent",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Extras Not Displaying on Checkout",
+      "description": "User reported extras/upsells not showing on WP checkout - needs investigation",
+      "priority": "high",
+      "category": "bug",
+      "status": "todo"
+    },
+    {
+      "title": "Cancellation Policy from GAS",
+      "description": "WordPress plugin has '48 hours' hardcoded (line 2483). Should pull from GAS Admin Content → Policies or add to WP plugin settings.",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Property Fields Sync",
+      "description": "Ensure all property fields (name, description, address, policies, etc.) flow from GAS to WP",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Room Fields Sync",
+      "description": "Ensure all room fields (name, description, capacity, beds, amenities) flow from GAS to WP",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "Audit WP Plugin Fields vs GAS",
+      "description": "Review all fields in WordPress plugin and ensure matching fields exist in GAS database/API",
+      "priority": "urgent",
+      "category": "wordpress",
+      "status": "in_progress"
+    },
+    {
+      "title": "Site-Level Override System",
+      "description": "Allow WP site to override GAS values OR pull from GAS. Store override preference in GAS.",
+      "priority": "high",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "title": "GAS Override Management UI",
+      "description": "In GAS Admin, show which fields are overridden at site level for each property",
+      "priority": "medium",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
       "title": "CM Webhooks - Beds24",
       "description": "Set up webhook endpoint to receive booking notifications from Beds24 in real-time",
       "priority": "high",
@@ -65,13 +128,6 @@
       "status": "todo"
     },
     {
-      "title": "Cancellation Policy from GAS",
-      "description": "WordPress plugin has '48 hours' hardcoded (line 2483). Should pull from GAS Admin Content → Policies or add to WP plugin settings.",
-      "priority": "medium",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
       "title": "Country Code Migration",
       "description": "Standardize existing database entries to ISO 2-letter codes. Some have 'Switzerland', 'United Kingdom' instead of CH, GB.",
       "priority": "low",
@@ -79,67 +135,83 @@
       "status": "todo"
     },
     {
-      "title": "Vouchers UI Property Selector",
-      "description": "Add Property/Room selector to Vouchers like Taxes now has (match Offers pattern)",
+      "title": "Add Bed Quantity Support",
+      "description": "Allow specifying quantity for beds (e.g., 2x Double Bed) - UI ready, needs DB column added safely",
+      "priority": "medium",
+      "category": "feature",
+      "status": "todo"
+    },
+    {
+      "title": "Collapsible Sidebar Menu",
+      "description": "Added expandable/collapsible sections to sidebar menu with state persistence",
       "priority": "medium",
       "category": "ui",
-      "status": "todo"
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Amenities Page - Property/Room Selector",
+      "description": "Moved amenities management from Room Edit modal to dedicated Amenities page with Property → Room selection",
+      "priority": "high",
+      "category": "ui",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Rooms & Units Property Selector",
+      "description": "Added Property selector to Rooms page matching consistent UI pattern",
+      "priority": "medium",
+      "category": "ui",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Images Property Selector",
+      "description": "Added Property/Room selector to Images page matching consistent UI pattern",
+      "priority": "medium",
+      "category": "ui",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Bookings Property Selector",
+      "description": "Added Property/Room/Status selector to Bookings page matching consistent UI pattern",
+      "priority": "medium",
+      "category": "ui",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Vouchers UI Property Selector",
+      "description": "Add Property/Room selector to Vouchers matching consistent UI pattern",
+      "priority": "medium",
+      "category": "ui",
+      "status": "done",
+      "completed": "2025-12-05"
     },
     {
       "title": "Upsells UI Property Selector",
-      "description": "Add Property/Room selector to Upsells like Taxes now has (match Offers pattern)",
+      "description": "Add Property/Room selector to Upsells matching consistent UI pattern",
       "priority": "medium",
       "category": "ui",
-      "status": "todo"
-    },
-    {
-      "title": "Extras Not Displaying on Checkout",
-      "description": "User reported extras/upsells not showing on WP checkout - needs investigation",
-      "priority": "high",
-      "category": "bug",
-      "status": "todo"
+      "status": "done",
+      "completed": "2025-12-05"
     },
     {
       "title": "Tax Visibility in Master Account",
-      "description": "Master should see taxes when selecting client properties in dropdown",
+      "description": "Master can now see taxes when selecting client properties - fixed API filtering",
       "priority": "high",
       "category": "bug",
-      "status": "in_progress"
+      "status": "done",
+      "completed": "2025-12-05"
     },
     {
-      "title": "Audit WP Plugin Fields vs GAS",
-      "description": "Review all fields in WordPress plugin and ensure matching fields exist in GAS database/API",
-      "priority": "urgent",
-      "category": "wordpress",
-      "status": "in_progress"
-    },
-    {
-      "title": "Property Fields Sync",
-      "description": "Ensure all property fields (name, description, address, policies, etc.) flow from GAS to WP",
+      "title": "Amenities API Fix",
+      "description": "Fixed public API to query room_amenity_selections joined with master_amenities instead of wrong table",
       "priority": "high",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Room Fields Sync",
-      "description": "Ensure all room fields (name, description, capacity, beds, amenities) flow from GAS to WP",
-      "priority": "high",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Site-Level Override System",
-      "description": "Allow WP site to override GAS values OR pull from GAS. Store override preference in GAS.",
-      "priority": "high",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "GAS Override Management UI",
-      "description": "In GAS Admin, show which fields are overridden at site level for each property",
-      "priority": "medium",
-      "category": "wordpress",
-      "status": "todo"
+      "category": "bug",
+      "status": "done",
+      "completed": "2025-12-05"
     },
     {
       "title": "WordPress Multisite on Hostinger VPS",
@@ -176,14 +248,6 @@
     {
       "title": "Room Type/Max Adults/Children Editable",
       "description": "Fixed room edit modal - Room Type, Max Adults, Max Children fields now editable",
-      "priority": "high",
-      "category": "bug",
-      "status": "done",
-      "completed": "2025-12-05"
-    },
-    {
-      "title": "Bed Configuration with Quantities",
-      "description": "Replaced checkbox beds with quantity inputs - can now specify 2 doubles, 1 king, etc.",
       "priority": "high",
       "category": "bug",
       "status": "done",
