@@ -7528,11 +7528,10 @@ app.get('/api/admin/taxes', async (req, res) => {
     let result;
     
     if (accountId) {
-      // Only show taxes linked to properties owned by this account
+      // Show taxes that belong to this account (by user_id) or are linked to properties owned by this account
       result = await pool.query(`
         SELECT t.* FROM taxes t
-        LEFT JOIN properties p ON t.property_id = p.id
-        WHERE p.account_id = $1
+        WHERE t.user_id = $1
         ORDER BY t.name
       `, [accountId]);
     } else {
@@ -7546,13 +7545,13 @@ app.get('/api/admin/taxes', async (req, res) => {
 
 app.post('/api/admin/taxes', async (req, res) => {
   try {
-    const { name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active } = req.body;
+    const { name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, account_id } = req.body;
     
     const result = await pool.query(`
-      INSERT INTO taxes (name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+      INSERT INTO taxes (name, country, amount_type, currency, amount, charge_per, max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active, user_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
       RETURNING *
-    `, [name, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active !== false]);
+    `, [name, country, amount_type || 'fixed', currency || 'EUR', amount, charge_per || 'per_person_per_night', max_nights, min_age, star_tier, season_start, season_end, property_id, room_id, active !== false, account_id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -11816,14 +11815,15 @@ app.post('/api/public/calculate-price', async (req, res) => {
     let taxTotal = 0;
     const taxBreakdown = [];
     
-    // Get regular taxes (with fallback if columns don't exist)
+    // Get regular taxes - filtered by account_id to prevent cross-account tax bleeding
     let taxes = { rows: [] };
     try {
       taxes = await pool.query(`
-        SELECT * FROM taxes
-        WHERE active = true
-          AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
-          AND (room_id IS NULL OR room_id = $1)
+        SELECT t.* FROM taxes t
+        WHERE t.active = true
+          AND (t.property_id IS NULL OR t.property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+          AND (t.room_id IS NULL OR t.room_id = $1)
+          AND t.user_id = (SELECT p.account_id FROM properties p JOIN bookable_units bu ON bu.property_id = p.id WHERE bu.id = $1)
       `, [unit_id]);
     } catch (taxQueryError) {
       console.log('Tax query fallback - trying simpler query');
