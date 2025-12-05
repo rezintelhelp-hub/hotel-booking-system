@@ -7361,9 +7361,23 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
 app.get('/api/admin/upsells', async (req, res) => {
   try {
     const accountId = req.query.account_id;
+    const propertyId = req.query.property_id;
+    const roomId = req.query.room_id;
     let result;
     
-    if (accountId) {
+    if (propertyId) {
+      // Filter by specific property
+      result = await pool.query(`
+        SELECT u.*, 
+               p.name as property_name,
+               r.name as room_name
+        FROM upsells u
+        LEFT JOIN properties p ON u.property_id = p.id
+        LEFT JOIN rooms r ON u.room_id = r.id
+        WHERE u.property_id = $1
+        ORDER BY u.name
+      `, [propertyId]);
+    } else if (accountId) {
       result = await pool.query(`
         SELECT u.*, 
                p.name as property_name,
@@ -7530,15 +7544,14 @@ app.get('/api/admin/taxes', async (req, res) => {
     let result;
     
     if (propertyId) {
-      // Filter by specific property - show all taxes for this property
-      let query = `
-        SELECT DISTINCT t.*, p.name as property_name 
+      // Filter by specific property - show taxes assigned to this property
+      result = await pool.query(`
+        SELECT t.*, p.name as property_name 
         FROM taxes t
         LEFT JOIN properties p ON t.property_id = p.id
-        WHERE t.property_id = $1 OR (t.property_id IS NULL AND p.id = $1)
+        WHERE t.property_id = $1
         ORDER BY t.name
-      `;
-      result = await pool.query(query, [propertyId]);
+      `, [propertyId]);
     } else if (accountId) {
       // Show taxes that:
       // 1. Have user_id matching this account, OR
@@ -12366,6 +12379,15 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
     const { clientId } = req.params;
     const { unit_id, property_id } = req.query;
     
+    // Get property_id from unit if not provided
+    let propId = property_id;
+    if (unit_id && !propId) {
+      const unitResult = await pool.query('SELECT property_id FROM bookable_units WHERE id = $1', [unit_id]);
+      if (unitResult.rows.length > 0) {
+        propId = unitResult.rows[0].property_id;
+      }
+    }
+    
     const upsells = await pool.query(`
       SELECT 
         u.id,
@@ -12383,16 +12405,16 @@ app.get('/api/public/client/:clientId/upsells', async (req, res) => {
       FROM upsells u
       LEFT JOIN properties p ON u.property_id = p.id
       WHERE u.active = true
-        AND (u.user_id = $1 OR u.user_id IS NULL)
+        AND (p.account_id = $1 OR u.property_id IS NULL)
+        AND ($2::integer IS NULL OR u.property_id = $2)
         AND (
-          $2::integer IS NULL 
+          $3::integer IS NULL 
           OR u.room_id IS NULL 
-          OR u.room_id = $2
-          OR u.room_ids LIKE '%' || $2::text || '%'
+          OR u.room_id = $3
+          OR u.room_ids LIKE '%' || $3::text || '%'
         )
-        AND ($3::integer IS NULL OR u.property_id IS NULL OR u.property_id = $3)
       ORDER BY u.category NULLS LAST, u.name
-    `, [clientId, unit_id || null, property_id || null]);
+    `, [clientId, propId || null, unit_id || null]);
     
     // Group by category
     const grouped = {};
