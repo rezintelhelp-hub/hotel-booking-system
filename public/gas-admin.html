@@ -13661,7 +13661,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             document.getElementById('tax-active').checked = true;
             
             // Show account dropdown for master users
-            if (currentAccount && currentAccount.role === 'admin') {
+            if (currentAccount && currentAccount.role === 'master_admin') {
                 document.querySelectorAll('.master-only-field').forEach(el => el.style.display = 'block');
                 await loadTaxAccounts();
             } else {
@@ -13697,7 +13697,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 let queryString = buildQueryString();
                 
                 // If master selected a specific account, get that account's properties
-                if (accountId && currentAccount?.role === 'admin') {
+                if (accountId && currentAccount?.role === 'master_admin') {
                     queryString = `?account_id=${accountId}`;
                 }
                 
@@ -13780,7 +13780,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (!tax) return;
             
             // Show account dropdown for master users
-            if (currentAccount && currentAccount.role === 'admin') {
+            if (currentAccount && currentAccount.role === 'master_admin') {
                 document.querySelectorAll('.master-only-field').forEach(el => el.style.display = 'block');
                 await loadTaxAccounts();
                 // Set account based on user_id of the tax
