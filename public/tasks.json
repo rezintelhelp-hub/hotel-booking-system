@@ -69,7 +69,7 @@
       "description": "Review all fields in WordPress plugin and ensure matching fields exist in GAS database/API",
       "priority": "urgent",
       "category": "wordpress",
-      "status": "todo"
+      "status": "in_progress"
     },
     {
       "title": "Property Fields Sync",
@@ -97,48 +97,6 @@
       "description": "In GAS Admin, show which fields are overridden at site level for each property",
       "priority": "medium",
       "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Bed Config Data Model Review",
-      "description": "Review and fix bed configuration storage - ensure proper bed types, quantities, sizes",
-      "priority": "high",
-      "category": "bug",
-      "status": "todo"
-    },
-    {
-      "title": "Bed Config UI in GAS Admin",
-      "description": "Improve room bed configuration UI - add/remove beds, bed types dropdown",
-      "priority": "medium",
-      "category": "ui",
-      "status": "todo"
-    },
-    {
-      "title": "Bed Config Display on WP",
-      "description": "Ensure bed configuration displays correctly on WordPress room pages",
-      "priority": "medium",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Amenities System Review",
-      "description": "Review amenities/features system - ensure comprehensive list and proper categorization",
-      "priority": "high",
-      "category": "feature",
-      "status": "todo"
-    },
-    {
-      "title": "Property-Level Amenities",
-      "description": "Amenities that apply to whole property (parking, wifi, pool, etc.)",
-      "priority": "medium",
-      "category": "feature",
-      "status": "todo"
-    },
-    {
-      "title": "Room-Level Amenities",
-      "description": "Amenities specific to rooms (TV, AC, minibar, etc.)",
-      "priority": "medium",
-      "category": "feature",
       "status": "todo"
     },
     {
@@ -172,6 +130,38 @@
       "category": "wordpress",
       "status": "done",
       "completed": "2025-12-04"
+    },
+    {
+      "title": "Room Type/Max Adults/Children Editable",
+      "description": "Fixed room edit modal - Room Type, Max Adults, Max Children fields now editable",
+      "priority": "high",
+      "category": "bug",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Bed Configuration with Quantities",
+      "description": "Replaced checkbox beds with quantity inputs - can now specify 2 doubles, 1 king, etc.",
+      "priority": "high",
+      "category": "bug",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Comprehensive Amenities Import",
+      "description": "Created amenities.json with 150+ amenities organized by category (room vs property level)",
+      "priority": "high",
+      "category": "feature",
+      "status": "done",
+      "completed": "2025-12-05"
+    },
+    {
+      "title": "Tasks Management System",
+      "description": "Added Tasks view to GAS Admin with sync from tasks.json file",
+      "priority": "medium",
+      "category": "feature",
+      "status": "done",
+      "completed": "2025-12-05"
     }
   ]
 }
