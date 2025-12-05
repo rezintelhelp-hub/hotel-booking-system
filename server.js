@@ -1343,6 +1343,195 @@ app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
   }
 });
 
+// Set account subscription (for testing/manual assignment)
+app.post('/api/admin/accounts/:id/set-subscription', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { plan_id, status, months } = req.body;
+    
+    // Check if subscription exists
+    const existing = await pool.query('SELECT id FROM billing_subscriptions WHERE account_id = $1', [id]);
+    
+    const periodEnd = new Date();
+    periodEnd.setMonth(periodEnd.getMonth() + (months || 12));
+    
+    if (existing.rows.length > 0) {
+      // Update existing
+      await pool.query(`
+        UPDATE billing_subscriptions 
+        SET plan_id = $1, status = $2, current_period_start = NOW(), current_period_end = $3, updated_at = NOW()
+        WHERE account_id = $4
+      `, [plan_id, status || 'active', periodEnd, id]);
+    } else {
+      // Insert new
+      await pool.query(`
+        INSERT INTO billing_subscriptions (account_id, plan_id, status, current_period_start, current_period_end)
+        VALUES ($1, $2, $3, NOW(), $4)
+      `, [id, plan_id, status || 'active', periodEnd]);
+    }
+    
+    res.json({ success: true, message: 'Subscription updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get account subscription
+app.get('/api/admin/accounts/:id/subscription', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      SELECT bs.*, bp.name as plan_name, bp.price_monthly, bp.price_yearly
+      FROM billing_subscriptions bs
+      LEFT JOIN billing_plans bp ON bs.plan_id = bp.id
+      WHERE bs.account_id = $1
+    `, [id]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, subscription: result.rows[0] });
+    } else {
+      res.json({ success: true, subscription: null });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// TASKS / TO-DO LIST
+// =====================================================
+
+// Get all tasks (master admin sees all, others see their own)
+app.get('/api/admin/tasks', async (req, res) => {
+  try {
+    const { status, priority, account_id } = req.query;
+    
+    let query = `
+      SELECT t.*, 
+        a1.name as account_name,
+        a2.name as created_by_name,
+        a3.name as assigned_to_name
+      FROM tasks t
+      LEFT JOIN accounts a1 ON t.account_id = a1.id
+      LEFT JOIN accounts a2 ON t.created_by = a2.id
+      LEFT JOIN accounts a3 ON t.assigned_to = a3.id
+      WHERE 1=1
+    `;
+    const params = [];
+    
+    if (status) {
+      params.push(status);
+      query += ` AND t.status = $${params.length}`;
+    }
+    if (priority) {
+      params.push(priority);
+      query += ` AND t.priority = $${params.length}`;
+    }
+    if (account_id) {
+      params.push(account_id);
+      query += ` AND t.account_id = $${params.length}`;
+    }
+    
+    query += ` ORDER BY 
+      CASE t.priority WHEN 'urgent' THEN 1 WHEN 'high' THEN 2 WHEN 'medium' THEN 3 ELSE 4 END,
+      t.due_date ASC NULLS LAST,
+      t.created_at DESC`;
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create task
+app.post('/api/admin/tasks', async (req, res) => {
+  try {
+    const { title, description, status, priority, category, account_id, created_by, assigned_to, due_date } = req.body;
+    
+    if (!title) {
+      return res.json({ success: false, error: 'Title is required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO tasks (title, description, status, priority, category, account_id, created_by, assigned_to, due_date)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [title, description, status || 'todo', priority || 'medium', category, account_id, created_by, assigned_to, due_date]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update task
+app.put('/api/admin/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, status, priority, category, account_id, assigned_to, due_date } = req.body;
+    
+    // If marking as done, set completed_at
+    const completed_at = status === 'done' ? 'NOW()' : 'NULL';
+    
+    const result = await pool.query(`
+      UPDATE tasks SET 
+        title = COALESCE($1, title),
+        description = COALESCE($2, description),
+        status = COALESCE($3, status),
+        priority = COALESCE($4, priority),
+        category = COALESCE($5, category),
+        account_id = $6,
+        assigned_to = $7,
+        due_date = $8,
+        completed_at = ${status === 'done' ? 'NOW()' : 'NULL'},
+        updated_at = NOW()
+      WHERE id = $9
+      RETURNING *
+    `, [title, description, status, priority, category, account_id, assigned_to, due_date, id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Task not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Quick update task status
+app.patch('/api/admin/tasks/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE tasks SET 
+        status = $1,
+        completed_at = ${status === 'done' ? 'NOW()' : 'NULL'},
+        updated_at = NOW()
+      WHERE id = $2
+      RETURNING *
+    `, [status, id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete task
+app.delete('/api/admin/tasks/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM tasks WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/setup-clients', async (req, res) => {
   try {
     // 0. Create agencies table first (agencies manage multiple clients)
@@ -2250,6 +2439,26 @@ app.get('/api/setup-billing', async (req, res) => {
         stripe_price_id VARCHAR(255),
         sort_order INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Tasks/To-Do list
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        status VARCHAR(50) DEFAULT 'todo',
+        priority VARCHAR(20) DEFAULT 'medium',
+        category VARCHAR(100),
+        account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        created_by INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        assigned_to INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        due_date DATE,
+        completed_at TIMESTAMP,
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
     
