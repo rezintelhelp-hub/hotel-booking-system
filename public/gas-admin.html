@@ -7105,12 +7105,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
                 
-                <!-- Amenities from CM -->
-                <div class="form-group">
-                    <label class="form-label">Select Amenities for this Room</label>
-                    <div id="edit-room-amenities" style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; max-height: 400px; overflow-y: auto;">
-                        Loading amenities...
-                    </div>
+                <!-- Note about amenities -->
+                <div style="background: #e0f2fe; border: 1px solid #0ea5e9; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
+                    <p style="margin: 0; color: #0369a1;">
+                        💡 <strong>Amenities:</strong> Manage room amenities from the <a href="#" onclick="closeModal('editRoomModal'); showView('amenities'); return false;" style="color: #0369a1; text-decoration: underline;">Amenities page</a>
+                    </p>
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem;">
@@ -14919,109 +14918,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                     document.getElementById('edit-room-quantity').value = room.quantity || 1;
                     document.getElementById('edit-room-status').value = room.status || 'available';
                     
-                    // Load all available amenities and room's current selections
-                    const amenitiesContainer = document.getElementById('edit-room-amenities');
-                    amenitiesContainer.innerHTML = 'Loading amenities...';
-                    
-                    try {
-                        // Get all master amenities
-                        const allAmenitiesResp = await fetch('/api/admin/amenities');
-                        const allAmenitiesData = await allAmenitiesResp.json();
-                        
-                        // Get this room's current amenities
-                        const roomAmenitiesResp = await fetch(`/api/admin/units/${id}/amenities`);
-                        const roomAmenitiesData = await roomAmenitiesResp.json();
-                        
-                        if (allAmenitiesData.success) {
-                            const allAmenities = allAmenitiesData.amenities || [];
-                            
-                            // Get selected amenity IDs
-                            const selectedIds = new Set();
-                            if (roomAmenitiesData.success && roomAmenitiesData.data) {
-                                roomAmenitiesData.data.forEach(a => selectedIds.add(a.amenity_id));
-                            }
-                            
-                            // Group by category and sort selected to top
-                            const categories = {};
-                            allAmenities.forEach(a => {
-                                const cat = a.category || 'other';
-                                if (!categories[cat]) categories[cat] = [];
-                                categories[cat].push(a);
-                            });
-                            
-                            // Sort each category: selected first, then alphabetically
-                            Object.keys(categories).forEach(cat => {
-                                categories[cat].sort((a, b) => {
-                                    const aSelected = selectedIds.has(a.id);
-                                    const bSelected = selectedIds.has(b.id);
-                                    
-                                    // Selected items come first
-                                    if (aSelected && !bSelected) return -1;
-                                    if (!aSelected && bSelected) return 1;
-                                    
-                                    // Within same selection status, sort by display_order
-                                    return a.display_order - b.display_order;
-                                });
-                            });
-                            
-                            // Category names
-                            const categoryNames = {
-                                'beds': '🛏️ Beds',
-                                'bathrooms': '🚿 Bathrooms',
-                                'essentials': '⭐ Essentials',
-                                'kitchen': '🍳 Kitchen',
-                                'entertainment': '📺 Entertainment',
-                                'outdoor': '🌳 Outdoor',
-                                'wellness': '💆 Wellness',
-                                'parking': '🚗 Parking',
-                                'family': '👨‍👩‍👧 Family',
-                                'work': '💼 Work',
-                                'safety': '🚨 Safety',
-                                'laundry': '🧺 Laundry',
-                                'other': '📦 Other'
-                            };
-                            
-                            // Build checkbox UI
-                            let html = '';
-                            const sortOrder = ['beds', 'bathrooms', 'essentials', 'kitchen', 'entertainment', 'outdoor', 'wellness', 'parking', 'family', 'work', 'safety', 'laundry', 'other'];
-                            const sortedCategories = Object.entries(categories).sort((a, b) => 
-                                sortOrder.indexOf(a[0]) - sortOrder.indexOf(b[0])
-                            );
-                            
-                            sortedCategories.forEach(([cat, items]) => {
-                                html += `
-                                    <div style="margin-bottom: 1rem;">
-                                        <div style="font-weight: 600; color: var(--text-primary); margin-bottom: 0.5rem; font-size: 0.9rem;">
-                                            ${categoryNames[cat] || cat}
-                                        </div>
-                                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem;">
-                                            ${items.map(a => {
-                                                const name = typeof a.amenity_name === 'string' ? 
-                                                    (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name) :
-                                                    a.amenity_name?.en || a.amenity_code;
-                                                const isSelected = selectedIds.has(a.id);
-                                                return `
-                                                <label style="display: flex; align-items: center; cursor: pointer; padding: 0.4rem; border-radius: 4px; background: ${isSelected ? 'var(--primary)' : 'var(--bg-primary)'}; border: 1px solid ${isSelected ? 'var(--primary)' : 'var(--border)'}; font-size: 0.85rem; color: ${isSelected ? 'white' : 'var(--text-primary)'};">
-                                                    <input type="checkbox" 
-                                                           class="amenity-checkbox" 
-                                                           value="${a.id}" 
-                                                           ${isSelected ? 'checked' : ''}
-                                                           style="margin-right: 0.5rem;">
-                                                    <span>${a.icon || ''} ${name}</span>
-                                                </label>
-                                            `}).join('')}
-                                        </div>
-                                    </div>
-                                `;
-                            });
-                            
-                            amenitiesContainer.innerHTML = html || '<span style="color: var(--text-secondary);">No amenities available</span>';
-                        }
-                    } catch (e) {
-                        console.error('Error loading amenities:', e);
-                        amenitiesContainer.innerHTML = '<span style="color: var(--text-secondary);">Error loading amenities</span>';
-                    }
-                    
                     openModal('editRoomModal');
                 }
             } catch (error) {
@@ -15050,12 +14946,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                 status: document.getElementById('edit-room-status').value
             };
             
-            // Get selected amenities
-            const selectedAmenities = [];
-            document.querySelectorAll('.amenity-checkbox:checked').forEach(checkbox => {
-                selectedAmenities.push(checkbox.value);
-            });
-            
             try {
                 // Update room fields
                 const response = await fetch(`/api/admin/units/${id}`, {
@@ -15065,25 +14955,12 @@ const promo = await fetch('/api/v1/offers/validate', {
                 });
                 
                 const result = await response.json();
-                if (!result.success) {
-                    alert('Error updating room: ' + result.error);
-                    return false;
-                }
-                
-                // Update amenities
-                const amenitiesResponse = await fetch(`/api/admin/units/${id}/amenities`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ amenities: selectedAmenities })
-                });
-                
-                const amenitiesResult = await amenitiesResponse.json();
-                if (amenitiesResult.success) {
+                if (result.success) {
                     alert('Room updated successfully!');
                     closeModal('editRoomModal');
                     loadRoomsForProperty();
                 } else {
-                    alert('Room updated but error updating amenities: ' + amenitiesResult.error);
+                    alert('Error updating room: ' + result.error);
                 }
             } catch (error) {
                 console.error('Error saving room:', error);
