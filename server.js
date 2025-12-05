@@ -11615,40 +11615,6 @@ app.get('/api/public/property/:propertyId', async (req, res) => {
 });
 
 // Get unit/room info (public)
-// Debug endpoint to check amenities setup
-app.get('/api/debug/amenities/:roomId', async (req, res) => {
-  try {
-    const { roomId } = req.params;
-    
-    // Check room_amenity_selections
-    const selections = await pool.query(`
-      SELECT * FROM room_amenity_selections WHERE room_id = $1
-    `, [roomId]);
-    
-    // Check master_amenities count
-    const masterCount = await pool.query(`SELECT COUNT(*) as count FROM master_amenities`);
-    
-    // Check joined query
-    const joined = await pool.query(`
-      SELECT ma.id, ma.amenity_name, ma.category, ma.icon, ras.quantity
-      FROM room_amenity_selections ras
-      JOIN master_amenities ma ON ras.amenity_id = ma.id
-      WHERE ras.room_id = $1
-    `, [roomId]);
-    
-    res.json({
-      success: true,
-      room_id: roomId,
-      master_amenities_count: masterCount.rows[0].count,
-      selections_count: selections.rows.length,
-      selections: selections.rows,
-      joined_results: joined.rows
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
 app.get('/api/public/unit/:unitId', async (req, res) => {
   try {
     const { unitId } = req.params;
