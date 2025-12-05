@@ -1489,12 +1489,23 @@
                     </div>
                 </div>
 
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="rooms-property-select" class="form-input" onchange="loadRoomsForProperty()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div id="rooms-list">
-                        <div class="loading">
-                            <div class="spinner"></div>
-                            <p style="margin-top: 1rem;">Loading rooms...</p>
-                        </div>
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Select a property to view rooms
+                        </p>
                     </div>
                 </div>
             </div>
@@ -9358,17 +9369,42 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
 
-        async function loadRooms() {
-            const container = document.getElementById('rooms-list');
+        async function loadRoomsPropertySelect() {
             try {
-                // Build query params for account filter
-                let queryParams = [];
-                if (selectedAccountId) {
-                    queryParams.push(`account_id=${selectedAccountId}`);
-                }
-                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
                 
-                const response = await fetch(`/api/admin/units${queryString}`);
+                const select = document.getElementById('rooms-property-select');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties for rooms:', error);
+            }
+        }
+        
+        async function loadRoomsForProperty() {
+            const propertyId = document.getElementById('rooms-property-select')?.value;
+            const container = document.getElementById('rooms-list');
+            
+            if (!propertyId) {
+                container.innerHTML = `
+                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                        Select a property to view rooms
+                    </p>
+                `;
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/units?property_id=${propertyId}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
@@ -9379,7 +9415,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                                     <tr>
                                         <th>ID</th>
                                         <th>Room Name</th>
-                                        <th>Property</th>
                                         <th>Type</th>
                                         <th>Capacity</th>
                                         <th>Qty</th>
@@ -9392,7 +9427,6 @@ const promo = await fetch('/api/v1/offers/validate', {
                                         <tr>
                                             <td><code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">${unit.id}</code></td>
                                             <td><strong>${unit.name}</strong></td>
-                                            <td style="font-size: 0.85rem; color: var(--text-secondary);">${unit.property_name || 'N/A'}</td>
                                             <td>${unit.unit_type || 'N/A'}</td>
                                             <td>${unit.max_guests || '-'} guests</td>
                                             <td>${unit.quantity || 1}</td>
@@ -9413,8 +9447,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     container.innerHTML = `
                         <div class="empty-state">
                             <div class="empty-icon">🛏️</div>
-                            <h3>No Rooms Found</h3>
-                            <p>Rooms are imported with properties from Beds24</p>
+                            <h3>No Rooms for This Property</h3>
+                            <p>Add rooms to this property or import from Beds24</p>
+                            <button class="btn" onclick="openAddRoomModal()">Add Room</button>
                         </div>
                     `;
                 }
@@ -9422,6 +9457,18 @@ const promo = await fetch('/api/v1/offers/validate', {
                 console.error('Error loading rooms:', error);
                 container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading rooms</p>';
             }
+        }
+        
+        async function loadRooms() {
+            // Load property selector first
+            await loadRoomsPropertySelect();
+            
+            // Show message to select property
+            document.getElementById('rooms-list').innerHTML = `
+                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                    Select a property to view rooms
+                </p>
+            `;
         }
 
         async function loadAmenities() {
@@ -14890,7 +14937,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (amenitiesResult.success) {
                     alert('Room updated successfully!');
                     closeModal('editRoomModal');
-                    loadRooms();
+                    loadRoomsForProperty();
                 } else {
                     alert('Room updated but error updating amenities: ' + amenitiesResult.error);
                 }
@@ -14919,7 +14966,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 if (result.success) {
                     alert('Room deleted successfully!');
                     closeModal('editRoomModal');
-                    loadRooms();
+                    loadRoomsForProperty();
                     loadDashboard(); // Refresh stats
                 } else {
                     alert('Error deleting room: ' + result.error);
