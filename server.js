@@ -11632,7 +11632,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       try {
         images = await pool.query(`
           SELECT id, url, alt_text
-          FROM bookable_unit_images WHERE unit_id = $1
+          FROM bookable_unit_images WHERE bookable_unit_id = $1
         `, [unitId]);
       } catch (e) {
         // Table doesn't exist, that's fine
@@ -11644,12 +11644,12 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     let amenities = { rows: [] };
     try {
       amenities = await pool.query(`
-        SELECT name, category, icon
-        FROM bookable_unit_amenities WHERE unit_id = $1
-        ORDER BY category, name
+        SELECT amenity_name as name, category, icon
+        FROM bookable_unit_amenities WHERE bookable_unit_id = $1
+        ORDER BY category, display_order
       `, [unitId]);
     } catch (e) {
-      // Table doesn't exist, try room_amenities
+      // Table might have different structure, try room_amenities
       try {
         amenities = await pool.query(`
           SELECT name, category, icon
