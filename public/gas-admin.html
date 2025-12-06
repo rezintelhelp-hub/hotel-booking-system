@@ -3660,42 +3660,42 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Background Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-header-bg-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-bg-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-header-bg-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-bg-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-bg-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-bg-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Menu Link Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-header-text-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-header-text-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-text-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-text-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-text-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Logo/Site Title Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-header-logo-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-logo-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-header-logo-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-logo-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-logo-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-logo-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">CTA Button Background</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-header-cta-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-cta-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-header-cta-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-cta-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-cta-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-cta-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">CTA Button Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-header-cta-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-cta-text').value = this.value">
-                                    <input type="text" class="form-input" id="wb-header-cta-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-cta-text-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-cta-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-cta-text-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Border Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-header-border-color-picker" value="#e5e7eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-border-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-header-border-color" value="#e5e7eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-border-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-border-color" value="#e5e7eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-border-color-picker')">
                                 </div>
                             </div>
                         </div>
@@ -3849,7 +3849,7 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Overlay Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-hero-overlay-color-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-overlay-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-overlay-color" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-overlay-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-overlay-color" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-overlay-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -3880,7 +3880,7 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-hero-badge-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-badge-text').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-badge-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-badge-text-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-badge-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-badge-text-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -3924,7 +3924,7 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Background Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-hero-search-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-search-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-search-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-search-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -3953,14 +3953,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Button Background</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-hero-search-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-btn-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-search-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-btn-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-search-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-search-btn-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Button Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-hero-search-btn-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-btn-text').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-search-btn-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-btn-text-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-search-btn-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-search-btn-text-picker')">
                                 </div>
                             </div>
                         </div>
@@ -4011,14 +4011,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Background Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-intro-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-intro-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-intro-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-intro-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-intro-text-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-intro-text-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-intro-text-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-text-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-intro-text-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -4053,14 +4053,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Button Background</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-intro-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-btn-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-intro-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-intro-btn-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-intro-btn-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Button Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-intro-btn-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-btn-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-intro-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-intro-btn-text-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-intro-btn-text-color-picker')">
                                 </div>
                             </div>
                         </div>
@@ -4136,14 +4136,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Button Background</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-featured-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-btn-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-featured-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-featured-btn-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-featured-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-featured-btn-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Button Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-featured-btn-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-btn-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-featured-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-featured-btn-text-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-featured-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-featured-btn-text-color-picker')">
                                 </div>
                             </div>
                         </div>
@@ -4193,14 +4193,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Background Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-reviews-bg-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-reviews-bg" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-reviews-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-reviews-bg" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-reviews-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-reviews-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-reviews-text-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-reviews-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-text-color-picker')">
                                 </div>
                             </div>
                         </div>
@@ -4324,14 +4324,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Button Background</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-about-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-btn-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-about-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-about-btn-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-about-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-about-btn-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Button Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-about-btn-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-btn-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-about-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-about-btn-text-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-about-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-about-btn-text-color-picker')">
                                 </div>
                             </div>
                         </div>
@@ -4378,14 +4378,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Background Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-cta-background-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-cta-background').value = this.value">
-                                    <input type="text" class="form-input" id="wb-cta-background" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-cta-background-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-cta-background" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-cta-background-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-cta-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-cta-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-cta-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-cta-text-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-cta-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-cta-text-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -4416,14 +4416,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Button Background</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-cta-btn-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-cta-btn-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-cta-btn-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-cta-btn-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-cta-btn-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-cta-btn-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Button Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-cta-btn-text-color-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-cta-btn-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-cta-btn-text-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-cta-btn-text-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-cta-btn-text-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-cta-btn-text-color-picker')">
                                 </div>
                             </div>
                         </div>
@@ -4451,14 +4451,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Background Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-footer-bg-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-footer-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-footer-bg" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-footer-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-footer-bg" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-footer-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Text Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-footer-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-footer-text').value = this.value">
-                                    <input type="text" class="form-input" id="wb-footer-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-footer-text-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-footer-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-footer-text-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -4556,28 +4556,28 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Primary Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-primary-color-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-primary-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-primary-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-primary-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-primary-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-styles-primary-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Secondary Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-secondary-color-picker" value="#7c3aed" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-secondary-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-secondary-color" value="#7c3aed" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-secondary-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-secondary-color" value="#7c3aed" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-styles-secondary-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Accent Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-accent-color-picker" value="#f59e0b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-accent-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-accent-color" value="#f59e0b" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-accent-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-accent-color" value="#f59e0b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-styles-accent-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Link Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-link-color-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-link-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-link-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-link-color-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-link-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-styles-link-color-picker')">
                                 </div>
                             </div>
                         </div>
@@ -4629,14 +4629,14 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Primary Button BG</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-btn-primary-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-btn-primary-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-btn-primary-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-btn-primary-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-btn-primary-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-styles-btn-primary-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Primary Button Text</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-btn-primary-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-btn-primary-text').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-btn-primary-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-btn-primary-text-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-btn-primary-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-styles-btn-primary-text-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -4655,28 +4655,28 @@ fetch('/api/public/client/1/rooms')
                                 <label class="form-label">Featured BG</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-featured-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-featured-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-featured-bg" value="#ffffff" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="document.getElementById('wb-styles-featured-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-featured-bg" value="#ffffff" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="syncColorToPicker(this.id, 'wb-styles-featured-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">About BG</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-about-bg-picker" value="#f8fafc" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-about-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-about-bg" value="#f8fafc" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="document.getElementById('wb-styles-about-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-about-bg" value="#f8fafc" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="syncColorToPicker(this.id, 'wb-styles-about-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Testimonials BG</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-testimonials-bg-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-testimonials-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-testimonials-bg" value="#0f172a" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="document.getElementById('wb-styles-testimonials-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-testimonials-bg" value="#0f172a" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="syncColorToPicker(this.id, 'wb-styles-testimonials-bg-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">CTA BG</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-styles-cta-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-cta-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-styles-cta-bg" value="#2563eb" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="document.getElementById('wb-styles-cta-bg-picker').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-cta-bg" value="#2563eb" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="syncColorToPicker(this.id, 'wb-styles-cta-bg-picker')">
                                 </div>
                             </div>
                         </div>
@@ -8236,6 +8236,15 @@ const promo = await fetch('/api/v1/offers/validate', {
             window.location.href = '/home.html';
         }
         
+        // Helper to sync color text to picker (only when valid hex)
+        function syncColorToPicker(textId, pickerId) {
+            const text = document.getElementById(textId);
+            const picker = document.getElementById(pickerId);
+            if (text && picker && /^#[0-9A-Fa-f]{6}$/.test(text.value)) {
+                picker.value = text.value;
+            }
+        }
+        
         // Helper to add auth header to fetch requests
         function authHeaders() {
             const token = localStorage.getItem('gas_token');
@@ -8606,7 +8615,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                     }
                 });
                 
-                console.log('Saving settings:', section, settings); // Debug
+                console.log('Saving settings:', section, JSON.stringify(settings, null, 2)); // Debug
                 
                 const response = await fetch(`/api/admin/website-builder/${section}`, {
                     method: 'POST',
