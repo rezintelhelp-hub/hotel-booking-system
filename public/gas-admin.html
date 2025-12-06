@@ -6495,13 +6495,12 @@ Local honey and preserves"></textarea>
                                     <th>Category</th>
                                     <th>Monthly</th>
                                     <th>Yearly</th>
-                                    <th>One-time</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="billing-products-table">
-                                <tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
+                                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -7264,7 +7263,7 @@ Local honey and preserves"></textarea>
                         <textarea id="product-description" class="form-input" rows="2" placeholder="Professional WordPress theme for hotels & B&Bs"></textarea>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="form-group">
                             <label>Monthly Price (£)</label>
                             <input type="number" id="product-price-monthly" class="form-input" step="0.01" placeholder="15.00">
@@ -7272,10 +7271,7 @@ Local honey and preserves"></textarea>
                         <div class="form-group">
                             <label>Yearly Price (£)</label>
                             <input type="number" id="product-price-yearly" class="form-input" step="0.01" placeholder="150.00">
-                        </div>
-                        <div class="form-group">
-                            <label>One-time Price (£)</label>
-                            <input type="number" id="product-price-once" class="form-input" step="0.01" placeholder="299.00">
+                            <small style="color: var(--text-secondary);">Usually 10 months (2 months free)</small>
                         </div>
                     </div>
                     
@@ -20067,9 +20063,8 @@ Local honey and preserves"></textarea>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">${p.code}</div>
                             </td>
                             <td><span class="badge">${p.category || 'general'}</span></td>
-                            <td>${p.price_monthly > 0 ? '£' + parseFloat(p.price_monthly).toFixed(2) : '-'}</td>
-                            <td>${p.price_yearly > 0 ? '£' + parseFloat(p.price_yearly).toFixed(2) : '-'}</td>
-                            <td>${p.price_once > 0 ? '£' + parseFloat(p.price_once).toFixed(2) : '-'}</td>
+                            <td>${p.price_monthly > 0 ? '£' + parseFloat(p.price_monthly).toFixed(2) + '/mo' : '-'}</td>
+                            <td>${p.price_yearly > 0 ? '£' + parseFloat(p.price_yearly).toFixed(2) + '/yr' : '-'}</td>
                             <td><span class="badge ${p.is_active ? 'badge-success' : 'badge-warning'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
                             <td>
                                 <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editProduct(${p.id})">Edit</button>
@@ -20078,11 +20073,11 @@ Local honey and preserves"></textarea>
                         </tr>
                     `).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No products yet. Click "+ Add Product" to create one.</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No products yet. Click "+ Add Product" to create one.</td></tr>';
                 }
             } catch (error) {
                 console.error('Error loading products:', error);
-                document.getElementById('billing-products-table').innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--error);">Error loading products</td></tr>';
+                document.getElementById('billing-products-table').innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--error);">Error loading products</td></tr>';
             }
         }
 
@@ -20095,7 +20090,6 @@ Local honey and preserves"></textarea>
             document.getElementById('product-category').value = product?.category || 'general';
             document.getElementById('product-price-monthly').value = product?.price_monthly || '';
             document.getElementById('product-price-yearly').value = product?.price_yearly || '';
-            document.getElementById('product-price-once').value = product?.price_once || '';
             document.getElementById('product-is-active').checked = product?.is_active !== false;
             openModal('productModal');
         }
@@ -20122,7 +20116,6 @@ Local honey and preserves"></textarea>
                 category: document.getElementById('product-category').value,
                 price_monthly: parseFloat(document.getElementById('product-price-monthly').value) || 0,
                 price_yearly: parseFloat(document.getElementById('product-price-yearly').value) || 0,
-                price_once: parseFloat(document.getElementById('product-price-once').value) || 0,
                 is_active: document.getElementById('product-is-active').checked
             };
             
