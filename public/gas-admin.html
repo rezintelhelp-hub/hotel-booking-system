@@ -4103,6 +4103,7 @@ fetch('/api/public/client/1/rooms')
                                 <select class="form-select" id="wb-featured-mode">
                                     <option value="all">Show All Rooms</option>
                                     <option value="count">Show First X Rooms</option>
+                                    <option value="random">Show Random Rooms</option>
                                     <option value="selected">Select Specific Rooms</option>
                                 </select>
                             </div>
@@ -8592,14 +8593,20 @@ const promo = await fetch('/api/v1/offers/validate', {
                 
                 document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
                     const key = el.id.replace(prefix, '');
+                    // Skip picker, value display, and preview elements
+                    if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
+                        return;
+                    }
                     if (el.type === 'checkbox') {
                         settings[key] = el.checked;
                     } else if (el.type === 'file') {
                         // Handle file uploads separately
-                    } else {
+                    } else if (el.value !== undefined) {
                         settings[key] = el.value;
                     }
                 });
+                
+                console.log('Saving settings:', section, settings); // Debug
                 
                 const response = await fetch(`/api/admin/website-builder/${section}`, {
                     method: 'POST',
