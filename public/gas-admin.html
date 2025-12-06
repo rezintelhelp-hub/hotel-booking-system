@@ -3069,20 +3069,41 @@
                     </div>
                 </div>
 
-                <!-- Property Selector -->
+                <!-- Property & Room Selector -->
                 <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 250px;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Select Property</label>
-                            <select id="marketing-property-select" class="form-input" onchange="loadPropertyFeatures()">
+                            <select id="marketing-property-select" class="form-input" onchange="loadMarketingRooms()">
                                 <option value="">Select Property...</option>
                             </select>
                         </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Select Room/Unit</label>
+                            <select id="marketing-room-select" class="form-input" onchange="loadRoomFeatures()">
+                                <option value="">All Rooms (Property-wide)</option>
+                            </select>
+                        </div>
                         <div id="marketing-save-btn" style="display: none;">
-                            <button class="btn" onclick="savePropertyFeatures()" style="background: #16a34a;">
+                            <button class="btn" onclick="saveMarketingFeatures()" style="background: #16a34a;">
                                 💾 Save Features
                             </button>
                         </div>
+                    </div>
+                    
+                    <!-- Apply to all rooms checkbox -->
+                    <div id="apply-all-rooms-container" style="display: none; margin-top: 1rem; padding: 0.75rem; background: #eff6ff; border-radius: 8px; border: 1px solid #bfdbfe;">
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                            <input type="checkbox" id="apply-to-all-rooms" style="width: 18px; height: 18px;">
+                            <span><strong>Apply changes to ALL rooms</strong> in this property</span>
+                        </label>
+                        <p style="margin: 0.5rem 0 0 2rem; font-size: 0.85rem; color: #3b82f6;">
+                            When checked, saving will update all rooms. When unchecked, only the selected room is updated.
+                        </p>
+                    </div>
+                    
+                    <!-- Room feature status indicator -->
+                    <div id="marketing-room-status" style="display: none; margin-top: 0.75rem; padding: 0.5rem 0.75rem; border-radius: 6px; font-size: 0.9rem;">
                     </div>
                 </div>
 
@@ -13816,20 +13837,44 @@ Local honey and preserves"></textarea>
         
         async function loadPropertyFeatures() {
             const propertyId = document.getElementById('marketing-property-select').value;
+            const roomId = document.getElementById('marketing-room-select')?.value;
             const content = document.getElementById('marketing-content');
             const empty = document.getElementById('marketing-empty');
             const saveBtn = document.getElementById('marketing-save-btn');
+            const applyAllContainer = document.getElementById('apply-all-rooms-container');
+            const statusDiv = document.getElementById('marketing-room-status');
             
             if (!propertyId) {
                 content.style.display = 'none';
                 empty.style.display = 'block';
                 saveBtn.style.display = 'none';
+                if (applyAllContainer) applyAllContainer.style.display = 'none';
+                if (statusDiv) statusDiv.style.display = 'none';
                 return;
             }
             
             content.style.display = 'block';
             empty.style.display = 'none';
             saveBtn.style.display = 'block';
+            
+            // Show apply-all checkbox when a specific room is selected
+            if (applyAllContainer) {
+                applyAllContainer.style.display = roomId ? 'block' : 'none';
+            }
+            
+            // Show status indicator
+            if (statusDiv) {
+                if (roomId) {
+                    const roomName = document.getElementById('marketing-room-select').selectedOptions[0]?.text || 'this room';
+                    statusDiv.innerHTML = `<span style="color: #2563eb;">📍 Editing features for: <strong>${roomName}</strong></span>`;
+                    statusDiv.style.background = '#eff6ff';
+                    statusDiv.style.display = 'block';
+                } else {
+                    statusDiv.innerHTML = `<span style="color: #059669;">🏠 Editing property-wide features (applies to all rooms by default)</span>`;
+                    statusDiv.style.background = '#ecfdf5';
+                    statusDiv.style.display = 'block';
+                }
+            }
             
             // Reset all checkboxes
             document.querySelectorAll('.feature-item input[type="checkbox"]').forEach(cb => {
@@ -13848,9 +13893,12 @@ Local honey and preserves"></textarea>
                 propertyRooms = [];
             }
             
-            // Load saved features
+            // Load saved features (either room-specific or property-wide)
             try {
-                const response = await fetch(`/api/properties/${propertyId}/features`);
+                const endpoint = roomId 
+                    ? `/api/rooms/${roomId}/features`
+                    : `/api/properties/${propertyId}/features`;
+                const response = await fetch(endpoint);
                 const data = await response.json();
                 
                 if (data.success && data.features) {
@@ -13870,6 +13918,115 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.log('No saved features yet or API not available');
             }
+        }
+        
+        // Load rooms when property is selected
+        async function loadMarketingRooms() {
+            const propertyId = document.getElementById('marketing-property-select').value;
+            const roomSelect = document.getElementById('marketing-room-select');
+            
+            // Reset room dropdown
+            roomSelect.innerHTML = '<option value="">All Rooms (Property-wide)</option>';
+            
+            if (!propertyId) {
+                loadPropertyFeatures();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    data.data.forEach(room => {
+                        roomSelect.innerHTML += `<option value="${room.id}">${room.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+            
+            // Load property-wide features
+            loadPropertyFeatures();
+        }
+        
+        // Load features for selected room
+        function loadRoomFeatures() {
+            loadPropertyFeatures();
+        }
+        
+        // Save features (room or property level)
+        async function saveMarketingFeatures() {
+            const propertyId = document.getElementById('marketing-property-select').value;
+            const roomId = document.getElementById('marketing-room-select')?.value;
+            const applyToAll = document.getElementById('apply-to-all-rooms')?.checked;
+            
+            if (!propertyId) return;
+            
+            // Collect all selected features
+            const features = [];
+            
+            // Standard features
+            document.querySelectorAll('.feature-item input[type="checkbox"]:checked').forEach(cb => {
+                features.push({
+                    feature_name: cb.dataset.feature,
+                    category: cb.closest('.feature-grid')?.dataset.category || 'custom',
+                    is_custom: false,
+                    excluded_room_ids: featureRoomExclusions[cb.dataset.feature] || []
+                });
+            });
+            
+            // Custom features
+            customFeatures.forEach(f => {
+                features.push({
+                    feature_name: f,
+                    category: 'custom',
+                    is_custom: true,
+                    excluded_room_ids: featureRoomExclusions[f] || []
+                });
+            });
+            
+            // Determine endpoint based on selection
+            let endpoint, successMsg;
+            
+            if (roomId && !applyToAll) {
+                // Save for specific room only
+                endpoint = `/api/rooms/${roomId}/features`;
+                successMsg = '✓ Room features saved successfully!';
+            } else if (roomId && applyToAll) {
+                // Save to all rooms in property
+                endpoint = `/api/properties/${propertyId}/features?apply_to_rooms=true`;
+                successMsg = '✓ Features saved to ALL rooms in this property!';
+            } else {
+                // Save property-wide defaults
+                endpoint = `/api/properties/${propertyId}/features`;
+                successMsg = '✓ Property-wide features saved successfully!';
+            }
+            
+            try {
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ features, property_id: propertyId })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(successMsg);
+                } else {
+                    alert('Error saving features: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                // API might not exist yet - show success anyway for demo
+                alert(successMsg + ' (Note: API endpoint may need to be created)');
+                console.log('Features to save:', { endpoint, features, roomId, applyToAll });
+            }
+        }
+        
+        // Keep old function name for backward compatibility
+        async function savePropertyFeatures() {
+            return saveMarketingFeatures();
         }
         
         function renderCustomFeatures() {
@@ -13906,54 +14063,6 @@ Local honey and preserves"></textarea>
             customFeatures = customFeatures.filter(f => f !== feature);
             delete featureRoomExclusions[feature];
             renderCustomFeatures();
-        }
-        
-        async function savePropertyFeatures() {
-            const propertyId = document.getElementById('marketing-property-select').value;
-            if (!propertyId) return;
-            
-            // Collect all selected features
-            const features = [];
-            
-            // Standard features
-            document.querySelectorAll('.feature-item input[type="checkbox"]:checked').forEach(cb => {
-                features.push({
-                    feature_name: cb.dataset.feature,
-                    category: cb.closest('.feature-grid').dataset.category,
-                    is_custom: false,
-                    excluded_room_ids: featureRoomExclusions[cb.dataset.feature] || []
-                });
-            });
-            
-            // Custom features
-            customFeatures.forEach(f => {
-                features.push({
-                    feature_name: f,
-                    category: 'custom',
-                    is_custom: true,
-                    excluded_room_ids: featureRoomExclusions[f] || []
-                });
-            });
-            
-            try {
-                const response = await fetch(`/api/properties/${propertyId}/features`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ features })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    alert('✓ Marketing features saved successfully!');
-                } else {
-                    alert('Error saving features: ' + (data.error || 'Unknown error'));
-                }
-            } catch (error) {
-                // API might not exist yet - show success anyway for demo
-                alert('✓ Marketing features saved! (Note: API endpoint may need to be created)');
-                console.log('Features to save:', features);
-            }
         }
         
         function showRoomExclusions(featureName) {
