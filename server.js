@@ -14269,7 +14269,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 JOIN properties p ON r.property_id = p.id 
                 WHERE p.client_id = $1
             `, [clientId]),
-            pool.query(`SELECT section, settings FROM website_settings WHERE client_id = $1`, [clientId])
+            pool.query(`SELECT section, settings FROM website_settings WHERE account_id = $1`, [clientId])
         ]);
         
         // Check if blog posts exist
@@ -14652,14 +14652,18 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
 pool.query(`
   CREATE TABLE IF NOT EXISTS website_settings (
     id SERIAL PRIMARY KEY,
-    client_id INTEGER REFERENCES clients(id),
+    account_id INTEGER NOT NULL,
     section VARCHAR(50) NOT NULL,
     settings JSONB DEFAULT '{}',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(client_id, section)
+    UNIQUE(account_id, section)
   )
 `).catch(err => console.log('Website settings table may already exist'));
+
+// Migrate old client_id to account_id if needed
+pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS account_id INTEGER`).catch(() => {});
+pool.query(`UPDATE website_settings SET account_id = client_id WHERE account_id IS NULL AND client_id IS NOT NULL`).catch(() => {});
 
 // Get website builder section settings
 app.get('/api/admin/website-builder/:section', async (req, res) => {
@@ -14756,6 +14760,74 @@ app.get('/api/v1/website-settings', validateApiKey, async (req, res) => {
     res.json({ success: true, settings: allSettings });
   } catch (error) {
     console.error('Get all website settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Push website settings to WordPress site
+app.post('/api/admin/push-to-wordpress', async (req, res) => {
+  try {
+    const { account_id, section, settings, site_url } = req.body;
+    
+    if (!account_id || !section || !site_url) {
+      return res.json({ success: false, error: 'Missing required fields' });
+    }
+    
+    // Get WordPress multisite API settings
+    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const apiKey = wpSettings.rows[0]?.api_key;
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'WordPress API not configured' });
+    }
+    
+    // Push settings to WordPress via gas-api.php
+    const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'update_settings',
+        account_id,
+        section,
+        settings,
+        site_url
+      })
+    });
+    
+    const wpData = await wpResponse.json();
+    
+    if (wpData.success) {
+      res.json({ success: true, message: 'Settings pushed to WordPress' });
+    } else {
+      res.json({ success: false, error: wpData.error || 'WordPress update failed' });
+    }
+  } catch (error) {
+    console.error('Push to WordPress error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get account website details
+app.get('/api/account/:accountId/website', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT * FROM account_websites 
+      WHERE account_id = $1 AND status = 'active'
+      ORDER BY created_at DESC LIMIT 1
+    `, [accountId]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, data: result.rows[0] });
+    } else {
+      res.json({ success: true, data: null });
+    }
+  } catch (error) {
+    console.error('Get account website error:', error);
     res.json({ success: false, error: error.message });
   }
 });
