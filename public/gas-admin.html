@@ -3749,6 +3749,40 @@ fetch('/api/public/client/1/rooms')
                         </div>
                     </div>
                 </div>
+                
+                <!-- Search Widget Card -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h3>🔍 Search Widget</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Background Color</label>
+                            <input type="color" id="wb-hero-search-bg" value="#ffffff" style="width: 60px; height: 40px; border: none; cursor: pointer;">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Background Opacity: <span id="wb-hero-search-opacity-value">100</span>%</label>
+                            <input type="range" id="wb-hero-search-opacity" min="0" max="100" value="100" style="width: 100%;" oninput="document.getElementById('wb-hero-search-opacity-value').textContent = this.value">
+                            <small class="form-hint">0 = transparent, 100 = solid</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Corner Radius: <span id="wb-hero-search-radius-value">16</span>px</label>
+                            <input type="range" id="wb-hero-search-radius" min="0" max="32" value="16" style="width: 100%;" oninput="document.getElementById('wb-hero-search-radius-value').textContent = this.value">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Padding: <span id="wb-hero-search-padding-value">24</span>px</label>
+                            <input type="range" id="wb-hero-search-padding" min="0" max="48" value="24" style="width: 100%;" oninput="document.getElementById('wb-hero-search-padding-value').textContent = this.value">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Max Width: <span id="wb-hero-search-max-width-value">900</span>px</label>
+                            <input type="range" id="wb-hero-search-max-width" min="600" max="1200" value="900" style="width: 100%;" oninput="document.getElementById('wb-hero-search-max-width-value').textContent = this.value">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Button Color</label>
+                            <input type="color" id="wb-hero-search-btn-bg" value="#2563eb" style="width: 60px; height: 40px; border: none; cursor: pointer;">
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Website Builder: Intro Section -->
