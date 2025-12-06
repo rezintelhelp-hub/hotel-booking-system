@@ -1,98 +1,296 @@
 {
-  "updated": "2025-12-05",
+  "updated": "2025-12-06",
+  "categories": [
+    {
+      "id": "restructure",
+      "name": "GAS Admin Restructure",
+      "icon": "🔧",
+      "description": "Reorganizing Content/Amenities/Marketing sections"
+    },
+    {
+      "id": "website-builder",
+      "name": "Website Builder",
+      "icon": "🌐",
+      "description": "Page templates, content generation, WordPress sync"
+    },
+    {
+      "id": "apps",
+      "name": "Apps (Reviews, Blog, Attractions)",
+      "icon": "📱",
+      "description": "Build out the GAS apps functionality"
+    },
+    {
+      "id": "wordpress",
+      "name": "WordPress Integration",
+      "icon": "🔌",
+      "description": "WP plugin, theme, sync issues"
+    },
+    {
+      "id": "integrations",
+      "name": "Channel Manager & Integrations",
+      "icon": "🔗",
+      "description": "Beds24, Smoobu, Hostaway, payment providers"
+    },
+    {
+      "id": "billing",
+      "name": "Billing & Subscriptions",
+      "icon": "💳",
+      "description": "Stripe, plans, credits"
+    },
+    {
+      "id": "ui",
+      "name": "UI/UX Improvements",
+      "icon": "🎨",
+      "description": "GAS Admin interface improvements"
+    },
+    {
+      "id": "bugs",
+      "name": "Bug Fixes",
+      "icon": "🐛",
+      "description": "Issues and fixes"
+    }
+  ],
   "tasks": [
     {
+      "id": "rs-001",
+      "title": "Amenities Restructure - 4 Tabs",
+      "description": "Reorganize Amenities into Rooms, Bathrooms, In-Room Features, Terms & Policies tabs",
+      "priority": "urgent",
+      "category": "restructure",
+      "status": "done",
+      "completed": "2025-12-06"
+    },
+    {
+      "id": "rs-002",
+      "title": "Terms & Policies Tab",
+      "description": "Add check-in/out times, smoking, pets, children, events, accessibility policies to Amenities",
+      "priority": "urgent",
+      "category": "restructure",
+      "status": "done",
+      "completed": "2025-12-06"
+    },
+    {
+      "id": "rs-003",
+      "title": "Marketing Features Enhancement",
+      "description": "Add Property Type, Nearby, Awards sections to Marketing Features & Tags",
+      "priority": "high",
+      "category": "restructure",
+      "status": "done",
+      "completed": "2025-12-06"
+    },
+    {
+      "id": "rs-004",
+      "title": "Property Terms API",
+      "description": "Create API endpoints for saving/loading property terms (check-in, pets, etc.)",
+      "priority": "high",
+      "category": "restructure",
+      "status": "todo"
+    },
+    {
+      "id": "rs-005",
+      "title": "Website Builder - Add Branding",
+      "description": "Merge Content → Branding into Website Builder as first item",
+      "priority": "high",
+      "category": "restructure",
+      "status": "todo"
+    },
+    {
+      "id": "rs-006",
+      "title": "Remove Content Section",
+      "description": "Remove Content Management entirely - all data now has proper homes",
+      "priority": "medium",
+      "category": "restructure",
+      "status": "todo"
+    },
+    {
+      "id": "rs-007",
+      "title": "Terms Page Auto-Generate",
+      "description": "Terms & Conditions page should auto-populate from Amenities → Terms tab",
+      "priority": "high",
+      "category": "restructure",
+      "status": "todo"
+    },
+    {
+      "id": "wb-001",
+      "title": "Create Page Templates for Sub Pages",
+      "description": "Build WordPress templates for About, Gallery, Blog, Attractions, Dining, Contact, Terms, Privacy pages",
+      "priority": "urgent",
+      "category": "website-builder",
+      "status": "todo",
+      "subtasks": [
+        "About Us template with story, values, team sections",
+        "Gallery template with grid/masonry/slider layouts",
+        "Blog archive and single post templates",
+        "Attractions template with categories and map",
+        "Dining template with breakfast/restaurant sections",
+        "Contact template with form and map",
+        "Terms & Conditions template",
+        "Privacy Policy template"
+      ]
+    },
+    {
+      "id": "wb-002",
+      "title": "AI Content Generation for Pages",
+      "description": "Add AI-powered content generation button to help users create page content based on their property info",
+      "priority": "high",
+      "category": "website-builder",
+      "status": "todo",
+      "subtasks": [
+        "Generate About Us content from property description",
+        "Generate Terms & Conditions based on property type",
+        "Generate Privacy Policy template",
+        "Generate Dining descriptions"
+      ]
+    },
+    {
+      "id": "wb-003",
+      "title": "Connect Sub Pages to WordPress",
+      "description": "Sync sub page content from GAS Admin to WordPress, create pages automatically on sync",
+      "priority": "urgent",
+      "category": "website-builder",
+      "status": "todo",
+      "subtasks": [
+        "API endpoints for sub page data",
+        "WordPress plugin sync for pages",
+        "Auto-create WordPress pages on first sync",
+        "Update existing pages on subsequent syncs"
+      ]
+    },
+    {
+      "id": "wb-004",
+      "title": "Footer Links to Terms/Privacy",
+      "description": "Add Terms and Privacy links to footer template, make them configurable",
+      "priority": "medium",
+      "category": "website-builder",
+      "status": "todo"
+    },
+    {
+      "id": "app-001",
+      "title": "Reviews App - Full Build",
+      "description": "Complete the Reviews app with manual review entry, import from platforms, display widgets",
+      "priority": "high",
+      "category": "apps",
+      "status": "in_progress",
+      "subtasks": [
+        "Manual review entry form in GAS Admin",
+        "Import reviews from TripAdvisor API",
+        "Import reviews from Google Places API",
+        "Import reviews from Booking.com (if API available)",
+        "Review moderation (approve/hide/respond)",
+        "Review response templates",
+        "Star rating aggregation",
+        "Review display widgets for WordPress"
+      ]
+    },
+    {
+      "id": "app-002",
+      "title": "Blog App - Full Build",
+      "description": "Complete blog system with post editor, categories, scheduling, WordPress sync",
+      "priority": "high",
+      "category": "apps",
+      "status": "in_progress",
+      "subtasks": [
+        "Rich text editor for blog posts",
+        "Featured image upload",
+        "Categories and tags",
+        "Draft/Published/Scheduled status",
+        "SEO fields (meta title, description)",
+        "Sync posts to WordPress",
+        "Author management"
+      ]
+    },
+    {
+      "id": "app-003",
+      "title": "Attractions App - Full Build",
+      "description": "Local attractions/things to do with categories, distances, maps",
+      "priority": "high",
+      "category": "apps",
+      "status": "in_progress",
+      "subtasks": [
+        "Attraction entry form (name, description, category, address)",
+        "Distance calculation from property",
+        "Category management (Restaurants, Activities, Landmarks, etc.)",
+        "Image gallery per attraction",
+        "Opening hours",
+        "Website/phone/booking links",
+        "Map integration",
+        "WordPress display widget"
+      ]
+    },
+    {
+      "id": "wp-001",
       "title": "WordPress Site Full Sync from GAS",
-      "description": "Priority focus: Ensure all GAS data (properties, rooms, amenities, content, images) flows correctly to WordPress sites",
-      "priority": "urgent",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Amenities Display on WP Checkout",
-      "description": "Features tab should show room amenities - verify API returns data correctly after today's fixes",
-      "priority": "urgent",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Extras Not Displaying on Checkout",
-      "description": "User reported extras/upsells not showing on WP checkout - needs investigation",
-      "priority": "high",
-      "category": "bug",
-      "status": "todo"
-    },
-    {
-      "title": "Cancellation Policy from GAS",
-      "description": "WordPress plugin has '48 hours' hardcoded (line 2483). Should pull from GAS Admin Content → Policies or add to WP plugin settings.",
-      "priority": "high",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Property Fields Sync",
-      "description": "Ensure all property fields (name, description, address, policies, etc.) flow from GAS to WP",
-      "priority": "high",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Room Fields Sync",
-      "description": "Ensure all room fields (name, description, capacity, beds, amenities) flow from GAS to WP",
-      "priority": "high",
-      "category": "wordpress",
-      "status": "todo"
-    },
-    {
-      "title": "Audit WP Plugin Fields vs GAS",
-      "description": "Review all fields in WordPress plugin and ensure matching fields exist in GAS database/API",
+      "description": "Ensure all GAS data (properties, rooms, amenities, content, images) flows correctly to WordPress sites",
       "priority": "urgent",
       "category": "wordpress",
       "status": "in_progress"
     },
     {
-      "title": "Site-Level Override System",
-      "description": "Allow WP site to override GAS values OR pull from GAS. Store override preference in GAS.",
+      "id": "wp-002",
+      "title": "Amenities Display on WP Checkout",
+      "description": "Features tab should show room amenities - verify API returns data correctly",
+      "priority": "urgent",
+      "category": "wordpress",
+      "status": "todo"
+    },
+    {
+      "id": "wp-003",
+      "title": "Extras Not Displaying on Checkout",
+      "description": "User reported extras/upsells not showing on WP checkout - needs investigation",
       "priority": "high",
       "category": "wordpress",
       "status": "todo"
     },
     {
-      "title": "GAS Override Management UI",
-      "description": "In GAS Admin, show which fields are overridden at site level for each property",
-      "priority": "medium",
+      "id": "wp-004",
+      "title": "Cancellation Policy from GAS",
+      "description": "WordPress plugin has '48 hours' hardcoded. Should pull from GAS Admin Content → Policies or Terms page.",
+      "priority": "high",
       "category": "wordpress",
       "status": "todo"
     },
     {
+      "id": "int-001",
       "title": "CM Webhooks - Beds24",
       "description": "Set up webhook endpoint to receive booking notifications from Beds24 in real-time",
       "priority": "high",
-      "category": "integration",
+      "category": "integrations",
       "status": "todo"
     },
     {
+      "id": "int-002",
       "title": "CM Webhooks - Smoobu",
       "description": "Set up webhook endpoint to receive booking notifications from Smoobu",
       "priority": "medium",
-      "category": "integration",
+      "category": "integrations",
       "status": "todo"
     },
     {
+      "id": "int-003",
       "title": "CM Property Sync Button",
-      "description": "Add Pull Properties button in Integrations to manually sync and compare properties from CM. Flag new/removed/changed properties.",
+      "description": "Add Pull Properties button in Integrations to manually sync properties from CM",
       "priority": "high",
-      "category": "integration",
+      "category": "integrations",
       "status": "todo"
     },
     {
-      "title": "CM Auto-Sync Schedule",
-      "description": "Optional daily auto-check to compare CM properties with GAS properties",
-      "priority": "low",
-      "category": "integration",
+      "id": "int-004",
+      "title": "ChargeAutomation Integration",
+      "description": "Integration with chargeautomation.com for payments, deposits, damage waivers",
+      "priority": "medium",
+      "category": "integrations",
       "status": "todo"
     },
     {
+      "id": "int-005",
+      "title": "Chekin Integration",
+      "description": "Integration with Chekin for ID verification + payment collection",
+      "priority": "medium",
+      "category": "integrations",
+      "status": "todo"
+    },
+    {
+      "id": "bill-001",
       "title": "Stripe Integration for GAS Subscriptions",
       "description": "Connect Stripe for recurring billing on plans (Starter £29, Pro £59, Business £99, Enterprise £199)",
       "priority": "high",
@@ -100,6 +298,7 @@
       "status": "todo"
     },
     {
+      "id": "bill-002",
       "title": "Stripe Webhook Handler",
       "description": "Handle subscription.created, invoice.paid, subscription.cancelled events from Stripe",
       "priority": "high",
@@ -107,190 +306,128 @@
       "status": "todo"
     },
     {
-      "title": "Payment Provider Settings per Property",
-      "description": "Allow each property to configure their payment approach: Beds24 Stripe, Direct Stripe, ChargeAutomation, Chekin, etc.",
+      "id": "bug-001",
+      "title": "Search Button Color Not Syncing",
+      "description": "Hero section search button color was being overwritten by Styles section",
       "priority": "high",
-      "category": "billing",
-      "status": "todo"
+      "category": "bugs",
+      "status": "done",
+      "completed": "2025-12-06"
     },
     {
-      "title": "ChargeAutomation Integration",
-      "description": "Integration with chargeautomation.com for payments, deposits, damage waivers",
+      "id": "bug-002",
+      "title": "Reviews Slider Card Cut-off",
+      "description": "First review card was partially cut off, fixed with gap-based layout",
       "priority": "medium",
-      "category": "integration",
-      "status": "todo"
-    },
+      "category": "bugs",
+      "status": "done",
+      "completed": "2025-12-06"
+    }
+  ],
+  "completed": [
     {
-      "title": "Chekin Integration",
-      "description": "Integration with Chekin for ID verification + payment collection",
-      "priority": "medium",
-      "category": "integration",
-      "status": "todo"
-    },
-    {
-      "title": "Country Code Migration",
-      "description": "Standardize existing database entries to ISO 2-letter codes. Some have 'Switzerland', 'United Kingdom' instead of CH, GB.",
-      "priority": "low",
-      "category": "data",
-      "status": "todo"
-    },
-    {
-      "title": "Add Bed Quantity Support",
-      "description": "Allow specifying quantity for beds (e.g., 2x Double Bed) - UI ready, needs DB column added safely",
-      "priority": "medium",
-      "category": "feature",
-      "status": "todo"
-    },
-    {
+      "id": "done-001",
       "title": "Collapsible Sidebar Menu",
       "description": "Added expandable/collapsible sections to sidebar menu with state persistence",
-      "priority": "medium",
       "category": "ui",
-      "status": "done",
       "completed": "2025-12-05"
     },
     {
+      "id": "done-002",
       "title": "Amenities Page - Property/Room Selector",
-      "description": "Moved amenities management from Room Edit modal to dedicated Amenities page with Property → Room selection",
-      "priority": "high",
+      "description": "Moved amenities management to dedicated page with Property → Room selection",
       "category": "ui",
-      "status": "done",
       "completed": "2025-12-05"
     },
     {
-      "title": "Rooms & Units Property Selector",
-      "description": "Added Property selector to Rooms page matching consistent UI pattern",
-      "priority": "medium",
-      "category": "ui",
-      "status": "done",
-      "completed": "2025-12-05"
-    },
-    {
-      "title": "Images Property Selector",
-      "description": "Added Property/Room selector to Images page matching consistent UI pattern",
-      "priority": "medium",
-      "category": "ui",
-      "status": "done",
-      "completed": "2025-12-05"
-    },
-    {
-      "title": "Bookings Property Selector",
-      "description": "Added Property/Room/Status selector to Bookings page matching consistent UI pattern",
-      "priority": "medium",
-      "category": "ui",
-      "status": "done",
-      "completed": "2025-12-05"
-    },
-    {
-      "title": "Vouchers UI Property Selector",
-      "description": "Add Property/Room selector to Vouchers matching consistent UI pattern",
-      "priority": "medium",
-      "category": "ui",
-      "status": "done",
-      "completed": "2025-12-05"
-    },
-    {
-      "title": "Upsells UI Property Selector",
-      "description": "Add Property/Room selector to Upsells matching consistent UI pattern",
-      "priority": "medium",
-      "category": "ui",
-      "status": "done",
-      "completed": "2025-12-05"
-    },
-    {
-      "title": "Tax Visibility in Master Account",
-      "description": "Master can now see taxes when selecting client properties - fixed API filtering",
-      "priority": "high",
-      "category": "bug",
-      "status": "done",
-      "completed": "2025-12-05"
-    },
-    {
-      "title": "Amenities API Fix",
-      "description": "Fixed public API to query room_amenity_selections joined with master_amenities instead of wrong table",
-      "priority": "high",
-      "category": "bug",
-      "status": "done",
-      "completed": "2025-12-05"
-    },
-    {
+      "id": "done-003",
       "title": "WordPress Multisite on Hostinger VPS",
       "description": "Set up sites.gas.travel with wildcard SSL, WordPress Multisite, GAS plugins",
-      "priority": "high",
       "category": "wordpress",
-      "status": "done",
       "completed": "2025-12-04"
     },
     {
+      "id": "done-004",
       "title": "GAS Admin → WordPress Site Creation",
       "description": "Create/delete WP sites from GAS Admin via API, auto-configure plugins",
-      "priority": "high",
       "category": "wordpress",
-      "status": "done",
       "completed": "2025-12-04"
     },
     {
-      "title": "ID Columns in GAS Admin",
-      "description": "Added ID columns to Accounts, Properties, Agencies tables",
-      "priority": "medium",
-      "category": "ui",
-      "status": "done",
-      "completed": "2025-12-04"
-    },
-    {
+      "id": "done-005",
       "title": "Lehmann House Site Live",
       "description": "https://lehmannhouse.sites.gas.travel created and configured",
-      "priority": "high",
       "category": "wordpress",
-      "status": "done",
       "completed": "2025-12-04"
     },
     {
-      "title": "Room Type/Max Adults/Children Editable",
-      "description": "Fixed room edit modal - Room Type, Max Adults, Max Children fields now editable",
-      "priority": "high",
-      "category": "bug",
-      "status": "done",
-      "completed": "2025-12-05"
+      "id": "done-006",
+      "title": "Website Builder - 129 Fields Mapped",
+      "description": "Complete field mapping document for all Website Builder sections",
+      "category": "website-builder",
+      "completed": "2025-12-06"
     },
     {
-      "title": "Comprehensive Amenities Import",
-      "description": "Created amenities.json with 150+ amenities organized by category (room vs property level)",
-      "priority": "high",
-      "category": "feature",
-      "status": "done",
-      "completed": "2025-12-05"
+      "id": "done-007",
+      "title": "Footer 4-Column Layout",
+      "description": "Updated footer to 4 equal columns with Book Now CTA",
+      "category": "website-builder",
+      "completed": "2025-12-06"
     },
     {
-      "title": "Tasks Management System",
-      "description": "Added Tasks view to GAS Admin with sync from tasks.json file",
-      "priority": "medium",
-      "category": "feature",
-      "status": "done",
-      "completed": "2025-12-05"
+      "id": "done-008",
+      "title": "Reviews Section Feature Gating",
+      "description": "Reviews section locked behind subscription, shows upgrade prompt",
+      "category": "billing",
+      "completed": "2025-12-06"
     },
     {
-      "title": "Tax Property Selector UI",
-      "description": "Added Property/Room dropdown to Taxes page matching Offers pattern",
-      "priority": "high",
+      "id": "done-009",
+      "title": "Website Builder Restructure",
+      "description": "Reorganized into Home Page dropdown, Sub Pages dropdown, Footer dropdown",
+      "category": "website-builder",
+      "completed": "2025-12-06"
+    },
+    {
+      "id": "done-010",
+      "title": "Sub Pages Added",
+      "description": "Added About, Gallery, Blog, Attractions, Dining, Contact, Terms, Privacy pages to Website Builder",
+      "category": "website-builder",
+      "completed": "2025-12-06"
+    },
+    {
+      "id": "done-011",
+      "title": "Feature Override Toggles",
+      "description": "Added Blog, Attractions, Reviews toggles to plan assignment modal",
+      "category": "billing",
+      "completed": "2025-12-06"
+    },
+    {
+      "id": "done-012",
+      "title": "Manage Plan Button on Account Banner",
+      "description": "Quick access to plan management when viewing an account",
       "category": "ui",
-      "status": "done",
-      "completed": "2025-12-05"
+      "completed": "2025-12-06"
     },
     {
+      "id": "done-013",
       "title": "Tax Display on WP Checkout",
       "description": "Fixed calculate-price endpoint to filter taxes by property_id",
-      "priority": "high",
-      "category": "bug",
-      "status": "done",
+      "category": "bugs",
       "completed": "2025-12-05"
     },
     {
-      "title": "Rate Toggle on Checkout",
-      "description": "Fixed offer discount only showing when rate=offer in URL",
-      "priority": "high",
-      "category": "bug",
-      "status": "done",
+      "id": "done-014",
+      "title": "Amenities API Fix",
+      "description": "Fixed public API to query room_amenity_selections correctly",
+      "category": "bugs",
+      "completed": "2025-12-05"
+    },
+    {
+      "id": "done-015",
+      "title": "Comprehensive Amenities Import",
+      "description": "Created amenities.json with 150+ amenities organized by category",
+      "category": "ui",
       "completed": "2025-12-05"
     }
   ]
