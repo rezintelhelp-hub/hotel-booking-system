@@ -10585,6 +10585,162 @@ app.put('/api/admin/rooms/:roomId/images/reorder', async (req, res) => {
 });
 
 // =========================================================
+// PROPERTY TERMS & POLICIES API
+// =========================================================
+
+// GET /api/admin/properties/:id/terms - Load property terms and beds
+app.get('/api/admin/properties/:id/terms', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    
+    // Get terms
+    const termsResult = await pool.query(
+      'SELECT * FROM property_terms WHERE property_id = $1',
+      [propertyId]
+    );
+    
+    // Get beds
+    const bedsResult = await pool.query(
+      'SELECT bed_type, quantity, room_id FROM property_beds WHERE property_id = $1 AND room_id IS NULL ORDER BY display_order',
+      [propertyId]
+    );
+    
+    res.json({
+      success: true,
+      data: {
+        terms: termsResult.rows[0] || null,
+        beds: bedsResult.rows || []
+      }
+    });
+  } catch (error) {
+    console.error('Error loading property terms:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/admin/properties/:id/terms - Save property terms and beds
+app.put('/api/admin/properties/:id/terms', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const propertyId = req.params.id;
+    const { terms, beds } = req.body;
+    
+    await client.query('BEGIN');
+    
+    // Upsert terms (insert or update)
+    await client.query(`
+      INSERT INTO property_terms (
+        property_id,
+        checkin_from, checkin_until, checkout_by, late_checkout_fee,
+        self_checkin, checkin_24hr,
+        smoking_policy, smoking_fine,
+        pet_policy, pet_deposit, pet_fee_per_night,
+        dogs_allowed, cats_allowed, small_pets_only, max_pets,
+        children_policy, cots_available, highchairs_available, cot_fee_per_night,
+        events_policy,
+        wheelchair_accessible, step_free_access, accessible_bathroom,
+        grab_rails, roll_in_shower, elevator_access, ground_floor_available,
+        quiet_hours_from, quiet_hours_until, no_outside_guests, id_required,
+        additional_rules
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
+      ON CONFLICT (property_id) DO UPDATE SET
+        checkin_from = EXCLUDED.checkin_from,
+        checkin_until = EXCLUDED.checkin_until,
+        checkout_by = EXCLUDED.checkout_by,
+        late_checkout_fee = EXCLUDED.late_checkout_fee,
+        self_checkin = EXCLUDED.self_checkin,
+        checkin_24hr = EXCLUDED.checkin_24hr,
+        smoking_policy = EXCLUDED.smoking_policy,
+        smoking_fine = EXCLUDED.smoking_fine,
+        pet_policy = EXCLUDED.pet_policy,
+        pet_deposit = EXCLUDED.pet_deposit,
+        pet_fee_per_night = EXCLUDED.pet_fee_per_night,
+        dogs_allowed = EXCLUDED.dogs_allowed,
+        cats_allowed = EXCLUDED.cats_allowed,
+        small_pets_only = EXCLUDED.small_pets_only,
+        max_pets = EXCLUDED.max_pets,
+        children_policy = EXCLUDED.children_policy,
+        cots_available = EXCLUDED.cots_available,
+        highchairs_available = EXCLUDED.highchairs_available,
+        cot_fee_per_night = EXCLUDED.cot_fee_per_night,
+        events_policy = EXCLUDED.events_policy,
+        wheelchair_accessible = EXCLUDED.wheelchair_accessible,
+        step_free_access = EXCLUDED.step_free_access,
+        accessible_bathroom = EXCLUDED.accessible_bathroom,
+        grab_rails = EXCLUDED.grab_rails,
+        roll_in_shower = EXCLUDED.roll_in_shower,
+        elevator_access = EXCLUDED.elevator_access,
+        ground_floor_available = EXCLUDED.ground_floor_available,
+        quiet_hours_from = EXCLUDED.quiet_hours_from,
+        quiet_hours_until = EXCLUDED.quiet_hours_until,
+        no_outside_guests = EXCLUDED.no_outside_guests,
+        id_required = EXCLUDED.id_required,
+        additional_rules = EXCLUDED.additional_rules,
+        updated_at = CURRENT_TIMESTAMP
+    `, [
+      propertyId,
+      terms.checkin_from || '15:00',
+      terms.checkin_until || '22:00',
+      terms.checkout || '11:00',
+      terms.late_checkout_fee || null,
+      terms.self_checkin || false,
+      terms.checkin_24hr || false,
+      terms.smoking_policy || 'no',
+      terms.smoking_fine || null,
+      terms.pet_policy || 'no',
+      terms.pet_deposit || null,
+      terms.pet_fee || null,
+      terms.dogs_allowed || false,
+      terms.cats_allowed || false,
+      terms.small_pets_only || false,
+      terms.max_pets || 2,
+      terms.children_policy || 'all',
+      terms.cots_available || false,
+      terms.highchairs_available || false,
+      terms.cot_fee || null,
+      terms.events_policy || 'no',
+      terms.wheelchair_accessible || false,
+      terms.step_free || false,
+      terms.accessible_bathroom || false,
+      terms.grab_rails || false,
+      terms.roll_in_shower || false,
+      terms.elevator_access || false,
+      terms.ground_floor || false,
+      terms.quiet_hours_from || '22:00',
+      terms.quiet_hours_until || '08:00',
+      terms.no_outside_guests || false,
+      terms.id_required || false,
+      terms.additional_rules || null
+    ]);
+    
+    // Update beds - delete existing property-level beds and insert new
+    if (beds && Array.isArray(beds)) {
+      await client.query('DELETE FROM property_beds WHERE property_id = $1 AND room_id IS NULL', [propertyId]);
+      
+      for (let i = 0; i < beds.length; i++) {
+        const bed = beds[i];
+        if (bed.type) {
+          await client.query(
+            'INSERT INTO property_beds (property_id, bed_type, quantity, display_order) VALUES ($1, $2, $3, $4)',
+            [propertyId, bed.type, bed.quantity || 1, i]
+          );
+        }
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'Terms saved successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error saving property terms:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// =========================================================
 // BEDS24 WEBHOOK - Receive real-time updates
 // =========================================================
 // Configure this URL in Beds24: Settings > Account > Webhooks
