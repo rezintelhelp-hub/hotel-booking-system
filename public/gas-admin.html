@@ -4159,61 +4159,75 @@ fetch('/api/public/client/1/rooms')
                             <h2>⭐ Reviews Section</h2>
                             <p>Customer testimonials and ratings</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('reviews')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('reviews')" id="wb-reviews-save-btn">💾 Save & Sync</button>
                     </div>
                 </div>
 
-                <div class="card">
-                    <div class="card-header"><h3>Settings</h3></div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-reviews-enabled"> Enable Reviews Section
-                            </label>
-                            <small class="form-hint">When enabled, shows Repuso/widget reviews instead of default testimonials</small>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Section Title</label>
-                                <input type="text" class="form-input" id="wb-reviews-title" value="What Our Guests Say">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Section Subtitle</label>
-                                <input type="text" class="form-input" id="wb-reviews-subtitle" value="Real reviews from real guests">
-                            </div>
-                        </div>
+                <!-- Upgrade Banner (shown when Reviews app not purchased) -->
+                <div id="wb-reviews-upgrade-banner" class="card" style="margin-bottom: 1rem; display: none;">
+                    <div class="card-body" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">⭐</div>
+                        <h3 style="margin-bottom: 0.5rem;">Unlock the Reviews App</h3>
+                        <p style="color: #64748b; margin-bottom: 1.5rem;">Display reviews from TripAdvisor, Booking.com, Google and more on your website with beautiful, auto-updating widgets.</p>
+                        <a href="#" onclick="navClick(document.querySelector('[data-view=plans-extras]'), 'plans-extras'); return false;" class="btn" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">
+                            🚀 Upgrade Your Plan
+                        </a>
                     </div>
                 </div>
 
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Styling</h3></div>
-                    <div class="card-body">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                <!-- Settings (shown when Reviews app is active) -->
+                <div id="wb-reviews-content">
+                    <div class="card">
+                        <div class="card-header"><h3>Settings</h3></div>
+                        <div class="card-body">
                             <div class="form-group">
-                                <label class="form-label">Background Color</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-reviews-bg-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-reviews-bg" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-bg-picker')">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="wb-reviews-enabled"> Enable Reviews Section
+                                </label>
+                                <small class="form-hint">When enabled, shows reviews from TripAdvisor, Booking.com, and Google</small>
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                                <div class="form-group">
+                                    <label class="form-label">Section Title</label>
+                                    <input type="text" class="form-input" id="wb-reviews-title" value="What Our Guests Say">
                                 </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Text Color</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-reviews-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-reviews-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-text-color-picker')">
+                                <div class="form-group">
+                                    <label class="form-label">Section Subtitle</label>
+                                    <input type="text" class="form-input" id="wb-reviews-subtitle" value="Real reviews from real guests">
                                 </div>
                             </div>
                         </div>
                     </div>
-                </div>
 
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Widget Embed Code</h3></div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Repuso or Review Widget HTML</label>
-                            <textarea class="form-textarea" id="wb-reviews-widget" rows="4" placeholder="Paste your Repuso/Elfsight/TripAdvisor widget embed code here..."></textarea>
-                            <small class="form-hint">Paste the embed code from your review platform (Repuso, Elfsight, etc.)</small>
+                    <div class="card" style="margin-top: 1rem;">
+                        <div class="card-header"><h3>Styling</h3></div>
+                        <div class="card-body">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                <div class="form-group">
+                                    <label class="form-label">Background Color</label>
+                                    <div style="display: flex; gap: 8px; align-items: center;">
+                                        <input type="color" id="wb-reviews-bg-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-bg').value = this.value">
+                                        <input type="text" class="form-input" id="wb-reviews-bg" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-bg-picker')">
+                                    </div>
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Text Color</label>
+                                    <div style="display: flex; gap: 8px; align-items: center;">
+                                        <input type="color" id="wb-reviews-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-text-color').value = this.value">
+                                        <input type="text" class="form-input" id="wb-reviews-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-text-color-picker')">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card" style="margin-top: 1rem; background: linear-gradient(135deg, #f0fdf4, #ecfdf5); border: 1px solid #86efac;">
+                        <div class="card-body" style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="font-size: 2rem;">✅</div>
+                            <div>
+                                <strong style="color: #166534;">Reviews App Active</strong>
+                                <p style="margin: 0; color: #15803d; font-size: 0.9rem;">Your reviews from TripAdvisor, Booking.com, and Google will automatically display on your website.</p>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -8529,7 +8543,26 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'wb-intro') loadWebsiteSection('intro');
             if (viewName === 'wb-featured') loadWebsiteSection('featured');
             if (viewName === 'wb-about') loadWebsiteSection('about');
-            if (viewName === 'wb-reviews') loadWebsiteSection('reviews');
+            if (viewName === 'wb-reviews') {
+                loadWebsiteSection('reviews');
+                // Check if user has reviews_widget feature
+                const features = accountEntitlements?.features || {};
+                const hasReviews = features.reviews_widget === true;
+                const upgradeBanner = document.getElementById('wb-reviews-upgrade-banner');
+                const content = document.getElementById('wb-reviews-content');
+                const saveBtn = document.getElementById('wb-reviews-save-btn');
+                if (upgradeBanner && content) {
+                    if (hasReviews) {
+                        upgradeBanner.style.display = 'none';
+                        content.style.display = 'block';
+                        if (saveBtn) saveBtn.style.display = 'block';
+                    } else {
+                        upgradeBanner.style.display = 'block';
+                        content.style.display = 'none';
+                        if (saveBtn) saveBtn.style.display = 'none';
+                    }
+                }
+            }
             if (viewName === 'wb-cta') loadWebsiteSection('cta');
             if (viewName === 'wb-footer') loadWebsiteSection('footer');
             if (viewName === 'wb-styles') loadWebsiteSection('styles');
