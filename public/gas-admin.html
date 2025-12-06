@@ -1365,23 +1365,35 @@
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="my-billing" href="#" onclick="navClick(this, 'my-billing'); return false;">
                         <span class="nav-icon">💳</span>
-                        <span>Plans & Extras</span>
+                        <span>My Subscription</span>
                     </a>
                     <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-overview" href="#" onclick="navClick(this, 'billing-overview'); return false;">
                         <span class="nav-icon">📊</span>
-                        <span>Overview</span>
+                        <span>Revenue Dashboard</span>
+                    </a>
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-products" href="#" onclick="navClick(this, 'billing-products'); return false;">
+                        <span class="nav-icon">📦</span>
+                        <span>Products</span>
                     </a>
                     <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-plans" href="#" onclick="navClick(this, 'billing-plans'); return false;">
                         <span class="nav-icon">📋</span>
-                        <span>Manage Plans</span>
+                        <span>Plans</span>
                     </a>
-                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-credits" href="#" onclick="navClick(this, 'billing-credits'); return false;">
-                        <span class="nav-icon">🪙</span>
-                        <span>Manage Credits</span>
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-addons" href="#" onclick="navClick(this, 'billing-addons'); return false;">
+                        <span class="nav-icon">🧩</span>
+                        <span>Add-ons</span>
                     </a>
-                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-extras" href="#" onclick="navClick(this, 'billing-extras'); return false;">
-                        <span class="nav-icon">🛒</span>
-                        <span>Manage Extras</span>
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-subscribers" href="#" onclick="navClick(this, 'billing-subscribers'); return false;">
+                        <span class="nav-icon">👥</span>
+                        <span>Subscribers</span>
+                    </a>
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="billing-affiliates" href="#" onclick="navClick(this, 'billing-affiliates'); return false;">
+                        <span class="nav-icon">🤝</span>
+                        <span>Affiliates</span>
+                    </a>
+                    <a class="nav-item" data-view="my-referrals" href="#" onclick="navClick(this, 'my-referrals'); return false;">
+                        <span class="nav-icon">💰</span>
+                        <span>My Referrals</span>
                     </a>
                     </div>
                 </div>
@@ -6446,30 +6458,32 @@ Local honey and preserves"></textarea>
             <!-- Billing Plans View -->
             <div id="billing-plans" class="view">
                 <div class="header">
-                    <h2>💳 Subscription Plans</h2>
-                    <p>Configure pricing tiers for your customers</p>
+                    <div class="header-top">
+                        <div>
+                            <h2>📋 Subscription Plans</h2>
+                            <p>Bundle products into pricing tiers</p>
+                        </div>
+                        <button class="btn" onclick="openPlanModal()">+ Add Plan</button>
+                    </div>
                 </div>
 
-                <div class="card" style="margin-bottom: 1.5rem;">
-                    <button class="btn" onclick="openPlanModal()">+ Add Plan</button>
-                </div>
-
-                <div id="billing-plans-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1rem;">
+                <div id="billing-plans-list" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
                     <div class="card" style="text-align: center; padding: 2rem; color: var(--text-secondary);">
                         Loading plans...
                     </div>
                 </div>
             </div>
 
-            <!-- Billing Credit Packages View -->
-            <div id="billing-credits" class="view">
+            <!-- Billing Products View -->
+            <div id="billing-products" class="view">
                 <div class="header">
-                    <h2>🪙 Credit Packages</h2>
-                    <p>Configure credit bundles customers can purchase</p>
-                </div>
-
-                <div class="card" style="margin-bottom: 1.5rem;">
-                    <button class="btn" onclick="openCreditPackageModal()">+ Add Package</button>
+                    <div class="header-top">
+                        <div>
+                            <h2>📦 Products</h2>
+                            <p>Individual sellable items - templates, plugins, apps</p>
+                        </div>
+                        <button class="btn" onclick="openProductModal()">+ Add Product</button>
+                    </div>
                 </div>
 
                 <div class="card">
@@ -6477,31 +6491,33 @@ Local honey and preserves"></textarea>
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Credits</th>
-                                    <th>Bonus</th>
-                                    <th>Price</th>
+                                    <th>Product</th>
+                                    <th>Category</th>
+                                    <th>Monthly</th>
+                                    <th>Yearly</th>
+                                    <th>One-time</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="billing-credit-packages-table">
-                                <tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
+                            <tbody id="billing-products-table">
+                                <tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
                 </div>
             </div>
 
-            <!-- Billing Extras View -->
-            <div id="billing-extras" class="view">
+            <!-- Billing Add-ons View -->
+            <div id="billing-addons" class="view">
                 <div class="header">
-                    <h2>🛒 Extras Shop</h2>
-                    <p>Services and add-ons customers can buy with credits</p>
-                </div>
-
-                <div class="card" style="margin-bottom: 1.5rem;">
-                    <button class="btn" onclick="openExtraModal()">+ Add Extra</button>
+                    <div class="header-top">
+                        <div>
+                            <h2>🧩 Add-ons</h2>
+                            <p>Extra items customers can add to their subscription</p>
+                        </div>
+                        <button class="btn" onclick="openAddonModal()">+ Add Add-on</button>
+                    </div>
                 </div>
 
                 <div class="card">
@@ -6509,17 +6525,254 @@ Local honey and preserves"></textarea>
                         <table class="data-table">
                             <thead>
                                 <tr>
-                                    <th>Name</th>
-                                    <th>Category</th>
-                                    <th>Cost</th>
+                                    <th>Add-on</th>
+                                    <th>Monthly Price</th>
+                                    <th>Extra Properties</th>
                                     <th>Status</th>
                                     <th>Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="billing-extras-table">
+                            <tbody id="billing-addons-table">
                                 <tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
                             </tbody>
                         </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Billing Subscribers View -->
+            <div id="billing-subscribers" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>👥 Subscribers</h2>
+                            <p>Accounts with active subscriptions</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <select id="subscribers-filter-plan" class="form-input" style="width: auto;" onchange="loadSubscribers()">
+                                <option value="">All Plans</option>
+                            </select>
+                            <select id="subscribers-filter-status" class="form-input" style="width: auto;" onchange="loadSubscribers()">
+                                <option value="">All Status</option>
+                                <option value="active">Active</option>
+                                <option value="trialing">Trialing</option>
+                                <option value="past_due">Past Due</option>
+                                <option value="cancelled">Cancelled</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Account</th>
+                                    <th>Plan</th>
+                                    <th>Add-ons</th>
+                                    <th>MRR</th>
+                                    <th>Status</th>
+                                    <th>Since</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billing-subscribers-table">
+                                <tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Affiliates Admin View -->
+            <div id="billing-affiliates" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🤝 Affiliate Program</h2>
+                            <p>Manage affiliate tiers and referral partners</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Tier Cards -->
+                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="card" style="text-align: center; border-top: 4px solid #CD7F32;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🥉</div>
+                        <h3 style="margin: 0;">Bronze</h3>
+                        <div style="font-size: 2rem; font-weight: 700; color: #CD7F32; margin: 0.5rem 0;">5%</div>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">Default tier</p>
+                    </div>
+                    <div class="card" style="text-align: center; border-top: 4px solid #C0C0C0;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🥈</div>
+                        <h3 style="margin: 0;">Silver</h3>
+                        <div style="font-size: 2rem; font-weight: 700; color: #71717a; margin: 0.5rem 0;">10%</div>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">5+ active referrals</p>
+                    </div>
+                    <div class="card" style="text-align: center; border-top: 4px solid #FFD700;">
+                        <div style="font-size: 2rem; margin-bottom: 0.5rem;">🥇</div>
+                        <h3 style="margin: 0;">Gold</h3>
+                        <div style="font-size: 2rem; font-weight: 700; color: #ca8a04; margin: 0.5rem 0;">15%</div>
+                        <p style="font-size: 0.85rem; color: var(--text-secondary); margin: 0;">10+ referrals OR £500+/mo</p>
+                    </div>
+                </div>
+
+                <!-- Stats Summary -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; text-align: center;">
+                        <div>
+                            <div style="font-size: 2rem; font-weight: 700;" id="affiliate-total-count">0</div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">Total Affiliates</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--accent);" id="affiliate-active-referrals">0</div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">Active Referrals</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--success);" id="affiliate-monthly-commission">£0</div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">This Month's Commission</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--warning);" id="affiliate-pending-payouts">£0</div>
+                            <div style="color: var(--text-secondary); font-size: 0.9rem;">Pending Payouts</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Affiliates Table -->
+                <div class="card">
+                    <div class="table-container">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Affiliate</th>
+                                    <th>Tier</th>
+                                    <th>Referral Code</th>
+                                    <th>Active Referrals</th>
+                                    <th>Lifetime Earnings</th>
+                                    <th>Pending</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="billing-affiliates-table">
+                                <tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Referrals View (User's Affiliate Dashboard) -->
+            <div id="my-referrals" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>💰 My Referrals</h2>
+                            <p>Earn commission by referring properties to GAS</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Not an affiliate yet -->
+                <div id="affiliate-signup-card" class="card" style="text-align: center; padding: 3rem; display: none;">
+                    <div style="font-size: 4rem; margin-bottom: 1rem;">🤝</div>
+                    <h2 style="margin: 0 0 1rem 0;">Join the GAS Affiliate Program</h2>
+                    <p style="color: var(--text-secondary); margin-bottom: 1.5rem; max-width: 500px; margin-left: auto; margin-right: auto;">
+                        Earn up to 15% commission on every subscription from properties you refer. 
+                        Start at Bronze (5%) and level up as you grow!
+                    </p>
+                    <button class="btn" onclick="joinAffiliateProgram()" style="font-size: 1.1rem; padding: 0.75rem 2rem;">
+                        🚀 Join Now - It's Free
+                    </button>
+                </div>
+
+                <!-- Affiliate Dashboard -->
+                <div id="affiliate-dashboard" style="display: none;">
+                    <!-- My Stats -->
+                    <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: none;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div>
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <span id="my-tier-icon" style="font-size: 2rem;">🥉</span>
+                                    <span id="my-tier-name" style="font-size: 1.5rem; font-weight: 700;">Bronze</span>
+                                </div>
+                                <p style="margin: 0; color: #92400e;">
+                                    You earn <strong id="my-commission-rate">5%</strong> on all referral subscriptions
+                                </p>
+                            </div>
+                            <div id="tier-progress" style="text-align: right;">
+                                <p style="margin: 0; font-size: 0.9rem; color: #92400e;">
+                                    <span id="referrals-to-next">5</span> more referrals to reach Silver!
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Referral Link -->
+                    <div class="card" style="margin-bottom: 1.5rem;">
+                        <h3 style="margin: 0 0 1rem 0;">🔗 Your Referral Link</h3>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" id="my-referral-link" class="form-input" readonly style="flex: 1; font-family: monospace;">
+                            <button class="btn" onclick="copyReferralLink()">📋 Copy</button>
+                        </div>
+                        <p style="margin: 0.5rem 0 0 0; font-size: 0.85rem; color: var(--text-secondary);">
+                            Share this link with properties. When they sign up and subscribe, you earn commission!
+                        </p>
+                    </div>
+
+                    <!-- My Earnings -->
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                        <div class="card" style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">This Month</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--success);" id="my-earnings-month">£0.00</div>
+                        </div>
+                        <div class="card" style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Pending Payout</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--warning);" id="my-earnings-pending">£0.00</div>
+                        </div>
+                        <div class="card" style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Lifetime Earnings</div>
+                            <div style="font-size: 2rem; font-weight: 700;" id="my-earnings-lifetime">£0.00</div>
+                        </div>
+                        <div class="card" style="text-align: center;">
+                            <div style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Active Referrals</div>
+                            <div style="font-size: 2rem; font-weight: 700; color: var(--accent);" id="my-referral-count">0</div>
+                        </div>
+                    </div>
+
+                    <!-- Request Payout -->
+                    <div class="card" style="margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h4 style="margin: 0;">Ready to cash out?</h4>
+                            <p style="margin: 0.25rem 0 0 0; color: var(--text-secondary); font-size: 0.9rem;">
+                                Minimum payout: £50 • Payouts processed weekly via Airwallex
+                            </p>
+                        </div>
+                        <button class="btn" id="request-payout-btn" onclick="requestPayout()" disabled style="background: var(--success);">
+                            💸 Request Payout
+                        </button>
+                    </div>
+
+                    <!-- My Referrals List -->
+                    <div class="card">
+                        <h3 style="margin: 0 0 1rem 0;">👥 My Referrals</h3>
+                        <div class="table-container">
+                            <table class="data-table">
+                                <thead>
+                                    <tr>
+                                        <th>Property</th>
+                                        <th>Signed Up</th>
+                                        <th>Plan</th>
+                                        <th>Status</th>
+                                        <th>Your Earnings</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="my-referrals-table">
+                                    <tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No referrals yet. Share your link to get started!</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -6963,6 +7216,135 @@ Local honey and preserves"></textarea>
                     <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('extraModal')">Cancel</button>
                         <button type="submit" class="btn">Save Extra</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Product Modal -->
+    <div id="productModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="product-modal-title" style="margin: 0; font-size: 1.25rem;">📦 Add Product</h3>
+                </div>
+                <button class="modal-close" onclick="closeModal('productModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="product-form" onsubmit="saveProduct(event)">
+                    <input type="hidden" id="product-id">
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Product Code <span style="color: #ef4444;">*</span></label>
+                            <input type="text" id="product-code" class="form-input" required placeholder="e.g., wp-theme-developer">
+                            <small style="color: var(--text-secondary);">Unique identifier (lowercase, hyphens)</small>
+                        </div>
+                        <div class="form-group">
+                            <label>Category</label>
+                            <select id="product-category" class="form-input">
+                                <option value="template">Template</option>
+                                <option value="plugin">Plugin</option>
+                                <option value="app">App</option>
+                                <option value="service">Service</option>
+                                <option value="addon">Add-on</option>
+                                <option value="general">General</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Product Name <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="product-name" class="form-input" required placeholder="e.g., Developer Theme">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Description</label>
+                        <textarea id="product-description" class="form-input" rows="2" placeholder="Professional WordPress theme for hotels & B&Bs"></textarea>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Monthly Price (£)</label>
+                            <input type="number" id="product-price-monthly" class="form-input" step="0.01" placeholder="15.00">
+                        </div>
+                        <div class="form-group">
+                            <label>Yearly Price (£)</label>
+                            <input type="number" id="product-price-yearly" class="form-input" step="0.01" placeholder="150.00">
+                        </div>
+                        <div class="form-group">
+                            <label>One-time Price (£)</label>
+                            <input type="number" id="product-price-once" class="form-input" step="0.01" placeholder="299.00">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="product-is-active" checked style="width: 18px; height: 18px;">
+                            <span>Active (visible to customers)</span>
+                        </label>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('productModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Product</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add-on Modal -->
+    <div id="addonModal" class="modal">
+        <div class="modal-content" style="max-width: 550px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="addon-modal-title" style="margin: 0; font-size: 1.25rem;">🧩 Add Add-on</h3>
+                </div>
+                <button class="modal-close" onclick="closeModal('addonModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="addon-form" onsubmit="saveAddon(event)">
+                    <input type="hidden" id="addon-id">
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label>Add-on Code <span style="color: #ef4444;">*</span></label>
+                            <input type="text" id="addon-code" class="form-input" required placeholder="e.g., extra-property">
+                        </div>
+                        <div class="form-group">
+                            <label>Monthly Price (£) <span style="color: #ef4444;">*</span></label>
+                            <input type="number" id="addon-price-monthly" class="form-input" required step="0.01" placeholder="5.00">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Add-on Name <span style="color: #ef4444;">*</span></label>
+                        <input type="text" id="addon-name" class="form-input" required placeholder="e.g., Extra Property">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Description</label>
+                        <input type="text" id="addon-description" class="form-input" placeholder="Add one additional property to your account">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Extra Properties Included</label>
+                        <input type="number" id="addon-extra-properties" class="form-input" value="0" min="0" placeholder="0">
+                        <small style="color: var(--text-secondary);">How many extra properties this add-on provides</small>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="addon-is-active" checked style="width: 18px; height: 18px;">
+                            <span>Active (available for purchase)</span>
+                        </label>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('addonModal')">Cancel</button>
+                        <button type="submit" class="btn">Save Add-on</button>
                     </div>
                 </form>
             </div>
@@ -18755,10 +19137,20 @@ Local honey and preserves"></textarea>
                 loadBillingOverview();
             } else if (view === 'billing-plans') {
                 loadBillingPlans();
+            } else if (view === 'billing-products') {
+                loadBillingProducts();
+            } else if (view === 'billing-addons') {
+                loadBillingAddons();
+            } else if (view === 'billing-subscribers') {
+                loadSubscribers();
             } else if (view === 'billing-credits') {
                 loadCreditPackages();
             } else if (view === 'billing-extras') {
                 loadBillingExtras();
+            } else if (view === 'billing-affiliates') {
+                loadAffiliatesAdmin();
+            } else if (view === 'my-referrals') {
+                loadMyReferrals();
             } else if (view === 'my-billing') {
                 loadMyBilling();
             }
@@ -19657,226 +20049,464 @@ Local honey and preserves"></textarea>
             }
         }
 
-        // Credit Packages
-        async function loadCreditPackages() {
+        // =====================================================
+        // PRODUCTS
+        // =====================================================
+        async function loadBillingProducts() {
             try {
-                const response = await fetch('/api/admin/billing/credit-packages');
+                const response = await fetch('/api/admin/billing/products');
                 const data = await response.json();
                 
-                const tbody = document.getElementById('billing-credit-packages-table');
+                const tbody = document.getElementById('billing-products-table');
                 
-                if (data.success && data.data.length > 0) {
-                    tbody.innerHTML = data.data.map(pkg => `
-                        <tr style="${!pkg.is_active ? 'opacity: 0.6;' : ''}">
-                            <td><strong>${pkg.name}</strong></td>
-                            <td>${pkg.credits}</td>
-                            <td>${pkg.bonus_credits > 0 ? '+' + pkg.bonus_credits : '-'}</td>
-                            <td>£${parseFloat(pkg.price).toFixed(2)}</td>
-                            <td><span class="badge ${pkg.is_active ? 'badge-success' : 'badge-warning'}">${pkg.is_active ? 'Active' : 'Inactive'}</span></td>
+                if (data.success && data.data && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map(p => `
+                        <tr style="${!p.is_active ? 'opacity: 0.6;' : ''}">
                             <td>
-                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editCreditPackage(${pkg.id})">Edit</button>
-                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: var(--error);" onclick="deleteCreditPackage(${pkg.id})">Delete</button>
+                                <strong>${p.name}</strong>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${p.code}</div>
+                            </td>
+                            <td><span class="badge">${p.category || 'general'}</span></td>
+                            <td>${p.price_monthly > 0 ? '£' + parseFloat(p.price_monthly).toFixed(2) : '-'}</td>
+                            <td>${p.price_yearly > 0 ? '£' + parseFloat(p.price_yearly).toFixed(2) : '-'}</td>
+                            <td>${p.price_once > 0 ? '£' + parseFloat(p.price_once).toFixed(2) : '-'}</td>
+                            <td><span class="badge ${p.is_active ? 'badge-success' : 'badge-warning'}">${p.is_active ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editProduct(${p.id})">Edit</button>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: var(--error);" onclick="deleteProduct(${p.id})">Delete</button>
                             </td>
                         </tr>
                     `).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: var(--text-secondary);">No credit packages configured</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No products yet. Click "+ Add Product" to create one.</td></tr>';
                 }
             } catch (error) {
-                console.error('Error loading credit packages:', error);
+                console.error('Error loading products:', error);
+                document.getElementById('billing-products-table').innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--error);">Error loading products</td></tr>';
             }
         }
 
-        function openCreditPackageModal() {
-            document.getElementById('credit-package-id').value = '';
-            document.getElementById('credit-package-name').value = '';
-            document.getElementById('credit-package-credits').value = '';
-            document.getElementById('credit-package-bonus').value = '0';
-            document.getElementById('credit-package-price').value = '';
-            document.getElementById('credit-package-currency').value = 'GBP';
-            document.getElementById('credit-package-is-active').checked = true;
-            document.getElementById('credit-package-modal-title').textContent = '🪙 Add Credit Package';
-            openModal('creditPackageModal');
+        function openProductModal(product = null) {
+            document.getElementById('product-modal-title').textContent = product ? '📦 Edit Product' : '📦 Add Product';
+            document.getElementById('product-id').value = product?.id || '';
+            document.getElementById('product-code').value = product?.code || '';
+            document.getElementById('product-name').value = product?.name || '';
+            document.getElementById('product-description').value = product?.description || '';
+            document.getElementById('product-category').value = product?.category || 'general';
+            document.getElementById('product-price-monthly').value = product?.price_monthly || '';
+            document.getElementById('product-price-yearly').value = product?.price_yearly || '';
+            document.getElementById('product-price-once').value = product?.price_once || '';
+            document.getElementById('product-is-active').checked = product?.is_active !== false;
+            openModal('productModal');
         }
 
-        async function editCreditPackage(id) {
+        async function editProduct(id) {
             try {
-                const response = await fetch('/api/admin/billing/credit-packages');
+                const response = await fetch('/api/admin/billing/products');
                 const data = await response.json();
-                const pkg = data.data.find(p => p.id === id);
-                
-                if (pkg) {
-                    document.getElementById('credit-package-id').value = pkg.id;
-                    document.getElementById('credit-package-name').value = pkg.name;
-                    document.getElementById('credit-package-credits').value = pkg.credits;
-                    document.getElementById('credit-package-bonus').value = pkg.bonus_credits || 0;
-                    document.getElementById('credit-package-price').value = pkg.price;
-                    document.getElementById('credit-package-currency').value = pkg.currency || 'GBP';
-                    document.getElementById('credit-package-is-active').checked = pkg.is_active;
-                    document.getElementById('credit-package-modal-title').textContent = '🪙 Edit Credit Package';
-                    openModal('creditPackageModal');
-                }
+                const product = data.data.find(p => p.id === id);
+                if (product) openProductModal(product);
             } catch (error) {
-                showNotification('Error loading package', 'error');
+                showNotification('Error loading product', 'error');
             }
         }
 
-        async function saveCreditPackage(event) {
+        async function saveProduct(event) {
             event.preventDefault();
             
-            const pkgData = {
-                id: document.getElementById('credit-package-id').value || undefined,
-                name: document.getElementById('credit-package-name').value,
-                credits: parseInt(document.getElementById('credit-package-credits').value),
-                bonus_credits: parseInt(document.getElementById('credit-package-bonus').value) || 0,
-                price: parseFloat(document.getElementById('credit-package-price').value),
-                currency: document.getElementById('credit-package-currency').value,
-                is_active: document.getElementById('credit-package-is-active').checked
+            const id = document.getElementById('product-id').value;
+            const productData = {
+                code: document.getElementById('product-code').value,
+                name: document.getElementById('product-name').value,
+                description: document.getElementById('product-description').value,
+                category: document.getElementById('product-category').value,
+                price_monthly: parseFloat(document.getElementById('product-price-monthly').value) || 0,
+                price_yearly: parseFloat(document.getElementById('product-price-yearly').value) || 0,
+                price_once: parseFloat(document.getElementById('product-price-once').value) || 0,
+                is_active: document.getElementById('product-is-active').checked
             };
             
             try {
-                const response = await fetch('/api/admin/billing/credit-packages', {
-                    method: 'POST',
+                const url = id ? `/api/admin/billing/products/${id}` : '/api/admin/billing/products';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(pkgData)
+                    body: JSON.stringify(productData)
                 });
                 
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Package saved!', 'success');
-                    closeModal('creditPackageModal');
-                    loadCreditPackages();
+                    closeModal('productModal');
+                    showNotification(id ? 'Product updated' : 'Product created', 'success');
+                    loadBillingProducts();
                 } else {
-                    showNotification('Error: ' + data.error, 'error');
+                    showNotification(data.error || 'Error saving product', 'error');
                 }
             } catch (error) {
-                showNotification('Error saving package', 'error');
+                showNotification('Error saving product', 'error');
             }
         }
 
-        async function deleteCreditPackage(id) {
-            if (!confirm('Delete this package?')) return;
-            
+        async function deleteProduct(id) {
+            if (!confirm('Delete this product?')) return;
             try {
-                const response = await fetch('/api/admin/billing/credit-packages/' + id, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/billing/products/${id}`, { method: 'DELETE' });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Package deleted', 'success');
-                    loadCreditPackages();
+                    showNotification('Product deleted', 'success');
+                    loadBillingProducts();
                 }
             } catch (error) {
-                showNotification('Error deleting package', 'error');
+                showNotification('Error deleting product', 'error');
             }
         }
 
-        // Extras
-        async function loadBillingExtras() {
+        // =====================================================
+        // ADD-ONS
+        // =====================================================
+        async function loadBillingAddons() {
             try {
-                const response = await fetch('/api/admin/billing/extras');
+                const response = await fetch('/api/admin/billing/addons');
                 const data = await response.json();
                 
-                const tbody = document.getElementById('billing-extras-table');
+                const tbody = document.getElementById('billing-addons-table');
                 
-                if (data.success && data.data.length > 0) {
-                    tbody.innerHTML = data.data.map(extra => `
-                        <tr style="${!extra.is_active ? 'opacity: 0.6;' : ''}">
-                            <td><strong>${extra.icon || ''} ${extra.name}</strong><br><small style="color: var(--text-secondary);">${extra.description || ''}</small></td>
-                            <td>${extra.category || '-'}</td>
-                            <td><strong>${extra.credit_cost}</strong> credits</td>
-                            <td><span class="badge ${extra.is_active ? 'badge-success' : 'badge-warning'}">${extra.is_active ? 'Active' : 'Inactive'}</span></td>
+                if (data.success && data.data && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map(a => `
+                        <tr style="${!a.is_active ? 'opacity: 0.6;' : ''}">
                             <td>
-                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editExtra(${extra.id})">Edit</button>
-                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: var(--error);" onclick="deleteExtra(${extra.id})">Delete</button>
+                                <strong>${a.name}</strong>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${a.description || ''}</div>
+                            </td>
+                            <td>£${parseFloat(a.price_monthly).toFixed(2)}/mo</td>
+                            <td>${a.extra_properties > 0 ? '+' + a.extra_properties : '-'}</td>
+                            <td><span class="badge ${a.is_active ? 'badge-success' : 'badge-warning'}">${a.is_active ? 'Active' : 'Inactive'}</span></td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editAddon(${a.id})">Edit</button>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem; color: var(--error);" onclick="deleteAddon(${a.id})">Delete</button>
                             </td>
                         </tr>
                     `).join('');
                 } else {
-                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No extras configured</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No add-ons yet. Click "+ Add Add-on" to create one.</td></tr>';
                 }
             } catch (error) {
-                console.error('Error loading extras:', error);
+                console.error('Error loading addons:', error);
             }
         }
 
-        function openExtraModal() {
-            document.getElementById('extra-id').value = '';
-            document.getElementById('extra-name').value = '';
-            document.getElementById('extra-icon').value = '';
-            document.getElementById('extra-description').value = '';
-            document.getElementById('extra-credit-cost').value = '';
-            document.getElementById('extra-category').value = '';
-            document.getElementById('extra-is-active').checked = true;
-            document.getElementById('extra-modal-title').textContent = '🛒 Add Extra Service';
-            openModal('extraModal');
+        function openAddonModal(addon = null) {
+            document.getElementById('addon-modal-title').textContent = addon ? '🧩 Edit Add-on' : '🧩 Add Add-on';
+            document.getElementById('addon-id').value = addon?.id || '';
+            document.getElementById('addon-code').value = addon?.code || '';
+            document.getElementById('addon-name').value = addon?.name || '';
+            document.getElementById('addon-description').value = addon?.description || '';
+            document.getElementById('addon-price-monthly').value = addon?.price_monthly || '';
+            document.getElementById('addon-extra-properties').value = addon?.extra_properties || '0';
+            document.getElementById('addon-is-active').checked = addon?.is_active !== false;
+            openModal('addonModal');
         }
 
-        async function editExtra(id) {
+        async function editAddon(id) {
             try {
-                const response = await fetch('/api/admin/billing/extras');
+                const response = await fetch('/api/admin/billing/addons');
                 const data = await response.json();
-                const extra = data.data.find(e => e.id === id);
-                
-                if (extra) {
-                    document.getElementById('extra-id').value = extra.id;
-                    document.getElementById('extra-name').value = extra.name;
-                    document.getElementById('extra-icon').value = extra.icon || '';
-                    document.getElementById('extra-description').value = extra.description || '';
-                    document.getElementById('extra-credit-cost').value = extra.credit_cost;
-                    document.getElementById('extra-category').value = extra.category || '';
-                    document.getElementById('extra-is-active').checked = extra.is_active;
-                    document.getElementById('extra-modal-title').textContent = '🛒 Edit Extra';
-                    openModal('extraModal');
-                }
+                const addon = data.data.find(a => a.id === id);
+                if (addon) openAddonModal(addon);
             } catch (error) {
-                showNotification('Error loading extra', 'error');
+                showNotification('Error loading add-on', 'error');
             }
         }
 
-        async function saveExtra(event) {
+        async function saveAddon(event) {
             event.preventDefault();
             
-            const extraData = {
-                id: document.getElementById('extra-id').value || undefined,
-                name: document.getElementById('extra-name').value,
-                icon: document.getElementById('extra-icon').value,
-                description: document.getElementById('extra-description').value,
-                credit_cost: parseInt(document.getElementById('extra-credit-cost').value),
-                category: document.getElementById('extra-category').value,
-                is_active: document.getElementById('extra-is-active').checked
+            const id = document.getElementById('addon-id').value;
+            const addonData = {
+                code: document.getElementById('addon-code').value,
+                name: document.getElementById('addon-name').value,
+                description: document.getElementById('addon-description').value,
+                price_monthly: parseFloat(document.getElementById('addon-price-monthly').value) || 0,
+                extra_properties: parseInt(document.getElementById('addon-extra-properties').value) || 0,
+                is_active: document.getElementById('addon-is-active').checked
             };
             
             try {
-                const response = await fetch('/api/admin/billing/extras', {
-                    method: 'POST',
+                const url = id ? `/api/admin/billing/addons/${id}` : '/api/admin/billing/addons';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(extraData)
+                    body: JSON.stringify(addonData)
                 });
                 
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Extra saved!', 'success');
-                    closeModal('extraModal');
-                    loadBillingExtras();
+                    closeModal('addonModal');
+                    showNotification(id ? 'Add-on updated' : 'Add-on created', 'success');
+                    loadBillingAddons();
                 } else {
-                    showNotification('Error: ' + data.error, 'error');
+                    showNotification(data.error || 'Error saving add-on', 'error');
                 }
             } catch (error) {
-                showNotification('Error saving extra', 'error');
+                showNotification('Error saving add-on', 'error');
             }
         }
 
-        async function deleteExtra(id) {
-            if (!confirm('Delete this extra?')) return;
-            
+        async function deleteAddon(id) {
+            if (!confirm('Delete this add-on?')) return;
             try {
-                const response = await fetch('/api/admin/billing/extras/' + id, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/billing/addons/${id}`, { method: 'DELETE' });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Extra deleted', 'success');
-                    loadBillingExtras();
+                    showNotification('Add-on deleted', 'success');
+                    loadBillingAddons();
                 }
             } catch (error) {
-                showNotification('Error deleting extra', 'error');
+                showNotification('Error deleting add-on', 'error');
+            }
+        }
+
+        // =====================================================
+        // SUBSCRIBERS
+        // =====================================================
+        async function loadSubscribers() {
+            const planFilter = document.getElementById('subscribers-filter-plan')?.value || '';
+            const statusFilter = document.getElementById('subscribers-filter-status')?.value || '';
+            
+            try {
+                let url = '/api/admin/billing/subscriptions?';
+                if (planFilter) url += `plan=${planFilter}&`;
+                if (statusFilter) url += `status=${statusFilter}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const tbody = document.getElementById('billing-subscribers-table');
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    tbody.innerHTML = data.data.map(s => {
+                        const statusColors = {
+                            'active': 'badge-success',
+                            'trialing': 'badge-info',
+                            'past_due': 'badge-warning',
+                            'cancelled': 'badge-error'
+                        };
+                        return `
+                        <tr>
+                            <td><strong>${s.account_name || 'Account #' + s.account_id}</strong></td>
+                            <td>${s.plan_code || 'None'}</td>
+                            <td>${s.addon_count || 0} add-ons</td>
+                            <td>£${parseFloat(s.mrr || 0).toFixed(2)}</td>
+                            <td><span class="badge ${statusColors[s.status] || ''}">${s.status}</span></td>
+                            <td>${s.created_at ? new Date(s.created_at).toLocaleDateString() : '-'}</td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewSubscription(${s.id})">View</button>
+                            </td>
+                        </tr>
+                    `}).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No subscribers yet</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading subscribers:', error);
+            }
+        }
+
+        function viewSubscription(id) {
+            alert('Subscription details coming soon! ID: ' + id);
+        }
+
+        // =====================================================
+        // AFFILIATE FUNCTIONS
+        // =====================================================
+        
+        async function loadAffiliatesAdmin() {
+            try {
+                const response = await fetch('/api/admin/affiliates');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('billing-affiliates-table');
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    // Update stats
+                    document.getElementById('affiliate-total-count').textContent = data.data.length;
+                    document.getElementById('affiliate-active-referrals').textContent = 
+                        data.data.reduce((sum, a) => sum + (a.active_referrals || 0), 0);
+                    
+                    tbody.innerHTML = data.data.map(a => {
+                        const tierColors = { bronze: '#CD7F32', silver: '#C0C0C0', gold: '#FFD700' };
+                        const tierIcons = { bronze: '🥉', silver: '🥈', gold: '🥇' };
+                        return `
+                        <tr>
+                            <td><strong>${a.account_name || 'Account #' + a.account_id}</strong></td>
+                            <td>
+                                <span style="color: ${tierColors[a.tier_code] || '#666'};">
+                                    ${tierIcons[a.tier_code] || ''} ${a.tier_code || 'bronze'}
+                                </span>
+                            </td>
+                            <td><code>${a.referral_code}</code></td>
+                            <td>${a.active_referrals || 0}</td>
+                            <td>£${parseFloat(a.lifetime_earnings || 0).toFixed(2)}</td>
+                            <td>£${parseFloat(a.pending_amount || 0).toFixed(2)}</td>
+                            <td>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="viewAffiliateDetails(${a.id})">View</button>
+                            </td>
+                        </tr>
+                    `}).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align: center; color: var(--text-secondary);">No affiliates yet</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading affiliates:', error);
+            }
+        }
+        
+        function viewAffiliateDetails(id) {
+            alert('Affiliate details coming soon! ID: ' + id);
+        }
+        
+        async function loadMyReferrals() {
+            try {
+                const response = await fetch('/api/affiliate/me');
+                const data = await response.json();
+                
+                if (data.success && data.affiliate) {
+                    // User is an affiliate - show dashboard
+                    document.getElementById('affiliate-signup-card').style.display = 'none';
+                    document.getElementById('affiliate-dashboard').style.display = 'block';
+                    
+                    const a = data.affiliate;
+                    const tierIcons = { bronze: '🥉', silver: '🥈', gold: '🥇' };
+                    const tierNames = { bronze: 'Bronze', silver: 'Silver', gold: 'Gold' };
+                    const commissionRates = { bronze: '5%', silver: '10%', gold: '15%' };
+                    
+                    document.getElementById('my-tier-icon').textContent = tierIcons[a.tier_code] || '🥉';
+                    document.getElementById('my-tier-name').textContent = tierNames[a.tier_code] || 'Bronze';
+                    document.getElementById('my-commission-rate').textContent = commissionRates[a.tier_code] || '5%';
+                    document.getElementById('my-referral-link').value = a.referral_link || `https://gas.travel/ref/${a.referral_code}`;
+                    
+                    document.getElementById('my-earnings-month').textContent = '£' + parseFloat(a.month_earnings || 0).toFixed(2);
+                    document.getElementById('my-earnings-pending').textContent = '£' + parseFloat(a.pending_amount || 0).toFixed(2);
+                    document.getElementById('my-earnings-lifetime').textContent = '£' + parseFloat(a.lifetime_earnings || 0).toFixed(2);
+                    document.getElementById('my-referral-count').textContent = a.active_referrals || 0;
+                    
+                    // Enable payout button if enough balance
+                    const payoutBtn = document.getElementById('request-payout-btn');
+                    if ((a.pending_amount || 0) >= 50) {
+                        payoutBtn.disabled = false;
+                    } else {
+                        payoutBtn.disabled = true;
+                    }
+                    
+                    // Tier progress
+                    const referralsToSilver = Math.max(0, 5 - (a.active_referrals || 0));
+                    const referralsToGold = Math.max(0, 10 - (a.active_referrals || 0));
+                    const tierProgress = document.getElementById('tier-progress');
+                    
+                    if (a.tier_code === 'gold') {
+                        tierProgress.innerHTML = '<p style="margin: 0; font-size: 0.9rem; color: #92400e;">🏆 You\'ve reached the top tier!</p>';
+                    } else if (a.tier_code === 'silver') {
+                        tierProgress.innerHTML = `<p style="margin: 0; font-size: 0.9rem; color: #92400e;">${referralsToGold} more referrals to reach Gold!</p>`;
+                    } else {
+                        tierProgress.innerHTML = `<p style="margin: 0; font-size: 0.9rem; color: #92400e;">${referralsToSilver} more referrals to reach Silver!</p>`;
+                    }
+                    
+                    // Load referrals list
+                    loadMyReferralsList();
+                    
+                } else {
+                    // Not an affiliate - show signup
+                    document.getElementById('affiliate-signup-card').style.display = 'block';
+                    document.getElementById('affiliate-dashboard').style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading affiliate data:', error);
+                // Show signup card on error
+                document.getElementById('affiliate-signup-card').style.display = 'block';
+                document.getElementById('affiliate-dashboard').style.display = 'none';
+            }
+        }
+        
+        async function loadMyReferralsList() {
+            try {
+                const response = await fetch('/api/affiliate/referrals');
+                const data = await response.json();
+                
+                const tbody = document.getElementById('my-referrals-table');
+                
+                if (data.success && data.referrals && data.referrals.length > 0) {
+                    tbody.innerHTML = data.referrals.map(r => {
+                        const statusColors = {
+                            'pending': 'badge-warning',
+                            'active': 'badge-success',
+                            'churned': 'badge-error',
+                            'cancelled': 'badge-secondary'
+                        };
+                        return `
+                        <tr>
+                            <td>${r.account_name || 'Property #' + r.referred_account_id}</td>
+                            <td>${r.signed_up_at ? new Date(r.signed_up_at).toLocaleDateString() : '-'}</td>
+                            <td>${r.plan_code || 'Free'}</td>
+                            <td><span class="badge ${statusColors[r.status] || ''}">${r.status}</span></td>
+                            <td>£${parseFloat(r.total_commission || 0).toFixed(2)}</td>
+                        </tr>
+                    `}).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: var(--text-secondary);">No referrals yet. Share your link to get started!</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading referrals:', error);
+            }
+        }
+        
+        async function joinAffiliateProgram() {
+            try {
+                const response = await fetch('/api/affiliate/join', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('🎉 Welcome to the affiliate program!', 'success');
+                    loadMyReferrals();
+                } else {
+                    showNotification(data.error || 'Error joining program', 'error');
+                }
+            } catch (error) {
+                showNotification('Error joining affiliate program', 'error');
+            }
+        }
+        
+        function copyReferralLink() {
+            const input = document.getElementById('my-referral-link');
+            input.select();
+            document.execCommand('copy');
+            showNotification('📋 Referral link copied!', 'success');
+        }
+        
+        async function requestPayout() {
+            if (!confirm('Request payout of your pending balance?')) return;
+            
+            try {
+                const response = await fetch('/api/affiliate/payout', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('💸 Payout requested! Processing within 7 days.', 'success');
+                    loadMyReferrals();
+                } else {
+                    showNotification(data.error || 'Error requesting payout', 'error');
+                }
+            } catch (error) {
+                showNotification('Error requesting payout', 'error');
             }
         }
 
