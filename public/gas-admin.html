@@ -1807,17 +1807,17 @@
                 </div>
             </div>
 
-            <!-- Amenities View -->
+            <!-- Amenities View - RESTRUCTURED -->
             <div id="amenities" class="view">
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>Amenities</h2>
-                            <p>Manage amenities for each room</p>
+                            <h2>⭐ Amenities</h2>
+                            <p>Manage room features, facilities, and policies</p>
                         </div>
-                        <button class="btn" onclick="openAddAmenityModal()">
-                            <span>+</span>
-                            <span>Add Custom Amenity</span>
+                        <button class="btn" onclick="saveAllAmenities()">
+                            <span>💾</span>
+                            <span>Save All Changes</span>
                         </button>
                     </div>
                 </div>
@@ -1840,13 +1840,433 @@
                     </div>
                 </div>
 
-                <div class="card">
-                    <div id="amenities-list">
-                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
-                            Select a property and room to manage amenities
-                        </p>
+                <!-- Amenities Tabs -->
+                <div class="filter-tabs" style="margin-bottom: 1rem; flex-wrap: wrap;" id="amenities-tabs">
+                    <button class="filter-tab active" data-amenity-tab="rooms" onclick="switchAmenityTab('rooms')">🛏️ Rooms</button>
+                    <button class="filter-tab" data-amenity-tab="bathrooms" onclick="switchAmenityTab('bathrooms')">🚿 Bathrooms</button>
+                    <button class="filter-tab" data-amenity-tab="features" onclick="switchAmenityTab('features')">📺 In-Room Features</button>
+                    <button class="filter-tab" data-amenity-tab="terms" onclick="switchAmenityTab('terms')">📋 Terms & Policies</button>
+                </div>
+
+                <!-- Tab Content Container -->
+                <div id="amenities-tab-content">
+                    <!-- Rooms Tab -->
+                    <div id="amenities-tab-rooms" class="amenity-tab-panel">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>🛏️ Bed Configuration</h3>
+                            </div>
+                            <div class="card-body">
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure the beds in this room</p>
+                                <div id="bed-configuration">
+                                    <div class="bed-row" style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;">
+                                        <select class="form-input bed-type-select">
+                                            <option value="">Select bed type...</option>
+                                            <option value="king">King Bed</option>
+                                            <option value="queen">Queen Bed</option>
+                                            <option value="double">Double Bed</option>
+                                            <option value="twin">Twin/Single Bed</option>
+                                            <option value="sofa">Sofa Bed</option>
+                                            <option value="bunk">Bunk Bed</option>
+                                            <option value="cot">Cot/Crib</option>
+                                        </select>
+                                        <input type="number" class="form-input bed-qty" min="1" max="10" value="1" style="width: 80px;">
+                                        <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);">✕</button>
+                                    </div>
+                                </div>
+                                <button class="btn btn-secondary btn-small" onclick="addBedRow()" style="margin-top: 0.5rem;">+ Add Bed</button>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>🛏️ Room Amenities</h3>
+                            </div>
+                            <div class="card-body" id="room-amenities-list">
+                                <p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Bathrooms Tab -->
+                    <div id="amenities-tab-bathrooms" class="amenity-tab-panel" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>🚿 Bathroom Type</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="bathroom-type" value="ensuite" style="width: 18px; height: 18px;">
+                                            <span><strong>Ensuite (Private)</strong> - Bathroom inside the room</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="bathroom-type" value="adjacent" style="width: 18px; height: 18px;">
+                                            <span><strong>Adjacent (Private)</strong> - Private bathroom outside room</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="bathroom-type" value="shared" style="width: 18px; height: 18px;">
+                                            <span><strong>Shared</strong> - Shared with other guests</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>🚿 Bathroom Amenities</h3>
+                            </div>
+                            <div class="card-body" id="bathroom-amenities-list">
+                                <p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- In-Room Features Tab -->
+                    <div id="amenities-tab-features" class="amenity-tab-panel" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>📺 In-Room Features</h3>
+                            </div>
+                            <div class="card-body" id="features-amenities-list">
+                                <p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Terms & Policies Tab -->
+                    <div id="amenities-tab-terms" class="amenity-tab-panel" style="display: none;">
+                        <div class="card">
+                            <div class="card-header">
+                                <h3>⏰ Check-in / Check-out</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div class="form-group">
+                                        <label class="form-label">Check-in From</label>
+                                        <select class="form-input" id="terms-checkin-from">
+                                            <option value="12:00">12:00 PM (Noon)</option>
+                                            <option value="13:00">1:00 PM</option>
+                                            <option value="14:00">2:00 PM</option>
+                                            <option value="15:00" selected>3:00 PM</option>
+                                            <option value="16:00">4:00 PM</option>
+                                            <option value="17:00">5:00 PM</option>
+                                            <option value="18:00">6:00 PM</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Check-in Until</label>
+                                        <select class="form-input" id="terms-checkin-until">
+                                            <option value="18:00">6:00 PM</option>
+                                            <option value="19:00">7:00 PM</option>
+                                            <option value="20:00">8:00 PM</option>
+                                            <option value="21:00">9:00 PM</option>
+                                            <option value="22:00" selected>10:00 PM</option>
+                                            <option value="23:00">11:00 PM</option>
+                                            <option value="00:00">Midnight</option>
+                                            <option value="flexible">Flexible / 24hr</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Check-out By</label>
+                                        <select class="form-input" id="terms-checkout">
+                                            <option value="09:00">9:00 AM</option>
+                                            <option value="10:00">10:00 AM</option>
+                                            <option value="11:00" selected>11:00 AM</option>
+                                            <option value="12:00">12:00 PM (Noon)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Late Check-out Fee</label>
+                                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                            <span>£</span>
+                                            <input type="number" class="form-input" id="terms-late-checkout-fee" min="0" placeholder="0" style="width: 100px;">
+                                            <span style="color: var(--text-secondary); font-size: 0.85rem;">(leave blank if not offered)</span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="terms-self-checkin" style="width: 18px; height: 18px;">
+                                        <span>Self Check-in Available</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="terms-24hr-checkin" style="width: 18px; height: 18px;">
+                                        <span>24-Hour Check-in</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>🚭 Smoking Policy</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="smoking-policy" value="no" checked style="width: 18px; height: 18px;">
+                                            <span><strong>🚭 No Smoking</strong> - Entire property is non-smoking</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="smoking-policy" value="designated" style="width: 18px; height: 18px;">
+                                            <span><strong>Designated Areas Only</strong> - Smoking in specified areas</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="smoking-policy" value="allowed" style="width: 18px; height: 18px;">
+                                            <span><strong>Smoking Allowed</strong></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Smoking Violation Fine (optional)</label>
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <span>£</span>
+                                        <input type="number" class="form-input" id="terms-smoking-fine" min="0" placeholder="e.g., 250" style="width: 120px;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>🐕 Pet Policy</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="pet-policy" value="no" checked style="width: 18px; height: 18px;">
+                                            <span><strong>No Pets Allowed</strong></span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="pet-policy" value="yes" style="width: 18px; height: 18px;">
+                                            <span><strong>🐕 Pets Allowed</strong></span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="pet-policy" value="request" style="width: 18px; height: 18px;">
+                                            <span><strong>Pets on Request</strong> - Contact to confirm</span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div id="pet-details" style="margin-top: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; display: none;">
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                        <div class="form-group">
+                                            <label class="form-label">Pet Deposit (refundable)</label>
+                                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                <span>£</span>
+                                                <input type="number" class="form-input" id="terms-pet-deposit" min="0" placeholder="e.g., 50" style="width: 100px;">
+                                            </div>
+                                        </div>
+                                        <div class="form-group">
+                                            <label class="form-label">Pet Fee Per Night</label>
+                                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                                <span>£</span>
+                                                <input type="number" class="form-input" id="terms-pet-fee" min="0" placeholder="e.g., 15" style="width: 100px;">
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                            <input type="checkbox" id="terms-dogs-allowed" checked style="width: 18px; height: 18px;">
+                                            <span>🐕 Dogs</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                            <input type="checkbox" id="terms-cats-allowed" style="width: 18px; height: 18px;">
+                                            <span>🐈 Cats</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                            <input type="checkbox" id="terms-small-pets-only" style="width: 18px; height: 18px;">
+                                            <span>Small pets only (under 10kg)</span>
+                                        </label>
+                                    </div>
+                                    <div class="form-group" style="margin-top: 1rem;">
+                                        <label class="form-label">Maximum Pets Per Room</label>
+                                        <select class="form-input" id="terms-max-pets" style="width: 150px;">
+                                            <option value="1">1 pet</option>
+                                            <option value="2" selected>2 pets</option>
+                                            <option value="3">3 pets</option>
+                                            <option value="unlimited">No limit</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>👨‍👩‍👧 Children & Guests</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="form-label">Children Policy</label>
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="children-policy" value="all" checked style="width: 18px; height: 18px;">
+                                            <span><strong>👶 Children Welcome</strong> - All ages</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="children-policy" value="5plus" style="width: 18px; height: 18px;">
+                                            <span><strong>Children 5+ Only</strong></span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="children-policy" value="12plus" style="width: 18px; height: 18px;">
+                                            <span><strong>Children 12+ Only</strong></span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="children-policy" value="adults18" style="width: 18px; height: 18px;">
+                                            <span><strong>Adults Only (18+)</strong></span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="children-policy" value="adults21" style="width: 18px; height: 18px;">
+                                            <span><strong>Adults Only (21+)</strong></span>
+                                        </label>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="terms-cots-available" style="width: 18px; height: 18px;">
+                                        <span>Cots/Cribs Available</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="terms-highchairs" style="width: 18px; height: 18px;">
+                                        <span>High Chairs Available</span>
+                                    </label>
+                                </div>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Cot Fee Per Night (if offered)</label>
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <span>£</span>
+                                        <input type="number" class="form-input" id="terms-cot-fee" min="0" placeholder="0 if free" style="width: 100px;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>🎉 Events & Parties</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="events-policy" value="no" checked style="width: 18px; height: 18px;">
+                                            <span><strong>No Parties or Events</strong></span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="events-policy" value="small" style="width: 18px; height: 18px;">
+                                            <span><strong>Small Gatherings OK</strong> - Up to 10 guests</span>
+                                        </label>
+                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                            <input type="radio" name="events-policy" value="contact" style="width: 18px; height: 18px;">
+                                            <span><strong>Events by Arrangement</strong> - Contact for approval</span>
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>♿ Accessibility</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 0.75rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                        <input type="checkbox" id="access-wheelchair" style="width: 18px; height: 18px;">
+                                        <span>♿ Wheelchair Accessible</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                        <input type="checkbox" id="access-step-free" style="width: 18px; height: 18px;">
+                                        <span>Step-Free Access</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                        <input type="checkbox" id="access-bathroom" style="width: 18px; height: 18px;">
+                                        <span>Accessible Bathroom</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                        <input type="checkbox" id="access-grab-rails" style="width: 18px; height: 18px;">
+                                        <span>Grab Rails</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                        <input type="checkbox" id="access-roll-in-shower" style="width: 18px; height: 18px;">
+                                        <span>Roll-in Shower</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                        <input type="checkbox" id="access-elevator" style="width: 18px; height: 18px;">
+                                        <span>Elevator/Lift Access</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
+                                        <input type="checkbox" id="access-ground-floor" style="width: 18px; height: 18px;">
+                                        <span>Ground Floor Available</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>🏠 Additional House Rules</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div class="form-group">
+                                        <label class="form-label">Quiet Hours From</label>
+                                        <select class="form-input" id="terms-quiet-from">
+                                            <option value="">Not specified</option>
+                                            <option value="21:00">9:00 PM</option>
+                                            <option value="22:00" selected>10:00 PM</option>
+                                            <option value="23:00">11:00 PM</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Quiet Hours Until</label>
+                                        <select class="form-input" id="terms-quiet-until">
+                                            <option value="">Not specified</option>
+                                            <option value="07:00">7:00 AM</option>
+                                            <option value="08:00" selected>8:00 AM</option>
+                                            <option value="09:00">9:00 AM</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 1rem; margin-top: 1rem; flex-wrap: wrap;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="terms-no-outside-guests" style="width: 18px; height: 18px;">
+                                        <span>No Outside Guests</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="terms-id-required" style="width: 18px; height: 18px;">
+                                        <span>ID Required at Check-in</span>
+                                    </label>
+                                </div>
+                                <div class="form-group" style="margin-top: 1rem;">
+                                    <label class="form-label">Additional Rules/Notes</label>
+                                    <textarea class="form-input" id="terms-additional-rules" rows="3" placeholder="Any other house rules not covered above..."></textarea>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
+
+                <!-- Link to Marketing Features -->
+                <div class="card" style="margin-top: 1.5rem; background: linear-gradient(135deg, #ede9fe, #dbeafe); border: 1px solid #a5b4fc;">
+                    <div class="card-body" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h3 style="margin: 0 0 0.25rem 0; color: #4338ca;">🎯 Complete Your Property Profile</h3>
+                            <p style="margin: 0; color: #6366f1;">Tell guests what makes your property special - location, style, and who it's perfect for!</p>
+                        </div>
+                        <a href="#" onclick="navClick(document.querySelector('[data-view=marketing]'), 'marketing'); return false;" class="btn" style="background: linear-gradient(135deg, #6366f1, #8b5cf6); white-space: nowrap;">
+                            → Marketing Features & Tags
+                        </a>
+                    </div>
+                </div>
+
+                <!-- Hidden amenities-list for backward compatibility -->
+                <div id="amenities-list" style="display: none;"></div>
             </div>
 
             <!-- Content View -->
@@ -3642,6 +4062,28 @@ fetch('/api/public/client/1/rooms')
                         </div>
                     </div>
 
+                    <!-- Nearby -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🗺️</span> Nearby (within 15 mins)
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            What's conveniently close to your property?
+                        </p>
+                        <div class="feature-grid" data-category="nearby">
+                            <label class="feature-item"><input type="checkbox" data-feature="near-beach"> 🏖️ Beach</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-train"> 🚂 Train Station</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-airport"> ✈️ Airport</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-transport"> 🚌 Public Transport</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-restaurants"> 🍽️ Restaurants & Dining</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-shopping"> 🛍️ Shopping</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-golf"> ⛳ Golf Course</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-ski"> ⛷️ Ski Resort</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-hiking"> 🥾 Hiking Trails</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="near-attractions"> 🎡 Tourist Attractions</label>
+                        </div>
+                    </div>
+
                     <!-- Property Amenities -->
                     <div class="card" style="margin-bottom: 1rem;">
                         <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
@@ -3661,6 +4103,76 @@ fetch('/api/public/client/1/rooms')
                             <label class="feature-item"><input type="checkbox" data-feature="fireplace"> 🔥 Fireplace</label>
                             <label class="feature-item"><input type="checkbox" data-feature="private-parking"> 🅿️ Private Parking</label>
                             <label class="feature-item"><input type="checkbox" data-feature="restaurant"> 🍽️ On-site Restaurant</label>
+                        </div>
+                    </div>
+
+                    <!-- Property Type & Style -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🏛️</span> Property Type & Style
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            What type of property are you, and what's your style?
+                        </p>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Property Type</label>
+                            <select id="marketing-property-type" class="form-input" style="max-width: 300px;">
+                                <option value="">Select type...</option>
+                                <option value="hotel">Hotel</option>
+                                <option value="bnb">Bed & Breakfast</option>
+                                <option value="guesthouse">Guest House</option>
+                                <option value="inn">Inn</option>
+                                <option value="boutique">Boutique Hotel</option>
+                                <option value="apartment">Self-Catering / Apartment</option>
+                                <option value="villa">Villa</option>
+                                <option value="cottage">Cottage</option>
+                                <option value="cabin">Cabin / Lodge</option>
+                                <option value="farmhouse">Farmhouse / Agriturismo</option>
+                                <option value="hostel">Hostel</option>
+                                <option value="resort">Resort</option>
+                            </select>
+                        </div>
+                        <div class="feature-grid" data-category="property-style">
+                            <label class="feature-item"><input type="checkbox" data-feature="modern"> 🏢 Modern / Contemporary</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="traditional"> 🏡 Traditional</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="rustic"> 🪵 Rustic / Countryside</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="minimalist"> ⬜ Minimalist</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="quirky"> 🎪 Quirky / Unique</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="cozy"> 🔥 Cozy / Homely</label>
+                        </div>
+                    </div>
+
+                    <!-- Awards & Recognition -->
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <h3 style="margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;">
+                            <span>🏆</span> Awards & Recognition
+                        </h3>
+                        <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">
+                            Showcase your achievements and certifications
+                        </p>
+                        <div class="feature-grid" data-category="awards">
+                            <label class="feature-item"><input type="checkbox" data-feature="tripadvisor-coe"> 🏅 TripAdvisor Certificate of Excellence</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="booking-award"> 🏅 Booking.com Traveller Review Award</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="green-tourism"> 🌿 Green Tourism Certified</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="michelin"> ⭐ Michelin Guide Listed</label>
+                            <label class="feature-item"><input type="checkbox" data-feature="aa-rated"> 🔶 AA Rated</label>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Star Rating (Official)</label>
+                                <select id="marketing-star-rating" class="form-input">
+                                    <option value="">Not rated</option>
+                                    <option value="1">⭐ 1 Star</option>
+                                    <option value="2">⭐⭐ 2 Stars</option>
+                                    <option value="3">⭐⭐⭐ 3 Stars</option>
+                                    <option value="4">⭐⭐⭐⭐ 4 Stars</option>
+                                    <option value="5">⭐⭐⭐⭐⭐ 5 Stars</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Year Established</label>
+                                <input type="number" id="marketing-year-established" class="form-input" placeholder="e.g., 1985" min="1800" max="2025">
+                            </div>
                         </div>
                     </div>
 
@@ -11627,14 +12139,18 @@ Local honey and preserves"></textarea>
             
             roomSelect.innerHTML = '<option value="">Select Room...</option>';
             
-            // Reset amenities display
-            document.getElementById('amenities-list').innerHTML = `
-                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
-                    Select a room to manage amenities
-                </p>
-            `;
+            // Reset room-specific amenities display
+            const roomList = document.getElementById('room-amenities-list');
+            const bathroomList = document.getElementById('bathroom-amenities-list');
+            const featuresList = document.getElementById('features-amenities-list');
+            if (roomList) roomList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
+            if (bathroomList) bathroomList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
+            if (featuresList) featuresList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
             
             if (!propertyId) return;
+            
+            // Load property-level terms
+            await loadPropertyTerms(propertyId);
             
             try {
                 const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
@@ -11652,14 +12168,16 @@ Local honey and preserves"></textarea>
         
         async function loadAmenitiesForRoom() {
             const roomId = document.getElementById('amenities-room-select')?.value;
-            const container = document.getElementById('amenities-list');
+            
+            // Get tab containers
+            const roomList = document.getElementById('room-amenities-list');
+            const bathroomList = document.getElementById('bathroom-amenities-list');
+            const featuresList = document.getElementById('features-amenities-list');
             
             if (!roomId) {
-                container.innerHTML = `
-                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
-                        Select a room to manage amenities
-                    </p>
-                `;
+                if (roomList) roomList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
+                if (bathroomList) bathroomList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
+                if (featuresList) featuresList.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">Select a room to load amenities</p>';
                 return;
             }
             
@@ -11681,95 +12199,365 @@ Local honey and preserves"></textarea>
                         roomAmenitiesData.data.forEach(a => selectedIds.add(a.amenity_id));
                     }
                     
-                    // Group by category
-                    const categories = {};
+                    // Define which categories go in which tab
+                    const roomCategories = ['beds', 'essentials', 'laundry'];
+                    const bathroomCategories = ['bathrooms'];
+                    const featureCategories = ['entertainment', 'kitchen', 'wellness', 'work', 'safety', 'outdoor', 'parking', 'family', 'other'];
+                    
+                    // Group amenities by category
+                    const categorizedAmenities = {};
                     allAmenities.forEach(a => {
                         const cat = a.category || 'other';
-                        if (!categories[cat]) categories[cat] = [];
-                        categories[cat].push(a);
+                        if (!categorizedAmenities[cat]) categorizedAmenities[cat] = [];
+                        categorizedAmenities[cat].push(a);
                     });
                     
-                    // Category display names with icons
-                    const categoryNames = {
-                        'beds': '🛏️ Beds',
-                        'bathrooms': '🚿 Bathrooms',
-                        'essentials': '⭐ Essentials',
-                        'kitchen': '🍳 Kitchen',
-                        'entertainment': '📺 Entertainment',
-                        'wellness': '💆 Wellness',
-                        'parking': '🚗 Parking',
-                        'outdoor': '🌳 Outdoor',
-                        'family': '👨‍👩‍👧 Family',
-                        'work': '💼 Work',
-                        'safety': '🚨 Safety',
-                        'laundry': '🧺 Laundry',
-                        'other': '📦 Other'
-                    };
-                    
-                    const selectedCount = selectedIds.size;
-                    let html = `
-                        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
-                            <div>
-                                <strong style="font-size: 1.1rem;">${selectedCount}</strong> amenities selected
-                                <span style="color: var(--text-secondary); margin-left: 1rem; font-size: 0.9rem;">
-                                    out of ${allAmenities.length} available
-                                </span>
-                            </div>
-                            <button class="btn" onclick="saveRoomAmenities()">💾 Save Changes</button>
-                        </div>
-                    `;
-                    
-                    // Sort categories alphabetically
-                    const sortedCategories = Object.entries(categories).sort((a, b) => 
-                        a[0].localeCompare(b[0])
-                    );
-                    
-                    sortedCategories.forEach(([cat, items]) => {
-                        // Sort items: selected first
-                        items.sort((a, b) => {
-                            const aSelected = selectedIds.has(a.id);
-                            const bSelected = selectedIds.has(b.id);
-                            if (aSelected && !bSelected) return -1;
-                            if (!aSelected && bSelected) return 1;
-                            return (a.display_order || 0) - (b.display_order || 0);
+                    // Render function for amenity checkboxes
+                    const renderAmenityGrid = (categories, container) => {
+                        let html = '';
+                        categories.forEach(cat => {
+                            const items = categorizedAmenities[cat] || [];
+                            if (items.length === 0) return;
+                            
+                            // Sort: selected first
+                            items.sort((a, b) => {
+                                const aSelected = selectedIds.has(a.id);
+                                const bSelected = selectedIds.has(b.id);
+                                if (aSelected && !bSelected) return -1;
+                                if (!aSelected && bSelected) return 1;
+                                return (a.display_order || 0) - (b.display_order || 0);
+                            });
+                            
+                            const categoryNames = {
+                                'beds': '🛏️ Beds & Linens',
+                                'bathrooms': '🚿 Facilities',
+                                'essentials': '⭐ Essentials',
+                                'kitchen': '🍳 Kitchen & Refreshments',
+                                'entertainment': '📺 Entertainment',
+                                'wellness': '💆 Wellness',
+                                'parking': '🚗 Parking',
+                                'outdoor': '🌳 Outdoor',
+                                'family': '👨‍👩‍👧 Family',
+                                'work': '💼 Work',
+                                'safety': '🚨 Safety',
+                                'laundry': '🧺 Laundry',
+                                'other': '📦 Other'
+                            };
+                            
+                            html += `
+                                <div style="margin-bottom: 1.5rem;">
+                                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                        <h4 style="margin: 0; color: var(--text-secondary);">${categoryNames[cat] || cat}</h4>
+                                        <span style="font-size: 0.8rem; color: var(--text-secondary);">${items.filter(a => selectedIds.has(a.id)).length}/${items.length}</span>
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem;">
+                                        ${items.map(a => {
+                                            const name = typeof a.amenity_name === 'string' ? 
+                                                (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name) :
+                                                a.amenity_name?.en || a.amenity_code;
+                                            const isSelected = selectedIds.has(a.id);
+                                            return `
+                                                <label style="display: flex; align-items: center; gap: 0.5rem; background: ${isSelected ? '#dcfce7' : 'var(--bg-secondary)'}; border: 1px solid ${isSelected ? '#10b981' : 'var(--border)'}; padding: 0.5rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.9rem;">
+                                                    <input type="checkbox" class="room-amenity-checkbox" value="${a.id}" ${isSelected ? 'checked' : ''} style="width: 16px; height: 16px; cursor: pointer;">
+                                                    <span>${a.icon || ''} ${name}</span>
+                                                </label>
+                                            `;
+                                        }).join('')}
+                                    </div>
+                                </div>
+                            `;
                         });
                         
-                        html += `
-                            <div style="margin-bottom: 2rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                                    <h3 style="margin: 0; color: var(--text-primary);">${categoryNames[cat] || cat}</h3>
-                                    <span style="color: var(--text-secondary); font-size: 0.85rem;">${items.filter(a => selectedIds.has(a.id)).length} / ${items.length}</span>
-                                </div>
-                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.75rem;">
-                                    ${items.map(a => {
-                                        const name = typeof a.amenity_name === 'string' ? 
-                                            (a.amenity_name.startsWith('{') ? JSON.parse(a.amenity_name).en : a.amenity_name) :
-                                            a.amenity_name?.en || a.amenity_code;
-                                        const isSelected = selectedIds.has(a.id);
-                                        return `
-                                        <label style="display: flex; align-items: center; gap: 0.75rem; background: ${isSelected ? '#dcfce7' : 'var(--bg-secondary)'}; border: 1px solid ${isSelected ? '#10b981' : 'var(--border)'}; padding: 0.75rem; border-radius: 6px; cursor: pointer; transition: all 0.2s;">
-                                            <input type="checkbox" class="room-amenity-checkbox" value="${a.id}" ${isSelected ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
-                                            <span style="font-weight: 500;">${a.icon || ''} ${name}</span>
-                                        </label>
-                                    `}).join('')}
-                                </div>
-                            </div>
-                        `;
-                    });
+                        if (html === '') {
+                            html = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">No amenities in this category</p>';
+                        }
+                        
+                        if (container) container.innerHTML = html;
+                    };
                     
-                    container.innerHTML = html;
+                    // Render each tab
+                    renderAmenityGrid(roomCategories, roomList);
+                    renderAmenityGrid(bathroomCategories, bathroomList);
+                    renderAmenityGrid(featureCategories, featuresList);
+                    
                 } else {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">⭐</div>
-                            <h3>No Amenities Available</h3>
-                            <p>Run the migration to create standard amenities</p>
-                        </div>
-                    `;
+                    const emptyMsg = '<p style="color: var(--text-secondary); text-align: center; padding: 1rem;">No amenities available</p>';
+                    if (roomList) roomList.innerHTML = emptyMsg;
+                    if (bathroomList) bathroomList.innerHTML = emptyMsg;
+                    if (featuresList) featuresList.innerHTML = emptyMsg;
                 }
             } catch (error) {
                 console.error('Error loading amenities:', error);
-                container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading amenities</p>';
+                const errorMsg = '<p style="color: var(--error); text-align: center; padding: 1rem;">Error loading amenities</p>';
+                if (roomList) roomList.innerHTML = errorMsg;
+                if (bathroomList) bathroomList.innerHTML = errorMsg;
+                if (featuresList) featuresList.innerHTML = errorMsg;
+            }
+        }
+        
+        // Amenities Tab Switching
+        function switchAmenityTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('#amenities-tabs .filter-tab').forEach(btn => {
+                btn.classList.remove('active');
+                if (btn.dataset.amenityTab === tabName) {
+                    btn.classList.add('active');
+                }
+            });
+            
+            // Show/hide tab panels
+            document.querySelectorAll('.amenity-tab-panel').forEach(panel => {
+                panel.style.display = 'none';
+            });
+            const activePanel = document.getElementById(`amenities-tab-${tabName}`);
+            if (activePanel) {
+                activePanel.style.display = 'block';
+            }
+        }
+        
+        // Bed Configuration
+        function addBedRow() {
+            const container = document.getElementById('bed-configuration');
+            const newRow = document.createElement('div');
+            newRow.className = 'bed-row';
+            newRow.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;';
+            newRow.innerHTML = `
+                <select class="form-input bed-type-select">
+                    <option value="">Select bed type...</option>
+                    <option value="king">King Bed</option>
+                    <option value="queen">Queen Bed</option>
+                    <option value="double">Double Bed</option>
+                    <option value="twin">Twin/Single Bed</option>
+                    <option value="sofa">Sofa Bed</option>
+                    <option value="bunk">Bunk Bed</option>
+                    <option value="cot">Cot/Crib</option>
+                </select>
+                <input type="number" class="form-input bed-qty" min="1" max="10" value="1" style="width: 80px;">
+                <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);">✕</button>
+            `;
+            container.appendChild(newRow);
+        }
+        
+        function removeBedRow(btn) {
+            const row = btn.closest('.bed-row');
+            const container = document.getElementById('bed-configuration');
+            // Keep at least one row
+            if (container.querySelectorAll('.bed-row').length > 1) {
+                row.remove();
+            } else {
+                // Reset the row instead of removing
+                row.querySelector('.bed-type-select').value = '';
+                row.querySelector('.bed-qty').value = '1';
+            }
+        }
+        
+        // Pet policy toggle
+        document.addEventListener('change', function(e) {
+            if (e.target.name === 'pet-policy') {
+                const petDetails = document.getElementById('pet-details');
+                if (petDetails) {
+                    petDetails.style.display = (e.target.value === 'yes' || e.target.value === 'request') ? 'block' : 'none';
+                }
+            }
+        });
+        
+        // Save all amenities (Terms & Policies)
+        async function saveAllAmenities() {
+            const propertyId = document.getElementById('amenities-property-select')?.value;
+            const roomId = document.getElementById('amenities-room-select')?.value;
+            
+            if (!propertyId) {
+                alert('Please select a property first');
+                return;
+            }
+            
+            // Collect bed configuration
+            const beds = [];
+            document.querySelectorAll('.bed-row').forEach(row => {
+                const type = row.querySelector('.bed-type-select')?.value;
+                const qty = row.querySelector('.bed-qty')?.value || 1;
+                if (type) {
+                    beds.push({ type, quantity: parseInt(qty) });
+                }
+            });
+            
+            // Collect terms & policies
+            const terms = {
+                checkin_from: document.getElementById('terms-checkin-from')?.value,
+                checkin_until: document.getElementById('terms-checkin-until')?.value,
+                checkout: document.getElementById('terms-checkout')?.value,
+                late_checkout_fee: document.getElementById('terms-late-checkout-fee')?.value || null,
+                self_checkin: document.getElementById('terms-self-checkin')?.checked,
+                checkin_24hr: document.getElementById('terms-24hr-checkin')?.checked,
+                
+                smoking_policy: document.querySelector('input[name="smoking-policy"]:checked')?.value,
+                smoking_fine: document.getElementById('terms-smoking-fine')?.value || null,
+                
+                pet_policy: document.querySelector('input[name="pet-policy"]:checked')?.value,
+                pet_deposit: document.getElementById('terms-pet-deposit')?.value || null,
+                pet_fee: document.getElementById('terms-pet-fee')?.value || null,
+                dogs_allowed: document.getElementById('terms-dogs-allowed')?.checked,
+                cats_allowed: document.getElementById('terms-cats-allowed')?.checked,
+                small_pets_only: document.getElementById('terms-small-pets-only')?.checked,
+                max_pets: document.getElementById('terms-max-pets')?.value,
+                
+                children_policy: document.querySelector('input[name="children-policy"]:checked')?.value,
+                cots_available: document.getElementById('terms-cots-available')?.checked,
+                highchairs_available: document.getElementById('terms-highchairs')?.checked,
+                cot_fee: document.getElementById('terms-cot-fee')?.value || null,
+                
+                events_policy: document.querySelector('input[name="events-policy"]:checked')?.value,
+                
+                wheelchair_accessible: document.getElementById('access-wheelchair')?.checked,
+                step_free: document.getElementById('access-step-free')?.checked,
+                accessible_bathroom: document.getElementById('access-bathroom')?.checked,
+                grab_rails: document.getElementById('access-grab-rails')?.checked,
+                roll_in_shower: document.getElementById('access-roll-in-shower')?.checked,
+                elevator_access: document.getElementById('access-elevator')?.checked,
+                ground_floor: document.getElementById('access-ground-floor')?.checked,
+                
+                quiet_hours_from: document.getElementById('terms-quiet-from')?.value,
+                quiet_hours_until: document.getElementById('terms-quiet-until')?.value,
+                no_outside_guests: document.getElementById('terms-no-outside-guests')?.checked,
+                id_required: document.getElementById('terms-id-required')?.checked,
+                additional_rules: document.getElementById('terms-additional-rules')?.value,
+                
+                bathroom_type: document.querySelector('input[name="bathroom-type"]:checked')?.value
+            };
+            
+            // Also save room amenities if a room is selected
+            if (roomId) {
+                await saveRoomAmenities();
+            }
+            
+            // Save property-level terms
+            try {
+                const response = await fetch(`/api/admin/properties/${propertyId}/terms`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ terms, beds })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    alert('✅ All changes saved successfully!');
+                } else {
+                    alert('Error saving: ' + (result.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving amenities:', error);
+                alert('Error saving changes');
+            }
+        }
+        
+        // Load property terms when property is selected
+        async function loadPropertyTerms(propertyId) {
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch(`/api/admin/properties/${propertyId}/terms`);
+                const result = await response.json();
+                
+                if (result.success && result.data) {
+                    const terms = result.data.terms || {};
+                    const beds = result.data.beds || [];
+                    
+                    // Populate check-in/out
+                    if (terms.checkin_from) document.getElementById('terms-checkin-from').value = terms.checkin_from;
+                    if (terms.checkin_until) document.getElementById('terms-checkin-until').value = terms.checkin_until;
+                    if (terms.checkout) document.getElementById('terms-checkout').value = terms.checkout;
+                    if (terms.late_checkout_fee) document.getElementById('terms-late-checkout-fee').value = terms.late_checkout_fee;
+                    if (terms.self_checkin) document.getElementById('terms-self-checkin').checked = true;
+                    if (terms.checkin_24hr) document.getElementById('terms-24hr-checkin').checked = true;
+                    
+                    // Smoking
+                    if (terms.smoking_policy) {
+                        const radio = document.querySelector(`input[name="smoking-policy"][value="${terms.smoking_policy}"]`);
+                        if (radio) radio.checked = true;
+                    }
+                    if (terms.smoking_fine) document.getElementById('terms-smoking-fine').value = terms.smoking_fine;
+                    
+                    // Pets
+                    if (terms.pet_policy) {
+                        const radio = document.querySelector(`input[name="pet-policy"][value="${terms.pet_policy}"]`);
+                        if (radio) radio.checked = true;
+                        // Show pet details if pets allowed
+                        if (terms.pet_policy === 'yes' || terms.pet_policy === 'request') {
+                            document.getElementById('pet-details').style.display = 'block';
+                        }
+                    }
+                    if (terms.pet_deposit) document.getElementById('terms-pet-deposit').value = terms.pet_deposit;
+                    if (terms.pet_fee) document.getElementById('terms-pet-fee').value = terms.pet_fee;
+                    if (terms.dogs_allowed) document.getElementById('terms-dogs-allowed').checked = true;
+                    if (terms.cats_allowed) document.getElementById('terms-cats-allowed').checked = true;
+                    if (terms.small_pets_only) document.getElementById('terms-small-pets-only').checked = true;
+                    if (terms.max_pets) document.getElementById('terms-max-pets').value = terms.max_pets;
+                    
+                    // Children
+                    if (terms.children_policy) {
+                        const radio = document.querySelector(`input[name="children-policy"][value="${terms.children_policy}"]`);
+                        if (radio) radio.checked = true;
+                    }
+                    if (terms.cots_available) document.getElementById('terms-cots-available').checked = true;
+                    if (terms.highchairs_available) document.getElementById('terms-highchairs').checked = true;
+                    if (terms.cot_fee) document.getElementById('terms-cot-fee').value = terms.cot_fee;
+                    
+                    // Events
+                    if (terms.events_policy) {
+                        const radio = document.querySelector(`input[name="events-policy"][value="${terms.events_policy}"]`);
+                        if (radio) radio.checked = true;
+                    }
+                    
+                    // Accessibility
+                    if (terms.wheelchair_accessible) document.getElementById('access-wheelchair').checked = true;
+                    if (terms.step_free) document.getElementById('access-step-free').checked = true;
+                    if (terms.accessible_bathroom) document.getElementById('access-bathroom').checked = true;
+                    if (terms.grab_rails) document.getElementById('access-grab-rails').checked = true;
+                    if (terms.roll_in_shower) document.getElementById('access-roll-in-shower').checked = true;
+                    if (terms.elevator_access) document.getElementById('access-elevator').checked = true;
+                    if (terms.ground_floor) document.getElementById('access-ground-floor').checked = true;
+                    
+                    // House rules
+                    if (terms.quiet_hours_from) document.getElementById('terms-quiet-from').value = terms.quiet_hours_from;
+                    if (terms.quiet_hours_until) document.getElementById('terms-quiet-until').value = terms.quiet_hours_until;
+                    if (terms.no_outside_guests) document.getElementById('terms-no-outside-guests').checked = true;
+                    if (terms.id_required) document.getElementById('terms-id-required').checked = true;
+                    if (terms.additional_rules) document.getElementById('terms-additional-rules').value = terms.additional_rules;
+                    
+                    // Bathroom type
+                    if (terms.bathroom_type) {
+                        const radio = document.querySelector(`input[name="bathroom-type"][value="${terms.bathroom_type}"]`);
+                        if (radio) radio.checked = true;
+                    }
+                    
+                    // Beds
+                    if (beds.length > 0) {
+                        const container = document.getElementById('bed-configuration');
+                        container.innerHTML = '';
+                        beds.forEach((bed, index) => {
+                            const row = document.createElement('div');
+                            row.className = 'bed-row';
+                            row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;';
+                            row.innerHTML = `
+                                <select class="form-input bed-type-select">
+                                    <option value="">Select bed type...</option>
+                                    <option value="king" ${bed.type === 'king' ? 'selected' : ''}>King Bed</option>
+                                    <option value="queen" ${bed.type === 'queen' ? 'selected' : ''}>Queen Bed</option>
+                                    <option value="double" ${bed.type === 'double' ? 'selected' : ''}>Double Bed</option>
+                                    <option value="twin" ${bed.type === 'twin' ? 'selected' : ''}>Twin/Single Bed</option>
+                                    <option value="sofa" ${bed.type === 'sofa' ? 'selected' : ''}>Sofa Bed</option>
+                                    <option value="bunk" ${bed.type === 'bunk' ? 'selected' : ''}>Bunk Bed</option>
+                                    <option value="cot" ${bed.type === 'cot' ? 'selected' : ''}>Cot/Crib</option>
+                                </select>
+                                <input type="number" class="form-input bed-qty" min="1" max="10" value="${bed.quantity || 1}" style="width: 80px;">
+                                <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);">✕</button>
+                            `;
+                            container.appendChild(row);
+                        });
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading property terms:', error);
             }
         }
         
