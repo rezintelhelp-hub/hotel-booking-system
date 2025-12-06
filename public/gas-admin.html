@@ -1108,12 +1108,17 @@
             </div>
             
             <!-- Agency Filter Banner -->
-            <div id="agencyFilterBanner" style="display: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; border-radius: 8px; margin: 0 0.75rem 1rem 0.75rem; display: flex; justify-content: space-between; align-items: center;">
-                <div>
-                    <span style="font-size: 0.75rem; opacity: 0.9;">VIEWING</span>
-                    <div id="agencyFilterName" style="font-weight: 600;"></div>
+            <div id="agencyFilterBanner" style="display: none; background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; border-radius: 8px; margin: 0 0.75rem 1rem 0.75rem;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div>
+                        <span style="font-size: 0.75rem; opacity: 0.9;">VIEWING</span>
+                        <div id="agencyFilterName" style="font-weight: 600;"></div>
+                    </div>
+                    <button onclick="clearAccountFilter()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">✕ Clear</button>
                 </div>
-                <button onclick="clearAccountFilter()" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.4rem 0.8rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem;">✕ Clear</button>
+                <button id="managePlanBtn" class="billing-admin-only" onclick="openAssignPlanModal(selectedAccountId, document.getElementById('agencyFilterName').textContent)" style="display: none; margin-top: 0.5rem; width: 100%; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); color: white; padding: 0.5rem; border-radius: 6px; cursor: pointer; font-size: 0.85rem; align-items: center; justify-content: center; gap: 0.5rem;">
+                    ⚙️ Manage Plan & Features
+                </button>
             </div>
 
             <nav class="nav">
