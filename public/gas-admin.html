@@ -8675,16 +8675,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                     
                     // Sync color pickers with their text inputs
                     Object.entries(data.settings).forEach(([key, value]) => {
-                        if (value && value.startsWith && value.startsWith('#')) {
-                            const picker = document.getElementById(`${prefix}${key}-picker`);
-                            if (picker) {
-                                picker.value = value;
+                        if (value && typeof value === 'string') {
+                            // Check if it looks like a hex color (with or without #)
+                            const hexMatch = value.match(/^#?([0-9A-Fa-f]{6})$/);
+                            if (hexMatch) {
+                                const hexColor = '#' + hexMatch[1];
+                                const picker = document.getElementById(`${prefix}${key}-picker`);
+                                const textInput = document.getElementById(`${prefix}${key}`);
+                                if (picker) {
+                                    picker.value = hexColor;
+                                }
+                                // Also ensure text input has # prefix
+                                if (textInput && !textInput.value.startsWith('#')) {
+                                    textInput.value = hexColor;
+                                }
                             }
                         }
                     });
                     
                     // Update range slider value displays
-                    ['search-opacity', 'search-radius', 'search-padding', 'search-max-width'].forEach(key => {
+                    const rangeKeys = ['search-opacity', 'search-radius', 'search-padding', 'search-max-width', 'search-scale',
+                                       'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size'];
+                    rangeKeys.forEach(key => {
                         const valueEl = document.getElementById(`wb-${section}-${key}-value`);
                         if (valueEl && data.settings[key]) {
                             valueEl.textContent = data.settings[key];
