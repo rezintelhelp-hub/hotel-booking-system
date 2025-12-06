@@ -3738,6 +3738,11 @@ fetch('/api/public/client/1/rooms')
                             <input type="file" id="wb-hero-image" accept="image/*" onchange="previewWebsiteImage('hero')">
                         </div>
                         <div class="form-group">
+                            <label class="form-label">Background Image URL</label>
+                            <input type="text" class="form-input" id="wb-hero-image-url" placeholder="https://example.com/image.jpg">
+                            <small class="form-hint">Paste an image URL - this will sync to WordPress</small>
+                        </div>
+                        <div class="form-group">
                             <label class="form-label">Overlay Opacity</label>
                             <input type="range" id="wb-hero-overlay" min="0" max="100" value="50" style="width: 100%;">
                             <small class="form-hint">Darken the background to make text more readable</small>
@@ -8065,6 +8070,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                             }
                         }
                     });
+                    
+                    // Update image preview if image-url exists
+                    if (data.settings['image-url']) {
+                        const preview = document.getElementById(`wb-${section}-image-preview`);
+                        if (preview) {
+                            preview.style.backgroundImage = `url(${data.settings['image-url']})`;
+                            preview.style.backgroundSize = 'cover';
+                            preview.style.backgroundPosition = 'center';
+                            preview.innerHTML = '';
+                        }
+                    }
                 }
             } catch (error) {
                 console.error('Error loading website section:', error);
