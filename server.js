@@ -2912,6 +2912,167 @@ app.get('/api/setup-billing', async (req, res) => {
       )
     `);
     
+    // NEW: Billing Products
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_products (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) NOT NULL UNIQUE,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        category VARCHAR(50) DEFAULT 'general',
+        price_monthly DECIMAL(10,2) DEFAULT 0,
+        price_yearly DECIMAL(10,2) DEFAULT 0,
+        currency VARCHAR(3) DEFAULT 'GBP',
+        feature_flags JSONB DEFAULT '[]',
+        is_active BOOLEAN DEFAULT TRUE,
+        is_public BOOLEAN DEFAULT TRUE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // NEW: Billing Add-ons
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS billing_addons (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) NOT NULL UNIQUE,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        price_monthly DECIMAL(10,2) DEFAULT 0,
+        price_yearly DECIMAL(10,2) DEFAULT 0,
+        currency VARCHAR(3) DEFAULT 'GBP',
+        feature_flags JSONB DEFAULT '[]',
+        extra_properties INTEGER DEFAULT 0,
+        extra_rooms INTEGER DEFAULT 0,
+        extra_users INTEGER DEFAULT 0,
+        requires_plan_codes JSONB DEFAULT '[]',
+        is_active BOOLEAN DEFAULT TRUE,
+        is_public BOOLEAN DEFAULT TRUE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // NEW: Affiliate Tiers
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS affiliate_tiers (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(20) NOT NULL UNIQUE,
+        name VARCHAR(50) NOT NULL,
+        commission_rate DECIMAL(5,2) NOT NULL,
+        min_referrals INTEGER DEFAULT 0,
+        min_revenue DECIMAL(10,2) DEFAULT 0,
+        color VARCHAR(7) DEFAULT '#CD7F32',
+        icon VARCHAR(10) DEFAULT '🥉',
+        display_order INTEGER DEFAULT 0,
+        is_active BOOLEAN DEFAULT TRUE,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // NEW: Affiliates
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS affiliates (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL UNIQUE,
+        referral_code VARCHAR(20) NOT NULL UNIQUE,
+        referral_link VARCHAR(255),
+        tier_id INTEGER REFERENCES affiliate_tiers(id),
+        tier_code VARCHAR(20) DEFAULT 'bronze',
+        total_referrals INTEGER DEFAULT 0,
+        active_referrals INTEGER DEFAULT 0,
+        lifetime_earnings DECIMAL(10,2) DEFAULT 0,
+        payout_method VARCHAR(20) DEFAULT 'airwallex',
+        payout_details JSONB DEFAULT '{}',
+        min_payout DECIMAL(10,2) DEFAULT 50,
+        is_active BOOLEAN DEFAULT TRUE,
+        approved_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // NEW: Affiliate Referrals
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS affiliate_referrals (
+        id SERIAL PRIMARY KEY,
+        affiliate_id INTEGER NOT NULL REFERENCES affiliates(id),
+        referred_account_id INTEGER NOT NULL UNIQUE,
+        status VARCHAR(20) DEFAULT 'pending',
+        signed_up_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        converted_at TIMESTAMP,
+        churned_at TIMESTAMP,
+        referral_source VARCHAR(50)
+      )
+    `);
+    
+    // NEW: Affiliate Commissions
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS affiliate_commissions (
+        id SERIAL PRIMARY KEY,
+        affiliate_id INTEGER NOT NULL REFERENCES affiliates(id),
+        referral_id INTEGER REFERENCES affiliate_referrals(id),
+        source_type VARCHAR(20) NOT NULL,
+        source_id INTEGER,
+        gross_amount DECIMAL(10,2) NOT NULL,
+        commission_rate DECIMAL(5,2) NOT NULL,
+        commission_amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'GBP',
+        status VARCHAR(20) DEFAULT 'pending',
+        payout_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // NEW: Affiliate Payouts
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS affiliate_payouts (
+        id SERIAL PRIMARY KEY,
+        affiliate_id INTEGER NOT NULL REFERENCES affiliates(id),
+        amount DECIMAL(10,2) NOT NULL,
+        currency VARCHAR(3) DEFAULT 'GBP',
+        status VARCHAR(20) DEFAULT 'pending',
+        payout_method VARCHAR(20),
+        provider_payout_id VARCHAR(100),
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        processed_at TIMESTAMP,
+        paid_at TIMESTAMP,
+        notes TEXT
+      )
+    `);
+    
+    // Seed Products
+    await pool.query(`
+      INSERT INTO billing_products (code, name, description, category, price_monthly, price_yearly, display_order) VALUES
+      ('wp-theme-developer', 'Developer Theme', 'Professional WordPress theme', 'template', 15, 150, 1),
+      ('wp-plugin-booking', 'WP Booking Plugin', 'Booking widget for WordPress', 'plugin', 10, 100, 2),
+      ('app-blogger', 'Smart Blogger', 'AI-powered blog content', 'app', 9, 90, 3),
+      ('app-attractions', 'Attractions & SEO', 'Local attractions and SEO', 'app', 9, 90, 4),
+      ('app-marketing', 'Marketing Tools', 'Social media campaigns', 'app', 12, 120, 5),
+      ('portal-builder', 'Portal Builder', 'Create niche travel portals', 'template', 29, 290, 6)
+      ON CONFLICT (code) DO NOTHING
+    `);
+    
+    // Seed Add-ons
+    await pool.query(`
+      INSERT INTO billing_addons (code, name, description, price_monthly, extra_properties, display_order) VALUES
+      ('extra-property', 'Extra Property', 'Add one additional property', 5, 1, 1),
+      ('extra-5-properties', 'Property Pack', 'Add 5 additional properties', 20, 5, 2),
+      ('priority-support', 'Priority Support', '24/7 priority support', 15, 0, 3)
+      ON CONFLICT (code) DO NOTHING
+    `);
+    
+    // Seed Affiliate Tiers
+    await pool.query(`
+      INSERT INTO affiliate_tiers (code, name, commission_rate, min_referrals, min_revenue, color, icon, display_order) VALUES
+      ('bronze', 'Bronze', 5.00, 0, 0, '#CD7F32', '🥉', 1),
+      ('silver', 'Silver', 10.00, 5, 0, '#C0C0C0', '🥈', 2),
+      ('gold', 'Gold', 15.00, 10, 500, '#FFD700', '🥇', 3)
+      ON CONFLICT (code) DO NOTHING
+    `);
+    
     res.json({ success: true, message: 'Billing tables created with default data!' });
   } catch (error) {
     res.json({ success: false, error: error.message });
