@@ -3732,15 +3732,15 @@ fetch('/api/public/client/1/rooms')
                         </div>
                         <div class="form-group">
                             <label class="form-label">Background Image</label>
-                            <div id="wb-hero-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px;">
-                                <span style="color: #94a3b8;">No image selected</span>
+                            <div id="wb-hero-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                <span style="color: #94a3b8;">Click below to upload an image</span>
                             </div>
                             <input type="file" id="wb-hero-image" accept="image/*" onchange="previewWebsiteImage('hero')">
+                            <small class="form-hint">Upload an image - it will be hosted and the URL auto-filled below</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Background Image URL</label>
-                            <input type="text" class="form-input" id="wb-hero-image-url" placeholder="https://example.com/image.jpg">
-                            <small class="form-hint">Paste an image URL - this will sync to WordPress</small>
+                            <label class="form-label">Image URL (auto-filled on upload)</label>
+                            <input type="text" class="form-input" id="wb-hero-image-url" placeholder="URL will appear here after upload" readonly style="background: #f8fafc;">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Overlay Opacity</label>
@@ -8153,16 +8153,62 @@ const promo = await fetch('/api/v1/offers/validate', {
             }
         }
         
-        function previewWebsiteImage(section) {
+        async function previewWebsiteImage(section) {
             const input = document.getElementById(`wb-${section}-image`);
             const preview = document.getElementById(`wb-${section}-image-preview`);
+            const urlField = document.getElementById(`wb-${section}-image-url`);
             
             if (input.files && input.files[0]) {
+                const file = input.files[0];
+                
+                // Show preview immediately
                 const reader = new FileReader();
                 reader.onload = function(e) {
-                    preview.innerHTML = `<img src="${e.target.result}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
+                    preview.style.backgroundImage = `url(${e.target.result})`;
+                    preview.style.backgroundSize = 'cover';
+                    preview.style.backgroundPosition = 'center';
+                    preview.innerHTML = '<span style="background: rgba(0,0,0,0.5); color: white; padding: 8px 16px; border-radius: 4px;">Uploading...</span>';
                 };
-                reader.readAsDataURL(input.files[0]);
+                reader.readAsDataURL(file);
+                
+                // Upload to server
+                const accountId = selectedAccountId;
+                if (!accountId) {
+                    alert('Please select an account first');
+                    return;
+                }
+                
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('account_id', accountId);
+                formData.append('section', section);
+                
+                try {
+                    const response = await fetch('/api/admin/website-builder/upload-image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success && data.url) {
+                        // Fill the URL field
+                        if (urlField) {
+                            urlField.value = data.url;
+                        }
+                        preview.innerHTML = '<span style="background: rgba(16,185,129,0.9); color: white; padding: 8px 16px; border-radius: 4px;">✓ Uploaded</span>';
+                        setTimeout(() => {
+                            preview.innerHTML = '';
+                        }, 2000);
+                    } else {
+                        preview.innerHTML = '<span style="background: rgba(239,68,68,0.9); color: white; padding: 8px 16px; border-radius: 4px;">Upload failed</span>';
+                        alert('Upload failed: ' + (data.error || 'Unknown error'));
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    preview.innerHTML = '<span style="background: rgba(239,68,68,0.9); color: white; padding: 8px 16px; border-radius: 4px;">Upload error</span>';
+                    alert('Upload error: ' + error.message);
+                }
             }
         }
         
