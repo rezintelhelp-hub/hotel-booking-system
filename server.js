@@ -2984,13 +2984,13 @@ app.get('/api/admin/billing/products', async (req, res) => {
 // Create product
 app.post('/api/admin/billing/products', async (req, res) => {
   try {
-    const { code, name, description, category, price_monthly, price_yearly, price_once, is_active } = req.body;
+    const { code, name, description, category, price_monthly, price_yearly, is_active } = req.body;
     
     const result = await pool.query(`
-      INSERT INTO billing_products (code, name, description, category, price_monthly, price_yearly, price_once, is_active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      INSERT INTO billing_products (code, name, description, category, price_monthly, price_yearly, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING *
-    `, [code, name, description, category || 'general', price_monthly || 0, price_yearly || 0, price_once || 0, is_active !== false]);
+    `, [code, name, description, category || 'general', price_monthly || 0, price_yearly || 0, is_active !== false]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -3001,16 +3001,16 @@ app.post('/api/admin/billing/products', async (req, res) => {
 // Update product
 app.put('/api/admin/billing/products/:id', async (req, res) => {
   try {
-    const { code, name, description, category, price_monthly, price_yearly, price_once, is_active } = req.body;
+    const { code, name, description, category, price_monthly, price_yearly, is_active } = req.body;
     
     const result = await pool.query(`
       UPDATE billing_products 
       SET code = $1, name = $2, description = $3, category = $4, 
-          price_monthly = $5, price_yearly = $6, price_once = $7, is_active = $8,
+          price_monthly = $5, price_yearly = $6, is_active = $7,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $9
+      WHERE id = $8
       RETURNING *
-    `, [code, name, description, category || 'general', price_monthly || 0, price_yearly || 0, price_once || 0, is_active !== false, req.params.id]);
+    `, [code, name, description, category || 'general', price_monthly || 0, price_yearly || 0, is_active !== false, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
