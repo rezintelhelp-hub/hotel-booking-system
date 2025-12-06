@@ -2968,6 +2968,389 @@ app.delete('/api/admin/billing/plans/:id', async (req, res) => {
 });
 
 // =====================================================
+// BILLING PRODUCTS ADMIN
+// =====================================================
+
+// Get all products
+app.get('/api/admin/billing/products', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM billing_products ORDER BY display_order, name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create product
+app.post('/api/admin/billing/products', async (req, res) => {
+  try {
+    const { code, name, description, category, price_monthly, price_yearly, price_once, is_active } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO billing_products (code, name, description, category, price_monthly, price_yearly, price_once, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [code, name, description, category || 'general', price_monthly || 0, price_yearly || 0, price_once || 0, is_active !== false]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update product
+app.put('/api/admin/billing/products/:id', async (req, res) => {
+  try {
+    const { code, name, description, category, price_monthly, price_yearly, price_once, is_active } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE billing_products 
+      SET code = $1, name = $2, description = $3, category = $4, 
+          price_monthly = $5, price_yearly = $6, price_once = $7, is_active = $8,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $9
+      RETURNING *
+    `, [code, name, description, category || 'general', price_monthly || 0, price_yearly || 0, price_once || 0, is_active !== false, req.params.id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete product
+app.delete('/api/admin/billing/products/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM billing_products WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// BILLING ADD-ONS ADMIN
+// =====================================================
+
+// Get all addons
+app.get('/api/admin/billing/addons', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM billing_addons ORDER BY display_order, name');
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create addon
+app.post('/api/admin/billing/addons', async (req, res) => {
+  try {
+    const { code, name, description, price_monthly, extra_properties, is_active } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO billing_addons (code, name, description, price_monthly, extra_properties, is_active)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [code, name, description, price_monthly || 0, extra_properties || 0, is_active !== false]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update addon
+app.put('/api/admin/billing/addons/:id', async (req, res) => {
+  try {
+    const { code, name, description, price_monthly, extra_properties, is_active } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE billing_addons 
+      SET code = $1, name = $2, description = $3, price_monthly = $4, 
+          extra_properties = $5, is_active = $6, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $7
+      RETURNING *
+    `, [code, name, description, price_monthly || 0, extra_properties || 0, is_active !== false, req.params.id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete addon
+app.delete('/api/admin/billing/addons/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM billing_addons WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// SUBSCRIPTIONS ADMIN
+// =====================================================
+
+// Get all subscriptions with account info
+app.get('/api/admin/billing/subscriptions', async (req, res) => {
+  try {
+    const { plan, status } = req.query;
+    
+    let query = `
+      SELECT s.*, a.name as account_name, 
+             (SELECT COUNT(*) FROM billing_subscription_addons WHERE subscription_id = s.id) as addon_count,
+             COALESCE(s.locked_price, p.price_monthly) as mrr
+      FROM billing_subscriptions s
+      LEFT JOIN accounts a ON a.id = s.account_id
+      LEFT JOIN billing_plans p ON p.id = s.plan_id
+      WHERE 1=1
+    `;
+    const params = [];
+    
+    if (plan) {
+      params.push(plan);
+      query += ` AND s.plan_code = $${params.length}`;
+    }
+    if (status) {
+      params.push(status);
+      query += ` AND s.status = $${params.length}`;
+    }
+    
+    query += ' ORDER BY s.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// AFFILIATE SYSTEM
+// =====================================================
+
+// Get all affiliates (admin)
+app.get('/api/admin/affiliates', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT a.*, acc.name as account_name,
+             (SELECT COALESCE(SUM(commission_amount), 0) 
+              FROM affiliate_commissions 
+              WHERE affiliate_id = a.id AND status = 'pending') as pending_amount
+      FROM affiliates a
+      LEFT JOIN accounts acc ON acc.id = a.account_id
+      ORDER BY a.active_referrals DESC, a.lifetime_earnings DESC
+    `);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get current user's affiliate info
+app.get('/api/affiliate/me', async (req, res) => {
+  try {
+    // Get account ID from session/auth - for now use header or query
+    const accountId = req.headers['x-account-id'] || req.query.account_id;
+    if (!accountId) {
+      return res.json({ success: false, error: 'Account ID required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT a.*, 
+             (SELECT COALESCE(SUM(commission_amount), 0) 
+              FROM affiliate_commissions 
+              WHERE affiliate_id = a.id AND status = 'pending') as pending_amount,
+             (SELECT COALESCE(SUM(commission_amount), 0) 
+              FROM affiliate_commissions 
+              WHERE affiliate_id = a.id 
+              AND created_at >= DATE_TRUNC('month', CURRENT_DATE)) as month_earnings
+      FROM affiliates a
+      WHERE a.account_id = $1
+    `, [accountId]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, affiliate: result.rows[0] });
+    } else {
+      res.json({ success: true, affiliate: null });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get current user's referrals
+app.get('/api/affiliate/referrals', async (req, res) => {
+  try {
+    const accountId = req.headers['x-account-id'] || req.query.account_id;
+    if (!accountId) {
+      return res.json({ success: false, error: 'Account ID required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT r.*, acc.name as account_name, s.plan_code,
+             (SELECT COALESCE(SUM(commission_amount), 0) 
+              FROM affiliate_commissions c 
+              WHERE c.referral_id = r.id) as total_commission
+      FROM affiliate_referrals r
+      JOIN affiliates a ON a.id = r.affiliate_id
+      LEFT JOIN accounts acc ON acc.id = r.referred_account_id
+      LEFT JOIN billing_subscriptions s ON s.account_id = r.referred_account_id
+      WHERE a.account_id = $1
+      ORDER BY r.signed_up_at DESC
+    `, [accountId]);
+    
+    res.json({ success: true, referrals: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Join affiliate program
+app.post('/api/affiliate/join', async (req, res) => {
+  try {
+    const accountId = req.headers['x-account-id'] || req.body.account_id;
+    if (!accountId) {
+      return res.json({ success: false, error: 'Account ID required' });
+    }
+    
+    // Check if already an affiliate
+    const existing = await pool.query(
+      'SELECT id FROM affiliates WHERE account_id = $1',
+      [accountId]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.json({ success: false, error: 'Already an affiliate' });
+    }
+    
+    // Generate unique referral code
+    const account = await pool.query('SELECT name FROM accounts WHERE id = $1', [accountId]);
+    const baseName = (account.rows[0]?.name || 'REF').toUpperCase().replace(/[^A-Z]/g, '').substring(0, 8);
+    const randomNum = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    const referralCode = `${baseName}${randomNum}`;
+    
+    // Get bronze tier
+    const bronzeTier = await pool.query("SELECT id FROM affiliate_tiers WHERE code = 'bronze'");
+    const tierId = bronzeTier.rows[0]?.id || 1;
+    
+    const result = await pool.query(`
+      INSERT INTO affiliates (account_id, referral_code, referral_link, tier_id, tier_code, approved_at)
+      VALUES ($1, $2, $3, $4, 'bronze', CURRENT_TIMESTAMP)
+      RETURNING *
+    `, [accountId, referralCode, `https://gas.travel/ref/${referralCode}`, tierId]);
+    
+    res.json({ success: true, affiliate: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Request payout
+app.post('/api/affiliate/payout', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const accountId = req.headers['x-account-id'] || req.body.account_id;
+    if (!accountId) {
+      return res.json({ success: false, error: 'Account ID required' });
+    }
+    
+    await client.query('BEGIN');
+    
+    // Get affiliate and pending amount
+    const affiliateResult = await client.query(`
+      SELECT a.id, 
+             (SELECT COALESCE(SUM(commission_amount), 0) 
+              FROM affiliate_commissions 
+              WHERE affiliate_id = a.id AND status = 'pending') as pending_amount
+      FROM affiliates a
+      WHERE a.account_id = $1
+    `, [accountId]);
+    
+    if (affiliateResult.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.json({ success: false, error: 'Not an affiliate' });
+    }
+    
+    const affiliate = affiliateResult.rows[0];
+    const pendingAmount = parseFloat(affiliate.pending_amount || 0);
+    
+    if (pendingAmount < 50) {
+      await client.query('ROLLBACK');
+      return res.json({ success: false, error: 'Minimum payout is £50' });
+    }
+    
+    // Create payout record
+    const payoutResult = await client.query(`
+      INSERT INTO affiliate_payouts (affiliate_id, amount, currency, status)
+      VALUES ($1, $2, 'GBP', 'pending')
+      RETURNING id
+    `, [affiliate.id, pendingAmount]);
+    
+    // Mark commissions as processing
+    await client.query(`
+      UPDATE affiliate_commissions 
+      SET status = 'processing', payout_id = $1
+      WHERE affiliate_id = $2 AND status = 'pending'
+    `, [payoutResult.rows[0].id, affiliate.id]);
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, payout_id: payoutResult.rows[0].id, amount: pendingAmount });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Track referral signup (called when someone signs up via referral link)
+app.post('/api/affiliate/track', async (req, res) => {
+  try {
+    const { referral_code, referred_account_id } = req.body;
+    
+    // Find affiliate by code
+    const affiliateResult = await pool.query(
+      'SELECT id FROM affiliates WHERE referral_code = $1',
+      [referral_code]
+    );
+    
+    if (affiliateResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid referral code' });
+    }
+    
+    const affiliateId = affiliateResult.rows[0].id;
+    
+    // Check if already referred
+    const existing = await pool.query(
+      'SELECT id FROM affiliate_referrals WHERE referred_account_id = $1',
+      [referred_account_id]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.json({ success: false, error: 'Account already has a referrer' });
+    }
+    
+    // Create referral record
+    await pool.query(`
+      INSERT INTO affiliate_referrals (affiliate_id, referred_account_id, status, referral_source)
+      VALUES ($1, $2, 'pending', 'link')
+    `, [affiliateId, referred_account_id]);
+    
+    // Update affiliate stats
+    await pool.query(`
+      UPDATE affiliates SET total_referrals = total_referrals + 1 WHERE id = $1
+    `, [affiliateId]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // CREDIT PACKAGES ADMIN
 // =====================================================
 
