@@ -3605,7 +3605,21 @@ fetch('/api/public/client/1/rooms')
                             <h2>📌 Header & Logo</h2>
                             <p>Site identity and navigation</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('header')">💾 Save & Sync</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="openSitePreview()" id="wb-preview-btn" style="display: none;">
+                                <span>👁️</span>
+                                <span>Preview Site</span>
+                            </button>
+                            <button class="btn" onclick="saveWebsiteSection('header')">💾 Save & Sync</button>
+                        </div>
+                    </div>
+                    <div id="wb-site-banner" style="display: none; margin-top: 1rem; padding: 0.75rem 1rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-radius: 8px; color: white;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <strong>🌐 Your Website:</strong> <a id="wb-site-url" href="#" target="_blank" style="color: white; text-decoration: underline;"></a>
+                            </div>
+                            <span style="font-size: 0.8rem; opacity: 0.9;">Changes sync automatically when you save</span>
+                        </div>
                     </div>
                 </div>
                 <div class="card">
@@ -7921,6 +7935,14 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'taxes') loadTaxes();
             if (viewName === 'bookings') loadBookings();
             if (viewName === 'marketing') loadMarketingProperties();
+            if (viewName === 'wb-header') loadWebsiteSection('header');
+            if (viewName === 'wb-hero') loadWebsiteSection('hero');
+            if (viewName === 'wb-intro') loadWebsiteSection('intro');
+            if (viewName === 'wb-featured') loadWebsiteSection('featured');
+            if (viewName === 'wb-reviews') loadWebsiteSection('reviews');
+            if (viewName === 'wb-cta') loadWebsiteSection('cta');
+            if (viewName === 'wb-footer') loadWebsiteSection('footer');
+            if (viewName === 'wb-styles') loadWebsiteSection('styles');
             if (viewName === 'wordpress') loadWordPressView();
             
             // New sidebar views
@@ -7978,9 +8000,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function saveWebsiteSection(section) {
             try {
-                const clientId = getClientId();
-                if (!clientId) {
-                    alert('Please select a client first');
+                const accountId = selectedAccountId;
+                if (!accountId) {
+                    alert('Please select an account first');
                     return;
                 }
                 
@@ -8002,19 +8024,116 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const response = await fetch(`/api/admin/website-builder/${section}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ client_id: clientId, settings })
+                    body: JSON.stringify({ account_id: accountId, settings })
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    alert('✅ Saved! Your website will update automatically.');
+                    // Also push to WordPress if site exists
+                    await pushToWordPress(section, settings);
+                    alert('✅ Saved and synced to website!');
                 } else {
                     alert('Error: ' + (data.error || 'Failed to save'));
                 }
             } catch (error) {
                 console.error('Error saving website section:', error);
                 alert('Error saving. Please try again.');
+            }
+        }
+        
+        async function loadWebsiteSection(section) {
+            const accountId = selectedAccountId;
+            if (!accountId) return;
+            
+            // Load site info first
+            await loadSiteBanner();
+            
+            try {
+                const response = await fetch(`/api/admin/website-builder/${section}?account_id=${accountId}`);
+                const data = await response.json();
+                
+                if (data.success && data.settings) {
+                    const prefix = `wb-${section}-`;
+                    Object.entries(data.settings).forEach(([key, value]) => {
+                        const el = document.getElementById(`${prefix}${key}`);
+                        if (el) {
+                            if (el.type === 'checkbox') {
+                                el.checked = value;
+                            } else if (el.type !== 'file') {
+                                el.value = value;
+                            }
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading website section:', error);
+            }
+        }
+        
+        let currentSiteUrl = null;
+        
+        async function loadSiteBanner() {
+            const accountId = selectedAccountId;
+            if (!accountId) return;
+            
+            try {
+                const response = await fetch(`/api/account/${accountId}/website`);
+                const data = await response.json();
+                
+                const banner = document.getElementById('wb-site-banner');
+                const previewBtn = document.getElementById('wb-preview-btn');
+                const urlLink = document.getElementById('wb-site-url');
+                
+                if (data.success && data.data?.site_url) {
+                    currentSiteUrl = data.data.site_url;
+                    if (banner) {
+                        banner.style.display = 'block';
+                        urlLink.href = currentSiteUrl;
+                        urlLink.textContent = currentSiteUrl;
+                    }
+                    if (previewBtn) previewBtn.style.display = 'flex';
+                } else {
+                    if (banner) banner.style.display = 'none';
+                    if (previewBtn) previewBtn.style.display = 'none';
+                    currentSiteUrl = null;
+                }
+            } catch (error) {
+                console.error('Error loading site info:', error);
+            }
+        }
+        
+        function openSitePreview() {
+            if (currentSiteUrl) {
+                window.open(currentSiteUrl, '_blank');
+            } else {
+                alert('No website configured for this account. Create one in the WordPress section.');
+            }
+        }
+        
+        async function pushToWordPress(section, settings) {
+            const accountId = selectedAccountId;
+            try {
+                // Get the account's website
+                const siteResponse = await fetch(`/api/account/${accountId}/website`);
+                const siteData = await siteResponse.json();
+                
+                if (siteData.success && siteData.data?.site_url) {
+                    // Push settings to WordPress
+                    const wpApiUrl = siteData.data.site_url.replace(/\/$/, '') + '/wp-json/gas/v1/settings';
+                    await fetch('/api/admin/push-to-wordpress', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            account_id: accountId,
+                            section,
+                            settings,
+                            site_url: siteData.data.site_url
+                        })
+                    });
+                }
+            } catch (error) {
+                console.log('Could not push to WordPress:', error.message);
             }
         }
         
