@@ -14691,6 +14691,38 @@ app.get('/api/admin/website-builder/:section', async (req, res) => {
   }
 });
 
+// Upload image for website builder (hero, about, etc.)
+app.post('/api/admin/website-builder/upload-image', upload.single('image'), async (req, res) => {
+  try {
+    const { account_id, section } = req.body;
+    
+    if (!req.file) {
+      return res.json({ success: false, error: 'No image uploaded' });
+    }
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    // Process and upload to R2
+    const results = await processAndUploadImage(
+      req.file.buffer,
+      `website/${section || 'general'}`,
+      account_id,
+      req.file.originalname
+    );
+    
+    res.json({ 
+      success: true, 
+      url: results.large, // Use large size for hero images
+      urls: results
+    });
+  } catch (error) {
+    console.error('Website image upload error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Save website builder section settings
 app.post('/api/admin/website-builder/:section', async (req, res) => {
   try {
