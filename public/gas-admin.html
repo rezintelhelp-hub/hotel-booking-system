@@ -6152,10 +6152,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div style="font-weight: 600; font-size: 0.9rem; margin-bottom: 0.75rem; color: var(--text-primary);">⚡ Feature Overrides</div>
                     <p style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.75rem;">Enable features not included in the plan</p>
                     
-                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
-                        <input type="checkbox" id="assign-plan-api-access" style="width: 18px; height: 18px;">
-                        <span>🔌 API Access</span>
-                    </label>
+                    <div style="display: grid; gap: 0.5rem;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="checkbox" id="assign-plan-api-access" style="width: 18px; height: 18px;">
+                            <span>🔌 API Access</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="checkbox" id="assign-plan-blog-module" style="width: 18px; height: 18px;">
+                            <span>📝 Blog Module</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="checkbox" id="assign-plan-attractions-module" style="width: 18px; height: 18px;">
+                            <span>🎯 Attractions Module</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 0.9rem;">
+                            <input type="checkbox" id="assign-plan-reviews-widget" style="width: 18px; height: 18px;">
+                            <span>⭐ Reviews Widget</span>
+                        </label>
+                    </div>
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
@@ -9116,8 +9130,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             assignPlanAccountId = accountId;
             assignPlanAccountName = accountName;
             
-            // Reset checkboxes
+            // Reset all checkboxes
             document.getElementById('assign-plan-api-access').checked = false;
+            document.getElementById('assign-plan-blog-module').checked = false;
+            document.getElementById('assign-plan-attractions-module').checked = false;
+            document.getElementById('assign-plan-reviews-widget').checked = false;
             
             // Load plans for dropdown
             try {
@@ -9148,6 +9165,9 @@ const promo = await fetch('/api/v1/offers/validate', {
                     // Load feature overrides
                     const overrides = data.data.feature_overrides || {};
                     document.getElementById('assign-plan-api-access').checked = overrides.api_access === true;
+                    document.getElementById('assign-plan-blog-module').checked = overrides.blog_module === true;
+                    document.getElementById('assign-plan-attractions-module').checked = overrides.attractions_module === true;
+                    document.getElementById('assign-plan-reviews-widget').checked = overrides.reviews_widget === true;
                 } else {
                     document.getElementById('assign-plan-current').style.display = 'none';
                 }
@@ -9163,6 +9183,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             const planId = document.getElementById('assign-plan-select').value;
             const billingCycle = document.getElementById('assign-plan-cycle').value;
             const apiAccess = document.getElementById('assign-plan-api-access').checked;
+            const blogModule = document.getElementById('assign-plan-blog-module').checked;
+            const attractionsModule = document.getElementById('assign-plan-attractions-module').checked;
+            const reviewsWidget = document.getElementById('assign-plan-reviews-widget').checked;
             
             if (!planId) {
                 showNotification('Please select a plan', 'error');
@@ -9171,9 +9194,10 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Build feature overrides (only include if checked)
             const featureOverrides = {};
-            if (apiAccess) {
-                featureOverrides.api_access = true;
-            }
+            if (apiAccess) featureOverrides.api_access = true;
+            if (blogModule) featureOverrides.blog_module = true;
+            if (attractionsModule) featureOverrides.attractions_module = true;
+            if (reviewsWidget) featureOverrides.reviews_widget = true;
             
             try {
                 const response = await fetch('/api/admin/billing/assign-subscription', {
