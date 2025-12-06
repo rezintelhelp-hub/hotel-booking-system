@@ -1318,10 +1318,31 @@
                         </div>
                     </div>
                     
-                    <a class="nav-item" data-view="wb-footer" href="#" onclick="navClick(this, 'wb-footer'); return false;">
-                        <span class="nav-icon">👣</span>
-                        <span>Footer</span>
-                    </a>
+                    <!-- Footer Dropdown -->
+                    <div class="nav-subsection">
+                        <a class="nav-item nav-subsection-toggle" href="#" onclick="toggleSubSection(this); return false;" style="justify-content: space-between;">
+                            <span style="display: flex; align-items: center; gap: 8px;">
+                                <span class="nav-icon">👣</span>
+                                <span>Footer</span>
+                            </span>
+                            <span class="nav-subsection-arrow">▸</span>
+                        </a>
+                        <div class="nav-subsection-items" style="display: none; padding-left: 1rem;">
+                            <a class="nav-item" data-view="wb-footer" href="#" onclick="navClick(this, 'wb-footer'); return false;">
+                                <span class="nav-icon">⚙️</span>
+                                <span>Footer Settings</span>
+                            </a>
+                            <a class="nav-item" data-view="wb-page-terms" href="#" onclick="navClick(this, 'wb-page-terms'); return false;">
+                                <span class="nav-icon">📜</span>
+                                <span>Terms & Conditions</span>
+                            </a>
+                            <a class="nav-item" data-view="wb-page-privacy" href="#" onclick="navClick(this, 'wb-page-privacy'); return false;">
+                                <span class="nav-icon">🔒</span>
+                                <span>Privacy Policy</span>
+                            </a>
+                        </div>
+                    </div>
+                    
                     <a class="nav-item" data-view="wb-styles" href="#" onclick="navClick(this, 'wb-styles'); return false;">
                         <span class="nav-icon">🎨</span>
                         <span>Styles & Colors</span>
@@ -6291,6 +6312,286 @@ Local honey and preserves"></textarea>
                 </div>
             </div>
 
+            <!-- Sub Page: Terms & Conditions -->
+            <div id="wb-page-terms" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📜 Terms & Conditions</h2>
+                            <p>Your booking terms, cancellation policy, and house rules</p>
+                        </div>
+                        <button class="btn" onclick="saveSubPage('terms')">💾 Save & Sync</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h3>Page Settings</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Page Title</label>
+                            <input type="text" class="form-input" id="wb-page-terms-title" value="Terms & Conditions">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Last Updated Date</label>
+                            <input type="date" class="form-input" id="wb-page-terms-updated" style="width: 200px;">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Booking Terms</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Booking & Reservations</label>
+                            <textarea class="form-textarea" id="wb-page-terms-booking" rows="5" placeholder="Describe how bookings are made, confirmation process, deposit requirements..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Cancellation Policy</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Cancellation Terms</label>
+                            <textarea class="form-textarea" id="wb-page-terms-cancellation" rows="6" placeholder="e.g., Free cancellation up to 48 hours before check-in. Cancellations within 48 hours will be charged for the first night..."></textarea>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Free Cancellation Period</label>
+                                <select class="form-select" id="wb-page-terms-cancel-period">
+                                    <option value="24">24 hours before check-in</option>
+                                    <option value="48" selected>48 hours before check-in</option>
+                                    <option value="72">72 hours before check-in</option>
+                                    <option value="7days">7 days before check-in</option>
+                                    <option value="14days">14 days before check-in</option>
+                                    <option value="none">No free cancellation</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Late Cancellation Fee</label>
+                                <select class="form-select" id="wb-page-terms-cancel-fee">
+                                    <option value="first-night">First night charge</option>
+                                    <option value="50">50% of booking</option>
+                                    <option value="100">100% of booking</option>
+                                    <option value="custom">Custom (specify above)</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Check-in / Check-out</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Check-in Time</label>
+                                <input type="text" class="form-input" id="wb-page-terms-checkin-time" placeholder="3:00 PM">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Check-out Time</label>
+                                <input type="text" class="form-input" id="wb-page-terms-checkout-time" placeholder="11:00 AM">
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Additional Check-in/out Terms</label>
+                            <textarea class="form-textarea" id="wb-page-terms-checkin-details" rows="3" placeholder="Early check-in or late check-out subject to availability..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>House Rules</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Property Rules</label>
+                            <textarea class="form-textarea" id="wb-page-terms-house-rules" rows="6" placeholder="List your house rules:
+• No smoking
+• No pets (or pet policy)
+• Quiet hours: 10 PM - 8 AM
+• Maximum occupancy
+• No parties or events"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Payment Terms</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Payment Methods & Terms</label>
+                            <textarea class="form-textarea" id="wb-page-terms-payment" rows="4" placeholder="Accepted payment methods, deposit requirements, when payment is taken..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Liability & Damages</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Liability Terms</label>
+                            <textarea class="form-textarea" id="wb-page-terms-liability" rows="4" placeholder="Guest responsibility for damages, security deposit terms, liability limitations..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Additional Terms</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Other Terms & Conditions</label>
+                            <textarea class="form-textarea" id="wb-page-terms-additional" rows="5" placeholder="Any other terms not covered above..."></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sub Page: Privacy Policy -->
+            <div id="wb-page-privacy" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🔒 Privacy Policy</h2>
+                            <p>How you collect, use, and protect guest data</p>
+                        </div>
+                        <button class="btn" onclick="saveSubPage('privacy')">💾 Save & Sync</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h3>Page Settings</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Page Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-title" value="Privacy Policy">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Last Updated Date</label>
+                                <input type="date" class="form-input" id="wb-page-privacy-updated">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Effective Date</label>
+                                <input type="date" class="form-input" id="wb-page-privacy-effective">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Introduction</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Privacy Policy Introduction</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-intro" rows="4" placeholder="We respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, and safeguard your information when you visit our website or make a booking."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Data Collection</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">What Data We Collect</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-collection" rows="5" placeholder="Types of personal data collected:
+• Name, email, phone number
+• Payment information
+• Booking preferences
+• Communication history
+• Website usage data"></textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">How We Collect Data</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-how-collect" rows="4" placeholder="How data is collected:
+• Directly from you (booking forms, contact forms)
+• Automatically (cookies, analytics)
+• From third parties (booking platforms)"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Data Usage</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">How We Use Your Data</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-usage" rows="5" placeholder="We use your data to:
+• Process and manage bookings
+• Send booking confirmations and updates
+• Respond to enquiries
+• Improve our services
+• Send marketing communications (with consent)"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Data Sharing</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Who We Share Data With</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-sharing" rows="4" placeholder="We may share your data with:
+• Payment processors
+• Booking platforms (Booking.com, Airbnb, etc.)
+• Email service providers
+• Legal authorities when required"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Cookies</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Cookie Policy</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-cookies" rows="4" placeholder="Our website uses cookies to improve your experience. We use:
+• Essential cookies (required for site functionality)
+• Analytics cookies (to understand usage)
+• Marketing cookies (with your consent)"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Your Rights</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Data Subject Rights (GDPR)</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-rights" rows="5" placeholder="Under data protection law, you have rights including:
+• Right to access your personal data
+• Right to rectification
+• Right to erasure ('right to be forgotten')
+• Right to restrict processing
+• Right to data portability
+• Right to object"></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Data Retention</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">How Long We Keep Data</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-retention" rows="3" placeholder="We retain your personal data for as long as necessary to fulfill the purposes we collected it for, including legal, accounting, or reporting requirements."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Contact Information</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Data Controller Contact</label>
+                            <textarea class="form-textarea" id="wb-page-privacy-contact" rows="3" placeholder="For privacy-related enquiries, contact:
+[Your Business Name]
+[Email address]
+[Phone number]"></textarea>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
             <!-- Knowledge Base Articles View -->
             <div id="kb-articles" class="view">
                 <div class="header">
@@ -9233,6 +9534,8 @@ Local honey and preserves"></textarea>
                     if (footerAddress) document.getElementById('wb-page-contact-address').value = footerAddress;
                 }, 100);
             }
+            if (viewName === 'wb-page-terms') loadSubPage('terms');
+            if (viewName === 'wb-page-privacy') loadSubPage('privacy');
             
             if (viewName === 'wordpress') loadWordPressView();
             
