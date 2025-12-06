@@ -1222,6 +1222,10 @@
                         <span class="nav-icon">🏨</span>
                         <span>Featured Properties</span>
                     </a>
+                    <a class="nav-item" data-view="wb-about" href="#" onclick="navClick(this, 'wb-about'); return false;">
+                        <span class="nav-icon">ℹ️</span>
+                        <span>About Section</span>
+                    </a>
                     <a class="nav-item" data-view="wb-reviews" href="#" onclick="navClick(this, 'wb-reviews'); return false;">
                         <span class="nav-icon">⭐</span>
                         <span>Reviews</span>
@@ -3622,23 +3626,23 @@ fetch('/api/public/client/1/rooms')
                         </div>
                     </div>
                 </div>
+
+                <!-- Logo Card -->
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Logo</h3>
-                    </div>
+                    <div class="card-header"><h3>Logo</h3></div>
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Logo Image</label>
-                            <div id="wb-header-logo-preview" style="width: 200px; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0;">
+                            <div id="wb-header-logo-image-preview" style="width: 200px; height: 80px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0; background-size: contain; background-position: center; background-repeat: no-repeat;">
                                 <span style="color: #94a3b8;">No logo uploaded</span>
                             </div>
-                            <input type="file" id="wb-header-logo" accept="image/*" onchange="previewWebsiteImage('header-logo')">
+                            <input type="file" id="wb-header-logo-image" accept="image/*" onchange="previewWebsiteImage('header-logo')">
+                            <input type="hidden" id="wb-header-logo-image-url">
                             <small class="form-hint">Recommended: PNG with transparent background, max 400x150px</small>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Site Name (if no logo)</label>
                             <input type="text" class="form-input" id="wb-header-site-name" placeholder="e.g., The Grand Hotel">
-                            <small class="form-hint">Displayed if no logo is uploaded</small>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Tagline</label>
@@ -3646,55 +3650,147 @@ fetch('/api/public/client/1/rooms')
                         </div>
                     </div>
                 </div>
+
+                <!-- Header Colors Card -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Navigation Menu</h3>
-                    </div>
+                    <div class="card-header"><h3>Header Colors</h3></div>
                     <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-show-rooms" checked> Show "Rooms" link
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-show-about" checked> Show "About" link
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-show-contact" checked> Show "Contact" link
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-show-blog" checked> Show "Blog" link
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Book Now Button Text</label>
-                            <input type="text" class="form-input" id="wb-header-book-button" placeholder="e.g., Book Now">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-bg-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-bg-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-bg-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-bg-color-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Menu Link Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-text-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-text-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-text-color-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Logo/Site Title Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-logo-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-logo-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-logo-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-logo-color-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">CTA Button Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-cta-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-cta-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-cta-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-cta-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">CTA Button Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-cta-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-cta-text').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-cta-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-cta-text-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Border Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-border-color-picker" value="#e5e7eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-border-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-border-color" value="#e5e7eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-header-border-color-picker').value = this.value">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
+
+                <!-- Menu Typography Card -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Header Style</h3>
+                    <div class="card-header"><h3>Menu Typography</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Menu Font</label>
+                                <select class="form-select" id="wb-header-font">
+                                    <option value="Inter">Inter (Modern)</option>
+                                    <option value="Playfair Display">Playfair Display (Elegant)</option>
+                                    <option value="Montserrat">Montserrat (Clean)</option>
+                                    <option value="Lora">Lora (Classic)</option>
+                                    <option value="Roboto">Roboto (Neutral)</option>
+                                    <option value="Open Sans">Open Sans (Friendly)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Font Size: <span id="wb-header-font-size-value">15</span>px</label>
+                                <input type="range" id="wb-header-font-size" min="12" max="24" value="15" style="width: 100%;" oninput="document.getElementById('wb-header-font-size-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Font Weight</label>
+                                <select class="form-select" id="wb-header-font-weight">
+                                    <option value="400">Normal (400)</option>
+                                    <option value="500" selected>Medium (500)</option>
+                                    <option value="600">Semi-Bold (600)</option>
+                                    <option value="700">Bold (700)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Style</label>
+                                <select class="form-select" id="wb-header-text-transform">
+                                    <option value="none">Normal</option>
+                                    <option value="uppercase">UPPERCASE</option>
+                                    <option value="capitalize">Capitalize</option>
+                                </select>
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                <!-- Header Layout Card -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Layout & Options</h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Header Background</label>
-                            <select class="form-select" id="wb-header-bg-style">
-                                <option value="transparent">Transparent (over hero)</option>
-                                <option value="white">White</option>
-                                <option value="dark">Dark</option>
-                                <option value="primary">Primary Color</option>
+                            <label class="form-label">Menu Layout</label>
+                            <select class="form-select" id="wb-header-layout">
+                                <option value="logo-left">Logo Left, Menu Right</option>
+                                <option value="logo-center">Logo Center, Menu Split</option>
+                                <option value="logo-right">Logo Right, Menu Left</option>
+                                <option value="stacked">Stacked (Logo above Menu)</option>
                             </select>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-header-sticky" checked> Sticky Header (stays at top when scrolling)
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-header-transparent" checked> Transparent over Hero
                             </label>
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-header-sticky" checked> Sticky Header
+                            </label>
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-header-border"> Show Bottom Border
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Navigation Menu Card -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Navigation Menu</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-header-show-rooms" checked> Show "Rooms" link
+                            </label>
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-header-show-about" checked> Show "About" link
+                            </label>
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-header-show-contact" checked> Show "Contact" link
+                            </label>
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-header-show-blog" checked> Show "Blog" link
+                            </label>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Book Now Button Text</label>
+                            <input type="text" class="form-input" id="wb-header-book-button" placeholder="e.g., Book Now" value="Book Now">
                         </div>
                     </div>
                 </div>
@@ -3711,81 +3807,166 @@ fetch('/api/public/client/1/rooms')
                         <button class="btn" onclick="saveWebsiteSection('hero')">💾 Save & Sync</button>
                     </div>
                 </div>
+
+                <!-- Hero Content Card -->
                 <div class="card">
+                    <div class="card-header"><h3>Hero Content</h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Hero Headline</label>
+                            <label class="form-label">Headline</label>
                             <input type="text" class="form-input" id="wb-hero-headline" placeholder="e.g., Welcome to Paradise">
-                            <small class="form-hint">The main text visitors see first</small>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Hero Subheadline</label>
+                            <label class="form-label">Subheadline</label>
                             <input type="text" class="form-input" id="wb-hero-subheadline" placeholder="e.g., Experience luxury in the heart of the countryside">
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Button Text</label>
-                            <input type="text" class="form-input" id="wb-hero-button-text" placeholder="e.g., Book Now">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Badge Text</label>
+                                <input type="text" class="form-input" id="wb-hero-button-text" placeholder="e.g., Welcome to Paradise">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Badge Link (optional)</label>
+                                <input type="text" class="form-input" id="wb-hero-button-link" placeholder="e.g., /about">
+                            </div>
                         </div>
+                    </div>
+                </div>
+
+                <!-- Hero Image Card -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Background Image</h3></div>
+                    <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Button Link</label>
-                            <input type="text" class="form-input" id="wb-hero-button-link" placeholder="e.g., #booking or /rooms">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Background Image</label>
                             <div id="wb-hero-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
                                 <span style="color: #94a3b8;">Click below to upload an image</span>
                             </div>
                             <input type="file" id="wb-hero-image" accept="image/*" onchange="previewWebsiteImage('hero')">
-                            <small class="form-hint">Upload an image - it will be hosted and the URL auto-filled below</small>
+                            <input type="hidden" id="wb-hero-image-url">
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Overlay Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-overlay-color-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-overlay-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-overlay-color" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-overlay-color-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Overlay Opacity: <span id="wb-hero-overlay-value">30</span>%</label>
+                                <input type="range" id="wb-hero-overlay" min="0" max="100" value="30" style="width: 100%;" oninput="document.getElementById('wb-hero-overlay-value').textContent = this.value">
+                            </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Image URL (auto-filled on upload)</label>
-                            <input type="text" class="form-input" id="wb-hero-image-url" placeholder="URL will appear here after upload" readonly style="background: #f8fafc;">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Overlay Opacity</label>
-                            <input type="range" id="wb-hero-overlay" min="0" max="100" value="50" style="width: 100%;">
-                            <small class="form-hint">Darken the background to make text more readable</small>
+                            <label class="form-label">Hero Height: <span id="wb-hero-height-value">90</span>vh</label>
+                            <input type="range" id="wb-hero-height" min="50" max="100" value="90" style="width: 100%;" oninput="document.getElementById('wb-hero-height-value').textContent = this.value">
                         </div>
                     </div>
                 </div>
-                
-                <!-- Search Widget Card -->
-                <div class="card" style="margin-top: 1.5rem;">
-                    <div class="card-header">
-                        <h3>🔍 Search Widget</h3>
-                    </div>
+
+                <!-- Badge Styling Card -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Badge Styling</h3></div>
                     <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">Background Color</label>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <input type="color" id="wb-hero-search-bg-picker" value="#ffffff" style="width: 50px; height: 40px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-bg').value = this.value">
-                                <input type="text" class="form-input" id="wb-hero-search-bg" value="#ffffff" style="width: 100px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-bg-picker').value = this.value">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-badge-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer; opacity: 0.3;" onchange="document.getElementById('wb-hero-badge-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-badge-bg" value="rgba(255,255,255,0.15)" style="width: 100%; font-family: monospace; font-size: 12px;">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-badge-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-badge-text').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-badge-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-badge-text-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Border</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-badge-border-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer; opacity: 0.3;" onchange="document.getElementById('wb-hero-badge-border').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-badge-border" value="rgba(255,255,255,0.3)" style="width: 100%; font-family: monospace; font-size: 12px;">
+                                </div>
                             </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Background Opacity: <span id="wb-hero-search-opacity-value">100</span>%</label>
-                            <input type="range" id="wb-hero-search-opacity" min="0" max="100" value="100" style="width: 100%;" oninput="document.getElementById('wb-hero-search-opacity-value').textContent = this.value">
-                            <small class="form-hint">0 = transparent, 100 = solid</small>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Corner Radius: <span id="wb-hero-search-radius-value">16</span>px</label>
-                            <input type="range" id="wb-hero-search-radius" min="0" max="32" value="16" style="width: 100%;" oninput="document.getElementById('wb-hero-search-radius-value').textContent = this.value">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Padding: <span id="wb-hero-search-padding-value">24</span>px</label>
-                            <input type="range" id="wb-hero-search-padding" min="0" max="48" value="24" style="width: 100%;" oninput="document.getElementById('wb-hero-search-padding-value').textContent = this.value">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Max Width: <span id="wb-hero-search-max-width-value">900</span>px</label>
-                            <input type="range" id="wb-hero-search-max-width" min="600" max="1200" value="900" style="width: 100%;" oninput="document.getElementById('wb-hero-search-max-width-value').textContent = this.value">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Button Color</label>
-                            <div style="display: flex; gap: 10px; align-items: center;">
-                                <input type="color" id="wb-hero-search-btn-bg-picker" value="#2563eb" style="width: 50px; height: 40px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-btn-bg').value = this.value">
-                                <input type="text" class="form-input" id="wb-hero-search-btn-bg" value="#2563eb" style="width: 100px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-btn-bg-picker').value = this.value">
+                    </div>
+                </div>
+
+                <!-- Trust Badges Card -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Trust Badges</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Badge 1</label>
+                                <input type="text" class="form-input" id="wb-hero-trust-1" value="Instant Booking">
                             </div>
+                            <div class="form-group">
+                                <label class="form-label">Badge 2</label>
+                                <input type="text" class="form-input" id="wb-hero-trust-2" value="Best Price Guarantee">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Badge 3</label>
+                                <input type="text" class="form-input" id="wb-hero-trust-3" value="24/7 Support">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Search Widget Card -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>🔍 Search Widget</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-search-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-search-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Opacity: <span id="wb-hero-search-opacity-value">100</span>%</label>
+                                <input type="range" id="wb-hero-search-opacity" min="0" max="100" value="100" style="width: 100%;" oninput="document.getElementById('wb-hero-search-opacity-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Corner Radius: <span id="wb-hero-search-radius-value">16</span>px</label>
+                                <input type="range" id="wb-hero-search-radius" min="0" max="32" value="16" style="width: 100%;" oninput="document.getElementById('wb-hero-search-radius-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Padding: <span id="wb-hero-search-padding-value">24</span>px</label>
+                                <input type="range" id="wb-hero-search-padding" min="0" max="48" value="24" style="width: 100%;" oninput="document.getElementById('wb-hero-search-padding-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Max Width: <span id="wb-hero-search-max-width-value">900</span>px</label>
+                                <input type="range" id="wb-hero-search-max-width" min="600" max="1200" value="900" style="width: 100%;" oninput="document.getElementById('wb-hero-search-max-width-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Scale: <span id="wb-hero-search-scale-value">100</span>%</label>
+                                <input type="range" id="wb-hero-search-scale" min="80" max="120" value="100" style="width: 100%;" oninput="document.getElementById('wb-hero-search-scale-value').textContent = this.value">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-search-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-btn-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-search-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-btn-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-hero-search-btn-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-btn-text').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-search-btn-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-btn-text-picker').value = this.value">
+                                </div>
+                            </div>
+                        </div>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Text Below Search</label>
+                            <input type="text" class="form-input" id="wb-hero-search-below-text" placeholder="e.g., Find your perfect room in seconds">
                         </div>
                     </div>
                 </div>
@@ -3797,36 +3978,91 @@ fetch('/api/public/client/1/rooms')
                     <div class="header-top">
                         <div>
                             <h2>📝 Intro Section</h2>
-                            <p>Welcome text and feature highlights</p>
+                            <p>Welcome text below the hero</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('intro')">💾 Save & Sync</button>
                     </div>
                 </div>
+
                 <div class="card">
+                    <div class="card-header"><h3>Content</h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Section Title</label>
-                            <input type="text" class="form-input" id="wb-intro-title" placeholder="e.g., Why Choose Us">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-intro-enabled" checked> Enable Intro Section
+                            </label>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Intro Text</label>
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-input" id="wb-intro-title" placeholder="e.g., Welcome to Our Property">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Text</label>
                             <textarea class="form-textarea" id="wb-intro-text" rows="4" placeholder="Welcome text about your property..."></textarea>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Feature 1</label>
-                            <input type="text" class="form-input" id="wb-intro-feature1" placeholder="e.g., 🌊 Beachfront Location">
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Styling</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-intro-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-intro-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-intro-text-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-text-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-intro-text-color-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Title Size: <span id="wb-intro-title-size-value">36</span>px</label>
+                                <input type="range" id="wb-intro-title-size" min="24" max="72" value="36" style="width: 100%;" oninput="document.getElementById('wb-intro-title-size-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Size: <span id="wb-intro-text-size-value">18</span>px</label>
+                                <input type="range" id="wb-intro-text-size" min="14" max="24" value="18" style="width: 100%;" oninput="document.getElementById('wb-intro-text-size-value').textContent = this.value">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Feature 2</label>
-                            <input type="text" class="form-input" id="wb-intro-feature2" placeholder="e.g., 🍳 Award-winning Breakfast">
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Max Width: <span id="wb-intro-max-width-value">800</span>px</label>
+                            <input type="range" id="wb-intro-max-width" min="600" max="1200" value="800" style="width: 100%;" oninput="document.getElementById('wb-intro-max-width-value').textContent = this.value">
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Feature 3</label>
-                            <input type="text" class="form-input" id="wb-intro-feature3" placeholder="e.g., 🚗 Free Parking">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Feature 4</label>
-                            <input type="text" class="form-input" id="wb-intro-feature4" placeholder="e.g., 📶 Fast WiFi">
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Button (Optional)</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text</label>
+                                <input type="text" class="form-input" id="wb-intro-btn-text" placeholder="e.g., Learn More">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button URL</label>
+                                <input type="text" class="form-input" id="wb-intro-btn-url" placeholder="e.g., /about">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-intro-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-btn-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-intro-btn-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-intro-btn-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-intro-btn-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-intro-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-intro-btn-text-color-picker').value = this.value">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3838,40 +4074,77 @@ fetch('/api/public/client/1/rooms')
                     <div class="header-top">
                         <div>
                             <h2>🏨 Featured Properties</h2>
-                            <p>Choose which properties/rooms to highlight</p>
+                            <p>Choose which rooms to highlight</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('featured')">💾 Save & Sync</button>
                     </div>
                 </div>
+
                 <div class="card">
+                    <div class="card-header"><h3>Content</h3></div>
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Section Title</label>
-                            <input type="text" class="form-input" id="wb-featured-title" placeholder="e.g., Our Rooms">
+                            <input type="text" class="form-input" id="wb-featured-title" value="Featured Properties" placeholder="e.g., Our Rooms">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Section Subtitle</label>
-                            <input type="text" class="form-input" id="wb-featured-subtitle" placeholder="e.g., Choose your perfect stay">
+                            <textarea class="form-textarea" id="wb-featured-subtitle" rows="2" placeholder="e.g., Discover our handpicked selection...">Discover our handpicked selection of stunning vacation rentals.</textarea>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Display Mode</label>
-                            <select class="form-select" id="wb-featured-mode">
-                                <option value="all">Show All Rooms</option>
-                                <option value="featured">Featured Only</option>
-                                <option value="selected">Select Specific</option>
-                            </select>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Display Settings</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Display Mode</label>
+                                <select class="form-select" id="wb-featured-mode">
+                                    <option value="all">Show All Rooms</option>
+                                    <option value="count">Show First X Rooms</option>
+                                    <option value="selected">Select Specific Rooms</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Count: <span id="wb-featured-count-value">3</span></label>
+                                <input type="range" id="wb-featured-count" min="1" max="12" value="3" style="width: 100%;" oninput="document.getElementById('wb-featured-count-value').textContent = this.value">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Number to Display</label>
-                            <select class="form-select" id="wb-featured-count">
-                                <option value="3">3</option>
-                                <option value="4">4</option>
-                                <option value="6">6</option>
-                                <option value="all">All</option>
-                            </select>
+                        <div class="form-group" style="margin-top: 1rem;">
+                            <label class="form-label">Room IDs (comma-separated)</label>
+                            <input type="text" class="form-input" id="wb-featured-ids" placeholder="e.g., 1,3,5">
+                            <small class="form-hint">Only used when "Select Specific Rooms" is chosen</small>
                         </div>
-                        <div id="wb-featured-rooms-list" style="margin-top: 1rem;">
-                            <!-- Populated dynamically -->
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Button</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text</label>
+                                <input type="text" class="form-input" id="wb-featured-btn-text" value="View All Properties">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button URL</label>
+                                <input type="text" class="form-input" id="wb-featured-btn-url" value="/book-now/">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-featured-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-btn-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-featured-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-featured-btn-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-featured-btn-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-btn-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-featured-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-featured-btn-text-color-picker').value = this.value">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3885,29 +4158,181 @@ fetch('/api/public/client/1/rooms')
                             <h2>⭐ Reviews Section</h2>
                             <p>Customer testimonials and ratings</p>
                         </div>
-                        <button class="btn" onclick="addWebsiteReview()">+ Add Review</button>
+                        <button class="btn" onclick="saveWebsiteSection('reviews')">💾 Save & Sync</button>
                     </div>
                 </div>
+
                 <div class="card">
+                    <div class="card-header"><h3>Settings</h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Section Title</label>
-                            <input type="text" class="form-input" id="wb-reviews-title" placeholder="e.g., What Our Guests Say">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-reviews-show" checked> Show Reviews Section
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-reviews-enabled"> Enable Reviews Section
                             </label>
+                            <small class="form-hint">When enabled, shows Repuso/widget reviews instead of default testimonials</small>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Section Title</label>
+                                <input type="text" class="form-input" id="wb-reviews-title" value="What Our Guests Say">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Section Subtitle</label>
+                                <input type="text" class="form-input" id="wb-reviews-subtitle" value="Real reviews from real guests">
+                            </div>
                         </div>
                     </div>
                 </div>
+
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Reviews</h3>
+                    <div class="card-header"><h3>Styling</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-reviews-bg-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-reviews-bg" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-reviews-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-reviews-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-reviews-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-reviews-text-color-picker').value = this.value">
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="card-body" id="wb-reviews-list">
-                        <div class="empty-state">
-                            <p>No reviews yet. Click "Add Review" to add testimonials.</p>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Widget Embed Code</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Repuso or Review Widget HTML</label>
+                            <textarea class="form-textarea" id="wb-reviews-widget" rows="4" placeholder="Paste your Repuso/Elfsight/TripAdvisor widget embed code here..."></textarea>
+                            <small class="form-hint">Paste the embed code from your review platform (Repuso, Elfsight, etc.)</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Builder: About Section -->
+            <div id="wb-about" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>ℹ️ About Section</h2>
+                            <p>Tell visitors about your property</p>
+                        </div>
+                        <button class="btn" onclick="saveWebsiteSection('about')">💾 Save & Sync</button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header"><h3>Content</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Image</label>
+                            <div id="wb-about-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
+                                <span style="color: #94a3b8;">Click below to upload an image</span>
+                            </div>
+                            <input type="file" id="wb-about-image" accept="image/*" onchange="previewWebsiteImage('about')">
+                            <input type="hidden" id="wb-about-image-url">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-input" id="wb-about-title" value="Experience Luxury & Comfort">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Text</label>
+                            <textarea class="form-textarea" id="wb-about-text" rows="4">Our carefully curated collection of vacation rentals offers the perfect blend of luxury, comfort, and convenience.</textarea>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Layout</label>
+                            <select class="form-select" id="wb-about-layout">
+                                <option value="image-left">Image Left</option>
+                                <option value="image-right">Image Right</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Styling</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Title Size: <span id="wb-about-title-size-value">36</span>px</label>
+                                <input type="range" id="wb-about-title-size" min="24" max="72" value="36" style="width: 100%;" oninput="document.getElementById('wb-about-title-size-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Size: <span id="wb-about-text-size-value">16</span>px</label>
+                                <input type="range" id="wb-about-text-size" min="14" max="24" value="16" style="width: 100%;" oninput="document.getElementById('wb-about-text-size-value').textContent = this.value">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Features (Checkmarks)</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Feature 1</label>
+                                <input type="text" class="form-input" id="wb-about-feature-1" value="Spacious Bedrooms">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 2</label>
+                                <input type="text" class="form-input" id="wb-about-feature-2" value="Luxury Bathrooms">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 3</label>
+                                <input type="text" class="form-input" id="wb-about-feature-3" value="Prime Locations">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 4</label>
+                                <input type="text" class="form-input" id="wb-about-feature-4" value="Full Amenities">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 5</label>
+                                <input type="text" class="form-input" id="wb-about-feature-5" value="Entertainment Areas">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Feature 6</label>
+                                <input type="text" class="form-input" id="wb-about-feature-6" value="Private Parking">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Button</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text</label>
+                                <input type="text" class="form-input" id="wb-about-btn-text" value="Learn More">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button URL</label>
+                                <input type="text" class="form-input" id="wb-about-btn-url" value="/about/">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-about-btn-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-btn-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-about-btn-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-about-btn-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-about-btn-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-btn-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-about-btn-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-about-btn-text-color-picker').value = this.value">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3918,33 +4343,88 @@ fetch('/api/public/client/1/rooms')
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🚀 Call to Action</h2>
+                            <h2>📢 Call to Action</h2>
                             <p>Encourage visitors to book</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('cta')">💾 Save & Sync</button>
                     </div>
                 </div>
+
                 <div class="card">
+                    <div class="card-header"><h3>Content</h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">CTA Headline</label>
-                            <input type="text" class="form-input" id="wb-cta-headline" placeholder="e.g., Ready to Book Your Stay?">
+                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="wb-cta-enabled" checked> Enable CTA Section
+                            </label>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">CTA Text</label>
-                            <textarea class="form-textarea" id="wb-cta-text" rows="2" placeholder="e.g., Book directly with us for the best rates and exclusive perks."></textarea>
+                            <label class="form-label">Title</label>
+                            <input type="text" class="form-input" id="wb-cta-title" value="Ready to Book Your Stay?">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Button Text</label>
-                            <input type="text" class="form-input" id="wb-cta-button-text" placeholder="e.g., Check Availability">
+                            <label class="form-label">Text</label>
+                            <textarea class="form-textarea" id="wb-cta-text" rows="2">Find your perfect vacation rental today and create memories that last a lifetime.</textarea>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Button Link</label>
-                            <input type="text" class="form-input" id="wb-cta-button-link" placeholder="e.g., #booking">
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Styling</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-cta-background-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-cta-background').value = this.value">
+                                    <input type="text" class="form-input" id="wb-cta-background" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-cta-background-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-cta-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-cta-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-cta-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-cta-text-color-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Title Size: <span id="wb-cta-title-size-value">36</span>px</label>
+                                <input type="range" id="wb-cta-title-size" min="24" max="72" value="36" style="width: 100%;" oninput="document.getElementById('wb-cta-title-size-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Size: <span id="wb-cta-text-size-value">18</span>px</label>
+                                <input type="range" id="wb-cta-text-size" min="14" max="24" value="18" style="width: 100%;" oninput="document.getElementById('wb-cta-text-size-value').textContent = this.value">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Background Color</label>
-                            <input type="color" id="wb-cta-bg-color" value="#6366f1" style="width: 100px; height: 40px;">
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Button</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Button Text</label>
+                                <input type="text" class="form-input" id="wb-cta-btn-text" value="Browse Properties">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button URL</label>
+                                <input type="text" class="form-input" id="wb-cta-btn-url" value="/book-now/">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Background</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-cta-btn-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-cta-btn-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-cta-btn-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-cta-btn-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-cta-btn-text-color-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-cta-btn-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-cta-btn-text-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-cta-btn-text-color-picker').value = this.value">
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3955,133 +4435,101 @@ fetch('/api/public/client/1/rooms')
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>👣 Footer</h2>
+                            <h2>🦶 Footer</h2>
                             <p>Bottom section of your website</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('footer')">💾 Save & Sync</button>
                     </div>
                 </div>
+
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Quick Links</h3>
-                    </div>
+                    <div class="card-header"><h3>Footer Styling</h3></div>
                     <div class="card-body">
-                        <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1rem;">Choose which links appear in your footer's Quick Links section</p>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-home" checked> Home
-                                </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-footer-bg-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-footer-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-footer-bg" value="#0f172a" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-footer-bg-picker').value = this.value">
+                                </div>
                             </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-rooms" checked> Rooms
-                                </label>
+                            <div class="form-group">
+                                <label class="form-label">Text Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-footer-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-footer-text').value = this.value">
+                                    <input type="text" class="form-input" id="wb-footer-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-footer-text-picker').value = this.value">
+                                </div>
                             </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-about" checked> About
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-contact" checked> Contact
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-blog"> Blog
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-faq"> FAQ
-                                </label>
+                            <div class="form-group">
+                                <label class="form-label">Layout</label>
+                                <select class="form-select" id="wb-footer-layout">
+                                    <option value="default">Default (3 columns)</option>
+                                    <option value="centered">Centered</option>
+                                    <option value="minimal">Minimal</option>
+                                </select>
                             </div>
                         </div>
-                    </div>
-                </div>
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Legal Links</h3>
-                    </div>
-                    <div class="card-body">
-                        <p style="color: #64748b; font-size: 0.85rem; margin-bottom: 1rem;">These appear in the Legal section of your footer</p>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-terms" checked> Terms & Conditions
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-privacy" checked> Privacy Policy
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-cookies"> Cookie Policy
-                                </label>
-                            </div>
-                            <div class="form-group" style="margin: 0;">
-                                <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <input type="checkbox" id="wb-footer-link-cancellation"> Cancellation Policy
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Contact Info in Footer</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-footer-show-address" checked> Show Address
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-footer-show-phone" checked> Show Phone
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-footer-show-email" checked> Show Email
-                            </label>
-                        </div>
-                    </div>
-                </div>
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Social Media & Branding</h3>
-                    </div>
-                    <div class="card-body">
-                        <div class="form-group">
+                        <div class="form-group" style="margin-top: 1rem;">
                             <label class="form-label">Copyright Text</label>
-                            <input type="text" class="form-input" id="wb-footer-copyright" placeholder="e.g., © 2025 Your Property Name. All rights reserved.">
+                            <input type="text" class="form-input" id="wb-footer-copyright" value="© 2025 All rights reserved.">
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Contact Information</h3></div>
+                    <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-input" id="wb-footer-email" placeholder="info@example.com">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Footer Tagline</label>
-                            <input type="text" class="form-input" id="wb-footer-tagline" placeholder="e.g., Experience the difference">
+                            <label class="form-label">Phone</label>
+                            <input type="text" class="form-input" id="wb-footer-phone" placeholder="+1 (555) 123-4567">
                         </div>
                         <div class="form-group">
-                            <label class="form-label">
-                                <input type="checkbox" id="wb-footer-show-social" checked> Show Social Media Icons
-                            </label>
+                            <label class="form-label">Address</label>
+                            <textarea class="form-textarea" id="wb-footer-address" rows="2" placeholder="123 Main Street, City, State ZIP"></textarea>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Facebook URL</label>
-                            <input type="text" class="form-input" id="wb-footer-facebook" placeholder="https://facebook.com/yourpage">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Instagram URL</label>
-                            <input type="text" class="form-input" id="wb-footer-instagram" placeholder="https://instagram.com/yourpage">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Twitter/X URL</label>
-                            <input type="text" class="form-input" id="wb-footer-twitter" placeholder="https://twitter.com/yourpage">
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Social Media Links</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Facebook</label>
+                                <input type="text" class="form-input" id="wb-footer-social-facebook" placeholder="https://facebook.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Instagram</label>
+                                <input type="text" class="form-input" id="wb-footer-social-instagram" placeholder="https://instagram.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Twitter/X</label>
+                                <input type="text" class="form-input" id="wb-footer-social-twitter" placeholder="https://twitter.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">LinkedIn</label>
+                                <input type="text" class="form-input" id="wb-footer-social-linkedin" placeholder="https://linkedin.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">YouTube</label>
+                                <input type="text" class="form-input" id="wb-footer-social-youtube" placeholder="https://youtube.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">TikTok</label>
+                                <input type="text" class="form-input" id="wb-footer-social-tiktok" placeholder="https://tiktok.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Pinterest</label>
+                                <input type="text" class="form-input" id="wb-footer-social-pinterest" placeholder="https://pinterest.com/...">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">TripAdvisor</label>
+                                <input type="text" class="form-input" id="wb-footer-social-tripadvisor" placeholder="https://tripadvisor.com/...">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -4093,68 +4541,154 @@ fetch('/api/public/client/1/rooms')
                     <div class="header-top">
                         <div>
                             <h2>🎨 Styles & Colors</h2>
-                            <p>Customize your website appearance</p>
+                            <p>Global styling for your website</p>
                         </div>
                         <button class="btn" onclick="saveWebsiteSection('styles')">💾 Save & Sync</button>
                     </div>
                 </div>
+
                 <div class="card">
-                    <div class="card-header">
-                        <h3 class="card-title">Colors</h3>
-                    </div>
+                    <div class="card-header"><h3>Brand Colors</h3></div>
                     <div class="card-body">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem;">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Primary Color</label>
-                                <input type="color" id="wb-style-primary" value="#6366f1" style="width: 100%; height: 50px; border-radius: 8px;">
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-primary-color-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-primary-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-primary-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-primary-color-picker').value = this.value">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Secondary Color</label>
-                                <input type="color" id="wb-style-secondary" value="#8b5cf6" style="width: 100%; height: 50px; border-radius: 8px;">
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-secondary-color-picker" value="#7c3aed" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-secondary-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-secondary-color" value="#7c3aed" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-secondary-color-picker').value = this.value">
+                                </div>
                             </div>
                             <div class="form-group">
                                 <label class="form-label">Accent Color</label>
-                                <input type="color" id="wb-style-accent" value="#10b981" style="width: 100%; height: 50px; border-radius: 8px;">
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-accent-color-picker" value="#f59e0b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-accent-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-accent-color" value="#f59e0b" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-accent-color-picker').value = this.value">
+                                </div>
                             </div>
                             <div class="form-group">
-                                <label class="form-label">Text Color</label>
-                                <input type="color" id="wb-style-text" value="#1e293b" style="width: 100%; height: 50px; border-radius: 8px;">
+                                <label class="form-label">Link Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-link-color-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-link-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-link-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-link-color-picker').value = this.value">
+                                </div>
                             </div>
                         </div>
                     </div>
                 </div>
+
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3 class="card-title">Typography</h3>
+                    <div class="card-header"><h3>Typography</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Heading Font</label>
+                                <select class="form-select" id="wb-styles-heading-font">
+                                    <option value="Inter" selected>Inter (Modern)</option>
+                                    <option value="Playfair Display">Playfair Display (Elegant)</option>
+                                    <option value="Montserrat">Montserrat (Clean)</option>
+                                    <option value="Lora">Lora (Classic)</option>
+                                    <option value="Roboto">Roboto (Neutral)</option>
+                                    <option value="Open Sans">Open Sans (Friendly)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Body Font</label>
+                                <select class="form-select" id="wb-styles-body-font">
+                                    <option value="Inter" selected>Inter (Modern)</option>
+                                    <option value="Roboto">Roboto (Clean)</option>
+                                    <option value="Open Sans">Open Sans (Friendly)</option>
+                                    <option value="Lato">Lato (Warm)</option>
+                                    <option value="Source Sans Pro">Source Sans Pro (Professional)</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Page Title Size: <span id="wb-styles-title-size-value">48</span>px</label>
+                                <input type="range" id="wb-styles-title-size" min="24" max="72" value="48" style="width: 100%;" oninput="document.getElementById('wb-styles-title-size-value').textContent = this.value">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Body Text Size: <span id="wb-styles-body-size-value">16</span>px</label>
+                                <input type="range" id="wb-styles-body-size" min="14" max="20" value="16" style="width: 100%;" oninput="document.getElementById('wb-styles-body-size-value').textContent = this.value">
+                            </div>
+                        </div>
                     </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Button Styles</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Primary Button BG</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-btn-primary-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-btn-primary-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-btn-primary-bg" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-btn-primary-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Primary Button Text</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-btn-primary-text-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-btn-primary-text').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-btn-primary-text" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="document.getElementById('wb-styles-btn-primary-text-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Button Radius: <span id="wb-styles-btn-radius-value">8</span>px</label>
+                                <input type="range" id="wb-styles-btn-radius" min="0" max="24" value="8" style="width: 100%;" oninput="document.getElementById('wb-styles-btn-radius-value').textContent = this.value">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Section Backgrounds</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Featured BG</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-featured-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-featured-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-featured-bg" value="#ffffff" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="document.getElementById('wb-styles-featured-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">About BG</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-about-bg-picker" value="#f8fafc" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-about-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-about-bg" value="#f8fafc" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="document.getElementById('wb-styles-about-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Testimonials BG</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-testimonials-bg-picker" value="#0f172a" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-testimonials-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-testimonials-bg" value="#0f172a" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="document.getElementById('wb-styles-testimonials-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">CTA BG</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-styles-cta-bg-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-styles-cta-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-styles-cta-bg" value="#2563eb" style="width: 80px; font-family: monospace; font-size: 12px;" oninput="document.getElementById('wb-styles-cta-bg-picker').value = this.value">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Custom CSS</h3></div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Heading Font</label>
-                            <select class="form-select" id="wb-style-heading-font">
-                                <option value="Playfair Display">Playfair Display (Elegant)</option>
-                                <option value="Montserrat">Montserrat (Modern)</option>
-                                <option value="Roboto">Roboto (Clean)</option>
-                                <option value="Lora">Lora (Classic)</option>
-                                <option value="Open Sans">Open Sans (Friendly)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Body Font</label>
-                            <select class="form-select" id="wb-style-body-font">
-                                <option value="Inter">Inter (Modern)</option>
-                                <option value="Roboto">Roboto (Clean)</option>
-                                <option value="Open Sans">Open Sans (Friendly)</option>
-                                <option value="Lato">Lato (Warm)</option>
-                                <option value="Source Sans Pro">Source Sans Pro (Professional)</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Button Style</label>
-                            <select class="form-select" id="wb-style-button">
-                                <option value="rounded">Rounded</option>
-                                <option value="pill">Pill</option>
-                                <option value="square">Square</option>
-                            </select>
+                            <label class="form-label">Additional CSS</label>
+                            <textarea class="form-textarea" id="wb-styles-custom-css" rows="6" placeholder="/* Add custom CSS here */"></textarea>
+                            <small class="form-hint">Advanced: Add custom CSS to override theme styles</small>
                         </div>
                     </div>
                 </div>
@@ -7984,6 +8518,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             if (viewName === 'wb-hero') loadWebsiteSection('hero');
             if (viewName === 'wb-intro') loadWebsiteSection('intro');
             if (viewName === 'wb-featured') loadWebsiteSection('featured');
+            if (viewName === 'wb-about') loadWebsiteSection('about');
             if (viewName === 'wb-reviews') loadWebsiteSection('reviews');
             if (viewName === 'wb-cta') loadWebsiteSection('cta');
             if (viewName === 'wb-footer') loadWebsiteSection('footer');
