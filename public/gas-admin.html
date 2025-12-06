@@ -12462,10 +12462,10 @@ Local honey and preserves"></textarea>
                     const terms = result.data.terms || {};
                     const beds = result.data.beds || [];
                     
-                    // Populate check-in/out
+                    // Populate check-in/out (using database column names)
                     if (terms.checkin_from) document.getElementById('terms-checkin-from').value = terms.checkin_from;
                     if (terms.checkin_until) document.getElementById('terms-checkin-until').value = terms.checkin_until;
-                    if (terms.checkout) document.getElementById('terms-checkout').value = terms.checkout;
+                    if (terms.checkout_by) document.getElementById('terms-checkout').value = terms.checkout_by;
                     if (terms.late_checkout_fee) document.getElementById('terms-late-checkout-fee').value = terms.late_checkout_fee;
                     if (terms.self_checkin) document.getElementById('terms-self-checkin').checked = true;
                     if (terms.checkin_24hr) document.getElementById('terms-24hr-checkin').checked = true;
@@ -12487,7 +12487,7 @@ Local honey and preserves"></textarea>
                         }
                     }
                     if (terms.pet_deposit) document.getElementById('terms-pet-deposit').value = terms.pet_deposit;
-                    if (terms.pet_fee) document.getElementById('terms-pet-fee').value = terms.pet_fee;
+                    if (terms.pet_fee_per_night) document.getElementById('terms-pet-fee').value = terms.pet_fee_per_night;
                     if (terms.dogs_allowed) document.getElementById('terms-dogs-allowed').checked = true;
                     if (terms.cats_allowed) document.getElementById('terms-cats-allowed').checked = true;
                     if (terms.small_pets_only) document.getElementById('terms-small-pets-only').checked = true;
@@ -12500,7 +12500,7 @@ Local honey and preserves"></textarea>
                     }
                     if (terms.cots_available) document.getElementById('terms-cots-available').checked = true;
                     if (terms.highchairs_available) document.getElementById('terms-highchairs').checked = true;
-                    if (terms.cot_fee) document.getElementById('terms-cot-fee').value = terms.cot_fee;
+                    if (terms.cot_fee_per_night) document.getElementById('terms-cot-fee').value = terms.cot_fee_per_night;
                     
                     // Events
                     if (terms.events_policy) {
@@ -12510,12 +12510,12 @@ Local honey and preserves"></textarea>
                     
                     // Accessibility
                     if (terms.wheelchair_accessible) document.getElementById('access-wheelchair').checked = true;
-                    if (terms.step_free) document.getElementById('access-step-free').checked = true;
+                    if (terms.step_free_access) document.getElementById('access-step-free').checked = true;
                     if (terms.accessible_bathroom) document.getElementById('access-bathroom').checked = true;
                     if (terms.grab_rails) document.getElementById('access-grab-rails').checked = true;
                     if (terms.roll_in_shower) document.getElementById('access-roll-in-shower').checked = true;
                     if (terms.elevator_access) document.getElementById('access-elevator').checked = true;
-                    if (terms.ground_floor) document.getElementById('access-ground-floor').checked = true;
+                    if (terms.ground_floor_available) document.getElementById('access-ground-floor').checked = true;
                     
                     // House rules
                     if (terms.quiet_hours_from) document.getElementById('terms-quiet-from').value = terms.quiet_hours_from;
@@ -12524,30 +12524,31 @@ Local honey and preserves"></textarea>
                     if (terms.id_required) document.getElementById('terms-id-required').checked = true;
                     if (terms.additional_rules) document.getElementById('terms-additional-rules').value = terms.additional_rules;
                     
-                    // Bathroom type
+                    // Bathroom type (stored separately, not in property_terms)
                     if (terms.bathroom_type) {
                         const radio = document.querySelector(`input[name="bathroom-type"][value="${terms.bathroom_type}"]`);
                         if (radio) radio.checked = true;
                     }
                     
-                    // Beds
+                    // Beds (using bed_type from database)
                     if (beds.length > 0) {
                         const container = document.getElementById('bed-configuration');
                         container.innerHTML = '';
                         beds.forEach((bed, index) => {
+                            const bedType = bed.bed_type || bed.type; // Handle both formats
                             const row = document.createElement('div');
                             row.className = 'bed-row';
                             row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;';
                             row.innerHTML = `
                                 <select class="form-input bed-type-select">
                                     <option value="">Select bed type...</option>
-                                    <option value="king" ${bed.type === 'king' ? 'selected' : ''}>King Bed</option>
-                                    <option value="queen" ${bed.type === 'queen' ? 'selected' : ''}>Queen Bed</option>
-                                    <option value="double" ${bed.type === 'double' ? 'selected' : ''}>Double Bed</option>
-                                    <option value="twin" ${bed.type === 'twin' ? 'selected' : ''}>Twin/Single Bed</option>
-                                    <option value="sofa" ${bed.type === 'sofa' ? 'selected' : ''}>Sofa Bed</option>
-                                    <option value="bunk" ${bed.type === 'bunk' ? 'selected' : ''}>Bunk Bed</option>
-                                    <option value="cot" ${bed.type === 'cot' ? 'selected' : ''}>Cot/Crib</option>
+                                    <option value="king" ${bedType === 'king' ? 'selected' : ''}>King Bed</option>
+                                    <option value="queen" ${bedType === 'queen' ? 'selected' : ''}>Queen Bed</option>
+                                    <option value="double" ${bedType === 'double' ? 'selected' : ''}>Double Bed</option>
+                                    <option value="twin" ${bedType === 'twin' ? 'selected' : ''}>Twin/Single Bed</option>
+                                    <option value="sofa" ${bedType === 'sofa' ? 'selected' : ''}>Sofa Bed</option>
+                                    <option value="bunk" ${bedType === 'bunk' ? 'selected' : ''}>Bunk Bed</option>
+                                    <option value="cot" ${bedType === 'cot' ? 'selected' : ''}>Cot/Crib</option>
                                 </select>
                                 <input type="number" class="form-input bed-qty" min="1" max="10" value="${bed.quantity || 1}" style="width: 80px;">
                                 <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);">✕</button>
