@@ -4819,21 +4819,51 @@ fetch('/api/public/client/1/rooms')
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>Tasks</h2>
+                            <h2>📋 Tasks</h2>
                             <p>Development and implementation tasks</p>
                         </div>
-                        <button class="btn" onclick="window.open('/tasks.json', '_blank')">
-                            <span>📋</span>
-                            <span>View JSON</span>
-                        </button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="window.open('/tasks.json', '_blank')">
+                                <span>📄</span>
+                                <span>View JSON</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
-                <div class="card">
+                <!-- Task Tabs -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+                    <button class="btn" id="tasks-tab-active" onclick="switchTaskTab('active')" style="flex: 1;">
+                        🔥 Active Tasks
+                    </button>
+                    <button class="btn btn-secondary" id="tasks-tab-completed" onclick="switchTaskTab('completed')" style="flex: 1;">
+                        ✅ Completed
+                    </button>
+                </div>
+
+                <!-- Category Filter -->
+                <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+                    <div style="display: flex; flex-wrap: wrap; gap: 0.5rem;" id="tasks-category-filters">
+                        <button class="btn btn-small" data-category="all" onclick="filterTasksByCategory('all')" style="background: var(--primary);">All</button>
+                    </div>
+                </div>
+
+                <!-- Active Tasks -->
+                <div id="tasks-active-container">
                     <div id="tasks-list">
                         <div class="loading">
                             <div class="spinner"></div>
                             <p style="margin-top: 1rem;">Loading tasks...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Completed Tasks -->
+                <div id="tasks-completed-container" style="display: none;">
+                    <div id="tasks-completed-list">
+                        <div class="loading">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading completed tasks...</p>
                         </div>
                     </div>
                 </div>
@@ -12465,117 +12495,25 @@ Local honey and preserves"></textarea>
             }
         }
 
+        // Tasks data storage
+        let tasksData = null;
+        let currentTaskTab = 'active';
+        let currentTaskCategory = 'all';
+        
         async function loadTasks() {
-            const container = document.getElementById('tasks-list');
             try {
                 const response = await fetch('/tasks.json');
-                const data = await response.json();
+                tasksData = await response.json();
                 
-                if (data && data.tasks) {
-                    // Group tasks by category
-                    const categories = {};
-                    data.tasks.forEach(task => {
-                        const cat = task.category || 'other';
-                        if (!categories[cat]) categories[cat] = [];
-                        categories[cat].push(task);
-                    });
-                    
-                    // Category display names
-                    const categoryNames = {
-                        'integration': '🔗 Integrations',
-                        'billing': '💳 Billing',
-                        'wordpress': '📝 WordPress',
-                        'ui': '🎨 UI/UX',
-                        'bug': '🐛 Bug Fixes',
-                        'feature': '✨ Features',
-                        'data': '🗄️ Data',
-                        'other': '📦 Other'
-                    };
-                    
-                    // Priority order for categories
-                    const categoryOrder = ['bug', 'wordpress', 'integration', 'billing', 'ui', 'feature', 'data', 'other'];
-                    
-                    let html = `
-                        <div style="margin-bottom: 1.5rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
-                            <div style="display: flex; justify-content: space-between; align-items: center;">
-                                <span>Last updated: <strong>${data.updated || 'Unknown'}</strong></span>
-                                <span>${data.tasks.filter(t => t.status === 'done').length} / ${data.tasks.length} completed</span>
-                            </div>
-                        </div>
-                    `;
-                    
-                    // Sort categories
-                    const sortedCategories = Object.entries(categories).sort((a, b) => {
-                        return categoryOrder.indexOf(a[0]) - categoryOrder.indexOf(b[0]);
-                    });
-                    
-                    sortedCategories.forEach(([cat, tasks]) => {
-                        // Sort tasks: todo/in_progress first, then done
-                        tasks.sort((a, b) => {
-                            const order = { 'in_progress': 0, 'todo': 1, 'done': 2 };
-                            return (order[a.status] || 1) - (order[b.status] || 1);
-                        });
-                        
-                        const completedCount = tasks.filter(t => t.status === 'done').length;
-                        const totalCount = tasks.length;
-                        const progressPercent = totalCount > 0 ? Math.round((completedCount / totalCount) * 100) : 0;
-                        
-                        html += `
-                            <div style="margin-bottom: 2rem;">
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                                    <h3 style="margin: 0;">${categoryNames[cat] || cat}</h3>
-                                    <span style="color: var(--text-secondary); font-size: 0.9rem;">${completedCount}/${totalCount} (${progressPercent}%)</span>
-                                </div>
-                                <div style="background: var(--bg-secondary); border-radius: 4px; height: 6px; margin-bottom: 1rem; overflow: hidden;">
-                                    <div style="background: linear-gradient(90deg, #10b981, #34d399); height: 100%; width: ${progressPercent}%; transition: width 0.3s;"></div>
-                                </div>
-                                <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                                    ${tasks.map(task => {
-                                        const statusColors = {
-                                            'done': '#10b981',
-                                            'in_progress': '#f59e0b',
-                                            'todo': '#6b7280'
-                                        };
-                                        const statusIcons = {
-                                            'done': '✅',
-                                            'in_progress': '🔄',
-                                            'todo': '⏳'
-                                        };
-                                        const priorityBadges = {
-                                            'urgent': '<span style="background: #ef4444; color: white; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">URGENT</span>',
-                                            'high': '<span style="background: #f97316; color: white; padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">HIGH</span>',
-                                            'medium': '',
-                                            'low': ''
-                                        };
-                                        return `
-                                            <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 0.75rem; background: ${task.status === 'done' ? 'rgba(16, 185, 129, 0.1)' : 'var(--bg-secondary)'}; border-radius: 6px; border-left: 3px solid ${statusColors[task.status] || '#6b7280'};">
-                                                <span style="margin-top: 2px;">${statusIcons[task.status] || '⏳'}</span>
-                                                <div style="flex: 1;">
-                                                    <div style="font-weight: 500; ${task.status === 'done' ? 'text-decoration: line-through; opacity: 0.7;' : ''}">${task.title}${priorityBadges[task.priority] || ''}</div>
-                                                    ${task.description ? `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">${task.description}</div>` : ''}
-                                                    ${task.completed ? `<div style="font-size: 0.75rem; color: #10b981; margin-top: 0.25rem;">✓ Completed ${task.completed}</div>` : ''}
-                                                </div>
-                                            </div>
-                                        `;
-                                    }).join('')}
-                                </div>
-                            </div>
-                        `;
-                    });
-                    
-                    container.innerHTML = html;
-                } else {
-                    container.innerHTML = `
-                        <div class="empty-state">
-                            <div class="empty-icon">📋</div>
-                            <h3>No Tasks Found</h3>
-                            <p>Tasks file not found or empty</p>
-                        </div>
-                    `;
-                }
+                // Build category filters
+                buildCategoryFilters();
+                
+                // Render tasks
+                renderTasks();
+                renderCompletedTasks();
             } catch (error) {
                 console.error('Error loading tasks:', error);
-                container.innerHTML = `
+                document.getElementById('tasks-list').innerHTML = `
                     <div class="empty-state">
                         <div class="empty-icon">📋</div>
                         <h3>Tasks</h3>
@@ -12583,6 +12521,248 @@ Local honey and preserves"></textarea>
                     </div>
                 `;
             }
+        }
+        
+        function buildCategoryFilters() {
+            if (!tasksData || !tasksData.categories) return;
+            
+            const container = document.getElementById('tasks-category-filters');
+            let html = '<button class="btn btn-small" data-category="all" onclick="filterTasksByCategory(\'all\')" style="background: var(--primary);">All</button>';
+            
+            tasksData.categories.forEach(cat => {
+                html += `<button class="btn btn-small btn-secondary" data-category="${cat.id}" onclick="filterTasksByCategory('${cat.id}')">${cat.icon} ${cat.name}</button>`;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function filterTasksByCategory(category) {
+            currentTaskCategory = category;
+            
+            // Update button styles
+            document.querySelectorAll('#tasks-category-filters button').forEach(btn => {
+                if (btn.dataset.category === category) {
+                    btn.classList.remove('btn-secondary');
+                    btn.style.background = 'var(--primary)';
+                } else {
+                    btn.classList.add('btn-secondary');
+                    btn.style.background = '';
+                }
+            });
+            
+            renderTasks();
+            renderCompletedTasks();
+        }
+        
+        function switchTaskTab(tab) {
+            currentTaskTab = tab;
+            
+            const activeBtn = document.getElementById('tasks-tab-active');
+            const completedBtn = document.getElementById('tasks-tab-completed');
+            const activeContainer = document.getElementById('tasks-active-container');
+            const completedContainer = document.getElementById('tasks-completed-container');
+            
+            if (tab === 'active') {
+                activeBtn.classList.remove('btn-secondary');
+                completedBtn.classList.add('btn-secondary');
+                activeContainer.style.display = 'block';
+                completedContainer.style.display = 'none';
+            } else {
+                activeBtn.classList.add('btn-secondary');
+                completedBtn.classList.remove('btn-secondary');
+                activeContainer.style.display = 'none';
+                completedContainer.style.display = 'block';
+            }
+        }
+        
+        function renderTasks() {
+            if (!tasksData) return;
+            
+            const container = document.getElementById('tasks-list');
+            const tasks = tasksData.tasks.filter(t => t.status !== 'done');
+            
+            // Filter by category
+            const filteredTasks = currentTaskCategory === 'all' 
+                ? tasks 
+                : tasks.filter(t => t.category === currentTaskCategory);
+            
+            // Group by category
+            const grouped = {};
+            filteredTasks.forEach(task => {
+                const cat = task.category || 'other';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(task);
+            });
+            
+            // Get category info
+            const getCategoryInfo = (catId) => {
+                const cat = tasksData.categories?.find(c => c.id === catId);
+                return cat || { name: catId, icon: '📦' };
+            };
+            
+            if (filteredTasks.length === 0) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🎉</div>
+                        <h3>No active tasks in this category</h3>
+                        <p style="color: var(--text-secondary);">All caught up!</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = `
+                <div style="margin-bottom: 1rem; padding: 1rem; background: var(--bg-secondary); border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span><strong>${filteredTasks.length}</strong> active tasks</span>
+                        <span style="color: var(--text-secondary);">Last updated: ${tasksData.updated}</span>
+                    </div>
+                </div>
+            `;
+            
+            // Render each category
+            Object.entries(grouped).forEach(([catId, tasks]) => {
+                const catInfo = getCategoryInfo(catId);
+                
+                // Sort: urgent first, then high, then in_progress, then todo
+                tasks.sort((a, b) => {
+                    const priorityOrder = { 'urgent': 0, 'high': 1, 'medium': 2, 'low': 3 };
+                    const statusOrder = { 'in_progress': 0, 'todo': 1 };
+                    const pA = priorityOrder[a.priority] || 2;
+                    const pB = priorityOrder[b.priority] || 2;
+                    if (pA !== pB) return pA - pB;
+                    return (statusOrder[a.status] || 1) - (statusOrder[b.status] || 1);
+                });
+                
+                html += `
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <div class="card-header">
+                            <h3 style="display: flex; align-items: center; gap: 0.5rem;">
+                                ${catInfo.icon} ${catInfo.name}
+                                <span style="background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 12px; font-size: 0.8rem; font-weight: normal;">${tasks.length}</span>
+                            </h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            ${tasks.map(task => renderTaskItem(task)).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
+        }
+        
+        function renderTaskItem(task) {
+            const statusColors = {
+                'in_progress': '#f59e0b',
+                'todo': '#6b7280'
+            };
+            const statusIcons = {
+                'in_progress': '🔄',
+                'todo': '⏳'
+            };
+            const priorityBadges = {
+                'urgent': '<span style="background: #ef4444; color: white; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">URGENT</span>',
+                'high': '<span style="background: #f97316; color: white; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.7rem; margin-left: 0.5rem;">HIGH</span>'
+            };
+            
+            let subtasksHtml = '';
+            if (task.subtasks && task.subtasks.length > 0) {
+                subtasksHtml = `
+                    <div style="margin-top: 0.5rem; padding-left: 1rem; border-left: 2px solid var(--border);">
+                        ${task.subtasks.map(st => `
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); padding: 0.2rem 0;">
+                                • ${st}
+                            </div>
+                        `).join('')}
+                    </div>
+                `;
+            }
+            
+            return `
+                <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 1rem; border-bottom: 1px solid var(--border); border-left: 3px solid ${statusColors[task.status] || '#6b7280'};">
+                    <span style="margin-top: 2px; font-size: 1.1rem;">${statusIcons[task.status] || '⏳'}</span>
+                    <div style="flex: 1;">
+                        <div style="font-weight: 600;">${task.title}${priorityBadges[task.priority] || ''}</div>
+                        ${task.description ? `<div style="font-size: 0.9rem; color: var(--text-secondary); margin-top: 0.25rem;">${task.description}</div>` : ''}
+                        ${subtasksHtml}
+                    </div>
+                </div>
+            `;
+        }
+        
+        function renderCompletedTasks() {
+            if (!tasksData) return;
+            
+            const container = document.getElementById('tasks-completed-list');
+            const completed = tasksData.completed || [];
+            
+            // Also include done tasks from active tasks array
+            const doneTasks = tasksData.tasks.filter(t => t.status === 'done');
+            const allCompleted = [...completed, ...doneTasks];
+            
+            // Filter by category
+            const filteredTasks = currentTaskCategory === 'all'
+                ? allCompleted
+                : allCompleted.filter(t => t.category === currentTaskCategory);
+            
+            // Sort by completion date (newest first)
+            filteredTasks.sort((a, b) => {
+                const dateA = a.completed || '1970-01-01';
+                const dateB = b.completed || '1970-01-01';
+                return dateB.localeCompare(dateA);
+            });
+            
+            if (filteredTasks.length === 0) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
+                        <h3>No completed tasks</h3>
+                        <p style="color: var(--text-secondary);">Completed tasks will appear here</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Group by completion date
+            const grouped = {};
+            filteredTasks.forEach(task => {
+                const date = task.completed || 'Unknown';
+                if (!grouped[date]) grouped[date] = [];
+                grouped[date].push(task);
+            });
+            
+            let html = `
+                <div style="margin-bottom: 1rem; padding: 1rem; background: linear-gradient(135deg, #d1fae5, #a7f3d0); border-radius: 8px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; color: #065f46;">
+                        <span><strong>${filteredTasks.length}</strong> tasks completed</span>
+                        <span>🎉 Great progress!</span>
+                    </div>
+                </div>
+            `;
+            
+            Object.entries(grouped).forEach(([date, tasks]) => {
+                html += `
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <div class="card-header" style="background: linear-gradient(135deg, #ecfdf5, #d1fae5);">
+                            <h3 style="color: #065f46;">✅ ${date}</h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            ${tasks.map(task => `
+                                <div style="display: flex; align-items: flex-start; gap: 0.75rem; padding: 1rem; border-bottom: 1px solid var(--border); opacity: 0.8;">
+                                    <span style="margin-top: 2px; font-size: 1.1rem;">✅</span>
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 500; text-decoration: line-through;">${task.title}</div>
+                                        ${task.description ? `<div style="font-size: 0.85rem; color: var(--text-secondary); margin-top: 0.25rem;">${task.description}</div>` : ''}
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            container.innerHTML = html;
         }
 
         async function loadIntegrations() {
