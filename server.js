@@ -10741,6 +10741,166 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
 });
 
 // =========================================================
+// MARKETING FEATURES API (Property & Room Level)
+// =========================================================
+
+// GET /api/properties/:id/features - Load property-wide features
+app.get('/api/properties/:id/features', async (req, res) => {
+  try {
+    const propertyId = req.params.id;
+    
+    const result = await pool.query(`
+      SELECT pf.*, 
+             COALESCE(
+               (SELECT json_agg(room_id) FROM property_feature_exclusions WHERE feature_id = pf.id),
+               '[]'
+             ) as excluded_room_ids
+      FROM property_features pf
+      WHERE pf.property_id = $1 AND pf.room_id IS NULL
+      ORDER BY pf.category, pf.feature_name
+    `, [propertyId]);
+    
+    res.json({ success: true, features: result.rows });
+  } catch (error) {
+    console.error('Error loading property features:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/properties/:id/features - Save property-wide features
+app.post('/api/properties/:id/features', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const propertyId = req.params.id;
+    const { features } = req.body;
+    const applyToRooms = req.query.apply_to_rooms === 'true';
+    
+    await client.query('BEGIN');
+    
+    // Delete existing property-level features
+    await client.query('DELETE FROM property_features WHERE property_id = $1 AND room_id IS NULL', [propertyId]);
+    
+    // Insert new features
+    for (const feature of features) {
+      const result = await client.query(`
+        INSERT INTO property_features (property_id, room_id, feature_name, category, is_custom)
+        VALUES ($1, NULL, $2, $3, $4)
+        RETURNING id
+      `, [propertyId, feature.feature_name, feature.category, feature.is_custom || false]);
+      
+      // Handle room exclusions
+      if (feature.excluded_room_ids && feature.excluded_room_ids.length > 0) {
+        for (const roomId of feature.excluded_room_ids) {
+          await client.query(
+            'INSERT INTO property_feature_exclusions (feature_id, room_id) VALUES ($1, $2)',
+            [result.rows[0].id, roomId]
+          );
+        }
+      }
+    }
+    
+    // If apply_to_rooms, copy to all rooms
+    if (applyToRooms) {
+      const rooms = await client.query(
+        'SELECT id FROM bookable_units WHERE property_id = $1',
+        [propertyId]
+      );
+      
+      for (const room of rooms.rows) {
+        // Clear existing room features
+        await client.query('DELETE FROM property_features WHERE room_id = $1', [room.id]);
+        
+        // Copy property features to room
+        for (const feature of features) {
+          await client.query(`
+            INSERT INTO property_features (property_id, room_id, feature_name, category, is_custom)
+            VALUES ($1, $2, $3, $4, $5)
+          `, [propertyId, room.id, feature.feature_name, feature.category, feature.is_custom || false]);
+        }
+      }
+    }
+    
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Features saved successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error saving property features:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// GET /api/rooms/:id/features - Load room-specific features
+app.get('/api/rooms/:id/features', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    
+    // First try to get room-specific features
+    let result = await pool.query(`
+      SELECT * FROM property_features
+      WHERE room_id = $1
+      ORDER BY category, feature_name
+    `, [roomId]);
+    
+    // If no room-specific features, fall back to property features
+    if (result.rows.length === 0) {
+      result = await pool.query(`
+        SELECT pf.*, 
+               COALESCE(
+                 (SELECT json_agg(room_id) FROM property_feature_exclusions WHERE feature_id = pf.id),
+                 '[]'
+               ) as excluded_room_ids
+        FROM property_features pf
+        JOIN bookable_units bu ON bu.property_id = pf.property_id
+        WHERE bu.id = $1 AND pf.room_id IS NULL
+          AND NOT EXISTS (
+            SELECT 1 FROM property_feature_exclusions pfe 
+            WHERE pfe.feature_id = pf.id AND pfe.room_id = $1
+          )
+        ORDER BY pf.category, pf.feature_name
+      `, [roomId]);
+    }
+    
+    res.json({ success: true, features: result.rows });
+  } catch (error) {
+    console.error('Error loading room features:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/rooms/:id/features - Save room-specific features
+app.post('/api/rooms/:id/features', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const roomId = req.params.id;
+    const { features, property_id } = req.body;
+    
+    await client.query('BEGIN');
+    
+    // Delete existing room-specific features
+    await client.query('DELETE FROM property_features WHERE room_id = $1', [roomId]);
+    
+    // Insert new features
+    for (const feature of features) {
+      await client.query(`
+        INSERT INTO property_features (property_id, room_id, feature_name, category, is_custom)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [property_id, roomId, feature.feature_name, feature.category, feature.is_custom || false]);
+    }
+    
+    await client.query('COMMIT');
+    res.json({ success: true, message: 'Room features saved successfully' });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Error saving room features:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// =========================================================
 // BEDS24 WEBHOOK - Receive real-time updates
 // =========================================================
 // Configure this URL in Beds24: Settings > Account > Webhooks
