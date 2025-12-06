@@ -3758,7 +3758,10 @@ fetch('/api/public/client/1/rooms')
                     <div class="card-body">
                         <div class="form-group">
                             <label class="form-label">Background Color</label>
-                            <input type="color" id="wb-hero-search-bg" value="#ffffff" style="width: 60px; height: 40px; border: none; cursor: pointer;">
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="color" id="wb-hero-search-bg-picker" value="#ffffff" style="width: 50px; height: 40px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-bg').value = this.value">
+                                <input type="text" class="form-input" id="wb-hero-search-bg" value="#ffffff" style="width: 100px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-bg-picker').value = this.value">
+                            </div>
                         </div>
                         <div class="form-group">
                             <label class="form-label">Background Opacity: <span id="wb-hero-search-opacity-value">100</span>%</label>
@@ -3779,7 +3782,10 @@ fetch('/api/public/client/1/rooms')
                         </div>
                         <div class="form-group">
                             <label class="form-label">Button Color</label>
-                            <input type="color" id="wb-hero-search-btn-bg" value="#2563eb" style="width: 60px; height: 40px; border: none; cursor: pointer;">
+                            <div style="display: flex; gap: 10px; align-items: center;">
+                                <input type="color" id="wb-hero-search-btn-bg-picker" value="#2563eb" style="width: 50px; height: 40px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-btn-bg').value = this.value">
+                                <input type="text" class="form-input" id="wb-hero-search-btn-bg" value="#2563eb" style="width: 100px; font-family: monospace;" oninput="document.getElementById('wb-hero-search-btn-bg-picker').value = this.value">
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -8115,6 +8121,24 @@ const promo = await fetch('/api/v1/offers/validate', {
                             preview.innerHTML = '';
                         }
                     }
+                    
+                    // Sync color pickers with their text inputs
+                    Object.entries(data.settings).forEach(([key, value]) => {
+                        if (value && value.startsWith && value.startsWith('#')) {
+                            const picker = document.getElementById(`${prefix}${key}-picker`);
+                            if (picker) {
+                                picker.value = value;
+                            }
+                        }
+                    });
+                    
+                    // Update range slider value displays
+                    ['search-opacity', 'search-radius', 'search-padding', 'search-max-width'].forEach(key => {
+                        const valueEl = document.getElementById(`wb-${section}-${key}-value`);
+                        if (valueEl && data.settings[key]) {
+                            valueEl.textContent = data.settings[key];
+                        }
+                    });
                 }
             } catch (error) {
                 console.error('Error loading website section:', error);
