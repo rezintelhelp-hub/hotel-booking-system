@@ -3555,16 +3555,32 @@ app.get('/api/deploy/property/:id', async (req, res) => {
 app.get('/api/admin/deployed-sites', async (req, res) => {
   try {
     const includeDeleted = req.query.include_deleted === 'true';
-    const statusFilter = includeDeleted ? '' : "WHERE ds.status != 'deleted'";
+    const accountId = req.query.account_id;
+    
+    let conditions = [];
+    let params = [];
+    let paramIndex = 1;
+    
+    if (!includeDeleted) {
+      conditions.push("ds.status != 'deleted'");
+    }
+    
+    if (accountId) {
+      conditions.push(`ds.account_id = $${paramIndex}`);
+      params.push(accountId);
+      paramIndex++;
+    }
+    
+    const whereClause = conditions.length > 0 ? 'WHERE ' + conditions.join(' AND ') : '';
     
     const result = await pool.query(`
       SELECT ds.*, p.name as property_name, a.name as account_name
       FROM deployed_sites ds
       LEFT JOIN properties p ON ds.property_id = p.id
       LEFT JOIN accounts a ON ds.account_id = a.id
-      ${statusFilter}
+      ${whereClause}
       ORDER BY ds.deployed_at DESC
-    `);
+    `, params);
     res.json({ success: true, sites: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
