@@ -3432,7 +3432,7 @@ app.get('/api/deploy/sites', async (req, res) => {
 // Deploy a new site (room-level selection)
 app.post('/api/deploy/create', async (req, res) => {
   try {
-    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids } = req.body;
+    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin } = req.body;
     
     // Validate required fields
     if (!site_name || !slug || !admin_email) {
@@ -3446,29 +3446,38 @@ app.post('/api/deploy/create', async (req, res) => {
     // Get unique property IDs from selected rooms
     const uniquePropertyIds = property_ids || [...new Set(rooms.map(r => r.property_id))];
     
-    // Get API key from first property
-    const propResult = await pool.query(
-      'SELECT api_key FROM properties WHERE id = $1',
-      [uniquePropertyIds[0]]
-    );
-    const gasApiKey = propResult.rows[0]?.api_key || '';
+    // Get API key from first property (optional, may not exist)
+    let gasApiKey = '';
+    try {
+      const propResult = await pool.query(
+        'SELECT api_key FROM properties WHERE id = $1',
+        [uniquePropertyIds[0]]
+      );
+      gasApiKey = propResult.rows[0]?.api_key || '';
+    } catch (e) {
+      // api_key column may not exist, that's OK
+      console.log('Note: api_key not available, continuing without it');
+    }
     
     // Get account code if available
     let accountCode = null;
     if (account_id) {
-      const accountResult = await pool.query(
-        'SELECT account_code FROM accounts WHERE id = $1',
-        [account_id]
-      );
-      accountCode = accountResult.rows[0]?.account_code || null;
+      try {
+        const accountResult = await pool.query(
+          'SELECT account_code FROM accounts WHERE id = $1',
+          [account_id]
+        );
+        accountCode = accountResult.rows[0]?.account_code || null;
+      } catch (e) {
+        console.log('Note: account_code not available');
+      }
     }
     
-    // Call VPS to create site
+    // Call VPS to create site (no API key required in auto mode)
     const response = await fetch(`${VPS_DEPLOY_URL}?action=create-site`, {
       method: 'POST',
       headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': VPS_DEPLOY_API_KEY
+        'Content-Type': 'application/json'
       },
       body: JSON.stringify({
         site_name,
@@ -3479,7 +3488,9 @@ app.post('/api/deploy/create', async (req, res) => {
         property_ids: uniquePropertyIds,
         gas_api_key: gasApiKey,
         account_id,
-        account_code: accountCode
+        account_code: accountCode,
+        use_theme: use_theme !== false,
+        use_plugin: use_plugin !== false
       })
     });
     
