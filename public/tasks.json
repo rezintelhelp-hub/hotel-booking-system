@@ -1,10 +1,9 @@
 {
   "updated": "2025-12-07",
-  "ui_notes": "TODO: Redesign Tasks page with tabbed menu navigation - click by category OR by priority, not long scrolling list",
   "categories": [
     {
       "id": "critical",
-      "name": "🔥 CRITICAL - Client Sites Must Work",
+      "name": "CRITICAL - Client Sites Must Work",
       "icon": "🔥",
       "description": "Blocking issues - client sites need to work 100%"
     },
@@ -83,7 +82,7 @@
       "subtasks": [
         "Deposit settings in Property/Room config",
         "Percentage-based deposit",
-        "Fixed amount deposit", 
+        "Fixed amount deposit",
         "First night deposit",
         "No deposit option"
       ]
@@ -134,7 +133,8 @@
       "description": "Green account banner looks cramped/poor - needs redesign",
       "priority": "urgent",
       "category": "ui",
-      "status": "todo"
+      "status": "done",
+      "completed": "2025-12-07"
     },
     {
       "id": "ui-003",
@@ -142,7 +142,8 @@
       "description": "Tabbed menu navigation - filter by category OR priority, not long scrolling list",
       "priority": "high",
       "category": "ui",
-      "status": "todo"
+      "status": "done",
+      "completed": "2025-12-07"
     },
     {
       "id": "wb-001",
@@ -230,7 +231,7 @@
       "id": "done-017",
       "title": "Marketing Features - Room Level",
       "description": "Added room selector to Marketing Features with apply-to-all option",
-      "category": "restructure", 
+      "category": "restructure",
       "completed": "2025-12-06"
     },
     {
