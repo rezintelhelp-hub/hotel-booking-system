@@ -586,6 +586,7 @@ app.get('/api/setup-accounts', async (req, res) => {
       CREATE TABLE IF NOT EXISTS accounts (
         id SERIAL PRIMARY KEY,
         public_id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
+        account_code VARCHAR(20) UNIQUE,
         parent_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'admin',
         name VARCHAR(255) NOT NULL,
@@ -616,6 +617,11 @@ app.get('/api/setup-accounts', async (req, res) => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         CONSTRAINT valid_role CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin'))
       )
+    `);
+    
+    // Add account_code column if it doesn't exist
+    await pool.query(`
+      ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20) UNIQUE
     `);
     console.log('✅ Created accounts table');
 
@@ -1371,6 +1377,65 @@ app.post('/api/admin/accounts/:id/set-subscription', async (req, res) => {
     }
     
     res.json({ success: true, message: 'Subscription updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update account
+app.put('/api/accounts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { account_code, name, email, phone, business_name, status, notes } = req.body;
+    
+    // Build dynamic update query
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    if (account_code !== undefined) {
+      updates.push(`account_code = $${paramIndex++}`);
+      values.push(account_code);
+    }
+    if (name !== undefined) {
+      updates.push(`name = $${paramIndex++}`);
+      values.push(name);
+    }
+    if (email !== undefined) {
+      updates.push(`email = $${paramIndex++}`);
+      values.push(email);
+    }
+    if (phone !== undefined) {
+      updates.push(`phone = $${paramIndex++}`);
+      values.push(phone);
+    }
+    if (business_name !== undefined) {
+      updates.push(`business_name = $${paramIndex++}`);
+      values.push(business_name);
+    }
+    if (status !== undefined) {
+      updates.push(`status = $${paramIndex++}`);
+      values.push(status);
+    }
+    if (notes !== undefined) {
+      updates.push(`notes = $${paramIndex++}`);
+      values.push(notes);
+    }
+    
+    updates.push(`updated_at = CURRENT_TIMESTAMP`);
+    values.push(id);
+    
+    const result = await pool.query(`
+      UPDATE accounts SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `, values);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ success: true, account: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -3288,6 +3353,133 @@ app.get('/api/admin/billing/subscriptions', async (req, res) => {
 });
 
 // =====================================================
+// =====================================================
+// TASKS SYSTEM
+// =====================================================
+
+// Setup tasks table
+app.get('/api/setup-tasks', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS tasks (
+        id SERIAL PRIMARY KEY,
+        title VARCHAR(255) NOT NULL,
+        description TEXT,
+        priority VARCHAR(20) DEFAULT 'high',
+        category VARCHAR(50) DEFAULT 'ideas',
+        status VARCHAR(20) DEFAULT 'todo',
+        notes TEXT,
+        completed DATE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    res.json({ success: true, message: 'Tasks table created' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all tasks
+app.get('/api/admin/tasks', async (req, res) => {
+  try {
+    // Check if table exists first
+    const tableCheck = await pool.query(`
+      SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'tasks')
+    `);
+    
+    if (!tableCheck.rows[0].exists) {
+      // Create table if it doesn't exist
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS tasks (
+          id SERIAL PRIMARY KEY,
+          title VARCHAR(255) NOT NULL,
+          description TEXT,
+          priority VARCHAR(20) DEFAULT 'high',
+          category VARCHAR(50) DEFAULT 'ideas',
+          status VARCHAR(20) DEFAULT 'todo',
+          notes TEXT,
+          completed DATE,
+          display_order INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+      `);
+    }
+    
+    const result = await pool.query(`
+      SELECT * FROM tasks 
+      ORDER BY 
+        CASE priority 
+          WHEN 'critical' THEN 1 
+          WHEN 'urgent' THEN 2 
+          WHEN 'high' THEN 3 
+          WHEN 'medium' THEN 4 
+          ELSE 5 
+        END,
+        display_order,
+        created_at DESC
+    `);
+    
+    res.json({ success: true, tasks: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create task
+app.post('/api/admin/tasks', async (req, res) => {
+  try {
+    const { title, description, priority, category, status, notes } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO tasks (title, description, priority, category, status, notes)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *
+    `, [title, description, priority || 'high', category || 'ideas', status || 'todo', notes]);
+    
+    res.json({ success: true, task: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update task
+app.put('/api/admin/tasks/:id', async (req, res) => {
+  try {
+    const { title, description, priority, category, status, notes, completed } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE tasks 
+      SET title = COALESCE($1, title),
+          description = COALESCE($2, description),
+          priority = COALESCE($3, priority),
+          category = COALESCE($4, category),
+          status = COALESCE($5, status),
+          notes = COALESCE($6, notes),
+          completed = COALESCE($7, completed),
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8
+      RETURNING *
+    `, [title, description, priority, category, status, notes, completed, req.params.id]);
+    
+    res.json({ success: true, task: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete task
+app.delete('/api/admin/tasks/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM tasks WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // AFFILIATE SYSTEM
 // =====================================================
 
