@@ -1243,6 +1243,10 @@
                 <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Website Builder</div>
                     <div class="nav-section-items">
+                    <a class="nav-item" data-view="deploy-sites" href="#" onclick="navClick(this, 'deploy-sites'); return false;" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 8px; margin-bottom: 0.5rem;">
+                        <span class="nav-icon">🚀</span>
+                        <span>Deploy Sites</span>
+                    </a>
                     <a class="nav-item" data-view="wb-header" href="#" onclick="navClick(this, 'wb-header'); return false;">
                         <span class="nav-icon">📌</span>
                         <span>Header & Logo</span>
@@ -4343,6 +4347,52 @@
                                 <label class="form-label">TripAdvisor</label>
                                 <input type="text" class="form-input" id="wb-footer-social-tripadvisor" placeholder="https://tripadvisor.com/...">
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deploy Sites -->
+            <div id="deploy-sites" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🚀 Deploy Sites</h2>
+                            <p class="subtitle">Auto-deploy WordPress websites from GAS</p>
+                        </div>
+                        <div style="display: flex; gap: 1rem; align-items: center;">
+                            <span id="vps-status" style="padding: 0.5rem 1rem; border-radius: 20px; font-size: 0.85rem; background: #fef3c7; color: #92400e;">⏳ Checking VPS...</span>
+                            <button class="btn" onclick="openDeployModal()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                + Deploy New Site
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 2rem;">
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: var(--primary);" id="deploy-stat-total">0</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">Total Sites</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: #10b981;" id="deploy-stat-active">0</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">Active Sites</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2.5rem; font-weight: bold; color: #f59e0b;" id="deploy-stat-pending">0</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">Pending Deploy</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>📋 Deployed Sites</h3>
+                        <button class="btn btn-secondary" onclick="loadDeployedSites()">🔄 Refresh</button>
+                    </div>
+                    <div id="deployed-sites-list" style="padding: 1rem;">
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🌐</div>
+                            <p>Loading deployed sites...</p>
                         </div>
                     </div>
                 </div>
@@ -7646,6 +7696,73 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+    <!-- Deploy Site Modal -->
+    <div id="deployModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="deploy-modal-title" style="margin: 0; font-size: 1.25rem;">🚀 Deploy New Website</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Create a WordPress site on sites.gas.travel</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('deployModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
+            </div>
+            <form id="deployForm" onsubmit="deployNewSite(event)" style="padding: 1.5rem;">
+                <input type="hidden" id="deploy-property-id">
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Property *</label>
+                    <select id="deploy-property-select" class="form-input" required onchange="onDeployPropertyChange(this)">
+                        <option value="">Select a property...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Site Name *</label>
+                    <input type="text" id="deploy-site-name" class="form-input" placeholder="e.g. Lehmann House" required>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>URL Slug *</label>
+                    <div style="display: flex; align-items: center; gap: 0;">
+                        <span style="background: #f1f5f9; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-right: none; border-radius: 8px 0 0 8px; color: var(--text-secondary); font-size: 0.9rem;">sites.gas.travel/</span>
+                        <input type="text" id="deploy-slug" class="form-input" style="border-radius: 0 8px 8px 0; flex: 1;" placeholder="lehmann-house" required pattern="[a-z0-9-]+">
+                    </div>
+                    <small style="color: var(--text-secondary);">Lowercase letters, numbers, and hyphens only</small>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label>Admin Email *</label>
+                    <input type="email" id="deploy-admin-email" class="form-input" placeholder="admin@example.com" required>
+                </div>
+                
+                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #166534;">✨ What will be created:</h4>
+                    <ul style="margin: 0; padding-left: 1.25rem; color: #166534; font-size: 0.9rem;">
+                        <li>WordPress site with GAS theme</li>
+                        <li>GAS booking plugin pre-configured</li>
+                        <li>Connected to this property's data</li>
+                        <li>Home, Rooms, Book Now, Contact pages</li>
+                    </ul>
+                </div>
+                
+                <div id="deploy-progress" style="display: none; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; text-align: center;">
+                    <div style="font-size: 1.5rem; margin-bottom: 0.5rem;">⏳</div>
+                    <div id="deploy-progress-text">Creating your site...</div>
+                </div>
+                
+                <div id="deploy-result" style="display: none; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <h4 style="margin: 0 0 0.5rem 0; color: #166534;">🎉 Site Created!</h4>
+                    <div id="deploy-result-content"></div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('deployModal')">Cancel</button>
+                    <button type="submit" class="btn" id="deploy-submit-btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">🚀 Deploy Site</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Add/Edit Agency Modal -->
     <div id="agencyModal" class="modal">
         <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
@@ -9858,6 +9975,10 @@ Local honey and preserves"></textarea>
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'availability') loadAvailabilityView();
             if (viewName === 'tasks') loadTasks();
+            if (viewName === 'deploy-sites') {
+                checkVpsStatus();
+                loadDeployedSites();
+            }
             if (viewName === 'integrations') loadIntegrations();
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
@@ -13600,6 +13721,238 @@ Local honey and preserves"></textarea>
                 showNotification('Task deleted', 'success');
                 updateTaskStats();
                 renderTasks();
+            }
+        }
+
+        // =====================================================
+        // WEBSITE DEPLOYMENT FUNCTIONS
+        // =====================================================
+        
+        async function checkVpsStatus() {
+            const statusEl = document.getElementById('vps-status');
+            if (!statusEl) return;
+            
+            try {
+                const response = await fetch('/api/deploy/status');
+                const data = await response.json();
+                
+                if (data.success && data.status === 'ready') {
+                    statusEl.style.background = '#dcfce7';
+                    statusEl.style.color = '#166534';
+                    statusEl.innerHTML = '✅ VPS Connected';
+                } else {
+                    statusEl.style.background = '#fef2f2';
+                    statusEl.style.color = '#991b1b';
+                    statusEl.innerHTML = '❌ VPS Offline';
+                }
+            } catch (error) {
+                statusEl.style.background = '#fef2f2';
+                statusEl.style.color = '#991b1b';
+                statusEl.innerHTML = '❌ VPS Unreachable';
+            }
+        }
+        
+        async function loadDeployedSites() {
+            const container = document.getElementById('deployed-sites-list');
+            if (!container) return;
+            
+            try {
+                const response = await fetch('/api/admin/deployed-sites');
+                const data = await response.json();
+                
+                if (!data.success || !data.sites || data.sites.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🌐</div>
+                            <h3>No sites deployed yet</h3>
+                            <p>Click "Deploy New Site" to create your first website</p>
+                        </div>
+                    `;
+                    updateDeployStats([]);
+                    return;
+                }
+                
+                const sites = data.sites;
+                updateDeployStats(sites);
+                
+                let html = '<div style="display: grid; gap: 1rem;">';
+                
+                sites.forEach(site => {
+                    const statusColor = site.status === 'active' ? '#10b981' : 
+                                       site.status === 'pending' ? '#f59e0b' : '#ef4444';
+                    const statusLabel = site.status === 'active' ? '✅ Active' :
+                                       site.status === 'pending' ? '⏳ Pending' : '❌ ' + site.status;
+                    
+                    html += `
+                        <div class="card" style="padding: 1rem; border-left: 4px solid ${statusColor};">
+                            <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem;">
+                                <div style="flex: 1; min-width: 200px;">
+                                    <h4 style="margin: 0 0 0.5rem 0;">${site.property_name || site.slug}</h4>
+                                    <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
+                                        ${site.account_name || 'Unknown Account'}
+                                    </p>
+                                    <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                                        <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
+                                        <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
+                                    </div>
+                                </div>
+                                <div style="text-align: right;">
+                                    <span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; background: ${statusColor}20; color: ${statusColor};">
+                                        ${statusLabel}
+                                    </span>
+                                    <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
+                                        Deployed: ${site.deployed_at ? new Date(site.deployed_at).toLocaleDateString() : 'N/A'}
+                                    </div>
+                                    ${site.wp_username ? `
+                                        <div style="margin-top: 0.5rem; font-size: 0.7rem; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px;">
+                                            👤 ${site.wp_username}
+                                        </div>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                container.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading deployed sites:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #991b1b;">
+                        <p>❌ Error loading sites</p>
+                        <button class="btn btn-secondary" onclick="loadDeployedSites()">Try Again</button>
+                    </div>
+                `;
+            }
+        }
+        
+        function updateDeployStats(sites) {
+            document.getElementById('deploy-stat-total').textContent = sites.length;
+            document.getElementById('deploy-stat-active').textContent = sites.filter(s => s.status === 'active').length;
+            document.getElementById('deploy-stat-pending').textContent = sites.filter(s => s.status === 'pending').length;
+        }
+        
+        async function openDeployModal() {
+            // Reset form
+            document.getElementById('deployForm').reset();
+            document.getElementById('deploy-progress').style.display = 'none';
+            document.getElementById('deploy-result').style.display = 'none';
+            document.getElementById('deploy-submit-btn').disabled = false;
+            
+            // Load properties into dropdown
+            const select = document.getElementById('deploy-property-select');
+            select.innerHTML = '<option value="">Loading properties...</option>';
+            
+            try {
+                const response = await fetch('/api/properties');
+                const data = await response.json();
+                
+                let html = '<option value="">Select a property...</option>';
+                
+                const properties = data.properties || data.data || [];
+                properties.forEach(prop => {
+                    html += `<option value="${prop.id}" data-name="${prop.name}" data-email="${prop.email || ''}">${prop.name}</option>`;
+                });
+                
+                select.innerHTML = html;
+            } catch (error) {
+                select.innerHTML = '<option value="">Error loading properties</option>';
+            }
+            
+            openModal('deployModal');
+        }
+        
+        function onDeployPropertyChange(select) {
+            const option = select.options[select.selectedIndex];
+            if (!option || !option.value) return;
+            
+            const name = option.dataset.name || option.textContent;
+            const email = option.dataset.email || '';
+            
+            document.getElementById('deploy-property-id').value = option.value;
+            document.getElementById('deploy-site-name').value = name;
+            document.getElementById('deploy-slug').value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+            
+            if (email) {
+                document.getElementById('deploy-admin-email').value = email;
+            }
+        }
+        
+        async function deployNewSite(event) {
+            event.preventDefault();
+            
+            const propertyId = document.getElementById('deploy-property-select').value;
+            const siteName = document.getElementById('deploy-site-name').value;
+            const slug = document.getElementById('deploy-slug').value;
+            const adminEmail = document.getElementById('deploy-admin-email').value;
+            
+            if (!propertyId || !siteName || !slug || !adminEmail) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
+            
+            // Show progress
+            document.getElementById('deploy-progress').style.display = 'block';
+            document.getElementById('deploy-result').style.display = 'none';
+            document.getElementById('deploy-submit-btn').disabled = true;
+            document.getElementById('deploy-progress-text').textContent = 'Creating your WordPress site...';
+            
+            try {
+                const response = await fetch('/api/deploy/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        property_id: propertyId,
+                        property_name: siteName,
+                        slug: slug,
+                        admin_email: adminEmail,
+                        account_id: currentAccountFilter
+                    })
+                });
+                
+                const data = await response.json();
+                
+                document.getElementById('deploy-progress').style.display = 'none';
+                
+                if (data.success) {
+                    document.getElementById('deploy-result').style.display = 'block';
+                    
+                    let resultHtml = `
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>Site URL:</strong> <a href="${data.site.url}" target="_blank">${data.site.url}</a>
+                        </div>
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>Admin URL:</strong> <a href="${data.site.admin_url}" target="_blank">${data.site.admin_url}</a>
+                        </div>
+                    `;
+                    
+                    if (data.credentials && data.credentials.password) {
+                        resultHtml += `
+                            <div style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-radius: 4px;">
+                                <strong>⚠️ Save these login credentials:</strong>
+                                <div style="margin-top: 0.5rem; font-family: monospace;">
+                                    Username: ${data.credentials.username}<br>
+                                    Password: ${data.credentials.password}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    document.getElementById('deploy-result-content').innerHTML = resultHtml;
+                    document.getElementById('deploy-submit-btn').textContent = '✅ Done';
+                    
+                    showNotification('Site deployed successfully!', 'success');
+                    loadDeployedSites();
+                } else {
+                    document.getElementById('deploy-submit-btn').disabled = false;
+                    showNotification(data.error || 'Deployment failed', 'error');
+                }
+            } catch (error) {
+                document.getElementById('deploy-progress').style.display = 'none';
+                document.getElementById('deploy-submit-btn').disabled = false;
+                showNotification('Deployment failed: ' + error.message, 'error');
             }
         }
 
