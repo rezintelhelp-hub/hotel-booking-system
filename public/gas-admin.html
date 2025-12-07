@@ -13840,24 +13840,38 @@ Local honey and preserves"></textarea>
             document.getElementById('deploy-progress').style.display = 'none';
             document.getElementById('deploy-result').style.display = 'none';
             document.getElementById('deploy-submit-btn').disabled = false;
+            document.getElementById('deploy-submit-btn').textContent = '🚀 Deploy Site';
             
             // Load properties into dropdown
             const select = document.getElementById('deploy-property-select');
             select.innerHTML = '<option value="">Loading properties...</option>';
             
             try {
-                const response = await fetch('/api/properties');
+                // Use db properties endpoint with account filter if set
+                let url = '/api/db/properties';
+                if (selectedAccountId) {
+                    url += '?account_id=' + selectedAccountId;
+                }
+                
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 let html = '<option value="">Select a property...</option>';
                 
-                const properties = data.properties || data.data || [];
-                properties.forEach(prop => {
-                    html += `<option value="${prop.id}" data-name="${prop.name}" data-email="${prop.email || ''}">${prop.name}</option>`;
-                });
+                // Handle response structure: { success: true, data: [...] }
+                const properties = data.data || data.properties || [];
+                
+                if (Array.isArray(properties) && properties.length > 0) {
+                    properties.forEach(prop => {
+                        html += `<option value="${prop.id}" data-name="${prop.name}" data-email="${prop.email || ''}" data-account="${prop.account_id || ''}">${prop.name}</option>`;
+                    });
+                } else {
+                    html = '<option value="">No properties found</option>';
+                }
                 
                 select.innerHTML = html;
             } catch (error) {
+                console.error('Error loading properties:', error);
                 select.innerHTML = '<option value="">Error loading properties</option>';
             }
             
@@ -13908,7 +13922,7 @@ Local honey and preserves"></textarea>
                         property_name: siteName,
                         slug: slug,
                         admin_email: adminEmail,
-                        account_id: currentAccountFilter
+                        account_id: selectedAccountId
                     })
                 });
                 
