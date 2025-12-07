@@ -3352,6 +3352,234 @@ app.get('/api/admin/billing/subscriptions', async (req, res) => {
   }
 });
 
+// =====================================================
+// WEBSITE AUTO-DEPLOY SYSTEM
+// =====================================================
+
+const VPS_DEPLOY_URL = 'https://sites.gas.travel/gas-deploy.php';
+const VPS_DEPLOY_API_KEY = process.env.VPS_DEPLOY_API_KEY || 'gas-deploy-2024-secure-key';
+
+// Create deployed_sites table
+app.get('/api/setup-deploy', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS deployed_sites (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        blog_id INTEGER,
+        site_url VARCHAR(255),
+        admin_url VARCHAR(255),
+        slug VARCHAR(100),
+        status VARCHAR(50) DEFAULT 'pending',
+        wp_username VARCHAR(100),
+        wp_password_temp VARCHAR(100),
+        deployed_at TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    res.json({ success: true, message: 'Deployed sites table created' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Check VPS status
+app.get('/api/deploy/status', async (req, res) => {
+  try {
+    const response = await fetch(`${VPS_DEPLOY_URL}?action=status`, {
+      method: 'GET',
+      headers: {
+        'X-API-Key': VPS_DEPLOY_API_KEY
+      }
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.json({ success: false, error: 'Could not connect to VPS: ' + error.message });
+  }
+});
+
+// List sites on VPS
+app.get('/api/deploy/sites', async (req, res) => {
+  try {
+    const response = await fetch(`${VPS_DEPLOY_URL}?action=list-sites`, {
+      method: 'GET',
+      headers: {
+        'X-API-Key': VPS_DEPLOY_API_KEY
+      }
+    });
+    const data = await response.json();
+    res.json(data);
+  } catch (error) {
+    res.json({ success: false, error: 'Could not connect to VPS: ' + error.message });
+  }
+});
+
+// Deploy a new site
+app.post('/api/deploy/create', async (req, res) => {
+  try {
+    const { property_id, property_name, slug, admin_email, account_id } = req.body;
+    
+    if (!property_id || !property_name) {
+      return res.json({ success: false, error: 'Property ID and name are required' });
+    }
+    
+    // Get property's API key
+    const propResult = await pool.query(
+      'SELECT api_key FROM properties WHERE id = $1',
+      [property_id]
+    );
+    const gasApiKey = propResult.rows[0]?.api_key || '';
+    
+    // Check if already deployed
+    const existingDeploy = await pool.query(
+      'SELECT * FROM deployed_sites WHERE property_id = $1 AND status != $2',
+      [property_id, 'deleted']
+    );
+    
+    if (existingDeploy.rows.length > 0) {
+      return res.json({
+        success: false,
+        error: 'Site already deployed for this property',
+        existing: existingDeploy.rows[0]
+      });
+    }
+    
+    // Call VPS to create site
+    const response = await fetch(`${VPS_DEPLOY_URL}?action=create-site`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': VPS_DEPLOY_API_KEY
+      },
+      body: JSON.stringify({
+        property_id,
+        property_name,
+        slug: slug || property_name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
+        admin_email: admin_email || 'admin@gas.travel',
+        gas_api_key: gasApiKey,
+        account_id
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Store deployment record
+      await pool.query(`
+        INSERT INTO deployed_sites 
+        (property_id, account_id, blog_id, site_url, admin_url, slug, status, wp_username, wp_password_temp, deployed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+      `, [
+        property_id,
+        account_id,
+        data.site.blog_id,
+        data.site.url,
+        data.site.admin_url,
+        data.site.slug,
+        'active',
+        data.credentials.username,
+        data.credentials.password || null
+      ]);
+      
+      // Update property with site URL
+      await pool.query(
+        'UPDATE properties SET website_url = $1 WHERE id = $2',
+        [data.site.url, property_id]
+      );
+    }
+    
+    res.json(data);
+  } catch (error) {
+    console.error('Deploy error:', error);
+    res.json({ success: false, error: 'Deployment failed: ' + error.message });
+  }
+});
+
+// Get deployment info for a property
+app.get('/api/deploy/property/:id', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM deployed_sites WHERE property_id = $1 ORDER BY created_at DESC LIMIT 1',
+      [req.params.id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, deployed: false });
+    }
+    
+    res.json({ success: true, deployed: true, site: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all deployed sites
+app.get('/api/admin/deployed-sites', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT ds.*, p.name as property_name, a.name as account_name
+      FROM deployed_sites ds
+      LEFT JOIN properties p ON ds.property_id = p.id
+      LEFT JOIN accounts a ON ds.account_id = a.id
+      ORDER BY ds.deployed_at DESC
+    `);
+    res.json({ success: true, sites: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete a deployed site
+app.delete('/api/deploy/:id', async (req, res) => {
+  try {
+    const deployId = req.params.id;
+    
+    // Get deployment record
+    const result = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [deployId]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployment not found' });
+    }
+    
+    const deployment = result.rows[0];
+    
+    // Call VPS to delete site
+    const response = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-API-Key': VPS_DEPLOY_API_KEY
+      },
+      body: JSON.stringify({
+        blog_id: deployment.blog_id,
+        confirm: 'DELETE'
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Update deployment record
+      await pool.query(
+        'UPDATE deployed_sites SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['deleted', deployId]
+      );
+      
+      // Clear website URL from property
+      await pool.query(
+        'UPDATE properties SET website_url = NULL WHERE id = $1',
+        [deployment.property_id]
+      );
+    }
+    
+    res.json(data);
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // AFFILIATE SYSTEM
 // =====================================================
 
