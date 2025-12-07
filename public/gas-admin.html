@@ -14115,26 +14115,6 @@ Local honey and preserves"></textarea>
                 showNotification('Deployment failed: ' + error.message, 'error');
             }
         }
-                } else {
-                    document.getElementById('deploy-submit-btn').disabled = false;
-                    showNotification(data.error || 'Deployment failed', 'error');
-                }
-            } catch (error) {
-                document.getElementById('deploy-progress').style.display = 'none';
-                document.getElementById('deploy-submit-btn').disabled = false;
-                showNotification('Deployment failed: ' + error.message, 'error');
-            }
-        }
-                } else {
-                    document.getElementById('deploy-submit-btn').disabled = false;
-                    showNotification(data.error || 'Deployment failed', 'error');
-                }
-            } catch (error) {
-                document.getElementById('deploy-progress').style.display = 'none';
-                document.getElementById('deploy-submit-btn').disabled = false;
-                showNotification('Deployment failed: ' + error.message, 'error');
-            }
-        }
 
         async function loadIntegrations() {
             const container = document.getElementById('channel-connections');
