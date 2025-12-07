@@ -13228,10 +13228,8 @@ Local honey and preserves"></textarea>
             let html = '<button class="tasks-cat-tab active" data-cat="all" onclick="filterTasksCat(\'all\')">All</button>';
             
             tasksData.categories.forEach(cat => {
-                const count = tasksData.tasks.filter(t => t.category === cat.id && t.status !== 'done').length;
-                if (count > 0) {
-                    html += `<button class="tasks-cat-tab" data-cat="${cat.id}" onclick="filterTasksCat('${cat.id}')">${cat.icon} ${cat.name} <span style="opacity: 0.7;">(${count})</span></button>`;
-                }
+                const count = tasksData.tasks ? tasksData.tasks.filter(t => t.category === cat.id && t.status !== 'done').length : 0;
+                html += `<button class="tasks-cat-tab" data-cat="${cat.id}" onclick="filterTasksCat('${cat.id}')">${cat.icon} ${cat.name} ${count > 0 ? `<span style="opacity: 0.7;">(${count})</span>` : ''}</button>`;
             });
             
             container.innerHTML = html;
