@@ -7625,9 +7625,12 @@ Local honey and preserves"></textarea>
                         <input type="text" id="task-notes" class="form-input" placeholder="Any additional notes...">
                     </div>
                     
-                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
-                        <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">Cancel</button>
-                        <button type="submit" class="btn" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">Save Task</button>
+                    <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                        <button type="button" class="btn" id="task-delete-btn" style="background: #ef4444; display: none;" onclick="deleteTaskFromModal()">🗑️ Delete</button>
+                        <div style="display: flex; gap: 1rem; margin-left: auto;">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('taskModal')">Cancel</button>
+                            <button type="submit" class="btn" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">Save Task</button>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -13150,10 +13153,13 @@ Local honey and preserves"></textarea>
                 const response = await fetch('/api/admin/tasks');
                 const data = await response.json();
                 
-                if (data.success && data.tasks) {
+                // Handle both response formats: data.tasks or data.data
+                const tasksArray = data.tasks || data.data || [];
+                
+                if (data.success && tasksArray.length > 0) {
                     tasksData = {
-                        tasks: data.tasks.filter(t => t.status !== 'done'),
-                        completed: data.tasks.filter(t => t.status === 'done'),
+                        tasks: tasksArray.filter(t => t.status !== 'done'),
+                        completed: tasksArray.filter(t => t.status === 'done'),
                         categories: [
                             { id: 'critical', name: 'Critical - Must Work', icon: '🔥' },
                             { id: 'billing', name: 'Billing & Payments', icon: '💳' },
@@ -13169,8 +13175,28 @@ Local honey and preserves"></textarea>
                     };
                 } else {
                     // Fallback to JSON file
-                    const jsonResponse = await fetch('/tasks.json');
-                    tasksData = await jsonResponse.json();
+                    try {
+                        const jsonResponse = await fetch('/tasks.json');
+                        tasksData = await jsonResponse.json();
+                    } catch (jsonError) {
+                        // No JSON file either, start fresh
+                        tasksData = {
+                            tasks: [],
+                            completed: [],
+                            categories: [
+                                { id: 'critical', name: 'Critical - Must Work', icon: '🔥' },
+                                { id: 'billing', name: 'Billing & Payments', icon: '💳' },
+                                { id: 'booking-flow', name: 'Booking Flow', icon: '📅' },
+                                { id: 'ui', name: 'UI/UX', icon: '🎨' },
+                                { id: 'website-builder', name: 'Website Builder', icon: '🌐' },
+                                { id: 'apps', name: 'Apps', icon: '📱' },
+                                { id: 'integrations', name: 'Integrations', icon: '🔗' },
+                                { id: 'wordpress', name: 'WordPress', icon: '🔌' },
+                                { id: 'bugs', name: 'Bug Fixes', icon: '🐛' },
+                                { id: 'ideas', name: 'Ideas', icon: '💡' }
+                            ]
+                        };
+                    }
                 }
                 
                 buildCategoryTabs();
@@ -13179,13 +13205,19 @@ Local honey and preserves"></textarea>
                 renderCompletedTasks();
             } catch (error) {
                 console.error('Error loading tasks:', error);
-                document.getElementById('tasks-list').innerHTML = `
-                    <div class="card" style="text-align: center; padding: 3rem;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">📋</div>
-                        <h3>Could not load tasks</h3>
-                        <p style="color: var(--text-secondary);">Click "+ Add Task" to create your first task</p>
-                    </div>
-                `;
+                // Initialize empty state so user can add tasks
+                tasksData = {
+                    tasks: [],
+                    completed: [],
+                    categories: [
+                        { id: 'critical', name: 'Critical - Must Work', icon: '🔥' },
+                        { id: 'ideas', name: 'Ideas', icon: '💡' }
+                    ]
+                };
+                buildCategoryTabs();
+                updateTaskStats();
+                renderTasks();
+                renderCompletedTasks();
             }
         }
         
@@ -13300,6 +13332,7 @@ Local honey and preserves"></textarea>
                 const priorityClass = `priority-${task.priority || 'medium'}`;
                 const badgeClass = `task-badge-${task.priority || 'medium'}`;
                 const priorityLabels = { 'critical': '🔥 CRITICAL', 'urgent': '⚡ URGENT', 'high': '🔷 HIGH', 'medium': '📌 MEDIUM' };
+                const taskId = task.id || task.title.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
                 
                 let subtasksHtml = '';
                 if (task.subtasks && task.subtasks.length > 0) {
@@ -13316,12 +13349,13 @@ Local honey and preserves"></textarea>
                 }
                 
                 html += `
-                    <div class="task-card ${priorityClass}" onclick="editTask(${task.id || 0})" style="cursor: pointer;">
+                    <div class="task-card ${priorityClass}" data-task-id="${taskId}" style="cursor: pointer;">
                         <div class="task-card-header">
                             <h4 class="task-title">${task.title}</h4>
                             <div class="task-badges">
                                 <span class="task-badge ${badgeClass}">${priorityLabels[task.priority] || 'MEDIUM'}</span>
-                                <button class="btn btn-small" onclick="event.stopPropagation(); markTaskDone(${task.id})" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">✓ Done</button>
+                                <button class="btn btn-small task-edit-btn" data-id="${taskId}" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;">✏️ Edit</button>
+                                <button class="btn btn-small task-done-btn" data-id="${taskId}" style="padding: 0.2rem 0.5rem; font-size: 0.7rem; background: #22c55e;">✓ Done</button>
                             </div>
                         </div>
                         ${task.description ? `<p class="task-description">${task.description}</p>` : ''}
@@ -13332,6 +13366,23 @@ Local honey and preserves"></textarea>
             });
             
             container.innerHTML = html;
+            
+            // Attach event listeners
+            container.querySelectorAll('.task-edit-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const taskId = btn.dataset.id;
+                    editTaskById(taskId);
+                });
+            });
+            
+            container.querySelectorAll('.task-done-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const taskId = btn.dataset.id;
+                    markTaskDoneById(taskId);
+                });
+            });
         }
         
         function renderCompletedTasks() {
@@ -13393,15 +13444,37 @@ Local honey and preserves"></textarea>
             document.getElementById('task-status').value = task?.status || 'todo';
             document.getElementById('task-notes').value = task?.notes || '';
             
+            // Show/hide delete button
+            const deleteBtn = document.getElementById('task-delete-btn');
+            if (deleteBtn) {
+                deleteBtn.style.display = task?.id ? 'block' : 'none';
+            }
+            
             document.getElementById('task-modal-title').textContent = task ? '📋 Edit Task' : '📋 Add Task';
             openModal('taskModal');
         }
         
-        async function editTask(id) {
-            // Find task in tasksData
-            const task = tasksData?.tasks?.find(t => t.id === id);
+        function deleteTaskFromModal() {
+            const taskId = document.getElementById('task-id').value;
+            if (taskId) {
+                closeModal('taskModal');
+                deleteTask(taskId);
+            }
+        }
+        
+        function editTaskById(taskId) {
+            if (!tasksData) return;
+            
+            // Find task in active tasks or completed
+            let task = tasksData.tasks?.find(t => String(t.id) === String(taskId));
+            if (!task && tasksData.completed) {
+                task = tasksData.completed.find(t => String(t.id) === String(taskId));
+            }
+            
             if (task) {
                 openTaskModal(task);
+            } else {
+                showNotification('Task not found', 'error');
             }
         }
         
@@ -13410,6 +13483,7 @@ Local honey and preserves"></textarea>
             
             const id = document.getElementById('task-id').value;
             const taskData = {
+                id: id || 'task-' + Date.now(),
                 title: document.getElementById('task-title').value,
                 description: document.getElementById('task-description').value,
                 priority: document.getElementById('task-priority').value,
@@ -13418,9 +13492,10 @@ Local honey and preserves"></textarea>
                 notes: document.getElementById('task-notes').value
             };
             
+            // Try database first
             try {
-                const url = id ? `/api/admin/tasks/${id}` : '/api/admin/tasks';
-                const method = id ? 'PUT' : 'POST';
+                const url = id && !isNaN(id) ? `/api/admin/tasks/${id}` : '/api/admin/tasks';
+                const method = id && !isNaN(id) ? 'PUT' : 'POST';
                 
                 const response = await fetch(url, {
                     method,
@@ -13434,45 +13509,100 @@ Local honey and preserves"></textarea>
                     showNotification(id ? 'Task updated!' : 'Task created!', 'success');
                     closeModal('taskModal');
                     loadTasks();
-                } else {
-                    showNotification(data.error || 'Error saving task', 'error');
+                    return;
                 }
             } catch (error) {
-                showNotification('Error saving task', 'error');
+                console.log('DB save failed, updating local state:', error);
             }
+            
+            // Fallback: Update local state
+            if (!tasksData) tasksData = { tasks: [], completed: [], categories: [] };
+            
+            if (id) {
+                // Update existing
+                const idx = tasksData.tasks.findIndex(t => String(t.id) === String(id));
+                if (idx !== -1) {
+                    tasksData.tasks[idx] = { ...tasksData.tasks[idx], ...taskData };
+                }
+            } else {
+                // Add new
+                tasksData.tasks.unshift(taskData);
+            }
+            
+            showNotification(id ? 'Task updated!' : 'Task created!', 'success');
+            closeModal('taskModal');
+            updateTaskStats();
+            renderTasks();
+            renderCompletedTasks();
         }
         
-        async function markTaskDone(id) {
-            try {
-                const response = await fetch(`/api/admin/tasks/${id}`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ status: 'done', completed: new Date().toISOString().split('T')[0] })
-                });
+        async function markTaskDoneById(taskId) {
+            if (!tasksData) return;
+            
+            // Try database first
+            if (!isNaN(taskId)) {
+                try {
+                    const response = await fetch(`/api/admin/tasks/${taskId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ status: 'done', completed: new Date().toISOString().split('T')[0] })
+                    });
+                    
+                    const data = await response.json();
+                    if (data.success) {
+                        showNotification('Task completed! 🎉', 'success');
+                        loadTasks();
+                        return;
+                    }
+                } catch (error) {
+                    console.log('DB update failed:', error);
+                }
+            }
+            
+            // Fallback: Update local state
+            const idx = tasksData.tasks.findIndex(t => String(t.id) === String(taskId));
+            if (idx !== -1) {
+                const task = tasksData.tasks[idx];
+                task.status = 'done';
+                task.completed = new Date().toISOString().split('T')[0];
                 
-                const data = await response.json();
-                if (data.success) {
-                    showNotification('Task completed! 🎉', 'success');
-                    loadTasks();
-                }
-            } catch (error) {
-                showNotification('Error updating task', 'error');
+                // Move to completed
+                tasksData.tasks.splice(idx, 1);
+                if (!tasksData.completed) tasksData.completed = [];
+                tasksData.completed.unshift(task);
+                
+                showNotification('Task completed! 🎉', 'success');
+                updateTaskStats();
+                renderTasks();
+                renderCompletedTasks();
             }
         }
         
-        async function deleteTask(id) {
+        async function deleteTask(taskId) {
             if (!confirm('Delete this task?')) return;
             
-            try {
-                const response = await fetch(`/api/admin/tasks/${id}`, { method: 'DELETE' });
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Task deleted', 'success');
-                    loadTasks();
+            // Try database first
+            if (!isNaN(taskId)) {
+                try {
+                    const response = await fetch(`/api/admin/tasks/${taskId}`, { method: 'DELETE' });
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        showNotification('Task deleted', 'success');
+                        loadTasks();
+                        return;
+                    }
+                } catch (error) {
+                    console.log('DB delete failed:', error);
                 }
-            } catch (error) {
-                showNotification('Error deleting task', 'error');
+            }
+            
+            // Fallback: Update local state
+            if (tasksData?.tasks) {
+                tasksData.tasks = tasksData.tasks.filter(t => String(t.id) !== String(taskId));
+                showNotification('Task deleted', 'success');
+                updateTaskStats();
+                renderTasks();
             }
         }
 
