@@ -7698,50 +7698,63 @@ Local honey and preserves"></textarea>
 
     <!-- Deploy Site Modal -->
     <div id="deployModal" class="modal">
-        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
                     <h3 class="modal-title" id="deploy-modal-title" style="margin: 0; font-size: 1.25rem;">🚀 Deploy New Website</h3>
-                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Create a WordPress site on sites.gas.travel</p>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Select which rooms to display on this site</p>
                 </div>
                 <button class="modal-close" onclick="closeModal('deployModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
             </div>
             <form id="deployForm" onsubmit="deployNewSite(event)" style="padding: 1.5rem;">
-                <input type="hidden" id="deploy-property-id">
                 
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label>Property *</label>
-                    <select id="deploy-property-select" class="form-input" required onchange="onDeployPropertyChange(this)">
-                        <option value="">Select a property...</option>
-                    </select>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label>Site Name *</label>
-                    <input type="text" id="deploy-site-name" class="form-input" placeholder="e.g. Lehmann House" required>
-                </div>
-                
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label>URL Slug *</label>
-                    <div style="display: flex; align-items: center; gap: 0;">
-                        <span style="background: #f1f5f9; padding: 0.5rem 0.75rem; border: 1px solid var(--border); border-right: none; border-radius: 8px 0 0 8px; color: var(--text-secondary); font-size: 0.9rem;">sites.gas.travel/</span>
-                        <input type="text" id="deploy-slug" class="form-input" style="border-radius: 0 8px 8px 0; flex: 1;" placeholder="lehmann-house" required pattern="[a-z0-9-]+">
+                <!-- Site Details -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="form-group">
+                        <label>Site Name *</label>
+                        <input type="text" id="deploy-site-name" class="form-input" placeholder="e.g. Elevate Stays" required>
                     </div>
-                    <small style="color: var(--text-secondary);">Lowercase letters, numbers, and hyphens only</small>
+                    <div class="form-group">
+                        <label>URL Slug *</label>
+                        <div style="display: flex; align-items: center; gap: 0;">
+                            <span style="background: #f1f5f9; padding: 0.5rem 0.5rem; border: 1px solid var(--border); border-right: none; border-radius: 8px 0 0 8px; color: var(--text-secondary); font-size: 0.8rem; white-space: nowrap;">sites.gas.travel/</span>
+                            <input type="text" id="deploy-slug" class="form-input" style="border-radius: 0 8px 8px 0; flex: 1;" placeholder="elevate" required pattern="[a-z0-9-]+">
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="form-group" style="margin-bottom: 1rem;">
+                <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label>Admin Email *</label>
                     <input type="email" id="deploy-admin-email" class="form-input" placeholder="admin@example.com" required>
                 </div>
                 
-                <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                <!-- Room Selection -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <span style="font-weight: 600;">📦 Select Rooms to Display *</span>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button type="button" class="btn btn-small" onclick="selectAllDeployRooms()" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Select All</button>
+                            <button type="button" class="btn btn-small btn-secondary" onclick="deselectAllDeployRooms()" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;">Deselect All</button>
+                        </div>
+                    </label>
+                    <div id="deploy-rooms-container" style="max-height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px;">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            Loading rooms...
+                        </div>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; margin-top: 0.5rem;">
+                        <small style="color: var(--text-secondary);">Select the rooms/units you want on this website</small>
+                        <small id="deploy-room-count" style="color: var(--primary); font-weight: 500;">0 rooms selected</small>
+                    </div>
+                </div>
+                
+                <div id="deploy-summary" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 0.5rem 0; color: #166534;">✨ What will be created:</h4>
                     <ul style="margin: 0; padding-left: 1.25rem; color: #166534; font-size: 0.9rem;">
                         <li>WordPress site with GAS theme</li>
-                        <li>GAS booking plugin pre-configured</li>
-                        <li>Connected to this property's data</li>
-                        <li>Home, Rooms, Book Now, Contact pages</li>
+                        <li>GAS booking plugin configured</li>
+                        <li>Only selected rooms will display</li>
+                        <li>Booking calendar for each room</li>
                     </ul>
                 </div>
                 
@@ -13728,6 +13741,8 @@ Local honey and preserves"></textarea>
         // WEBSITE DEPLOYMENT FUNCTIONS
         // =====================================================
         
+        let deployRoomsData = []; // Store loaded rooms grouped by property
+        
         async function checkVpsStatus() {
             const statusEl = document.getElementById('vps-status');
             if (!statusEl) return;
@@ -13782,14 +13797,16 @@ Local honey and preserves"></textarea>
                                        site.status === 'pending' ? '#f59e0b' : '#ef4444';
                     const statusLabel = site.status === 'active' ? '✅ Active' :
                                        site.status === 'pending' ? '⏳ Pending' : '❌ ' + site.status;
+                    const roomCount = site.room_ids ? JSON.parse(site.room_ids || '[]').length : 0;
                     
                     html += `
                         <div class="card" style="padding: 1rem; border-left: 4px solid ${statusColor};">
                             <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem;">
                                 <div style="flex: 1; min-width: 200px;">
-                                    <h4 style="margin: 0 0 0.5rem 0;">${site.property_name || site.slug}</h4>
+                                    <h4 style="margin: 0 0 0.5rem 0;">${site.site_name || site.slug}</h4>
                                     <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
                                         ${site.account_name || 'Unknown Account'}
+                                        ${roomCount > 0 ? `<span style="color: #6366f1;"> • ${roomCount} rooms</span>` : ''}
                                     </p>
                                     <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                         <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
@@ -13829,9 +13846,12 @@ Local honey and preserves"></textarea>
         }
         
         function updateDeployStats(sites) {
-            document.getElementById('deploy-stat-total').textContent = sites.length;
-            document.getElementById('deploy-stat-active').textContent = sites.filter(s => s.status === 'active').length;
-            document.getElementById('deploy-stat-pending').textContent = sites.filter(s => s.status === 'pending').length;
+            const totalEl = document.getElementById('deploy-stat-total');
+            const activeEl = document.getElementById('deploy-stat-active');
+            const pendingEl = document.getElementById('deploy-stat-pending');
+            if (totalEl) totalEl.textContent = sites.length;
+            if (activeEl) activeEl.textContent = sites.filter(s => s.status === 'active').length;
+            if (pendingEl) pendingEl.textContent = sites.filter(s => s.status === 'pending').length;
         }
         
         async function openDeployModal() {
@@ -13842,84 +13862,207 @@ Local honey and preserves"></textarea>
             document.getElementById('deploy-submit-btn').disabled = false;
             document.getElementById('deploy-submit-btn').textContent = '🚀 Deploy Site';
             
-            // Load properties into dropdown
-            const select = document.getElementById('deploy-property-select');
-            select.innerHTML = '<option value="">Loading properties...</option>';
+            const container = document.getElementById('deploy-rooms-container');
+            container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading rooms...</div>';
             
             try {
-                // Use db properties endpoint with account filter if set
-                let url = '/api/db/properties';
+                // Load properties and rooms
+                let propsUrl = '/api/db/properties';
+                let roomsUrl = '/api/db/bookable-units';
+                
                 if (selectedAccountId) {
-                    url += '?account_id=' + selectedAccountId;
+                    propsUrl += '?account_id=' + selectedAccountId;
+                    roomsUrl += '?account_id=' + selectedAccountId;
                 }
                 
-                const response = await fetch(url);
-                const data = await response.json();
+                const [propsRes, roomsRes] = await Promise.all([
+                    fetch(propsUrl),
+                    fetch(roomsUrl)
+                ]);
                 
-                let html = '<option value="">Select a property...</option>';
+                const propsData = await propsRes.json();
+                const roomsData = await roomsRes.json();
                 
-                // Handle response structure: { success: true, data: [...] }
-                const properties = data.data || data.properties || [];
+                const properties = propsData.data || [];
+                const rooms = roomsData.data || [];
                 
-                if (Array.isArray(properties) && properties.length > 0) {
-                    properties.forEach(prop => {
-                        html += `<option value="${prop.id}" data-name="${prop.name}" data-email="${prop.email || ''}" data-account="${prop.account_id || ''}">${prop.name}</option>`;
+                // Group rooms by property
+                deployRoomsData = properties.map(prop => ({
+                    property: prop,
+                    rooms: rooms.filter(r => r.property_id === prop.id)
+                })).filter(group => group.rooms.length > 0);
+                
+                if (deployRoomsData.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            <p>No rooms found for this account</p>
+                            <p style="font-size: 0.85rem;">Add rooms to your properties first</p>
+                        </div>
+                    `;
+                    openModal('deployModal');
+                    return;
+                }
+                
+                // Build the room selection UI
+                let html = '';
+                
+                deployRoomsData.forEach((group, groupIdx) => {
+                    const propRoomCount = group.rooms.length;
+                    
+                    html += `
+                        <div class="deploy-property-group" style="border-bottom: 1px solid var(--border);">
+                            <div style="display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; background: #f8fafc; cursor: pointer;" onclick="toggleDeployPropertyGroup(${groupIdx})">
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <input type="checkbox" class="deploy-property-checkbox" data-group="${groupIdx}" onchange="togglePropertyRooms(${groupIdx}, this.checked); event.stopPropagation();" checked style="width: 18px; height: 18px;">
+                                    <div>
+                                        <div style="font-weight: 600;">${group.property.name}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">${propRoomCount} room${propRoomCount !== 1 ? 's' : ''}</div>
+                                    </div>
+                                </div>
+                                <span class="deploy-group-arrow" id="deploy-arrow-${groupIdx}" style="transition: transform 0.2s;">▼</span>
+                            </div>
+                            <div class="deploy-rooms-list" id="deploy-rooms-${groupIdx}" style="padding: 0.5rem 1rem 0.5rem 2.5rem;">
+                    `;
+                    
+                    group.rooms.forEach(room => {
+                        html += `
+                            <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; cursor: pointer;">
+                                <input type="checkbox" class="deploy-room-checkbox" data-group="${groupIdx}" data-room-id="${room.id}" data-room-name="${room.name}" data-property-id="${group.property.id}" data-property-name="${group.property.name}" checked style="width: 16px; height: 16px;" onchange="updateDeployRoomCount()">
+                                <div style="flex: 1;">
+                                    <div style="font-weight: 500;">${room.name}</div>
+                                    <div style="font-size: 0.75rem; color: var(--text-secondary);">
+                                        ${room.max_guests ? `👥 ${room.max_guests} guests` : ''}
+                                        ${room.beds ? ` • 🛏️ ${room.beds}` : ''}
+                                    </div>
+                                </div>
+                            </label>
+                        `;
                     });
-                } else {
-                    html = '<option value="">No properties found</option>';
-                }
+                    
+                    html += `
+                            </div>
+                        </div>
+                    `;
+                });
                 
-                select.innerHTML = html;
+                container.innerHTML = html;
+                updateDeployRoomCount();
+                
             } catch (error) {
-                console.error('Error loading properties:', error);
-                select.innerHTML = '<option value="">Error loading properties</option>';
+                console.error('Error loading rooms:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #991b1b;">
+                        <p>Error loading rooms</p>
+                    </div>
+                `;
             }
             
             openModal('deployModal');
         }
         
-        function onDeployPropertyChange(select) {
-            const option = select.options[select.selectedIndex];
-            if (!option || !option.value) return;
+        function toggleDeployPropertyGroup(groupIdx) {
+            const roomsList = document.getElementById(`deploy-rooms-${groupIdx}`);
+            const arrow = document.getElementById(`deploy-arrow-${groupIdx}`);
             
-            const name = option.dataset.name || option.textContent;
-            const email = option.dataset.email || '';
-            
-            document.getElementById('deploy-property-id').value = option.value;
-            document.getElementById('deploy-site-name').value = name;
-            document.getElementById('deploy-slug').value = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-            
-            if (email) {
-                document.getElementById('deploy-admin-email').value = email;
+            if (roomsList.style.display === 'none') {
+                roomsList.style.display = 'block';
+                arrow.style.transform = 'rotate(0deg)';
+            } else {
+                roomsList.style.display = 'none';
+                arrow.style.transform = 'rotate(-90deg)';
             }
+        }
+        
+        function togglePropertyRooms(groupIdx, checked) {
+            const checkboxes = document.querySelectorAll(`.deploy-room-checkbox[data-group="${groupIdx}"]`);
+            checkboxes.forEach(cb => cb.checked = checked);
+            updateDeployRoomCount();
+        }
+        
+        function selectAllDeployRooms() {
+            document.querySelectorAll('.deploy-room-checkbox').forEach(cb => cb.checked = true);
+            document.querySelectorAll('.deploy-property-checkbox').forEach(cb => cb.checked = true);
+            updateDeployRoomCount();
+        }
+        
+        function deselectAllDeployRooms() {
+            document.querySelectorAll('.deploy-room-checkbox').forEach(cb => cb.checked = false);
+            document.querySelectorAll('.deploy-property-checkbox').forEach(cb => cb.checked = false);
+            updateDeployRoomCount();
+        }
+        
+        function updateDeployRoomCount() {
+            const checked = document.querySelectorAll('.deploy-room-checkbox:checked');
+            const countEl = document.getElementById('deploy-room-count');
+            if (countEl) {
+                countEl.textContent = `${checked.length} room${checked.length !== 1 ? 's' : ''} selected`;
+                countEl.style.color = checked.length > 0 ? '#10b981' : '#ef4444';
+            }
+            
+            // Update property checkboxes based on room selection
+            deployRoomsData.forEach((group, idx) => {
+                const groupRooms = document.querySelectorAll(`.deploy-room-checkbox[data-group="${idx}"]`);
+                const checkedRooms = document.querySelectorAll(`.deploy-room-checkbox[data-group="${idx}"]:checked`);
+                const propCheckbox = document.querySelector(`.deploy-property-checkbox[data-group="${idx}"]`);
+                
+                if (propCheckbox) {
+                    propCheckbox.checked = checkedRooms.length > 0;
+                    propCheckbox.indeterminate = checkedRooms.length > 0 && checkedRooms.length < groupRooms.length;
+                }
+            });
+        }
+        
+        function getSelectedRooms() {
+            const selected = [];
+            document.querySelectorAll('.deploy-room-checkbox:checked').forEach(cb => {
+                selected.push({
+                    room_id: parseInt(cb.dataset.roomId),
+                    room_name: cb.dataset.roomName,
+                    property_id: parseInt(cb.dataset.propertyId),
+                    property_name: cb.dataset.propertyName
+                });
+            });
+            return selected;
         }
         
         async function deployNewSite(event) {
             event.preventDefault();
             
-            const propertyId = document.getElementById('deploy-property-select').value;
             const siteName = document.getElementById('deploy-site-name').value;
             const slug = document.getElementById('deploy-slug').value;
             const adminEmail = document.getElementById('deploy-admin-email').value;
+            const selectedRooms = getSelectedRooms();
             
-            if (!propertyId || !siteName || !slug || !adminEmail) {
+            // Validation
+            if (selectedRooms.length === 0) {
+                showNotification('Please select at least one room', 'error');
+                return;
+            }
+            
+            if (!siteName || !slug || !adminEmail) {
                 showNotification('Please fill in all fields', 'error');
                 return;
             }
+            
+            // Get unique property IDs
+            const propertyIds = [...new Set(selectedRooms.map(r => r.property_id))];
+            const roomIds = selectedRooms.map(r => r.room_id);
             
             // Show progress
             document.getElementById('deploy-progress').style.display = 'block';
             document.getElementById('deploy-result').style.display = 'none';
             document.getElementById('deploy-submit-btn').disabled = true;
-            document.getElementById('deploy-progress-text').textContent = 'Creating your WordPress site...';
+            document.getElementById('deploy-progress-text').textContent = `Creating site with ${selectedRooms.length} rooms...`;
             
             try {
                 const response = await fetch('/api/deploy/create', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        property_id: propertyId,
-                        property_name: siteName,
+                        site_name: siteName,
+                        property_ids: propertyIds,
+                        room_ids: roomIds,
+                        rooms: selectedRooms,
                         slug: slug,
                         admin_email: adminEmail,
                         account_id: selectedAccountId
@@ -13940,6 +14083,9 @@ Local honey and preserves"></textarea>
                         <div style="margin-bottom: 0.5rem;">
                             <strong>Admin URL:</strong> <a href="${data.site.admin_url}" target="_blank">${data.site.admin_url}</a>
                         </div>
+                        <div style="margin-bottom: 0.5rem;">
+                            <strong>Rooms:</strong> ${selectedRooms.length} from ${propertyIds.length} propert${propertyIds.length !== 1 ? 'ies' : 'y'}
+                        </div>
                     `;
                     
                     if (data.credentials && data.credentials.password) {
@@ -13959,6 +14105,26 @@ Local honey and preserves"></textarea>
                     
                     showNotification('Site deployed successfully!', 'success');
                     loadDeployedSites();
+                } else {
+                    document.getElementById('deploy-submit-btn').disabled = false;
+                    showNotification(data.error || 'Deployment failed', 'error');
+                }
+            } catch (error) {
+                document.getElementById('deploy-progress').style.display = 'none';
+                document.getElementById('deploy-submit-btn').disabled = false;
+                showNotification('Deployment failed: ' + error.message, 'error');
+            }
+        }
+                } else {
+                    document.getElementById('deploy-submit-btn').disabled = false;
+                    showNotification(data.error || 'Deployment failed', 'error');
+                }
+            } catch (error) {
+                document.getElementById('deploy-progress').style.display = 'none';
+                document.getElementById('deploy-submit-btn').disabled = false;
+                showNotification('Deployment failed: ' + error.message, 'error');
+            }
+        }
                 } else {
                     document.getElementById('deploy-submit-btn').disabled = false;
                     showNotification(data.error || 'Deployment failed', 'error');
