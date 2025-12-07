@@ -13837,6 +13837,7 @@ Local honey and preserves"></textarea>
                                     <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                         <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
                                         <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
+                                        <button onclick="deleteDeployedSite(${site.id}, '${site.site_name || site.slug}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
@@ -13878,6 +13879,29 @@ Local honey and preserves"></textarea>
             if (totalEl) totalEl.textContent = sites.length;
             if (activeEl) activeEl.textContent = sites.filter(s => s.status === 'active').length;
             if (pendingEl) pendingEl.textContent = sites.filter(s => s.status === 'pending').length;
+        }
+        
+        async function deleteDeployedSite(siteId, siteName) {
+            if (!confirm(`Are you sure you want to delete "${siteName}"?\n\nThis will:\n• Delete the WordPress site from the VPS\n• Remove the deployment record from the database\n\nThis action cannot be undone!`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/deploy/${siteId}?force=true`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Site deleted successfully', 'success');
+                    loadDeployedSites();
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed to delete site'), 'error');
+                }
+            } catch (error) {
+                console.error('Delete error:', error);
+                showNotification('Error deleting site: ' + error.message, 'error');
+            }
         }
         
         async function openDeployModal() {
