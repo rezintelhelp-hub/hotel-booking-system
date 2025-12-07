@@ -13149,14 +13149,24 @@ Local honey and preserves"></textarea>
         
         async function loadTasks() {
             try {
-                // Try loading from database API first
-                const response = await fetch('/api/admin/tasks');
-                const data = await response.json();
-                
-                // Handle both response formats: data.tasks or data.data
-                const tasksArray = data.tasks || data.data || [];
-                
-                if (data.success && tasksArray.length > 0) {
+                // Try loading from JSON file first (primary source)
+                const jsonResponse = await fetch('/tasks.json?t=' + Date.now());
+                if (jsonResponse.ok) {
+                    tasksData = await jsonResponse.json();
+                    // Ensure tasks and completed arrays exist
+                    if (!tasksData.tasks) tasksData.tasks = [];
+                    if (!tasksData.completed) tasksData.completed = [];
+                } else {
+                    throw new Error('JSON file not found');
+                }
+            } catch (jsonError) {
+                console.log('JSON load failed, trying API:', jsonError);
+                try {
+                    // Fallback to database API
+                    const response = await fetch('/api/admin/tasks');
+                    const data = await response.json();
+                    const tasksArray = data.tasks || data.data || [];
+                    
                     tasksData = {
                         tasks: tasksArray.filter(t => t.status !== 'done'),
                         completed: tasksArray.filter(t => t.status === 'done'),
@@ -13173,52 +13183,24 @@ Local honey and preserves"></textarea>
                             { id: 'ideas', name: 'Ideas', icon: '💡' }
                         ]
                     };
-                } else {
-                    // Fallback to JSON file
-                    try {
-                        const jsonResponse = await fetch('/tasks.json');
-                        tasksData = await jsonResponse.json();
-                    } catch (jsonError) {
-                        // No JSON file either, start fresh
-                        tasksData = {
-                            tasks: [],
-                            completed: [],
-                            categories: [
-                                { id: 'critical', name: 'Critical - Must Work', icon: '🔥' },
-                                { id: 'billing', name: 'Billing & Payments', icon: '💳' },
-                                { id: 'booking-flow', name: 'Booking Flow', icon: '📅' },
-                                { id: 'ui', name: 'UI/UX', icon: '🎨' },
-                                { id: 'website-builder', name: 'Website Builder', icon: '🌐' },
-                                { id: 'apps', name: 'Apps', icon: '📱' },
-                                { id: 'integrations', name: 'Integrations', icon: '🔗' },
-                                { id: 'wordpress', name: 'WordPress', icon: '🔌' },
-                                { id: 'bugs', name: 'Bug Fixes', icon: '🐛' },
-                                { id: 'ideas', name: 'Ideas', icon: '💡' }
-                            ]
-                        };
-                    }
+                } catch (apiError) {
+                    console.error('Both JSON and API failed:', apiError);
+                    tasksData = {
+                        tasks: [],
+                        completed: [],
+                        categories: [
+                            { id: 'critical', name: 'Critical - Must Work', icon: '🔥' },
+                            { id: 'billing', name: 'Billing & Payments', icon: '💳' },
+                            { id: 'ideas', name: 'Ideas', icon: '💡' }
+                        ]
+                    };
                 }
-                
-                buildCategoryTabs();
-                updateTaskStats();
-                renderTasks();
-                renderCompletedTasks();
-            } catch (error) {
-                console.error('Error loading tasks:', error);
-                // Initialize empty state so user can add tasks
-                tasksData = {
-                    tasks: [],
-                    completed: [],
-                    categories: [
-                        { id: 'critical', name: 'Critical - Must Work', icon: '🔥' },
-                        { id: 'ideas', name: 'Ideas', icon: '💡' }
-                    ]
-                };
-                buildCategoryTabs();
-                updateTaskStats();
-                renderTasks();
-                renderCompletedTasks();
             }
+            
+            buildCategoryTabs();
+            updateTaskStats();
+            renderTasks();
+            renderCompletedTasks();
         }
         
         function buildCategoryTabs() {
