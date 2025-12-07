@@ -5047,26 +5047,100 @@ app.post('/api/db/properties', async (req, res) => {
 app.put('/api/db/properties/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, address, city, country, property_type, status } = req.body;
-
-    const result = await pool.query(
-      `UPDATE properties SET 
-        name = COALESCE($1, name), 
-        description = COALESCE($2, description), 
-        address = COALESCE($3, address), 
-        city = COALESCE($4, city), 
-        country = COALESCE($5, country), 
-        property_type = COALESCE($6, property_type),
-        status = COALESCE($7, status),
-        updated_at = NOW()
-      WHERE id = $8
-      RETURNING *`,
-      [name, description, address, city, country, property_type, status, id]
-    );
+    const updates = req.body;
+    
+    // All allowed fields that can be updated
+    const allowedFields = [
+      'name', 'property_type', 'status', 'address', 'city', 'state', 
+      'postcode', 'country', 'latitude', 'longitude', 'phone', 'email',
+      'description', 'short_description', 'location_description',
+      'check_in_from', 'check_in_until', 'check_out_by', 'currency',
+      'cancellation_policy', 'house_rules', 'amenities', 'pets_allowed',
+      'smoking_allowed', 'children_allowed', 'events_allowed', 'featured',
+      'visible_public', 'visible_own_website', 'available_to_tas',
+      'security_deposit_amount', 'cleaning_fee', 'instant_book',
+      'min_advance_booking_hours', 'max_advance_booking_days'
+    ];
+    
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        setClauses.push(`${key} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    }
+    
+    if (setClauses.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+    
+    values.push(id);
+    const query = `UPDATE properties SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
+    
+    const result = await pool.query(query, values);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Update error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PATCH property (alias for PUT)
+app.patch('/api/db/properties/:id', async (req, res) => {
+  req.url = req.url; // Forward to PUT handler
+  const { id } = req.params;
+  const updates = req.body;
+  
+  try {
+    const allowedFields = [
+      'name', 'property_type', 'status', 'address', 'city', 'state', 
+      'postcode', 'country', 'latitude', 'longitude', 'phone', 'email',
+      'description', 'short_description', 'location_description',
+      'check_in_from', 'check_in_until', 'check_out_by', 'currency',
+      'cancellation_policy', 'house_rules', 'amenities', 'pets_allowed',
+      'smoking_allowed', 'children_allowed', 'events_allowed', 'featured',
+      'visible_public', 'visible_own_website', 'available_to_tas',
+      'security_deposit_amount', 'cleaning_fee', 'instant_book',
+      'min_advance_booking_hours', 'max_advance_booking_days'
+    ];
+    
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        setClauses.push(`${key} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    }
+    
+    if (setClauses.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+    
+    values.push(id);
+    const query = `UPDATE properties SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
+    
+    const result = await pool.query(query, values);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('PATCH property error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -5468,6 +5542,56 @@ app.get('/api/admin/debug/bookings-schema', async (req, res) => {
 app.get('/api/properties', async (req, res) => {
   const result = await beds24Request('/properties');
   res.json(result);
+});
+
+// PATCH property by ID (used by frontend property edit form)
+app.patch('/api/properties/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const updates = req.body;
+    
+    const allowedFields = [
+      'name', 'property_type', 'status', 'address', 'city', 'state', 
+      'postcode', 'country', 'latitude', 'longitude', 'phone', 'email',
+      'description', 'short_description', 'location_description',
+      'check_in_from', 'check_in_until', 'check_out_by', 'currency',
+      'cancellation_policy', 'house_rules', 'amenities', 'pets_allowed',
+      'smoking_allowed', 'children_allowed', 'events_allowed', 'featured',
+      'visible_public', 'visible_own_website', 'available_to_tas',
+      'security_deposit_amount', 'cleaning_fee', 'instant_book',
+      'min_advance_booking_hours', 'max_advance_booking_days'
+    ];
+    
+    const setClauses = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    for (const [key, value] of Object.entries(updates)) {
+      if (allowedFields.includes(key)) {
+        setClauses.push(`${key} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
+      }
+    }
+    
+    if (setClauses.length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+    
+    values.push(id);
+    const query = `UPDATE properties SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
+    
+    const result = await pool.query(query, values);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    console.error('PATCH /api/properties/:id error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 app.post('/api/setup-auth', async (req, res) => {
