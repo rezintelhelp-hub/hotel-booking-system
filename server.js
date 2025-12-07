@@ -3554,11 +3554,15 @@ app.get('/api/deploy/property/:id', async (req, res) => {
 // Get all deployed sites
 app.get('/api/admin/deployed-sites', async (req, res) => {
   try {
+    const includeDeleted = req.query.include_deleted === 'true';
+    const statusFilter = includeDeleted ? '' : "WHERE ds.status != 'deleted'";
+    
     const result = await pool.query(`
       SELECT ds.*, p.name as property_name, a.name as account_name
       FROM deployed_sites ds
       LEFT JOIN properties p ON ds.property_id = p.id
       LEFT JOIN accounts a ON ds.account_id = a.id
+      ${statusFilter}
       ORDER BY ds.deployed_at DESC
     `);
     res.json({ success: true, sites: result.rows });
@@ -3571,6 +3575,7 @@ app.get('/api/admin/deployed-sites', async (req, res) => {
 app.delete('/api/deploy/:id', async (req, res) => {
   try {
     const deployId = req.params.id;
+    const forceDelete = req.query.force === 'true';
     
     // Get deployment record
     const result = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [deployId]);
@@ -3579,37 +3584,68 @@ app.delete('/api/deploy/:id', async (req, res) => {
     }
     
     const deployment = result.rows[0];
+    let vpsDeleted = false;
+    let vpsError = null;
     
-    // Call VPS to delete site
-    const response = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-API-Key': VPS_DEPLOY_API_KEY
-      },
-      body: JSON.stringify({
-        blog_id: deployment.blog_id,
-        confirm: 'DELETE'
-      })
-    });
+    // Try to delete from VPS (but don't fail if it doesn't work)
+    try {
+      const response = await fetch(`${VPS_DEPLOY_URL}?action=delete-site`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-API-Key': VPS_DEPLOY_API_KEY
+        },
+        body: JSON.stringify({
+          blog_id: deployment.blog_id,
+          confirm: 'DELETE'
+        })
+      });
+      const data = await response.json();
+      vpsDeleted = data.success;
+      if (!data.success) vpsError = data.error;
+    } catch (e) {
+      vpsError = e.message;
+    }
     
-    const data = await response.json();
-    
-    if (data.success) {
-      // Update deployment record
-      await pool.query(
-        'UPDATE deployed_sites SET status = $1, updated_at = NOW() WHERE id = $2',
-        ['deleted', deployId]
-      );
+    // Always delete from database if VPS succeeded, force=true, or site already marked deleted
+    if (vpsDeleted || forceDelete || deployment.status === 'deleted') {
+      await pool.query('DELETE FROM deployed_sites WHERE id = $1', [deployId]);
       
       // Clear website URL from property
       await pool.query(
         'UPDATE properties SET website_url = NULL WHERE id = $1',
         [deployment.property_id]
       );
+      
+      // Clear website URL from rooms
+      const roomIds = typeof deployment.room_ids === 'string' 
+        ? JSON.parse(deployment.room_ids || '[]') 
+        : (deployment.room_ids || []);
+      for (const roomId of roomIds) {
+        await pool.query(
+          'UPDATE bookable_units SET website_url = NULL WHERE id = $1',
+          [roomId]
+        );
+      }
+      
+      res.json({ 
+        success: true, 
+        message: 'Site deleted from database',
+        vps_deleted: vpsDeleted,
+        vps_error: vpsError
+      });
+    } else {
+      // VPS failed but not force - mark as deleted instead
+      await pool.query(
+        'UPDATE deployed_sites SET status = $1, updated_at = NOW() WHERE id = $2',
+        ['deleted', deployId]
+      );
+      res.json({ 
+        success: true, 
+        message: 'Marked as deleted (VPS site may still exist). Use ?force=true to remove from database.',
+        vps_error: vpsError
+      });
     }
-    
-    res.json(data);
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
