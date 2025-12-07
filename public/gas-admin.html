@@ -13794,7 +13794,11 @@ Local honey and preserves"></textarea>
             if (!container) return;
             
             try {
-                const response = await fetch('/api/admin/deployed-sites');
+                let url = '/api/admin/deployed-sites';
+                if (selectedAccountId) {
+                    url += '?account_id=' + selectedAccountId;
+                }
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 if (!data.success || !data.sites || data.sites.length === 0) {
