@@ -7748,13 +7748,35 @@ Local honey and preserves"></textarea>
                     </div>
                 </div>
                 
+                <!-- Template Options -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">🎨 Template Options</label>
+                    <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; margin-bottom: 0.75rem;">
+                            <input type="checkbox" id="deploy-use-theme" checked style="width: 18px; height: 18px;">
+                            <div>
+                                <div style="font-weight: 500;">Install GAS Theme</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Professional booking-ready theme</div>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                            <input type="checkbox" id="deploy-use-plugin" checked style="width: 18px; height: 18px;">
+                            <div>
+                                <div style="font-weight: 500;">Install GAS Booking Plugin</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Calendar, availability & booking system</div>
+                            </div>
+                        </label>
+                    </div>
+                    <small style="color: var(--text-secondary); margin-top: 0.5rem; display: block;">Uncheck to use your own theme/plugin instead</small>
+                </div>
+                
                 <div id="deploy-summary" style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 0.5rem 0; color: #166534;">✨ What will be created:</h4>
                     <ul style="margin: 0; padding-left: 1.25rem; color: #166534; font-size: 0.9rem;">
-                        <li>WordPress site with GAS theme</li>
-                        <li>GAS booking plugin configured</li>
+                        <li>Clean WordPress site</li>
+                        <li>GAS theme & plugin (if selected)</li>
                         <li>Only selected rooms will display</li>
-                        <li>Booking calendar for each room</li>
+                        <li>Connected to GAS booking system</li>
                     </ul>
                 </div>
                 
@@ -14054,6 +14076,10 @@ Local honey and preserves"></textarea>
             document.getElementById('deploy-submit-btn').disabled = true;
             document.getElementById('deploy-progress-text').textContent = `Creating site with ${selectedRooms.length} rooms...`;
             
+            // Get template options
+            const useTheme = document.getElementById('deploy-use-theme').checked;
+            const usePlugin = document.getElementById('deploy-use-plugin').checked;
+            
             try {
                 const response = await fetch('/api/deploy/create', {
                     method: 'POST',
@@ -14065,7 +14091,9 @@ Local honey and preserves"></textarea>
                         rooms: selectedRooms,
                         slug: slug,
                         admin_email: adminEmail,
-                        account_id: selectedAccountId
+                        account_id: selectedAccountId,
+                        use_theme: useTheme,
+                        use_plugin: usePlugin
                     })
                 });
                 
