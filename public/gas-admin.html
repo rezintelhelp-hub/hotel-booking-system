@@ -13819,7 +13819,11 @@ Local honey and preserves"></textarea>
                                        site.status === 'pending' ? '#f59e0b' : '#ef4444';
                     const statusLabel = site.status === 'active' ? '✅ Active' :
                                        site.status === 'pending' ? '⏳ Pending' : '❌ ' + site.status;
-                    const roomCount = site.room_ids ? JSON.parse(site.room_ids || '[]').length : 0;
+                    let roomCount = 0;
+                    try {
+                        const roomIds = typeof site.room_ids === 'string' ? JSON.parse(site.room_ids || '[]') : (site.room_ids || []);
+                        roomCount = Array.isArray(roomIds) ? roomIds.length : 0;
+                    } catch (e) { roomCount = 0; }
                     
                     html += `
                         <div class="card" style="padding: 1rem; border-left: 4px solid ${statusColor};">
