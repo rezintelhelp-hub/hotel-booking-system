@@ -3366,11 +3366,14 @@ app.get('/api/setup-deploy', async (req, res) => {
       CREATE TABLE IF NOT EXISTS deployed_sites (
         id SERIAL PRIMARY KEY,
         property_id INTEGER REFERENCES properties(id) ON DELETE SET NULL,
+        property_ids JSONB DEFAULT '[]',
+        room_ids JSONB DEFAULT '[]',
         account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
         blog_id INTEGER,
         site_url VARCHAR(255),
         admin_url VARCHAR(255),
         slug VARCHAR(100),
+        site_name VARCHAR(255),
         status VARCHAR(50) DEFAULT 'pending',
         wp_username VARCHAR(100),
         wp_password_temp VARCHAR(100),
@@ -3379,7 +3382,16 @@ app.get('/api/setup-deploy', async (req, res) => {
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);
-    res.json({ success: true, message: 'Deployed sites table created' });
+    
+    // Add columns if they don't exist (for existing tables)
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS property_ids JSONB DEFAULT '[]'`);
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS room_ids JSONB DEFAULT '[]'`);
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_name VARCHAR(255)`);
+    
+    // Add website_url column to bookable_units if it doesn't exist
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_url VARCHAR(255)`);
+    
+    res.json({ success: true, message: 'Deployed sites table created/updated with room_ids support' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -3417,34 +3429,38 @@ app.get('/api/deploy/sites', async (req, res) => {
   }
 });
 
-// Deploy a new site
+// Deploy a new site (room-level selection)
 app.post('/api/deploy/create', async (req, res) => {
   try {
-    const { property_id, property_name, slug, admin_email, account_id } = req.body;
+    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids } = req.body;
     
-    if (!property_id || !property_name) {
-      return res.json({ success: false, error: 'Property ID and name are required' });
+    // Validate required fields
+    if (!site_name || !slug || !admin_email) {
+      return res.json({ success: false, error: 'Site name, slug, and admin email are required' });
     }
     
-    // Get property's API key
+    if (!room_ids || room_ids.length === 0) {
+      return res.json({ success: false, error: 'At least one room must be selected' });
+    }
+    
+    // Get unique property IDs from selected rooms
+    const uniquePropertyIds = property_ids || [...new Set(rooms.map(r => r.property_id))];
+    
+    // Get API key from first property
     const propResult = await pool.query(
       'SELECT api_key FROM properties WHERE id = $1',
-      [property_id]
+      [uniquePropertyIds[0]]
     );
     const gasApiKey = propResult.rows[0]?.api_key || '';
     
-    // Check if already deployed
-    const existingDeploy = await pool.query(
-      'SELECT * FROM deployed_sites WHERE property_id = $1 AND status != $2',
-      [property_id, 'deleted']
-    );
-    
-    if (existingDeploy.rows.length > 0) {
-      return res.json({
-        success: false,
-        error: 'Site already deployed for this property',
-        existing: existingDeploy.rows[0]
-      });
+    // Get account code if available
+    let accountCode = null;
+    if (account_id) {
+      const accountResult = await pool.query(
+        'SELECT account_code FROM accounts WHERE id = $1',
+        [account_id]
+      );
+      accountCode = accountResult.rows[0]?.account_code || null;
     }
     
     // Call VPS to create site
@@ -3455,12 +3471,15 @@ app.post('/api/deploy/create', async (req, res) => {
         'X-API-Key': VPS_DEPLOY_API_KEY
       },
       body: JSON.stringify({
-        property_id,
-        property_name,
-        slug: slug || property_name.toLowerCase().replace(/[^a-z0-9]/g, '-'),
-        admin_email: admin_email || 'admin@gas.travel',
+        site_name,
+        slug: slug.toLowerCase().replace(/[^a-z0-9-]/g, ''),
+        admin_email,
+        room_ids,
+        rooms,
+        property_ids: uniquePropertyIds,
         gas_api_key: gasApiKey,
-        account_id
+        account_id,
+        account_code: accountCode
       })
     });
     
@@ -3470,25 +3489,30 @@ app.post('/api/deploy/create', async (req, res) => {
       // Store deployment record
       await pool.query(`
         INSERT INTO deployed_sites 
-        (property_id, account_id, blog_id, site_url, admin_url, slug, status, wp_username, wp_password_temp, deployed_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+        (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, deployed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
       `, [
-        property_id,
+        uniquePropertyIds[0],
+        JSON.stringify(uniquePropertyIds),
+        JSON.stringify(room_ids),
         account_id,
         data.site.blog_id,
         data.site.url,
         data.site.admin_url,
         data.site.slug,
+        site_name,
         'active',
         data.credentials.username,
         data.credentials.password || null
       ]);
       
-      // Update property with site URL
-      await pool.query(
-        'UPDATE properties SET website_url = $1 WHERE id = $2',
-        [data.site.url, property_id]
-      );
+      // Update rooms with site URL
+      for (const roomId of room_ids) {
+        await pool.query(
+          'UPDATE bookable_units SET website_url = $1 WHERE id = $2',
+          [data.site.url, roomId]
+        );
+      }
     }
     
     res.json(data);
