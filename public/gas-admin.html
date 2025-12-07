@@ -4662,23 +4662,32 @@
                 }
                 .tasks-cat-tab {
                     padding: 0.5rem 1rem;
-                    background: var(--bg-secondary);
-                    border: 1px solid var(--border);
+                    background: #f8fafc;
+                    border: 1px solid #e2e8f0;
                     border-radius: 20px;
                     font-size: 0.85rem;
-                    color: var(--text-secondary);
+                    color: #475569;
                     cursor: pointer;
                     transition: all 0.2s;
                     white-space: nowrap;
+                    display: inline-flex;
+                    align-items: center;
+                    gap: 0.25rem;
                 }
                 .tasks-cat-tab:hover {
-                    background: var(--bg-tertiary);
-                    color: var(--text);
+                    background: #e2e8f0;
+                    color: #1e293b;
                 }
-                .tasks-cat-tab.active {
-                    background: var(--primary);
-                    color: white;
-                    border-color: var(--primary);
+                .tasks-cat-tab.active,
+                .tasks-cat-tab.active:hover,
+                .tasks-cat-tab.active:focus {
+                    background: #6366f1 !important;
+                    color: #ffffff !important;
+                    border-color: #6366f1 !important;
+                }
+                .tasks-cat-tab:focus {
+                    outline: none;
+                    box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.3);
                 }
                 .task-card {
                     background: white;
@@ -13207,11 +13216,14 @@ Local honey and preserves"></textarea>
             if (!tasksData || !tasksData.categories) return;
             
             const container = document.getElementById('tasks-category-tabs');
-            let html = '<button class="tasks-cat-tab active" data-cat="all" onclick="filterTasksCat(\'all\')">All</button>';
+            if (!container) return;
+            
+            let html = `<button class="tasks-cat-tab ${currentTaskCategory === 'all' ? 'active' : ''}" data-cat="all" onclick="filterTasksCat('all')">All</button>`;
             
             tasksData.categories.forEach(cat => {
                 const count = tasksData.tasks ? tasksData.tasks.filter(t => t.category === cat.id && t.status !== 'done').length : 0;
-                html += `<button class="tasks-cat-tab" data-cat="${cat.id}" onclick="filterTasksCat('${cat.id}')">${cat.icon} ${cat.name} ${count > 0 ? `<span style="opacity: 0.7;">(${count})</span>` : ''}</button>`;
+                const isActive = currentTaskCategory === cat.id ? 'active' : '';
+                html += `<button class="tasks-cat-tab ${isActive}" data-cat="${cat.id}" onclick="filterTasksCat('${cat.id}')">${cat.icon} ${cat.name} ${count > 0 ? `<span style="opacity: 0.7;">(${count})</span>` : ''}</button>`;
             });
             
             container.innerHTML = html;
@@ -13472,48 +13484,53 @@ Local honey and preserves"></textarea>
                 notes: document.getElementById('task-notes').value
             };
             
-            // Try database first
+            // Update local state
+            if (!tasksData) tasksData = { tasks: [], completed: [], categories: [] };
+            if (!tasksData.tasks) tasksData.tasks = [];
+            
+            if (id) {
+                // Update existing task
+                const idx = tasksData.tasks.findIndex(t => String(t.id) === String(id));
+                if (idx !== -1) {
+                    tasksData.tasks[idx] = { ...tasksData.tasks[idx], ...taskData };
+                } else {
+                    // Check in completed
+                    const compIdx = tasksData.completed?.findIndex(t => String(t.id) === String(id));
+                    if (compIdx !== -1) {
+                        tasksData.completed[compIdx] = { ...tasksData.completed[compIdx], ...taskData };
+                    }
+                }
+            } else {
+                // Add new task at the beginning
+                tasksData.tasks.unshift(taskData);
+            }
+            
+            // Try to save to database (for persistence)
             try {
-                const url = id && !isNaN(id) ? `/api/admin/tasks/${id}` : '/api/admin/tasks';
+                const url = '/api/admin/tasks' + (id && !isNaN(id) ? `/${id}` : '');
                 const method = id && !isNaN(id) ? 'PUT' : 'POST';
                 
-                const response = await fetch(url, {
+                await fetch(url, {
                     method,
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(taskData)
                 });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification(id ? 'Task updated!' : 'Task created!', 'success');
-                    closeModal('taskModal');
-                    loadTasks();
-                    return;
-                }
             } catch (error) {
-                console.log('DB save failed, updating local state:', error);
+                console.log('DB save failed (task saved locally):', error);
             }
             
-            // Fallback: Update local state
-            if (!tasksData) tasksData = { tasks: [], completed: [], categories: [] };
-            
-            if (id) {
-                // Update existing
-                const idx = tasksData.tasks.findIndex(t => String(t.id) === String(id));
-                if (idx !== -1) {
-                    tasksData.tasks[idx] = { ...tasksData.tasks[idx], ...taskData };
-                }
-            } else {
-                // Add new
-                tasksData.tasks.unshift(taskData);
-            }
-            
-            showNotification(id ? 'Task updated!' : 'Task created!', 'success');
             closeModal('taskModal');
+            
+            // Reset to "All" view to show the new/updated task
+            currentTaskCategory = 'all';
+            
+            // Rebuild UI
+            buildCategoryTabs();
             updateTaskStats();
             renderTasks();
             renderCompletedTasks();
+            
+            showNotification(id ? 'Task updated!' : 'Task added to ' + taskData.category + '!', 'success');
         }
         
         async function markTaskDoneById(taskId) {
