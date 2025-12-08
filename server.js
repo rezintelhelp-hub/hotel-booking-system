@@ -9144,15 +9144,15 @@ app.get('/api/admin/bookings', async (req, res) => {
              bu.name as unit_name,
              p.name as property_name
       FROM bookings b
-      LEFT JOIN bookable_units bu ON b.unit_id = bu.id
-      LEFT JOIN properties p ON bu.property_id = p.id
+      LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      LEFT JOIN properties p ON b.property_id = p.id
       WHERE 1=1
     `;
     const params = [];
     let paramIndex = 1;
     
     if (property_id) {
-      query += ` AND bu.property_id = $${paramIndex}`;
+      query += ` AND b.property_id = $${paramIndex}`;
       params.push(property_id);
       paramIndex++;
     } else if (account_id) {
@@ -9162,7 +9162,7 @@ app.get('/api/admin/bookings', async (req, res) => {
     }
     
     if (room_id) {
-      query += ` AND b.unit_id = $${paramIndex}`;
+      query += ` AND b.bookable_unit_id = $${paramIndex}`;
       params.push(room_id);
       paramIndex++;
     }
@@ -9173,12 +9173,180 @@ app.get('/api/admin/bookings', async (req, res) => {
       paramIndex++;
     }
     
-    query += ` ORDER BY b.check_in DESC`;
+    query += ` ORDER BY b.arrival_date DESC`;
     
     const result = await pool.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Create booking from admin (with optional CM sync)
+app.post('/api/admin/bookings', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { 
+      property_id, room_id, check_in, check_out, 
+      num_adults, guest_first_name, guest_last_name, 
+      guest_email, guest_phone, total_price, 
+      payment_status, status, notes, sync_to_cm 
+    } = req.body;
+    
+    if (!property_id || !room_id || !check_in || !check_out || !guest_first_name || !guest_last_name || !guest_email) {
+      return res.json({ success: false, error: 'Missing required fields' });
+    }
+    
+    await client.query('BEGIN');
+    
+    // Create booking
+    const bookingResult = await client.query(`
+      INSERT INTO bookings (
+        property_id, property_owner_id, bookable_unit_id, 
+        arrival_date, departure_date, 
+        num_adults, num_children, 
+        guest_first_name, guest_last_name, guest_email, guest_phone,
+        accommodation_price, subtotal, grand_total, 
+        payment_status, status, booking_source, currency, notes
+      ) 
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, $11, $12, 'manual', 'USD', $13)
+      RETURNING *
+    `, [
+      property_id, room_id, check_in, check_out, 
+      num_adults || 1, guest_first_name, guest_last_name, 
+      guest_email, guest_phone || null, total_price || 0,
+      payment_status || 'pending', status || 'confirmed', notes || null
+    ]);
+    
+    const booking = bookingResult.rows[0];
+    let beds24BookingId = null;
+    let hostawayReservationId = null;
+    
+    // Sync to channel manager if requested
+    if (sync_to_cm) {
+      // Get room CM IDs
+      const roomResult = await client.query(`
+        SELECT beds24_room_id, hostaway_listing_id, smoobu_room_id 
+        FROM bookable_units WHERE id = $1
+      `, [room_id]);
+      
+      const beds24RoomId = roomResult.rows[0]?.beds24_room_id;
+      const hostawayListingId = roomResult.rows[0]?.hostaway_listing_id;
+      
+      // Sync to Beds24
+      if (beds24RoomId) {
+        try {
+          const accessToken = await getBeds24AccessToken(pool);
+          if (accessToken) {
+            const beds24Response = await fetch('https://beds24.com/api/v2/bookings', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${accessToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                roomId: beds24RoomId,
+                firstNight: check_in,
+                lastNight: new Date(new Date(check_out).getTime() - 24*60*60*1000).toISOString().split('T')[0],
+                numAdult: num_adults || 1,
+                guestFirstName: guest_first_name,
+                guestName: guest_last_name,
+                guestEmail: guest_email,
+                guestPhone: guest_phone || '',
+                price: total_price || 0,
+                status: 1,
+                apiSource: 'GAS Direct Booking'
+              })
+            });
+            
+            const beds24Data = await beds24Response.json();
+            if (beds24Data.bookId) {
+              beds24BookingId = beds24Data.bookId;
+            }
+          }
+        } catch (err) {
+          console.error('Beds24 sync error:', err);
+        }
+      }
+      
+      // Sync to Hostaway
+      if (hostawayListingId) {
+        try {
+          const hostawayToken = process.env.HOSTAWAY_API_KEY;
+          if (hostawayToken) {
+            const hostawayResponse = await fetch('https://api.hostaway.com/v1/reservations', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${hostawayToken}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                listingMapId: hostawayListingId,
+                channelId: 2000,
+                arrivalDate: check_in,
+                departureDate: check_out,
+                guestName: `${guest_first_name} ${guest_last_name}`,
+                guestEmail: guest_email,
+                guestPhone: guest_phone || '',
+                numberOfGuests: num_adults || 1,
+                totalPrice: total_price || 0,
+                isPaid: payment_status === 'fully_paid' ? 1 : 0,
+                status: 'new'
+              })
+            });
+            
+            const hostawayData = await hostawayResponse.json();
+            if (hostawayData.result?.id) {
+              hostawayReservationId = hostawayData.result.id;
+            }
+          }
+        } catch (err) {
+          console.error('Hostaway sync error:', err);
+        }
+      }
+      
+      // Update booking with CM IDs
+      if (beds24BookingId || hostawayReservationId) {
+        await client.query(`
+          UPDATE bookings SET 
+            beds24_booking_id = COALESCE($1, beds24_booking_id),
+            hostaway_reservation_id = COALESCE($2, hostaway_reservation_id)
+          WHERE id = $3
+        `, [beds24BookingId, hostawayReservationId, booking.id]);
+      }
+    }
+    
+    // Block availability for these dates
+    const checkInDate = new Date(check_in);
+    const checkOutDate = new Date(check_out);
+    let current = new Date(check_in);
+    
+    while (current < checkOutDate) {
+      const dateStr = current.toISOString().split('T')[0];
+      await client.query(`
+        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+        VALUES ($1, $2, false, true, 'booking')
+        ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true
+      `, [room_id, dateStr]);
+      current.setDate(current.getDate() + 1);
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ 
+      success: true, 
+      booking_id: booking.id,
+      booking: booking,
+      beds24_id: beds24BookingId,
+      hostaway_id: hostawayReservationId
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Create admin booking error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 
