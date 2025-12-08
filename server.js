@@ -13897,21 +13897,25 @@ app.post('/api/public/book', async (req, res) => {
     // Create booking
     const booking = await pool.query(`
       INSERT INTO bookings (
-        property_id, bookable_unit_id, check_in, check_out, 
+        property_id, property_owner_id, bookable_unit_id, 
+        arrival_date, departure_date, 
+        num_adults, num_children, 
         guest_first_name, guest_last_name, guest_email, guest_phone,
-        num_guests, total_price, status, source, notes, created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'pending', 'direct', $11, NOW())
+        accommodation_price, subtotal, grand_total, 
+        status, booking_source, currency, notes
+      ) 
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, 'pending', 'direct', 'USD', $11)
       RETURNING *
     `, [
       unit.rows[0].property_id,
       unit_id,
       check_in,
       check_out,
+      guests || 1,
       guest_first_name,
       guest_last_name,
       guest_email,
       guest_phone || null,
-      guests || 1,
       total_price || 0,
       notes || null
     ]);
