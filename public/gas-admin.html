@@ -17175,19 +17175,21 @@ Local honey and preserves"></textarea>
             
             for (const booking of bookings) {
                 const statusStyle = statusColors[booking.status] || statusColors['pending'];
-                const checkIn = booking.check_in ? new Date(booking.check_in).toLocaleDateString() : '-';
-                const checkOut = booking.check_out ? new Date(booking.check_out).toLocaleDateString() : '-';
+                const checkIn = booking.arrival_date ? new Date(booking.arrival_date).toLocaleDateString() : '-';
+                const checkOut = booking.departure_date ? new Date(booking.departure_date).toLocaleDateString() : '-';
+                const guestName = [booking.guest_first_name, booking.guest_last_name].filter(Boolean).join(' ') || 'Guest';
+                const total = booking.grand_total || booking.total_price || 0;
                 
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
-                            <strong>${booking.guest_name || 'Guest'}</strong>
+                            <strong>${guestName}</strong>
                             ${booking.guest_email ? `<br><small style="color: var(--text-secondary);">${booking.guest_email}</small>` : ''}
                         </td>
                         <td style="padding: 0.75rem;">${booking.room_name || booking.unit_name || '-'}</td>
                         <td style="padding: 0.75rem;">${checkIn}</td>
                         <td style="padding: 0.75rem;">${checkOut}</td>
-                        <td style="padding: 0.75rem; font-weight: 600;">£${parseFloat(booking.total_price || 0).toFixed(2)}</td>
+                        <td style="padding: 0.75rem; font-weight: 600;">£${parseFloat(total).toFixed(2)}</td>
                         <td style="padding: 0.75rem; text-align: center;">
                             <span style="background: ${statusStyle.bg}; color: ${statusStyle.color}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; text-transform: capitalize;">
                                 ${booking.status || 'pending'}
