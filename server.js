@@ -1530,7 +1530,7 @@ app.get('/api/stripe/callback', async (req, res) => {
         // Handle user cancellation or errors
         if (error) {
             console.error('Stripe OAuth error:', error, error_description);
-            return res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html?stripe_error=' + encodeURIComponent(error_description || error));
+            return res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html#accounts?stripe_error=' + encodeURIComponent(error_description || error));
         }
         
         // Decode state to get account ID
@@ -1539,7 +1539,7 @@ app.get('/api/stripe/callback', async (req, res) => {
             const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
             accountId = stateData.accountId;
         } catch (e) {
-            return res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html?stripe_error=invalid_state');
+            return res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html#accounts?stripe_error=invalid_state');
         }
         
         // Exchange authorization code for access token
@@ -1562,12 +1562,12 @@ app.get('/api/stripe/callback', async (req, res) => {
         
         console.log(`✅ Stripe connected for account ${accountId}: ${connectedAccountId}`);
         
-        // Redirect back to admin with success
-        res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html?stripe_connected=true');
+        // Redirect back to admin accounts page with success
+        res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html#accounts?stripe_connected=true');
         
     } catch (error) {
         console.error('Stripe callback error:', error);
-        res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html?stripe_error=' + encodeURIComponent(error.message));
+        res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html#accounts?stripe_error=' + encodeURIComponent(error.message));
     }
 });
 
