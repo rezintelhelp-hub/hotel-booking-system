@@ -9316,6 +9316,193 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+    <!-- View Booking Modal -->
+    <div id="viewBookingModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">📋 Booking Details</h3>
+                    <p id="view-booking-ref" style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Reference #</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('viewBookingModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0; max-height: 75vh; overflow-y: auto;">
+                
+                <!-- Status Bar -->
+                <div id="view-booking-status-bar" style="display: flex; gap: 1rem; padding: 1rem 1.5rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <div id="view-booking-status"></div>
+                    <div id="view-payment-status"></div>
+                </div>
+                
+                <!-- Alert Banner (if any issues) -->
+                <div id="view-booking-alert" style="display: none; padding: 1rem 1.5rem; background: #fef3c7; border-bottom: 1px solid #fde68a;">
+                    <span style="font-weight: 600; color: #92400e;">⚠️ <span id="view-booking-alert-text"></span></span>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0;">
+                    
+                    <!-- Left Column -->
+                    <div style="padding: 1.5rem; border-right: 1px solid #e2e8f0;">
+                        
+                        <!-- Guest Info -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.1rem;">👤</span> Guest Information
+                            </h4>
+                            <div style="background: #f8fafc; border-radius: 12px; padding: 1rem;">
+                                <div style="font-size: 1.1rem; font-weight: 600; color: #1e293b;" id="view-guest-name">-</div>
+                                <div style="margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.5rem;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.9rem;">
+                                        <span>📧</span> <span id="view-guest-email">-</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.9rem;">
+                                        <span>📱</span> <span id="view-guest-phone">-</span>
+                                    </div>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; color: #64748b; font-size: 0.9rem;">
+                                        <span>🌍</span> <span id="view-guest-country">-</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Stay Details -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.1rem;">🏨</span> Stay Details
+                            </h4>
+                            <div style="background: #f0fdf4; border-radius: 12px; padding: 1rem;">
+                                <div style="font-weight: 600; color: #166534; margin-bottom: 0.75rem;" id="view-property-name">-</div>
+                                <div style="color: #374151; margin-bottom: 0.75rem;" id="view-room-name">-</div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; text-transform: uppercase;">Check-in</div>
+                                        <div style="font-weight: 600; color: #1e293b;" id="view-checkin">-</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; text-transform: uppercase;">Check-out</div>
+                                        <div style="font-weight: 600; color: #1e293b;" id="view-checkout">-</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; text-transform: uppercase;">Nights</div>
+                                        <div style="font-weight: 600; color: #1e293b;" id="view-nights">-</div>
+                                    </div>
+                                    <div>
+                                        <div style="font-size: 0.75rem; color: #64748b; text-transform: uppercase;">Guests</div>
+                                        <div style="font-weight: 600; color: #1e293b;" id="view-guests">-</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Notes -->
+                        <div>
+                            <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.1rem;">📝</span> Notes
+                            </h4>
+                            <div style="background: #f8fafc; border-radius: 12px; padding: 1rem; color: #64748b; font-size: 0.9rem;" id="view-notes">
+                                No notes
+                            </div>
+                        </div>
+                        
+                    </div>
+                    
+                    <!-- Right Column -->
+                    <div style="padding: 1.5rem;">
+                        
+                        <!-- Financials -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.1rem;">💰</span> Financials
+                            </h4>
+                            <div style="background: #fffbeb; border-radius: 12px; padding: 1rem; border: 1px solid #fde68a;">
+                                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed #e5e7eb;">
+                                    <span style="color: #64748b;">Accommodation</span>
+                                    <span style="font-weight: 500;" id="view-accommodation">£0.00</span>
+                                </div>
+                                <div id="view-upsells-row" style="display: none; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed #e5e7eb;">
+                                    <span style="color: #64748b;">Extras/Upsells</span>
+                                    <span style="font-weight: 500;" id="view-upsells">£0.00</span>
+                                </div>
+                                <div id="view-discount-row" style="display: none; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed #e5e7eb;">
+                                    <span style="color: #64748b;">Discount</span>
+                                    <span style="font-weight: 500; color: #16a34a;" id="view-discount">-£0.00</span>
+                                </div>
+                                <div id="view-tax-row" style="display: none; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed #e5e7eb;">
+                                    <span style="color: #64748b;">Tax</span>
+                                    <span style="font-weight: 500;" id="view-tax">£0.00</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; margin-top: 0.5rem; border-top: 2px solid #d97706;">
+                                    <span style="font-weight: 700; color: #1e293b;">Total</span>
+                                    <span style="font-weight: 700; font-size: 1.25rem; color: #d97706;" id="view-total">£0.00</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Payment Summary -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.1rem;">💳</span> Payment Summary
+                            </h4>
+                            <div style="background: #f0f9ff; border-radius: 12px; padding: 1rem; border: 1px solid #bae6fd;">
+                                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed #e5e7eb;">
+                                    <span style="color: #64748b;">Deposit Paid</span>
+                                    <span style="font-weight: 500; color: #16a34a;" id="view-deposit-paid">£0.00</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px dashed #e5e7eb;">
+                                    <span style="color: #64748b;">Balance Due</span>
+                                    <span style="font-weight: 600; color: #dc2626;" id="view-balance-due">£0.00</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 0.5rem 0; font-size: 0.85rem;">
+                                    <span style="color: #64748b;">Due Date</span>
+                                    <span style="color: #374151;" id="view-due-date">At check-in</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Channel Manager Info -->
+                        <div style="margin-bottom: 1.5rem;">
+                            <h4 style="margin: 0 0 1rem 0; color: #374151; font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1.1rem;">🔗</span> Channel Manager
+                            </h4>
+                            <div style="background: #f8fafc; border-radius: 12px; padding: 1rem; font-size: 0.9rem;">
+                                <div style="display: flex; justify-content: space-between; padding: 0.25rem 0;">
+                                    <span style="color: #64748b;">Source</span>
+                                    <span style="font-weight: 500;" id="view-booking-source">Direct</span>
+                                </div>
+                                <div id="view-beds24-row" style="display: none; justify-content: space-between; padding: 0.25rem 0;">
+                                    <span style="color: #64748b;">Beds24 ID</span>
+                                    <span style="font-weight: 500;" id="view-beds24-id">-</span>
+                                </div>
+                                <div id="view-hostaway-row" style="display: none; justify-content: space-between; padding: 0.25rem 0;">
+                                    <span style="color: #64748b;">Hostaway ID</span>
+                                    <span style="font-weight: 500;" id="view-hostaway-id">-</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                <!-- Actions Footer -->
+                <div style="padding: 1.5rem; background: #f8fafc; border-top: 1px solid #e2e8f0; display: flex; gap: 1rem; flex-wrap: wrap;">
+                    <button onclick="generateInvoice(currentViewingBookingId)" class="btn" style="background: #0ea5e9; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>📄</span> Generate Invoice
+                    </button>
+                    <button onclick="sendPaymentReceipt(currentViewingBookingId)" class="btn" style="background: #8b5cf6; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>📧</span> Send Receipt
+                    </button>
+                    <button onclick="processRefund(currentViewingBookingId)" class="btn" style="background: #f59e0b; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>↩️</span> Process Refund
+                    </button>
+                    <button onclick="cancelBooking(currentViewingBookingId)" class="btn" style="background: #ef4444; display: flex; align-items: center; gap: 0.5rem;">
+                        <span>✖️</span> Cancel Booking
+                    </button>
+                </div>
+                
+            </div>
+        </div>
+    </div>
+
     <div id="editPropertyModal" class="modal">
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
@@ -17173,15 +17360,37 @@ Local honey and preserves"></textarea>
                 'completed': { bg: '#e0f2fe', color: '#0369a1' }
             };
             
+            const paymentIcons = {
+                'pending': '🟡',
+                'deposit_paid': '🔵',
+                'fully_paid': '🟢',
+                'overdue': '🔴',
+                'refunded': '⚫'
+            };
+            
             for (const booking of bookings) {
                 const statusStyle = statusColors[booking.status] || statusColors['pending'];
                 const checkIn = booking.arrival_date ? new Date(booking.arrival_date).toLocaleDateString() : '-';
                 const checkOut = booking.departure_date ? new Date(booking.departure_date).toLocaleDateString() : '-';
                 const guestName = [booking.guest_first_name, booking.guest_last_name].filter(Boolean).join(' ') || 'Guest';
                 const total = booking.grand_total || booking.total_price || 0;
+                const paymentIcon = paymentIcons[booking.payment_status] || '🟡';
+                
+                // Check if payment is overdue
+                let rowStyle = '';
+                if (booking.payment_status === 'overdue') {
+                    rowStyle = 'background: #fef2f2;';
+                } else if (booking.payment_status === 'deposit_paid' && booking.balance_due_date) {
+                    const dueDate = new Date(booking.balance_due_date);
+                    const today = new Date();
+                    const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                    if (daysUntil <= 3 && daysUntil > 0) {
+                        rowStyle = 'background: #fffbeb;';
+                    }
+                }
                 
                 html += `
-                    <tr style="border-bottom: 1px solid var(--border);">
+                    <tr style="border-bottom: 1px solid var(--border); ${rowStyle}">
                         <td style="padding: 0.75rem;">
                             <strong>${guestName}</strong>
                             ${booking.guest_email ? `<br><small style="color: var(--text-secondary);">${booking.guest_email}</small>` : ''}
@@ -17189,15 +17398,18 @@ Local honey and preserves"></textarea>
                         <td style="padding: 0.75rem;">${booking.room_name || booking.unit_name || '-'}</td>
                         <td style="padding: 0.75rem;">${checkIn}</td>
                         <td style="padding: 0.75rem;">${checkOut}</td>
-                        <td style="padding: 0.75rem; font-weight: 600;">£${parseFloat(total).toFixed(2)}</td>
+                        <td style="padding: 0.75rem; font-weight: 600;">
+                            <span title="Payment: ${booking.payment_status || 'pending'}">${paymentIcon}</span>
+                            £${parseFloat(total).toFixed(2)}
+                        </td>
                         <td style="padding: 0.75rem; text-align: center;">
                             <span style="background: ${statusStyle.bg}; color: ${statusStyle.color}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; text-transform: capitalize;">
                                 ${booking.status || 'pending'}
                             </span>
                         </td>
                         <td style="padding: 0.75rem; text-align: right;">
-                            <button onclick="viewBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">👁️</button>
-                            <button onclick="editBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">✏️</button>
+                            <button onclick="viewBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;" title="View Details">👁️</button>
+                            <button onclick="editBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;" title="Edit">✏️</button>
                         </td>
                     </tr>
                 `;
@@ -17325,8 +17537,256 @@ Local honey and preserves"></textarea>
             }
         }
         
-        function viewBooking(id) {
-            alert('Booking details view coming soon!');
+        let currentViewingBookingId = null;
+        
+        async function viewBooking(id) {
+            currentViewingBookingId = id;
+            
+            try {
+                const response = await fetch(`/api/bookings/${id}`);
+                const data = await response.json();
+                
+                if (!data.success || !data.booking) {
+                    alert('Failed to load booking details');
+                    return;
+                }
+                
+                const b = data.booking;
+                
+                // Reference
+                document.getElementById('view-booking-ref').textContent = `Reference #${b.id}`;
+                
+                // Status badges
+                const statusColors = {
+                    'confirmed': { bg: '#dcfce7', color: '#166534', icon: '✅' },
+                    'pending': { bg: '#fef3c7', color: '#92400e', icon: '⏳' },
+                    'cancelled': { bg: '#fee2e2', color: '#991b1b', icon: '❌' },
+                    'completed': { bg: '#e0f2fe', color: '#0369a1', icon: '✓' }
+                };
+                const paymentColors = {
+                    'pending': { bg: '#fef3c7', color: '#92400e', label: 'Payment Pending', icon: '🟡' },
+                    'deposit_paid': { bg: '#dbeafe', color: '#1e40af', label: 'Deposit Paid', icon: '🔵' },
+                    'fully_paid': { bg: '#dcfce7', color: '#166534', label: 'Fully Paid', icon: '🟢' },
+                    'overdue': { bg: '#fee2e2', color: '#991b1b', label: 'Overdue', icon: '🔴' },
+                    'refunded': { bg: '#f3f4f6', color: '#374151', label: 'Refunded', icon: '⚫' }
+                };
+                
+                const bStatus = statusColors[b.status] || statusColors['pending'];
+                const pStatus = paymentColors[b.payment_status] || paymentColors['pending'];
+                
+                document.getElementById('view-booking-status').innerHTML = `
+                    <span style="background: ${bStatus.bg}; color: ${bStatus.color}; padding: 0.4rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500; text-transform: capitalize;">
+                        ${bStatus.icon} ${b.status || 'pending'}
+                    </span>
+                `;
+                document.getElementById('view-payment-status').innerHTML = `
+                    <span style="background: ${pStatus.bg}; color: ${pStatus.color}; padding: 0.4rem 0.75rem; border-radius: 20px; font-size: 0.85rem; font-weight: 500;">
+                        ${pStatus.icon} ${pStatus.label}
+                    </span>
+                `;
+                
+                // Alert banner for overdue
+                const alertBanner = document.getElementById('view-booking-alert');
+                const alertText = document.getElementById('view-booking-alert-text');
+                if (b.payment_status === 'overdue') {
+                    alertBanner.style.display = 'block';
+                    alertText.textContent = 'Payment is overdue! Balance was due on ' + formatDate(b.balance_due_date);
+                } else if (b.payment_status === 'deposit_paid' && b.balance_due_date) {
+                    const dueDate = new Date(b.balance_due_date);
+                    const today = new Date();
+                    const daysUntil = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+                    if (daysUntil <= 7 && daysUntil > 0) {
+                        alertBanner.style.display = 'block';
+                        alertBanner.style.background = '#fef3c7';
+                        alertBanner.style.borderColor = '#fde68a';
+                        alertText.textContent = `Balance due in ${daysUntil} day${daysUntil === 1 ? '' : 's'}`;
+                    } else {
+                        alertBanner.style.display = 'none';
+                    }
+                } else {
+                    alertBanner.style.display = 'none';
+                }
+                
+                // Guest info
+                const guestName = [b.guest_first_name, b.guest_last_name].filter(Boolean).join(' ') || 'Guest';
+                document.getElementById('view-guest-name').textContent = guestName;
+                document.getElementById('view-guest-email').textContent = b.guest_email || '-';
+                document.getElementById('view-guest-phone').textContent = b.guest_phone || '-';
+                document.getElementById('view-guest-country').textContent = b.guest_country || '-';
+                
+                // Stay details
+                document.getElementById('view-property-name').textContent = b.property_name || '-';
+                document.getElementById('view-room-name').textContent = b.unit_name || b.room_name || '-';
+                document.getElementById('view-checkin').textContent = formatDate(b.arrival_date);
+                document.getElementById('view-checkout').textContent = formatDate(b.departure_date);
+                
+                // Calculate nights
+                if (b.arrival_date && b.departure_date) {
+                    const nights = Math.ceil((new Date(b.departure_date) - new Date(b.arrival_date)) / (1000 * 60 * 60 * 24));
+                    document.getElementById('view-nights').textContent = nights;
+                } else {
+                    document.getElementById('view-nights').textContent = '-';
+                }
+                
+                document.getElementById('view-guests').textContent = (b.num_adults || 0) + (b.num_children || 0) || '-';
+                
+                // Notes
+                document.getElementById('view-notes').textContent = b.notes || 'No notes';
+                
+                // Financials
+                const currency = b.currency === 'USD' ? '$' : b.currency === 'EUR' ? '€' : '£';
+                document.getElementById('view-accommodation').textContent = currency + parseFloat(b.accommodation_price || 0).toFixed(2);
+                
+                // Upsells
+                if (b.upsells_total && parseFloat(b.upsells_total) > 0) {
+                    document.getElementById('view-upsells-row').style.display = 'flex';
+                    document.getElementById('view-upsells').textContent = currency + parseFloat(b.upsells_total).toFixed(2);
+                } else {
+                    document.getElementById('view-upsells-row').style.display = 'none';
+                }
+                
+                // Discount
+                if (b.discount_amount && parseFloat(b.discount_amount) > 0) {
+                    document.getElementById('view-discount-row').style.display = 'flex';
+                    document.getElementById('view-discount').textContent = '-' + currency + parseFloat(b.discount_amount).toFixed(2);
+                } else {
+                    document.getElementById('view-discount-row').style.display = 'none';
+                }
+                
+                // Tax
+                if (b.tax_amount && parseFloat(b.tax_amount) > 0) {
+                    document.getElementById('view-tax-row').style.display = 'flex';
+                    document.getElementById('view-tax').textContent = currency + parseFloat(b.tax_amount).toFixed(2);
+                } else {
+                    document.getElementById('view-tax-row').style.display = 'none';
+                }
+                
+                // Total
+                document.getElementById('view-total').textContent = currency + parseFloat(b.grand_total || b.total_price || 0).toFixed(2);
+                
+                // Payment summary
+                document.getElementById('view-deposit-paid').textContent = currency + parseFloat(b.deposit_amount || 0).toFixed(2);
+                const balance = parseFloat(b.grand_total || 0) - parseFloat(b.deposit_amount || 0);
+                document.getElementById('view-balance-due').textContent = currency + balance.toFixed(2);
+                document.getElementById('view-balance-due').style.color = balance > 0 ? '#dc2626' : '#16a34a';
+                
+                // Due date
+                if (b.balance_due_date) {
+                    document.getElementById('view-due-date').textContent = formatDate(b.balance_due_date);
+                } else {
+                    document.getElementById('view-due-date').textContent = 'At check-in';
+                }
+                
+                // Channel Manager
+                document.getElementById('view-booking-source').textContent = b.booking_source || 'Direct';
+                
+                if (b.beds24_booking_id) {
+                    document.getElementById('view-beds24-row').style.display = 'flex';
+                    document.getElementById('view-beds24-id').textContent = b.beds24_booking_id;
+                } else {
+                    document.getElementById('view-beds24-row').style.display = 'none';
+                }
+                
+                if (b.hostaway_reservation_id) {
+                    document.getElementById('view-hostaway-row').style.display = 'flex';
+                    document.getElementById('view-hostaway-id').textContent = b.hostaway_reservation_id;
+                } else {
+                    document.getElementById('view-hostaway-row').style.display = 'none';
+                }
+                
+                openModal('viewBookingModal');
+                
+            } catch (error) {
+                console.error('Error loading booking:', error);
+                alert('Error loading booking details');
+            }
+        }
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+        }
+        
+        async function generateInvoice(bookingId) {
+            if (!bookingId) return;
+            
+            // Open invoice in new window - server returns HTML directly
+            window.open(`/api/bookings/${bookingId}/invoice`, '_blank');
+        }
+        
+        async function sendPaymentReceipt(bookingId) {
+            if (!bookingId) return;
+            
+            if (!confirm('Send payment receipt email to the guest?')) return;
+            
+            try {
+                const response = await fetch(`/api/bookings/${bookingId}/send-receipt`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Receipt sent successfully!');
+                } else {
+                    alert('Error sending receipt: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error sending receipt:', error);
+                alert('Error sending receipt');
+            }
+        }
+        
+        async function processRefund(bookingId) {
+            if (!bookingId) return;
+            
+            const amount = prompt('Enter refund amount (leave empty for full refund):');
+            if (amount === null) return;
+            
+            if (!confirm('Are you sure you want to process this refund?')) return;
+            
+            try {
+                const response = await fetch(`/api/bookings/${bookingId}/refund`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ amount: amount || null })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Refund processed successfully!');
+                    viewBooking(bookingId); // Refresh
+                } else {
+                    alert('Error processing refund: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error processing refund:', error);
+                alert('Error processing refund');
+            }
+        }
+        
+        async function cancelBooking(bookingId) {
+            if (!bookingId) return;
+            
+            if (!confirm('Are you sure you want to cancel this booking? This will also update the channel manager.')) return;
+            
+            try {
+                const response = await fetch(`/api/bookings/${bookingId}/cancel`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Booking cancelled successfully!');
+                    closeModal('viewBookingModal');
+                    loadBookingsForProperty(); // Refresh list
+                } else {
+                    alert('Error cancelling booking: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error cancelling booking:', error);
+                alert('Error cancelling booking');
+            }
         }
         
         function editBooking(id) {
