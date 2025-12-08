@@ -19059,24 +19059,45 @@ Local honey and preserves"></textarea>
             }
         }
         
-        async function checkStripeConnectionStatus() {
+        async function checkStripeConnectionStatus(propertyId = null) {
             try {
-                const accountId = window.currentAccountId || 1;
-                const response = await fetch(`/api/accounts/${accountId}/stripe-status`);
-                const data = await response.json();
+                let accountId;
+                
+                // If property selected, get its account's Stripe status
+                if (propertyId) {
+                    const propResponse = await fetch(`/api/db/properties/${propertyId}`);
+                    const propData = await propResponse.json();
+                    if (propData.success && propData.data) {
+                        accountId = propData.data.account_id;
+                    }
+                }
+                
+                // Fall back to selected account or global filter
+                if (!accountId) {
+                    accountId = selectedAccountId || window.currentAccountId;
+                }
                 
                 const statusText = document.getElementById('stripe-status-text');
                 const btnArea = document.getElementById('stripe-connect-btn-area');
                 
+                if (!accountId) {
+                    statusText.innerHTML = `<span style="color: #6b7280;">Select a property to view Stripe connection status</span>`;
+                    btnArea.innerHTML = '';
+                    return;
+                }
+                
+                const response = await fetch(`/api/accounts/${accountId}/stripe-status`);
+                const data = await response.json();
+                
                 if (data.success && data.connected) {
                     statusText.innerHTML = `<span style="color: #059669;">✅ Connected</span> - Stripe Account: ${data.stripe_account_id}`;
                     btnArea.innerHTML = `
-                        <button class="btn btn-secondary" onclick="disconnectStripe()">
+                        <button class="btn btn-secondary" onclick="disconnectStripeForAccount(${accountId})">
                             Disconnect Stripe
                         </button>
                     `;
                 } else {
-                    statusText.innerHTML = `<span style="color: #dc2626;">❌ Not Connected</span> - Connect your Stripe account to accept payments`;
+                    statusText.innerHTML = `<span style="color: #dc2626;">❌ Not Connected</span> - Connect Stripe to accept payments for this property`;
                     btnArea.innerHTML = `
                         <a href="/api/stripe/connect/${accountId}" class="btn" style="background: #635bff; text-decoration: none;">
                             🔗 Connect Stripe
@@ -19088,13 +19109,12 @@ Local honey and preserves"></textarea>
             }
         }
         
-        async function disconnectStripe() {
+        async function disconnectStripeForAccount(accountId) {
             if (!confirm('Are you sure you want to disconnect Stripe? You will not be able to accept payments until you reconnect.')) {
                 return;
             }
             
             try {
-                const accountId = window.currentAccountId || 1;
                 const response = await fetch(`/api/accounts/${accountId}/stripe-disconnect`, {
                     method: 'POST'
                 });
@@ -19102,7 +19122,8 @@ Local honey and preserves"></textarea>
                 
                 if (data.success) {
                     alert('Stripe disconnected successfully');
-                    checkStripeConnectionStatus();
+                    const propertyId = document.getElementById('payments-property-select')?.value;
+                    checkStripeConnectionStatus(propertyId || null);
                 } else {
                     alert('Error: ' + data.error);
                 }
@@ -19116,6 +19137,9 @@ Local honey and preserves"></textarea>
             const propertyId = document.getElementById('payments-property-select').value;
             const status = document.getElementById('payments-status-select').value;
             const dateRange = document.getElementById('payments-date-range').value;
+            
+            // Update Stripe status based on selected property
+            checkStripeConnectionStatus(propertyId || null);
             
             try {
                 // Build query params
@@ -19513,7 +19537,6 @@ Local honey and preserves"></textarea>
         
         // Initialize payments view
         function initPaymentsView() {
-            checkStripeConnectionStatus();
             populatePropertySelect('payments-property-select');
             loadPaymentsForProperty();
         }
