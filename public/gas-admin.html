@@ -1726,7 +1726,7 @@
                         <div style="flex: 1; min-width: 200px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
                             <select id="bookings-property-select" class="form-input" onchange="loadBookingsForProperty()">
-                                <option value="">Select Property...</option>
+                                <option value="">All Properties</option>
                             </select>
                         </div>
                         <div style="flex: 1; min-width: 200px;">
@@ -17439,19 +17439,16 @@ Local honey and preserves"></textarea>
                 await loadBookingsRooms();
             }
             
-            if (!propertyId) {
-                document.getElementById('bookings-list').innerHTML = `
-                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
-                        Select a property to view bookings
-                    </p>
-                `;
-                return;
-            }
-            
             try {
-                let url = `/api/admin/bookings?property_id=${propertyId}`;
-                if (roomId) url += `&room_id=${roomId}`;
-                if (status) url += `&status=${status}`;
+                let url = `/api/admin/bookings?`;
+                if (propertyId) url += `property_id=${propertyId}&`;
+                if (roomId) url += `room_id=${roomId}&`;
+                if (status) url += `status=${status}&`;
+                
+                // Add account filter if viewing specific account
+                if (selectedAccountId) {
+                    url += `account_id=${selectedAccountId}&`;
+                }
                 
                 const response = await fetch(url);
                 const data = await response.json();
@@ -17468,26 +17465,12 @@ Local honey and preserves"></textarea>
             // Load property selector first
             await loadBookingsPropertySelect();
             
-            // Show message to select property
-            document.getElementById('bookings-list').innerHTML = `
-                <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
-                    Select a property to view bookings
-                </p>
-            `;
+            // Load all bookings by default
+            loadBookingsForProperty();
         }
         
         function renderBookings(bookings) {
             const container = document.getElementById('bookings-list');
-            const propertyId = document.getElementById('bookings-property-select')?.value;
-            
-            if (!propertyId) {
-                container.innerHTML = `
-                    <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
-                        Select a property to view bookings
-                    </p>
-                `;
-                return;
-            }
             
             if (!bookings || bookings.length === 0) {
                 container.innerHTML = `
@@ -17505,6 +17488,7 @@ Local honey and preserves"></textarea>
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border);">
                             <th style="text-align: left; padding: 0.75rem;">Guest</th>
+                            <th style="text-align: left; padding: 0.75rem;">Property</th>
                             <th style="text-align: left; padding: 0.75rem;">Room</th>
                             <th style="text-align: left; padding: 0.75rem;">Check-in</th>
                             <th style="text-align: left; padding: 0.75rem;">Check-out</th>
@@ -17558,6 +17542,7 @@ Local honey and preserves"></textarea>
                             <strong>${guestName}</strong>
                             ${booking.guest_email ? `<br><small style="color: var(--text-secondary);">${booking.guest_email}</small>` : ''}
                         </td>
+                        <td style="padding: 0.75rem;"><small>${booking.property_name || '-'}</small></td>
                         <td style="padding: 0.75rem;">${booking.room_name || booking.unit_name || '-'}</td>
                         <td style="padding: 0.75rem;">${checkIn}</td>
                         <td style="padding: 0.75rem;">${checkOut}</td>
