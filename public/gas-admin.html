@@ -1148,7 +1148,7 @@
                     </div>
                     <div style="display: flex; gap: 0.5rem; flex-shrink: 0;">
                         <button id="managePlanBtn" class="billing-admin-only" onclick="openAssignPlanModal(selectedAccountId, document.getElementById('agencyFilterName').textContent)" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; white-space: nowrap; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
-                            ⚙️ Manage
+                            ⚙️ Manage Plan
                         </button>
                         <button onclick="clearAccountFilter()" style="background: rgba(0,0,0,0.1); border: none; color: white; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.2)'" onmouseout="this.style.background='rgba(0,0,0,0.1)'">
                             ✕ Clear
@@ -1226,6 +1226,14 @@
                     <a class="nav-item" data-view="taxes" href="#" onclick="navClick(this, 'taxes'); return false;">
                         <span class="nav-icon">🏛️</span>
                         <span>Taxes</span>
+                    </a>
+                    <a class="nav-item" data-view="payments" href="#" onclick="navClick(this, 'payments'); return false;">
+                        <span class="nav-icon">💳</span>
+                        <span>Payments</span>
+                    </a>
+                    <a class="nav-item" data-view="deposit-rules" href="#" onclick="navClick(this, 'deposit-rules'); return false;">
+                        <span class="nav-icon">⚙️</span>
+                        <span>Deposit Rules</span>
                     </a>
                     </div>
                 </div>
@@ -3077,6 +3085,144 @@
                     <div id="taxes-list">
                         <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
                             Select a property to view and manage taxes
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Payments View -->
+            <div id="payments" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>💳 Payments</h2>
+                            <p>View payment status and transactions for all bookings</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stripe Connection Status -->
+                <div id="stripe-connection-status" class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border: 1px solid #c7d2fe;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div>
+                            <h3 style="color: #4338ca; margin-bottom: 0.5rem;">🔗 Stripe Connection</h3>
+                            <p id="stripe-status-text" style="color: #5b21b6; font-size: 0.9rem;">Checking connection status...</p>
+                        </div>
+                        <div id="stripe-connect-btn-area">
+                            <!-- Will be populated by JS -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Filters -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="payments-property-select" class="form-input" onchange="loadPaymentsForProperty()">
+                                <option value="">All Properties</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Payment Status</label>
+                            <select id="payments-status-select" class="form-input" onchange="loadPaymentsForProperty()">
+                                <option value="">All Statuses</option>
+                                <option value="pending">⏳ Pending</option>
+                                <option value="deposit_paid">💰 Deposit Paid</option>
+                                <option value="fully_paid">✅ Fully Paid</option>
+                                <option value="refunded">↩️ Refunded</option>
+                                <option value="failed">❌ Failed</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Date Range</label>
+                            <select id="payments-date-range" class="form-input" onchange="loadPaymentsForProperty()">
+                                <option value="30">Last 30 days</option>
+                                <option value="90">Last 90 days</option>
+                                <option value="365">Last year</option>
+                                <option value="all">All time</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Payment Stats -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="card" style="padding: 1.25rem; text-align: center;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Pending Payments</div>
+                        <div id="pending-payments-count" style="font-size: 1.75rem; font-weight: 700; color: #f59e0b;">0</div>
+                    </div>
+                    <div class="card" style="padding: 1.25rem; text-align: center;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Deposits Received</div>
+                        <div id="deposits-received-amount" style="font-size: 1.75rem; font-weight: 700; color: #3b82f6;">£0</div>
+                    </div>
+                    <div class="card" style="padding: 1.25rem; text-align: center;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Balance Due</div>
+                        <div id="balance-due-amount" style="font-size: 1.75rem; font-weight: 700; color: #ef4444;">£0</div>
+                    </div>
+                    <div class="card" style="padding: 1.25rem; text-align: center;">
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.5rem;">Total Collected</div>
+                        <div id="total-collected-amount" style="font-size: 1.75rem; font-weight: 700; color: #10b981;">£0</div>
+                    </div>
+                </div>
+
+                <!-- Bookings with Payment Status -->
+                <div class="card">
+                    <h3 style="margin-bottom: 1rem;">Bookings & Payment Status</h3>
+                    <div id="payments-bookings-list">
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Loading bookings...
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Deposit Rules View -->
+            <div id="deposit-rules" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>⚙️ Deposit Rules</h2>
+                            <p>Configure payment policies for your properties</p>
+                        </div>
+                        <button class="btn" onclick="openAddDepositRuleModal()">
+                            <span>+</span>
+                            <span>Add Rule</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="deposit-rules-property-select" class="form-input" onchange="loadDepositRulesForProperty()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Deposit Rules Info -->
+                <div class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); border: 1px solid #a7f3d0;">
+                    <h3 style="color: #047857; margin-bottom: 0.75rem;">💡 How Deposit Rules Work</h3>
+                    <div style="color: #065f46; font-size: 0.9rem; line-height: 1.6;">
+                        <p style="margin-bottom: 0.75rem;">Deposit rules control how guests pay for their bookings:</p>
+                        <ul style="margin: 0; padding-left: 1.5rem;">
+                            <li><strong>Deposit Type:</strong> Percentage (e.g., 30%), fixed amount, first night, or full payment</li>
+                            <li><strong>Balance Due:</strong> When the remaining amount is due (e.g., 14 days before check-in)</li>
+                            <li><strong>Refund Policy:</strong> Flexible, moderate, strict, or non-refundable</li>
+                            <li><strong>Auto-charge:</strong> Automatically charge the balance when due</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <!-- Deposit Rules List -->
+                <div class="card">
+                    <div id="deposit-rules-list">
+                        <p style="color: var(--text-secondary); text-align: center; padding: 2rem;">
+                            Select a property to view deposit rules
                         </p>
                     </div>
                 </div>
@@ -8942,7 +9088,104 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
-    <!-- Edit Property Modal -->
+    <!-- Deposit Rule Modal -->
+    <div id="depositRuleModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">⚙️ Deposit Rule</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Configure payment policy for bookings</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('depositRuleModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="deposit-rule-form" onsubmit="event.preventDefault(); saveDepositRule();">
+                    <input type="hidden" id="deposit-rule-id">
+                    <input type="hidden" id="deposit-rule-property-id">
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                            Rule Name
+                        </label>
+                        <input type="text" id="deposit-rule-name" class="form-input" placeholder="e.g., Standard Deposit, Peak Season"
+                            style="padding: 0.75rem; border-radius: 8px;">
+                    </div>
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #166534; margin-bottom: 0.75rem; display: block;">
+                            💰 Deposit Amount
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Type</label>
+                                <select id="deposit-type" class="form-input" style="padding: 0.6rem; border-radius: 8px;" onchange="toggleDepositTypeFields()">
+                                    <option value="percentage">Percentage of total</option>
+                                    <option value="fixed">Fixed amount</option>
+                                    <option value="first_night">First night only</option>
+                                    <option value="full">Full payment</option>
+                                </select>
+                            </div>
+                            <div id="percentage-field">
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Percentage</label>
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <input type="number" id="deposit-percentage" class="form-input" value="30" min="1" max="100"
+                                        style="padding: 0.6rem; border-radius: 8px; flex: 1;">
+                                    <span style="font-weight: 600;">%</span>
+                                </div>
+                            </div>
+                            <div id="fixed-amount-field" style="display: none;">
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Fixed Amount (£)</label>
+                                <input type="number" id="deposit-fixed-amount" class="form-input" placeholder="100.00" min="0" step="0.01"
+                                    style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
+                            📅 Balance Due
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Days Before Check-in</label>
+                                <input type="number" id="balance-due-days" class="form-input" value="14" min="0"
+                                    style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                            <div style="display: flex; align-items: center; padding-top: 1.5rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="checkbox" id="auto-charge-balance" style="width: 18px; height: 18px;">
+                                    <span>Auto-charge balance</span>
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #0369a1; margin-bottom: 0.75rem; display: block;">
+                            ↩️ Refund Policy
+                        </label>
+                        <select id="refund-policy" class="form-input" style="padding: 0.75rem; border-radius: 8px;">
+                            <option value="flexible">Flexible - Full refund up to 24h before check-in</option>
+                            <option value="moderate">Moderate - Full refund up to 5 days before</option>
+                            <option value="strict">Strict - 50% refund up to 7 days before</option>
+                            <option value="non_refundable">Non-refundable</option>
+                        </select>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem;">
+                        <input type="checkbox" id="deposit-rule-active" checked style="width: 18px; height: 18px;">
+                        <label for="deposit-rule-active" style="font-weight: 500;">Active</label>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('depositRuleModal')">Cancel</button>
+                        <button type="submit" class="btn" style="background: #059669;">Save Rule</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div id="editPropertyModal" class="modal">
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
@@ -10020,6 +10263,8 @@ Local honey and preserves"></textarea>
             if (viewName === 'upsells') loadUpsells();
             if (viewName === 'fees') loadFees();
             if (viewName === 'taxes') loadTaxes();
+            if (viewName === 'payments') initPaymentsView();
+            if (viewName === 'deposit-rules') initDepositRulesView();
             if (viewName === 'bookings') loadBookings();
             if (viewName === 'marketing') loadMarketingProperties();
             if (viewName === 'wb-header') loadWebsiteSection('header');
@@ -17895,6 +18140,499 @@ Local honey and preserves"></textarea>
             }
         }
         
+        // =====================================================
+        // PAYMENTS FUNCTIONS
+        // =====================================================
+        
+        async function populatePropertySelect(selectId) {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById(selectId);
+                if (!select) return;
+                
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+                
+                // Restore previous selection if it exists
+                if (currentValue) select.value = currentValue;
+            } catch (error) {
+                console.error('Error loading properties for select:', error);
+            }
+        }
+        
+        async function checkStripeConnectionStatus() {
+            try {
+                const accountId = window.currentAccountId || 1;
+                const response = await fetch(`/api/accounts/${accountId}/stripe-status`);
+                const data = await response.json();
+                
+                const statusText = document.getElementById('stripe-status-text');
+                const btnArea = document.getElementById('stripe-connect-btn-area');
+                
+                if (data.success && data.connected) {
+                    statusText.innerHTML = `<span style="color: #059669;">✅ Connected</span> - Stripe Account: ${data.stripe_account_id}`;
+                    btnArea.innerHTML = `
+                        <button class="btn btn-secondary" onclick="disconnectStripe()">
+                            Disconnect Stripe
+                        </button>
+                    `;
+                } else {
+                    statusText.innerHTML = `<span style="color: #dc2626;">❌ Not Connected</span> - Connect your Stripe account to accept payments`;
+                    btnArea.innerHTML = `
+                        <a href="/api/stripe/connect/${accountId}" class="btn" style="background: #635bff; text-decoration: none;">
+                            🔗 Connect Stripe
+                        </a>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error checking Stripe status:', error);
+            }
+        }
+        
+        async function disconnectStripe() {
+            if (!confirm('Are you sure you want to disconnect Stripe? You will not be able to accept payments until you reconnect.')) {
+                return;
+            }
+            
+            try {
+                const accountId = window.currentAccountId || 1;
+                const response = await fetch(`/api/accounts/${accountId}/stripe-disconnect`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Stripe disconnected successfully');
+                    checkStripeConnectionStatus();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error disconnecting Stripe:', error);
+                alert('Error disconnecting Stripe');
+            }
+        }
+        
+        async function loadPaymentsForProperty() {
+            const propertyId = document.getElementById('payments-property-select').value;
+            const status = document.getElementById('payments-status-select').value;
+            const dateRange = document.getElementById('payments-date-range').value;
+            
+            try {
+                // Build query params
+                let url = '/api/bookings?include_payments=true';
+                if (propertyId) url += `&property_id=${propertyId}`;
+                if (status) url += `&payment_status=${status}`;
+                if (dateRange !== 'all') {
+                    const daysAgo = new Date();
+                    daysAgo.setDate(daysAgo.getDate() - parseInt(dateRange));
+                    url += `&from_date=${daysAgo.toISOString().split('T')[0]}`;
+                }
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const listEl = document.getElementById('payments-bookings-list');
+                
+                if (data.success && data.bookings && data.bookings.length > 0) {
+                    // Calculate stats
+                    let pendingCount = 0;
+                    let depositsReceived = 0;
+                    let balanceDue = 0;
+                    let totalCollected = 0;
+                    
+                    data.bookings.forEach(b => {
+                        const total = parseFloat(b.total_amount) || 0;
+                        const deposit = parseFloat(b.deposit_amount) || 0;
+                        const balance = parseFloat(b.balance_amount) || 0;
+                        
+                        if (b.payment_status === 'pending' || !b.payment_status) pendingCount++;
+                        if (b.deposit_paid_at) depositsReceived += deposit;
+                        if (!b.balance_paid_at && b.deposit_paid_at) balanceDue += (total - deposit);
+                        if (b.balance_paid_at) totalCollected += total;
+                        else if (b.deposit_paid_at) totalCollected += deposit;
+                    });
+                    
+                    document.getElementById('pending-payments-count').textContent = pendingCount;
+                    document.getElementById('deposits-received-amount').textContent = '£' + depositsReceived.toFixed(2);
+                    document.getElementById('balance-due-amount').textContent = '£' + balanceDue.toFixed(2);
+                    document.getElementById('total-collected-amount').textContent = '£' + totalCollected.toFixed(2);
+                    
+                    // Render bookings
+                    listEl.innerHTML = `
+                        <table style="width: 100%; border-collapse: collapse;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--border);">
+                                    <th style="text-align: left; padding: 0.75rem;">Guest</th>
+                                    <th style="text-align: left; padding: 0.75rem;">Property / Room</th>
+                                    <th style="text-align: left; padding: 0.75rem;">Dates</th>
+                                    <th style="text-align: right; padding: 0.75rem;">Total</th>
+                                    <th style="text-align: right; padding: 0.75rem;">Deposit</th>
+                                    <th style="text-align: center; padding: 0.75rem;">Status</th>
+                                    <th style="text-align: center; padding: 0.75rem;">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.bookings.map(b => {
+                                    const statusBadge = getPaymentStatusBadge(b.payment_status);
+                                    const total = parseFloat(b.total_amount) || 0;
+                                    const deposit = parseFloat(b.deposit_amount) || 0;
+                                    return `
+                                        <tr style="border-bottom: 1px solid var(--border);">
+                                            <td style="padding: 0.75rem;">
+                                                <strong>${b.guest_first_name || ''} ${b.guest_last_name || ''}</strong><br>
+                                                <small style="color: var(--text-secondary);">${b.guest_email || ''}</small>
+                                            </td>
+                                            <td style="padding: 0.75rem;">
+                                                ${b.property_name || 'N/A'}<br>
+                                                <small style="color: var(--text-secondary);">${b.room_name || ''}</small>
+                                            </td>
+                                            <td style="padding: 0.75rem;">
+                                                ${formatDate(b.check_in)} - ${formatDate(b.check_out)}
+                                            </td>
+                                            <td style="padding: 0.75rem; text-align: right;">
+                                                £${total.toFixed(2)}
+                                            </td>
+                                            <td style="padding: 0.75rem; text-align: right;">
+                                                £${deposit.toFixed(2)}
+                                                ${b.deposit_paid_at ? '<br><small style="color: #059669;">✓ Paid</small>' : ''}
+                                            </td>
+                                            <td style="padding: 0.75rem; text-align: center;">
+                                                ${statusBadge}
+                                            </td>
+                                            <td style="padding: 0.75rem; text-align: center;">
+                                                <button class="btn btn-small" onclick="viewPaymentDetails(${b.id})" style="font-size: 0.8rem; padding: 0.25rem 0.5rem;">
+                                                    View
+                                                </button>
+                                                ${!b.deposit_paid_at ? `
+                                                    <button class="btn btn-small" onclick="sendPaymentLink(${b.id})" style="font-size: 0.8rem; padding: 0.25rem 0.5rem; background: #059669;">
+                                                        Send Link
+                                                    </button>
+                                                ` : ''}
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    listEl.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No bookings found</p>';
+                }
+            } catch (error) {
+                console.error('Error loading payments:', error);
+                document.getElementById('payments-bookings-list').innerHTML = '<p style="color: #ef4444; text-align: center; padding: 2rem;">Error loading bookings</p>';
+            }
+        }
+        
+        function getPaymentStatusBadge(status) {
+            const badges = {
+                'pending': '<span class="badge badge-warning">⏳ Pending</span>',
+                'deposit_paid': '<span class="badge badge-info">💰 Deposit Paid</span>',
+                'fully_paid': '<span class="badge badge-success">✅ Fully Paid</span>',
+                'refunded': '<span class="badge badge-secondary">↩️ Refunded</span>',
+                'failed': '<span class="badge badge-error">❌ Failed</span>'
+            };
+            return badges[status] || '<span class="badge">⏳ Pending</span>';
+        }
+        
+        function formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const d = new Date(dateStr);
+            return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' });
+        }
+        
+        async function viewPaymentDetails(bookingId) {
+            try {
+                const response = await fetch(`/api/bookings/${bookingId}/payments`);
+                const data = await response.json();
+                
+                let html = `<h3>Payment History for Booking #${bookingId}</h3>`;
+                
+                if (data.success && data.payments && data.payments.length > 0) {
+                    html += `
+                        <table style="width: 100%; border-collapse: collapse; margin-top: 1rem;">
+                            <thead>
+                                <tr style="border-bottom: 2px solid var(--border);">
+                                    <th style="text-align: left; padding: 0.5rem;">Date</th>
+                                    <th style="text-align: left; padding: 0.5rem;">Type</th>
+                                    <th style="text-align: right; padding: 0.5rem;">Amount</th>
+                                    <th style="text-align: center; padding: 0.5rem;">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.payments.map(p => `
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <td style="padding: 0.5rem;">${formatDate(p.created_at)}</td>
+                                        <td style="padding: 0.5rem;">${p.transaction_type}</td>
+                                        <td style="padding: 0.5rem; text-align: right;">£${parseFloat(p.amount).toFixed(2)}</td>
+                                        <td style="padding: 0.5rem; text-align: center;">${p.status}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    html += '<p style="color: var(--text-secondary); margin-top: 1rem;">No payments recorded yet.</p>';
+                }
+                
+                // Show in a simple alert for now (could be a modal)
+                const modal = document.createElement('div');
+                modal.innerHTML = `
+                    <div class="modal" id="payment-details-modal" style="display: flex;">
+                        <div class="modal-content" style="max-width: 600px;">
+                            <div class="modal-header">
+                                <h3>Payment Details</h3>
+                                <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
+                            </div>
+                            <div class="modal-body">
+                                ${html}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            } catch (error) {
+                console.error('Error loading payment details:', error);
+                alert('Error loading payment details');
+            }
+        }
+        
+        async function sendPaymentLink(bookingId) {
+            alert('Payment link feature coming soon! This will email the guest a link to pay their deposit.');
+        }
+        
+        // =====================================================
+        // DEPOSIT RULES FUNCTIONS
+        // =====================================================
+        
+        async function loadDepositRulesForProperty() {
+            const propertyId = document.getElementById('deposit-rules-property-select').value;
+            const listEl = document.getElementById('deposit-rules-list');
+            
+            if (!propertyId) {
+                listEl.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Select a property to view deposit rules</p>';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/properties/${propertyId}/deposit-rules`);
+                const data = await response.json();
+                
+                if (data.success && data.rules && data.rules.length > 0) {
+                    listEl.innerHTML = data.rules.map(rule => `
+                        <div class="card" style="margin-bottom: 1rem; border: 1px solid ${rule.is_active ? '#10b981' : '#d1d5db'}; ${rule.is_active ? 'background: #f0fdf4;' : ''}">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 1rem;">
+                                <div style="flex: 1;">
+                                    <h4 style="margin-bottom: 0.5rem;">
+                                        ${rule.rule_name || 'Unnamed Rule'}
+                                        ${rule.is_active ? '<span class="badge badge-success" style="margin-left: 0.5rem;">Active</span>' : '<span class="badge badge-secondary" style="margin-left: 0.5rem;">Inactive</span>'}
+                                    </h4>
+                                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                                        <div>
+                                            <strong style="color: var(--text-secondary); font-size: 0.85rem;">Deposit</strong><br>
+                                            ${getDepositTypeDisplay(rule)}
+                                        </div>
+                                        <div>
+                                            <strong style="color: var(--text-secondary); font-size: 0.85rem;">Balance Due</strong><br>
+                                            ${rule.balance_due_days} days before check-in
+                                        </div>
+                                        <div>
+                                            <strong style="color: var(--text-secondary); font-size: 0.85rem;">Refund Policy</strong><br>
+                                            ${capitalizeFirst(rule.refund_policy || 'flexible')}
+                                        </div>
+                                        <div>
+                                            <strong style="color: var(--text-secondary); font-size: 0.85rem;">Auto-charge Balance</strong><br>
+                                            ${rule.auto_charge_balance ? '✅ Yes' : '❌ No'}
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-small" onclick="editDepositRule(${rule.id})" style="font-size: 0.8rem;">Edit</button>
+                                    <button class="btn btn-small btn-danger" onclick="deleteDepositRule(${rule.id})" style="font-size: 0.8rem; background: #ef4444;">Delete</button>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    listEl.innerHTML = `
+                        <div style="text-align: center; padding: 2rem;">
+                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">No deposit rules configured for this property.</p>
+                            <button class="btn" onclick="openAddDepositRuleModal()">
+                                + Create First Rule
+                            </button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading deposit rules:', error);
+                listEl.innerHTML = '<p style="color: #ef4444; text-align: center; padding: 2rem;">Error loading deposit rules</p>';
+            }
+        }
+        
+        function getDepositTypeDisplay(rule) {
+            switch(rule.deposit_type) {
+                case 'percentage':
+                    return `${rule.deposit_percentage}% of total`;
+                case 'fixed':
+                    return `£${parseFloat(rule.deposit_fixed_amount || 0).toFixed(2)} fixed`;
+                case 'first_night':
+                    return 'First night';
+                case 'full':
+                    return 'Full payment';
+                default:
+                    return `${rule.deposit_percentage || 30}%`;
+            }
+        }
+        
+        function capitalizeFirst(str) {
+            return str.charAt(0).toUpperCase() + str.slice(1);
+        }
+        
+        function openAddDepositRuleModal() {
+            const propertyId = document.getElementById('deposit-rules-property-select').value;
+            if (!propertyId) {
+                alert('Please select a property first');
+                return;
+            }
+            
+            document.getElementById('deposit-rule-id').value = '';
+            document.getElementById('deposit-rule-property-id').value = propertyId;
+            document.getElementById('deposit-rule-name').value = 'Standard Deposit';
+            document.getElementById('deposit-type').value = 'percentage';
+            document.getElementById('deposit-percentage').value = '30';
+            document.getElementById('deposit-fixed-amount').value = '';
+            document.getElementById('balance-due-days').value = '14';
+            document.getElementById('auto-charge-balance').checked = false;
+            document.getElementById('refund-policy').value = 'flexible';
+            document.getElementById('deposit-rule-active').checked = true;
+            
+            toggleDepositTypeFields();
+            openModal('depositRuleModal');
+        }
+        
+        function toggleDepositTypeFields() {
+            const type = document.getElementById('deposit-type').value;
+            document.getElementById('percentage-field').style.display = (type === 'percentage') ? 'block' : 'none';
+            document.getElementById('fixed-amount-field').style.display = (type === 'fixed') ? 'block' : 'none';
+        }
+        
+        async function editDepositRule(ruleId) {
+            try {
+                const response = await fetch(`/api/deposit-rules/${ruleId}`);
+                const data = await response.json();
+                
+                if (data.success && data.rule) {
+                    const rule = data.rule;
+                    document.getElementById('deposit-rule-id').value = rule.id;
+                    document.getElementById('deposit-rule-property-id').value = rule.property_id;
+                    document.getElementById('deposit-rule-name').value = rule.rule_name || '';
+                    document.getElementById('deposit-type').value = rule.deposit_type || 'percentage';
+                    document.getElementById('deposit-percentage').value = rule.deposit_percentage || 30;
+                    document.getElementById('deposit-fixed-amount').value = rule.deposit_fixed_amount || '';
+                    document.getElementById('balance-due-days').value = rule.balance_due_days || 14;
+                    document.getElementById('auto-charge-balance').checked = rule.auto_charge_balance || false;
+                    document.getElementById('refund-policy').value = rule.refund_policy || 'flexible';
+                    document.getElementById('deposit-rule-active').checked = rule.is_active !== false;
+                    
+                    toggleDepositTypeFields();
+                    openModal('depositRuleModal');
+                }
+            } catch (error) {
+                console.error('Error loading deposit rule:', error);
+                alert('Error loading deposit rule');
+            }
+        }
+        
+        async function saveDepositRule() {
+            const ruleId = document.getElementById('deposit-rule-id').value;
+            const propertyId = document.getElementById('deposit-rule-property-id').value;
+            
+            const data = {
+                rule_name: document.getElementById('deposit-rule-name').value,
+                deposit_type: document.getElementById('deposit-type').value,
+                deposit_percentage: parseFloat(document.getElementById('deposit-percentage').value) || 30,
+                deposit_fixed_amount: parseFloat(document.getElementById('deposit-fixed-amount').value) || null,
+                balance_due_days: parseInt(document.getElementById('balance-due-days').value) || 14,
+                auto_charge_balance: document.getElementById('auto-charge-balance').checked,
+                refund_policy: document.getElementById('refund-policy').value,
+                is_active: document.getElementById('deposit-rule-active').checked
+            };
+            
+            try {
+                let response;
+                if (ruleId) {
+                    response = await fetch(`/api/deposit-rules/${ruleId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                } else {
+                    response = await fetch(`/api/properties/${propertyId}/deposit-rules`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                }
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeModal('depositRuleModal');
+                    loadDepositRulesForProperty();
+                    alert('Deposit rule saved successfully!');
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('Error saving deposit rule:', error);
+                alert('Error saving deposit rule');
+            }
+        }
+        
+        async function deleteDepositRule(ruleId) {
+            if (!confirm('Are you sure you want to delete this deposit rule?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/deposit-rules/${ruleId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadDepositRulesForProperty();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                console.error('Error deleting deposit rule:', error);
+                alert('Error deleting deposit rule');
+            }
+        }
+        
+        // Initialize payments view
+        function initPaymentsView() {
+            checkStripeConnectionStatus();
+            populatePropertySelect('payments-property-select');
+            loadPaymentsForProperty();
+        }
+        
+        // Initialize deposit rules view
+        function initDepositRulesView() {
+            populatePropertySelect('deposit-rules-property-select');
+        }
+
         async function loadTaxesForProperty() {
             const propertyId = document.getElementById('taxes-property-select')?.value;
             const roomId = document.getElementById('taxes-room-select')?.value;
