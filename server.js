@@ -1386,11 +1386,56 @@ app.post('/api/admin/accounts/:id/set-subscription', async (req, res) => {
   }
 });
 
+// Get single account
+app.get('/api/accounts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT a.*, 
+             (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+      FROM accounts a 
+      WHERE a.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ success: true, account: result.rows[0] });
+  } catch (error) {
+    console.error('Get account error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create new account
+app.post('/api/accounts', async (req, res) => {
+  try {
+    const { name, email, phone, account_code, role, status } = req.body;
+    
+    if (!name) {
+      return res.json({ success: false, error: 'Account name is required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO accounts (name, email, phone, account_code, role, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      RETURNING *
+    `, [name, email || null, phone || null, account_code || null, role || 'agency_admin', status || 'active']);
+    
+    res.json({ success: true, account: result.rows[0] });
+  } catch (error) {
+    console.error('Create account error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Update account
 app.put('/api/accounts/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { account_code, name, email, phone, business_name, status, notes } = req.body;
+    const { account_code, name, email, phone, business_name, status, notes, role } = req.body;
     
     // Build dynamic update query
     const updates = [];
