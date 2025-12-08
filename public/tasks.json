@@ -1,5 +1,5 @@
 {
-  "updated": "2025-12-07",
+  "updated": "2025-12-08",
   "categories": [
     {
       "id": "critical",
@@ -47,66 +47,60 @@
   "tasks": [
     {
       "id": "crit-001",
-      "title": "Fix Airwallex/Stripe on Client Websites",
-      "description": "Get payment processing working on WP client sites - guests need to pay for bookings",
+      "title": "Booking → CM Sync",
+      "description": "When booking made on WP site, push to Beds24/Smoobu to block availability",
       "priority": "critical",
       "category": "critical",
       "status": "todo",
-      "notes": "MUST WORK - blocking everything"
+      "notes": "NEXT - bookings work but don't sync to CM yet"
     },
     {
       "id": "crit-002",
-      "title": "Test End-to-End Booking",
-      "description": "Book on WP site → Appears in GAS Bookings → Syncs to Channel Manager",
+      "title": "Connect Alpine CoHosts Stripe",
+      "description": "Get Account 3 (Alpine CoHosts) connected to Stripe - 6 properties",
       "priority": "critical",
       "category": "critical",
       "status": "todo",
-      "notes": "Need to verify full flow works"
+      "notes": "Elevate and Lehmann House done"
     },
     {
       "id": "crit-003",
       "title": "Fix GAS Billing Tables",
       "description": "billing_products table not created - setup-billing endpoint needs to work",
-      "priority": "critical",
+      "priority": "high",
       "category": "critical",
       "status": "todo",
       "notes": "Tables for Products, Add-ons, Affiliates"
     },
     {
       "id": "pay-001",
-      "title": "Deposit System - Flexible Options",
-      "description": "Allow clients to charge deposits: by percentage (e.g. 25%), fixed amount (e.g. £50), or single night",
+      "title": "Balance Collection - Auto-charge",
+      "description": "Auto-charge remaining balance X days before arrival using saved card",
       "priority": "urgent",
       "category": "billing",
       "status": "todo",
       "subtasks": [
-        "Deposit settings in Property/Room config",
-        "Percentage-based deposit",
-        "Fixed amount deposit",
-        "First night deposit",
-        "No deposit option"
+        "Save card to Stripe Customer",
+        "Scheduled job to check balance due dates",
+        "Auto-charge with saved payment method",
+        "Send receipt email after charge",
+        "Handle failed payments"
       ]
     },
     {
       "id": "pay-002",
-      "title": "Balance Payment Storage & Collection",
-      "description": "Store booking payment info, enable 2nd charge for balance - manual or automatic trigger",
-      "priority": "urgent",
+      "title": "Manual Charge Balance Button",
+      "description": "In booking detail view, button to manually charge remaining balance",
+      "priority": "high",
       "category": "billing",
       "status": "todo",
-      "subtasks": [
-        "Store card/payment method securely",
-        "Balance due calculation",
-        "Manual 'Charge Balance' button in Bookings",
-        "Auto-charge X days before arrival option",
-        "Payment status tracking (Deposit Paid / Full Paid)"
-      ]
+      "notes": "For cases where auto-charge disabled or failed"
     },
     {
       "id": "pay-003",
       "title": "Airwallex Integration for GAS Products",
       "description": "Connect Airwallex to charge for GAS subscriptions (templates, plugins, apps)",
-      "priority": "high",
+      "priority": "medium",
       "category": "billing",
       "status": "todo"
     },
@@ -119,31 +113,27 @@
       "status": "todo"
     },
     {
+      "id": "pay-005",
+      "title": "Email Integration (SendGrid/Mailgun)",
+      "description": "Send payment receipts, balance reminders, booking confirmations",
+      "priority": "high",
+      "category": "billing",
+      "status": "todo",
+      "subtasks": [
+        "Deposit receipt email",
+        "Balance reminder email",
+        "Balance charged email",
+        "Refund notification email"
+      ]
+    },
+    {
       "id": "ui-001",
       "title": "Property/Account Code Display",
       "description": "Show readable codes (ELEVATE, LH001) not just ID numbers. Visible in UI, usable in WP plugin",
-      "priority": "urgent",
+      "priority": "medium",
       "category": "ui",
       "status": "todo",
       "notes": "For portal sites showing multiple properties from one account"
-    },
-    {
-      "id": "ui-002",
-      "title": "Fix Account Selector Badge",
-      "description": "Green account banner looks cramped/poor - needs redesign",
-      "priority": "urgent",
-      "category": "ui",
-      "status": "done",
-      "completed": "2025-12-07"
-    },
-    {
-      "id": "ui-003",
-      "title": "Tasks Page Redesign",
-      "description": "Tabbed menu navigation - filter by category OR priority, not long scrolling list",
-      "priority": "high",
-      "category": "ui",
-      "status": "done",
-      "completed": "2025-12-07"
     },
     {
       "id": "wb-001",
@@ -172,17 +162,18 @@
     },
     {
       "id": "book-001",
-      "title": "Booking → CM Sync Verification",
-      "description": "Ensure bookings made on WP sites sync back to Beds24/Smoobu correctly",
-      "priority": "urgent",
+      "title": "Real-time Availability Check",
+      "description": "At booking confirmation, verify availability with CM API before accepting",
+      "priority": "high",
       "category": "booking-flow",
-      "status": "todo"
+      "status": "todo",
+      "notes": "Safety net to prevent double bookings"
     },
     {
       "id": "book-002",
       "title": "Extras/Upsells on Checkout",
       "description": "Verify extras display correctly on WP checkout page",
-      "priority": "high",
+      "priority": "medium",
       "category": "booking-flow",
       "status": "todo"
     },
@@ -190,7 +181,7 @@
       "id": "book-003",
       "title": "Cancellation Policy from GAS",
       "description": "WP plugin pulls cancellation policy from GAS, not hardcoded",
-      "priority": "high",
+      "priority": "medium",
       "category": "booking-flow",
       "status": "todo"
     },
@@ -198,15 +189,16 @@
       "id": "int-001",
       "title": "CM Webhooks - Real-time Updates",
       "description": "Receive booking notifications from Beds24/Smoobu in real-time",
-      "priority": "medium",
+      "priority": "high",
       "category": "integrations",
-      "status": "todo"
+      "status": "todo",
+      "notes": "Keeps local DB in sync with CM"
     },
     {
       "id": "app-001",
       "title": "Smart Blogger App",
       "description": "AI-powered blog content generator for properties",
-      "priority": "medium",
+      "priority": "low",
       "category": "apps",
       "status": "todo"
     },
@@ -214,12 +206,118 @@
       "id": "app-002",
       "title": "Attractions/SEO App",
       "description": "Local attractions with categories, distances, maps",
-      "priority": "medium",
+      "priority": "low",
       "category": "apps",
       "status": "todo"
+    },
+    {
+      "id": "app-003",
+      "title": "iCal/Google Cal Lite CM",
+      "description": "Simple channel manager for hosts without Beds24/Smoobu - sync via calendar feeds",
+      "priority": "medium",
+      "category": "apps",
+      "status": "todo",
+      "subtasks": [
+        "Import iCal feeds from Airbnb, VRBO, Booking.com (REQUIRED)",
+        "Export GAS availability as iCal feed",
+        "Google Calendar 2-way sync option",
+        "Conflict detection alerts",
+        "Sync status monitoring (last synced, errors)",
+        "Auto-refresh feeds every 15 mins"
+      ],
+      "notes": "RULE: Must connect at least one calendar feed before bookings enabled. No manual-only option - liability risk."
+    },
+    {
+      "id": "app-004",
+      "title": "CRM Email Marketing App",
+      "description": "Guest email marketing with import, campaigns, automation",
+      "priority": "medium",
+      "category": "apps",
+      "status": "todo",
+      "subtasks": [
+        "CSV email import with validation",
+        "Spam/bounce checking",
+        "GDPR consent tracking",
+        "Pre-arrival email sequences",
+        "Post-stay review requests",
+        "Return guest offers",
+        "Email template builder",
+        "Open/click tracking",
+        "Guest segmentation (new, returning, VIP)"
+      ],
+      "notes": "Upsell product - uses Mailgun backend"
+    },
+    {
+      "id": "app-005",
+      "title": "Social Media Smart Campaigns",
+      "description": "AI-driven social marketing that identifies dead periods and creates auto-promotions",
+      "priority": "medium",
+      "category": "apps",
+      "status": "todo",
+      "subtasks": [
+        "Occupancy gap analysis",
+        "Auto-generate promotional offers for gaps",
+        "AI social post creation (text + image suggestions)",
+        "Facebook/Instagram post scheduling",
+        "Meta Ads API integration",
+        "Fixed/seasonal campaign builder",
+        "Content calendar view",
+        "Performance tracking (reach, bookings)",
+        "Budget recommendations based on gap size"
+      ],
+      "notes": "Premium upsell - 'Fill your dead periods automatically'"
     }
   ],
   "completed": [
+    {
+      "id": "done-020",
+      "title": "Stripe Connect per Account",
+      "description": "Each client account connects their own Stripe - payments go direct to them",
+      "category": "billing",
+      "completed": "2025-12-08"
+    },
+    {
+      "id": "done-021",
+      "title": "Account Management UI",
+      "description": "GAS Admin Accounts view with Stripe Connect/Disconnect buttons, Edit account",
+      "category": "ui",
+      "completed": "2025-12-08"
+    },
+    {
+      "id": "done-022",
+      "title": "Deposit Rules System",
+      "description": "Configure deposit % or fixed amount per property, balance due days",
+      "category": "billing",
+      "completed": "2025-12-08"
+    },
+    {
+      "id": "done-023",
+      "title": "Checkout with Card Payment",
+      "description": "WP checkout accepts card via Stripe, charges deposit, creates booking",
+      "category": "billing",
+      "completed": "2025-12-08"
+    },
+    {
+      "id": "done-024",
+      "title": "Booking Detail View",
+      "description": "Full booking details with payment status, deposit/balance breakdown, action buttons",
+      "category": "ui",
+      "completed": "2025-12-08"
+    },
+    {
+      "id": "done-025",
+      "title": "Payments View - Per Property Stripe Status",
+      "description": "Shows correct Stripe connection based on selected property's account",
+      "category": "ui",
+      "completed": "2025-12-08"
+    },
+    {
+      "id": "done-026",
+      "title": "Bookings All Properties View",
+      "description": "Can view all bookings across properties with Property column, or filter by property",
+      "category": "ui",
+      "completed": "2025-12-08"
+    },
     {
       "id": "done-016",
       "title": "Content Section Removed",
@@ -247,6 +345,20 @@
       "description": "Bronze/Silver/Gold tiers, My Referrals dashboard, admin Affiliates view",
       "category": "billing",
       "completed": "2025-12-06"
+    },
+    {
+      "id": "ui-002",
+      "title": "Fix Account Selector Badge",
+      "description": "Green account banner looks cramped/poor - needs redesign",
+      "category": "ui",
+      "completed": "2025-12-07"
+    },
+    {
+      "id": "ui-003",
+      "title": "Tasks Page Redesign",
+      "description": "Tabbed menu navigation - filter by category OR priority, not long scrolling list",
+      "category": "ui",
+      "completed": "2025-12-07"
     }
   ]
 }
