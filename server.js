@@ -1913,6 +1913,99 @@ app.get('/api/bookings/:bookingId/payments', async (req, res) => {
     }
 });
 
+// Get Stripe info for a property (public - for checkout page)
+app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
+    try {
+        const { propertyId } = req.params;
+        
+        // Get property's account and check if Stripe is connected
+        const result = await pool.query(`
+            SELECT p.id, p.account_id, a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete
+            FROM properties p
+            JOIN accounts a ON p.account_id = a.id
+            WHERE p.id = $1
+        `, [propertyId]);
+        
+        if (result.rows.length === 0) {
+            return res.json({ success: true, stripe_enabled: false });
+        }
+        
+        const data = result.rows[0];
+        const stripeEnabled = !!(data.stripe_account_id && data.stripe_onboarding_complete);
+        
+        // Get deposit rules for this property
+        let depositRule = null;
+        if (stripeEnabled) {
+            const ruleResult = await pool.query(`
+                SELECT * FROM deposit_rules 
+                WHERE property_id = $1 AND is_active = true 
+                ORDER BY created_at DESC LIMIT 1
+            `, [propertyId]);
+            
+            if (ruleResult.rows.length > 0) {
+                depositRule = ruleResult.rows[0];
+            }
+        }
+        
+        res.json({
+            success: true,
+            stripe_enabled: stripeEnabled,
+            stripe_publishable_key: stripeEnabled ? process.env.STRIPE_PUBLISHABLE_KEY : null,
+            stripe_account_id: stripeEnabled ? data.stripe_account_id : null,
+            deposit_rule: depositRule
+        });
+        
+    } catch (error) {
+        console.error('Error getting Stripe info:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Create payment intent for checkout (public endpoint)
+app.post('/api/public/create-payment-intent', async (req, res) => {
+    try {
+        const { property_id, amount, currency, booking_data } = req.body;
+        
+        // Get property's Stripe account
+        const result = await pool.query(`
+            SELECT a.stripe_account_id 
+            FROM properties p
+            JOIN accounts a ON p.account_id = a.id
+            WHERE p.id = $1 AND a.stripe_account_id IS NOT NULL
+        `, [property_id]);
+        
+        if (result.rows.length === 0) {
+            return res.status(400).json({ success: false, error: 'Property not configured for payments' });
+        }
+        
+        const stripeAccountId = result.rows[0].stripe_account_id;
+        
+        // Create payment intent on connected account
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(amount * 100), // Convert to cents
+            currency: (currency || 'gbp').toLowerCase(),
+            metadata: {
+                property_id: property_id,
+                guest_email: booking_data?.email || '',
+                check_in: booking_data?.check_in || '',
+                check_out: booking_data?.check_out || ''
+            }
+        }, {
+            stripeAccount: stripeAccountId
+        });
+        
+        res.json({
+            success: true,
+            client_secret: paymentIntent.client_secret,
+            payment_intent_id: paymentIntent.id
+        });
+        
+    } catch (error) {
+        console.error('Error creating payment intent:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // Get account subscription
 app.get('/api/admin/accounts/:id/subscription', async (req, res) => {
   try {
