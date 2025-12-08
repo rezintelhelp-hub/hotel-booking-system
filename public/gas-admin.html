@@ -9186,6 +9186,136 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+    <!-- Add Booking Modal -->
+    <div id="addBookingModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">📅 Add Booking</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Create a manual booking</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('addBookingModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
+                <form id="add-booking-form" onsubmit="event.preventDefault(); saveNewBooking();">
+                    
+                    <!-- Property & Room Selection -->
+                    <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #0369a1; margin-bottom: 0.75rem; display: block;">
+                            🏠 Property & Room
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Property *</label>
+                                <select id="booking-property" class="form-input" style="padding: 0.6rem; border-radius: 8px;" onchange="loadBookingRooms()" required>
+                                    <option value="">Select Property...</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Room *</label>
+                                <select id="booking-room" class="form-input" style="padding: 0.6rem; border-radius: 8px;" required>
+                                    <option value="">Select Room...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Dates -->
+                    <div style="background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #166534; margin-bottom: 0.75rem; display: block;">
+                            📆 Stay Dates
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Check-in *</label>
+                                <input type="date" id="booking-checkin" class="form-input" style="padding: 0.6rem; border-radius: 8px;" required>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Check-out *</label>
+                                <input type="date" id="booking-checkout" class="form-input" style="padding: 0.6rem; border-radius: 8px;" required>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Guests</label>
+                                <input type="number" id="booking-guests" class="form-input" value="1" min="1" style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Guest Details -->
+                    <div style="background: #fef3c7; border: 1px solid #fde68a; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
+                            👤 Guest Details
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">First Name *</label>
+                                <input type="text" id="booking-first-name" class="form-input" style="padding: 0.6rem; border-radius: 8px;" required>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Last Name *</label>
+                                <input type="text" id="booking-last-name" class="form-input" style="padding: 0.6rem; border-radius: 8px;" required>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Email *</label>
+                                <input type="email" id="booking-email" class="form-input" style="padding: 0.6rem; border-radius: 8px;" required>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Phone</label>
+                                <input type="tel" id="booking-phone" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Payment & Status -->
+                    <div style="background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #5b21b6; margin-bottom: 0.75rem; display: block;">
+                            💰 Payment & Status
+                        </label>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Total Price</label>
+                                <input type="number" id="booking-total" class="form-input" step="0.01" min="0" style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Payment Status</label>
+                                <select id="booking-payment-status" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                    <option value="pending">Pending</option>
+                                    <option value="deposit_paid">Deposit Paid</option>
+                                    <option value="fully_paid">Fully Paid</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Booking Status</label>
+                                <select id="booking-status" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                    <option value="confirmed">Confirmed</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Notes -->
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">📝 Notes</label>
+                        <textarea id="booking-notes" class="form-input" rows="3" style="padding: 0.75rem; border-radius: 8px;" placeholder="Special requests, notes..."></textarea>
+                    </div>
+                    
+                    <!-- Sync to Channel Manager -->
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1.5rem; padding: 0.75rem; background: #f8fafc; border-radius: 8px;">
+                        <input type="checkbox" id="booking-sync-cm" checked style="width: 18px; height: 18px;">
+                        <label for="booking-sync-cm" style="font-weight: 500;">Sync to Channel Manager (Beds24/Hostaway)</label>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('addBookingModal')">Cancel</button>
+                        <button type="submit" class="btn" style="background: #4f46e5;">Create Booking</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <div id="editPropertyModal" class="modal">
         <div class="modal-content" style="max-width: 800px;">
             <div class="modal-header">
@@ -17076,7 +17206,121 @@ Local honey and preserves"></textarea>
         }
         
         function openAddBookingModal() {
-            alert('Manual booking creation coming soon!');
+            // Reset form
+            document.getElementById('add-booking-form').reset();
+            document.getElementById('booking-room').innerHTML = '<option value="">Select Room...</option>';
+            
+            // Populate property dropdown
+            loadBookingProperties();
+            
+            // Set default check-in to today
+            const today = new Date().toISOString().split('T')[0];
+            document.getElementById('booking-checkin').value = today;
+            
+            // Set default checkout to tomorrow
+            const tomorrow = new Date();
+            tomorrow.setDate(tomorrow.getDate() + 1);
+            document.getElementById('booking-checkout').value = tomorrow.toISOString().split('T')[0];
+            
+            openModal('addBookingModal');
+        }
+        
+        async function loadBookingProperties() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('booking-property');
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
+        }
+        
+        async function loadBookingRooms() {
+            const propertyId = document.getElementById('booking-property').value;
+            const select = document.getElementById('booking-room');
+            select.innerHTML = '<option value="">Select Room...</option>';
+            
+            if (!propertyId) return;
+            
+            try {
+                const response = await fetch(`/api/db/bookable-units?property_id=${propertyId}`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    data.data.forEach(r => {
+                        select.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        async function saveNewBooking() {
+            const propertyId = document.getElementById('booking-property').value;
+            const roomId = document.getElementById('booking-room').value;
+            const checkin = document.getElementById('booking-checkin').value;
+            const checkout = document.getElementById('booking-checkout').value;
+            const guests = document.getElementById('booking-guests').value;
+            const firstName = document.getElementById('booking-first-name').value;
+            const lastName = document.getElementById('booking-last-name').value;
+            const email = document.getElementById('booking-email').value;
+            const phone = document.getElementById('booking-phone').value;
+            const total = document.getElementById('booking-total').value;
+            const paymentStatus = document.getElementById('booking-payment-status').value;
+            const status = document.getElementById('booking-status').value;
+            const notes = document.getElementById('booking-notes').value;
+            const syncCM = document.getElementById('booking-sync-cm').checked;
+            
+            if (!propertyId || !roomId || !checkin || !checkout || !firstName || !lastName || !email) {
+                alert('Please fill in all required fields');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/bookings', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        property_id: propertyId,
+                        room_id: roomId,
+                        check_in: checkin,
+                        check_out: checkout,
+                        num_adults: guests,
+                        guest_first_name: firstName,
+                        guest_last_name: lastName,
+                        guest_email: email,
+                        guest_phone: phone,
+                        total_price: total || 0,
+                        payment_status: paymentStatus,
+                        status: status,
+                        notes: notes,
+                        sync_to_cm: syncCM
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeModal('addBookingModal');
+                    loadBookingsForProperty();
+                    alert('Booking created successfully!' + (syncCM ? ' Syncing to channel manager...' : ''));
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to create booking'));
+                }
+            } catch (error) {
+                console.error('Error creating booking:', error);
+                alert('Error creating booking');
+            }
         }
         
         function viewBooking(id) {
