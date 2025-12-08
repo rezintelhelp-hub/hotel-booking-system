@@ -11279,7 +11279,10 @@ Local honey and preserves"></textarea>
                                     <td>${getRoleBadge(account.role)}</td>
                                     <td>
                                         ${account.stripe_account_id 
-                                            ? `<span class="badge badge-success" title="${account.stripe_account_id}">✓ Connected</span>`
+                                            ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                <span class="badge badge-success">✓ Connected</span>
+                                                <button class="btn btn-secondary btn-small" onclick="disconnectStripe(${account.id}, '${account.name}')" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; color: #dc2626;">Disconnect</button>
+                                               </div>`
                                             : `<button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Connect</button>`
                                         }
                                     </td>
@@ -11315,7 +11318,30 @@ Local honey and preserves"></textarea>
         }
         
         function connectStripeForAccount(accountId) {
-            window.open(`/api/stripe/connect/${accountId}`, '_blank');
+            window.location.href = `/api/stripe/connect/${accountId}`;
+        }
+        
+        async function disconnectStripe(accountId, accountName) {
+            if (!confirm(`Are you sure you want to disconnect Stripe from "${accountName}"?\n\nThis will prevent this account from accepting card payments until reconnected.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/stripe-disconnect`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('Stripe disconnected successfully');
+                    loadAccounts();
+                } else {
+                    alert('Error disconnecting Stripe: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error disconnecting Stripe:', error);
+                alert('Error disconnecting Stripe');
+            }
         }
         
         // Generate account code from name
@@ -23202,9 +23228,45 @@ Local honey and preserves"></textarea>
             }
         }
 
+        // Handle URL hash and query params (for Stripe redirect)
+        function handleUrlParams() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const hash = window.location.hash.replace('#', '').split('?')[0];
+            
+            // Check for Stripe connection status
+            if (urlParams.get('stripe_connected') === 'true') {
+                setTimeout(() => {
+                    showNotification('Stripe connected successfully!', 'success');
+                }, 500);
+            }
+            if (urlParams.get('stripe_error')) {
+                setTimeout(() => {
+                    showNotification('Stripe error: ' + urlParams.get('stripe_error'), 'error');
+                }, 500);
+            }
+            
+            // Navigate to hash view if specified
+            if (hash && document.getElementById(hash)) {
+                setTimeout(() => {
+                    const navItem = document.querySelector(`.nav-item[data-view="${hash}"]`);
+                    if (navItem) {
+                        navClick(navItem, hash);
+                    } else {
+                        showView(hash);
+                    }
+                }, 100);
+            }
+            
+            // Clean up URL
+            if (urlParams.get('stripe_connected') || urlParams.get('stripe_error')) {
+                window.history.replaceState({}, document.title, window.location.pathname + (hash ? '#' + hash : ''));
+            }
+        }
+
         // Initial load
         loadClientSelector();
         loadDashboard();
+        handleUrlParams();
     </script>
 </body>
 </html>
