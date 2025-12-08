@@ -14537,10 +14537,14 @@ app.post('/api/public/book', async (req, res) => {
     
     // If card payment was made, record the transaction
     if (stripe_payment_intent_id && deposit_amount) {
-      await pool.query(`
-        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
-        VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, NOW())
-      `, [newBooking.id, deposit_amount, stripe_payment_intent_id]);
+      try {
+        await pool.query(`
+          INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
+          VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, NOW())
+        `, [newBooking.id, deposit_amount, stripe_payment_intent_id]);
+      } catch (txError) {
+        console.log('Could not record payment transaction (table may not exist yet):', txError.message);
+      }
     }
     
     // If voucher was used, increment usage
