@@ -14,6 +14,10 @@ const sharp = require('sharp');
 const { S3Client, PutObjectCommand, DeleteObjectCommand } = require('@aws-sdk/client-s3');
 const { v4: uuidv4 } = require('uuid');
 
+// Stripe for payment processing
+const Stripe = require('stripe');
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -1439,6 +1443,161 @@ app.put('/api/accounts/:id', async (req, res) => {
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
+});
+
+// =====================================================
+// STRIPE CONNECT INTEGRATION
+// =====================================================
+
+// Start Stripe Connect OAuth flow
+app.get('/api/stripe/connect/:accountId', async (req, res) => {
+    try {
+        const { accountId } = req.params;
+        
+        // Verify account exists
+        const account = await pool.query('SELECT * FROM accounts WHERE id = $1', [accountId]);
+        if (account.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Account not found' });
+        }
+        
+        // Build Stripe OAuth URL
+        const state = Buffer.from(JSON.stringify({ accountId })).toString('base64');
+        
+        const stripeConnectUrl = `https://connect.stripe.com/oauth/authorize?` +
+            `response_type=code&` +
+            `client_id=${process.env.STRIPE_CLIENT_ID}&` +
+            `scope=read_write&` +
+            `state=${state}&` +
+            `redirect_uri=${encodeURIComponent('https://gas.travel/api/stripe/callback')}`;
+        
+        res.redirect(stripeConnectUrl);
+    } catch (error) {
+        console.error('Stripe connect error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Stripe OAuth callback
+app.get('/api/stripe/callback', async (req, res) => {
+    try {
+        const { code, state, error, error_description } = req.query;
+        
+        // Handle user cancellation or errors
+        if (error) {
+            console.error('Stripe OAuth error:', error, error_description);
+            return res.redirect('https://gas.travel/admin?stripe_error=' + encodeURIComponent(error_description || error));
+        }
+        
+        // Decode state to get account ID
+        let accountId;
+        try {
+            const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
+            accountId = stateData.accountId;
+        } catch (e) {
+            return res.redirect('https://gas.travel/admin?stripe_error=invalid_state');
+        }
+        
+        // Exchange authorization code for access token
+        const response = await stripe.oauth.token({
+            grant_type: 'authorization_code',
+            code: code
+        });
+        
+        const connectedAccountId = response.stripe_user_id;
+        
+        // Update account with Stripe connected account ID
+        await pool.query(`
+            UPDATE accounts 
+            SET stripe_account_id = $1,
+                stripe_account_status = 'active',
+                stripe_onboarding_complete = true,
+                updated_at = NOW()
+            WHERE id = $2
+        `, [connectedAccountId, accountId]);
+        
+        console.log(`✅ Stripe connected for account ${accountId}: ${connectedAccountId}`);
+        
+        // Redirect back to admin with success
+        res.redirect('https://gas.travel/admin?stripe_connected=true');
+        
+    } catch (error) {
+        console.error('Stripe callback error:', error);
+        res.redirect('https://gas.travel/admin?stripe_error=' + encodeURIComponent(error.message));
+    }
+});
+
+// Get Stripe connection status for an account
+app.get('/api/accounts/:accountId/stripe-status', async (req, res) => {
+    try {
+        const { accountId } = req.params;
+        
+        const result = await pool.query(`
+            SELECT stripe_account_id, stripe_account_status, stripe_onboarding_complete
+            FROM accounts WHERE id = $1
+        `, [accountId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Account not found' });
+        }
+        
+        const account = result.rows[0];
+        
+        res.json({
+            success: true,
+            connected: !!account.stripe_account_id,
+            stripe_account_id: account.stripe_account_id,
+            status: account.stripe_account_status,
+            onboarding_complete: account.stripe_onboarding_complete
+        });
+        
+    } catch (error) {
+        console.error('Error getting Stripe status:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Disconnect Stripe account
+app.post('/api/accounts/:accountId/stripe-disconnect', async (req, res) => {
+    try {
+        const { accountId } = req.params;
+        
+        // Get current stripe account ID
+        const account = await pool.query('SELECT stripe_account_id FROM accounts WHERE id = $1', [accountId]);
+        
+        if (account.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Account not found' });
+        }
+        
+        const stripeAccountId = account.rows[0].stripe_account_id;
+        
+        // Revoke access if connected
+        if (stripeAccountId) {
+            try {
+                await stripe.oauth.deauthorize({
+                    client_id: process.env.STRIPE_CLIENT_ID,
+                    stripe_user_id: stripeAccountId
+                });
+            } catch (e) {
+                console.log('Stripe deauthorize warning:', e.message);
+            }
+        }
+        
+        // Clear Stripe fields in database
+        await pool.query(`
+            UPDATE accounts 
+            SET stripe_account_id = NULL,
+                stripe_account_status = NULL,
+                stripe_onboarding_complete = false,
+                updated_at = NOW()
+            WHERE id = $1
+        `, [accountId]);
+        
+        res.json({ success: true, message: 'Stripe disconnected' });
+        
+    } catch (error) {
+        console.error('Error disconnecting Stripe:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
 });
 
 // Get account subscription
@@ -5047,100 +5206,26 @@ app.post('/api/db/properties', async (req, res) => {
 app.put('/api/db/properties/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const updates = req.body;
-    
-    // All allowed fields that can be updated
-    const allowedFields = [
-      'name', 'property_type', 'status', 'address', 'city', 'state', 
-      'postcode', 'country', 'latitude', 'longitude', 'phone', 'email',
-      'description', 'short_description', 'location_description',
-      'check_in_from', 'check_in_until', 'check_out_by', 'currency',
-      'cancellation_policy', 'house_rules', 'amenities', 'pets_allowed',
-      'smoking_allowed', 'children_allowed', 'events_allowed', 'featured',
-      'visible_public', 'visible_own_website', 'available_to_tas',
-      'security_deposit_amount', 'cleaning_fee', 'instant_book',
-      'min_advance_booking_hours', 'max_advance_booking_days'
-    ];
-    
-    const setClauses = [];
-    const values = [];
-    let paramIndex = 1;
-    
-    for (const [key, value] of Object.entries(updates)) {
-      if (allowedFields.includes(key)) {
-        setClauses.push(`${key} = $${paramIndex}`);
-        values.push(value);
-        paramIndex++;
-      }
-    }
-    
-    if (setClauses.length === 0) {
-      return res.status(400).json({ success: false, error: 'No valid fields to update' });
-    }
-    
-    values.push(id);
-    const query = `UPDATE properties SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
-    
-    const result = await pool.query(query, values);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
-    }
+    const { name, description, address, city, country, property_type, status } = req.body;
+
+    const result = await pool.query(
+      `UPDATE properties SET 
+        name = COALESCE($1, name), 
+        description = COALESCE($2, description), 
+        address = COALESCE($3, address), 
+        city = COALESCE($4, city), 
+        country = COALESCE($5, country), 
+        property_type = COALESCE($6, property_type),
+        status = COALESCE($7, status),
+        updated_at = NOW()
+      WHERE id = $8
+      RETURNING *`,
+      [name, description, address, city, country, property_type, status, id]
+    );
 
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Update error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// PATCH property (alias for PUT)
-app.patch('/api/db/properties/:id', async (req, res) => {
-  req.url = req.url; // Forward to PUT handler
-  const { id } = req.params;
-  const updates = req.body;
-  
-  try {
-    const allowedFields = [
-      'name', 'property_type', 'status', 'address', 'city', 'state', 
-      'postcode', 'country', 'latitude', 'longitude', 'phone', 'email',
-      'description', 'short_description', 'location_description',
-      'check_in_from', 'check_in_until', 'check_out_by', 'currency',
-      'cancellation_policy', 'house_rules', 'amenities', 'pets_allowed',
-      'smoking_allowed', 'children_allowed', 'events_allowed', 'featured',
-      'visible_public', 'visible_own_website', 'available_to_tas',
-      'security_deposit_amount', 'cleaning_fee', 'instant_book',
-      'min_advance_booking_hours', 'max_advance_booking_days'
-    ];
-    
-    const setClauses = [];
-    const values = [];
-    let paramIndex = 1;
-    
-    for (const [key, value] of Object.entries(updates)) {
-      if (allowedFields.includes(key)) {
-        setClauses.push(`${key} = $${paramIndex}`);
-        values.push(value);
-        paramIndex++;
-      }
-    }
-    
-    if (setClauses.length === 0) {
-      return res.status(400).json({ success: false, error: 'No valid fields to update' });
-    }
-    
-    values.push(id);
-    const query = `UPDATE properties SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
-    
-    const result = await pool.query(query, values);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
-    }
-
-    res.json({ success: true, data: result.rows[0] });
-  } catch (error) {
-    console.error('PATCH property error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -5542,56 +5627,6 @@ app.get('/api/admin/debug/bookings-schema', async (req, res) => {
 app.get('/api/properties', async (req, res) => {
   const result = await beds24Request('/properties');
   res.json(result);
-});
-
-// PATCH property by ID (used by frontend property edit form)
-app.patch('/api/properties/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const updates = req.body;
-    
-    const allowedFields = [
-      'name', 'property_type', 'status', 'address', 'city', 'state', 
-      'postcode', 'country', 'latitude', 'longitude', 'phone', 'email',
-      'description', 'short_description', 'location_description',
-      'check_in_from', 'check_in_until', 'check_out_by', 'currency',
-      'cancellation_policy', 'house_rules', 'amenities', 'pets_allowed',
-      'smoking_allowed', 'children_allowed', 'events_allowed', 'featured',
-      'visible_public', 'visible_own_website', 'available_to_tas',
-      'security_deposit_amount', 'cleaning_fee', 'instant_book',
-      'min_advance_booking_hours', 'max_advance_booking_days'
-    ];
-    
-    const setClauses = [];
-    const values = [];
-    let paramIndex = 1;
-    
-    for (const [key, value] of Object.entries(updates)) {
-      if (allowedFields.includes(key)) {
-        setClauses.push(`${key} = $${paramIndex}`);
-        values.push(value);
-        paramIndex++;
-      }
-    }
-    
-    if (setClauses.length === 0) {
-      return res.status(400).json({ success: false, error: 'No valid fields to update' });
-    }
-    
-    values.push(id);
-    const query = `UPDATE properties SET ${setClauses.join(', ')}, updated_at = NOW() WHERE id = $${paramIndex} RETURNING *`;
-    
-    const result = await pool.query(query, values);
-    
-    if (result.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Property not found' });
-    }
-
-    res.json({ success: true, property: result.rows[0] });
-  } catch (error) {
-    console.error('PATCH /api/properties/:id error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
 });
 
 app.post('/api/setup-auth', async (req, res) => {
