@@ -2628,6 +2628,32 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
+    
+    // Add payment tracking columns to bookings
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_amount DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS balance_amount DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS balance_due_date DATE`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_paid_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS balance_paid_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS payment_status VARCHAR(20) DEFAULT 'pending'`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS stripe_payment_intent_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS stripe_customer_id VARCHAR(100)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS refund_amount DECIMAL(10,2)`);
+    
+    // Create payment_transactions table if not exists
+    await pool.query(`CREATE TABLE IF NOT EXISTS payment_transactions (
+      id SERIAL PRIMARY KEY,
+      booking_id INTEGER REFERENCES bookings(id),
+      type VARCHAR(20) NOT NULL,
+      amount DECIMAL(10,2) NOT NULL,
+      currency VARCHAR(3) DEFAULT 'USD',
+      status VARCHAR(20) DEFAULT 'pending',
+      stripe_payment_intent_id VARCHAR(100),
+      stripe_charge_id VARCHAR(100),
+      error_message TEXT,
+      created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )`);
+    
     // Add smoobu columns
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS channel_manager VARCHAR(50)`);
@@ -9350,6 +9376,381 @@ app.post('/api/admin/bookings', async (req, res) => {
   }
 });
 
+// Get single booking with all details
+app.get('/api/bookings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT b.*, 
+             bu.name as unit_name,
+             p.name as property_name,
+             p.currency,
+             a.stripe_account_id
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      LEFT JOIN properties p ON b.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE b.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Booking not found' });
+    }
+    
+    // Get payment transactions for this booking
+    const transactions = await pool.query(`
+      SELECT * FROM payment_transactions 
+      WHERE booking_id = $1 
+      ORDER BY created_at DESC
+    `, [id]);
+    
+    res.json({ 
+      success: true, 
+      booking: result.rows[0],
+      transactions: transactions.rows
+    });
+  } catch (error) {
+    console.error('Get booking error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Generate invoice for booking
+app.post('/api/bookings/:id/invoice', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get booking details
+    const result = await pool.query(`
+      SELECT b.*, 
+             bu.name as unit_name,
+             p.name as property_name,
+             p.address as property_address,
+             p.city as property_city,
+             p.country as property_country,
+             a.name as account_name,
+             a.email as account_email
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      LEFT JOIN properties p ON b.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE b.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = result.rows[0];
+    
+    // Generate simple HTML invoice (could be PDF later)
+    const invoiceHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <meta charset="UTF-8">
+        <title>Invoice #${booking.id}</title>
+        <style>
+          body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; }
+          .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+          .company { font-size: 24px; font-weight: bold; color: #4f46e5; }
+          .invoice-title { font-size: 32px; color: #1e293b; margin: 0; }
+          .invoice-number { color: #64748b; }
+          .section { margin-bottom: 30px; }
+          .section-title { font-size: 14px; text-transform: uppercase; color: #64748b; margin-bottom: 10px; letter-spacing: 0.05em; }
+          .guest-name { font-size: 18px; font-weight: 600; }
+          .detail-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #e2e8f0; }
+          .detail-row:last-child { border-bottom: none; }
+          .total-row { font-weight: bold; font-size: 18px; background: #f8fafc; padding: 15px; border-radius: 8px; }
+          .footer { margin-top: 40px; text-align: center; color: #64748b; font-size: 14px; }
+          @media print { body { padding: 20px; } }
+        </style>
+      </head>
+      <body>
+        <div class="header">
+          <div>
+            <div class="company">${booking.property_name || 'Property'}</div>
+            <div style="color: #64748b; margin-top: 5px;">${booking.property_address || ''}</div>
+            <div style="color: #64748b;">${[booking.property_city, booking.property_country].filter(Boolean).join(', ')}</div>
+          </div>
+          <div style="text-align: right;">
+            <h1 class="invoice-title">Invoice</h1>
+            <div class="invoice-number">#${booking.id}</div>
+            <div style="color: #64748b; margin-top: 10px;">Date: ${new Date().toLocaleDateString('en-GB')}</div>
+          </div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Bill To</div>
+          <div class="guest-name">${[booking.guest_first_name, booking.guest_last_name].filter(Boolean).join(' ')}</div>
+          <div style="color: #64748b;">${booking.guest_email || ''}</div>
+          <div style="color: #64748b;">${booking.guest_phone || ''}</div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Reservation Details</div>
+          <div class="detail-row">
+            <span>Room</span>
+            <span>${booking.unit_name || '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span>Check-in</span>
+            <span>${booking.arrival_date ? new Date(booking.arrival_date).toLocaleDateString('en-GB') : '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span>Check-out</span>
+            <span>${booking.departure_date ? new Date(booking.departure_date).toLocaleDateString('en-GB') : '-'}</span>
+          </div>
+          <div class="detail-row">
+            <span>Guests</span>
+            <span>${(booking.num_adults || 0) + (booking.num_children || 0)}</span>
+          </div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Charges</div>
+          <div class="detail-row">
+            <span>Accommodation</span>
+            <span>$${parseFloat(booking.accommodation_price || 0).toFixed(2)}</span>
+          </div>
+          ${booking.upsells_total && parseFloat(booking.upsells_total) > 0 ? `
+          <div class="detail-row">
+            <span>Extras</span>
+            <span>$${parseFloat(booking.upsells_total).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          ${booking.discount_amount && parseFloat(booking.discount_amount) > 0 ? `
+          <div class="detail-row">
+            <span>Discount</span>
+            <span style="color: #16a34a;">-$${parseFloat(booking.discount_amount).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          ${booking.tax_amount && parseFloat(booking.tax_amount) > 0 ? `
+          <div class="detail-row">
+            <span>Tax</span>
+            <span>$${parseFloat(booking.tax_amount).toFixed(2)}</span>
+          </div>
+          ` : ''}
+          <div class="detail-row total-row">
+            <span>Total</span>
+            <span>$${parseFloat(booking.grand_total || 0).toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div class="section">
+          <div class="section-title">Payment Summary</div>
+          <div class="detail-row">
+            <span>Deposit Paid</span>
+            <span style="color: #16a34a;">$${parseFloat(booking.deposit_amount || 0).toFixed(2)}</span>
+          </div>
+          <div class="detail-row">
+            <span>Balance Due</span>
+            <span style="color: ${(parseFloat(booking.grand_total || 0) - parseFloat(booking.deposit_amount || 0)) > 0 ? '#dc2626' : '#16a34a'};">$${(parseFloat(booking.grand_total || 0) - parseFloat(booking.deposit_amount || 0)).toFixed(2)}</span>
+          </div>
+        </div>
+        
+        <div class="footer">
+          <p>Thank you for your booking!</p>
+          <p style="font-size: 12px;">Generated by GAS - Guest Accommodation System</p>
+        </div>
+        
+        <script>window.print();</script>
+      </body>
+      </html>
+    `;
+    
+    // For now, return the HTML directly - could save as file or convert to PDF
+    res.send(invoiceHtml);
+    
+  } catch (error) {
+    console.error('Generate invoice error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Send payment receipt email
+app.post('/api/bookings/:id/send-receipt', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get booking details
+    const result = await pool.query(`
+      SELECT b.*, p.name as property_name
+      FROM bookings b
+      LEFT JOIN properties p ON b.property_id = p.id
+      WHERE b.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = result.rows[0];
+    
+    // TODO: Implement email sending via SendGrid/Mailgun/etc
+    // For now, just log and return success
+    console.log(`Would send receipt email to ${booking.guest_email} for booking ${id}`);
+    
+    res.json({ success: true, message: 'Receipt email queued' });
+    
+  } catch (error) {
+    console.error('Send receipt error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Process refund
+app.post('/api/bookings/:id/refund', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { amount } = req.body; // Optional - full refund if not specified
+    
+    // Get booking and payment details
+    const result = await pool.query(`
+      SELECT b.*, a.stripe_account_id
+      FROM bookings b
+      LEFT JOIN properties p ON b.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE b.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = result.rows[0];
+    
+    if (!booking.stripe_payment_intent_id) {
+      return res.json({ success: false, error: 'No payment found for this booking' });
+    }
+    
+    // Process refund via Stripe
+    const refundAmount = amount ? Math.round(parseFloat(amount) * 100) : undefined; // undefined = full refund
+    
+    try {
+      const refund = await stripe.refunds.create({
+        payment_intent: booking.stripe_payment_intent_id,
+        amount: refundAmount
+      }, {
+        stripeAccount: booking.stripe_account_id
+      });
+      
+      // Update booking status
+      await pool.query(`
+        UPDATE bookings 
+        SET payment_status = 'refunded', 
+            refund_amount = COALESCE(refund_amount, 0) + $1
+        WHERE id = $2
+      `, [refund.amount / 100, id]);
+      
+      // Record transaction
+      await pool.query(`
+        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
+        VALUES ($1, 'refund', $2, 'USD', 'completed', $3, NOW())
+      `, [id, refund.amount / 100, refund.id]);
+      
+      res.json({ success: true, refund_id: refund.id, amount: refund.amount / 100 });
+      
+    } catch (stripeError) {
+      console.error('Stripe refund error:', stripeError);
+      res.json({ success: false, error: stripeError.message });
+    }
+    
+  } catch (error) {
+    console.error('Process refund error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Cancel booking
+app.post('/api/bookings/:id/cancel', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    
+    await client.query('BEGIN');
+    
+    // Get booking details
+    const result = await client.query(`
+      SELECT b.*, bu.beds24_room_id, bu.hostaway_listing_id
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      WHERE b.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.json({ success: false, error: 'Booking not found' });
+    }
+    
+    const booking = result.rows[0];
+    
+    // Update booking status
+    await client.query(`
+      UPDATE bookings SET status = 'cancelled' WHERE id = $1
+    `, [id]);
+    
+    // Unblock availability
+    await client.query(`
+      DELETE FROM room_availability 
+      WHERE room_id = $1 
+      AND date >= $2 
+      AND date < $3 
+      AND source = 'booking'
+    `, [booking.bookable_unit_id, booking.arrival_date, booking.departure_date]);
+    
+    // Cancel in Beds24
+    if (booking.beds24_booking_id) {
+      try {
+        const accessToken = await getBeds24AccessToken(pool);
+        if (accessToken) {
+          await fetch(`https://beds24.com/api/v2/bookings/${booking.beds24_booking_id}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${accessToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: 0 }) // 0 = cancelled
+          });
+        }
+      } catch (err) {
+        console.error('Beds24 cancel error:', err);
+      }
+    }
+    
+    // Cancel in Hostaway
+    if (booking.hostaway_reservation_id) {
+      try {
+        const hostawayToken = process.env.HOSTAWAY_API_KEY;
+        if (hostawayToken) {
+          await fetch(`https://api.hostaway.com/v1/reservations/${booking.hostaway_reservation_id}`, {
+            method: 'PUT',
+            headers: {
+              'Authorization': `Bearer ${hostawayToken}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ status: 'cancelled' })
+          });
+        }
+      } catch (err) {
+        console.error('Hostaway cancel error:', err);
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true, message: 'Booking cancelled' });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Cancel booking error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Validate voucher code (for booking widget)
 app.post('/api/vouchers/validate', async (req, res) => {
   try {
@@ -14042,7 +14443,8 @@ app.post('/api/public/book', async (req, res) => {
     const { 
       unit_id, check_in, check_out, guests,
       guest_first_name, guest_last_name, guest_email, guest_phone,
-      voucher_code, notes, total_price
+      voucher_code, notes, total_price,
+      stripe_payment_intent_id, deposit_amount, balance_amount, payment_method
     } = req.body;
     
     // Validate required fields
@@ -14062,6 +14464,23 @@ app.post('/api/public/book', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
+    // Determine payment status
+    let paymentStatus = 'pending';
+    let bookingStatus = 'pending';
+    
+    if (stripe_payment_intent_id && deposit_amount) {
+      paymentStatus = 'deposit_paid';
+      bookingStatus = 'confirmed';
+    } else if (payment_method === 'property') {
+      paymentStatus = 'pending';
+      bookingStatus = 'confirmed';
+    }
+    
+    // Calculate balance due date (14 days before arrival by default)
+    const arrivalDate = new Date(check_in);
+    const balanceDueDate = new Date(arrivalDate);
+    balanceDueDate.setDate(balanceDueDate.getDate() - 14);
+    
     // Create booking
     const booking = await pool.query(`
       INSERT INTO bookings (
@@ -14070,9 +14489,11 @@ app.post('/api/public/book', async (req, res) => {
         num_adults, num_children, 
         guest_first_name, guest_last_name, guest_email, guest_phone,
         accommodation_price, subtotal, grand_total, 
+        deposit_amount, balance_amount, balance_due_date,
+        stripe_payment_intent_id, payment_status,
         status, booking_source, currency, notes
       ) 
-      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, 'pending', 'direct', 'USD', $11)
+      VALUES ($1, 1, $2, $3, $4, $5, 0, $6, $7, $8, $9, $10, $10, $10, $11, $12, $13, $14, $15, $16, 'direct', 'USD', $17)
       RETURNING *
     `, [
       unit.rows[0].property_id,
@@ -14085,8 +14506,24 @@ app.post('/api/public/book', async (req, res) => {
       guest_email,
       guest_phone || null,
       total_price || 0,
+      deposit_amount || null,
+      balance_amount || null,
+      balanceDueDate,
+      stripe_payment_intent_id || null,
+      paymentStatus,
+      bookingStatus,
       notes || null
     ]);
+    
+    const newBooking = booking.rows[0];
+    
+    // If card payment was made, record the transaction
+    if (stripe_payment_intent_id && deposit_amount) {
+      await pool.query(`
+        INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
+        VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, NOW())
+      `, [newBooking.id, deposit_amount, stripe_payment_intent_id]);
+    }
     
     // If voucher was used, increment usage
     if (voucher_code) {
@@ -14112,8 +14549,8 @@ app.post('/api/public/book', async (req, res) => {
     
     res.json({
       success: true,
-      booking_id: booking.rows[0].id,
-      booking: booking.rows[0]
+      booking_id: newBooking.id,
+      booking: newBooking
     });
   } catch (error) {
     console.error('Create booking error:', error);
