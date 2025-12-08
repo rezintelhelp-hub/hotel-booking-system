@@ -16563,6 +16563,10 @@ app.get('/api/admin/fix-api-keys-table', async (req, res) => {
 
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
+  // Don't serve index.html for API routes - return 404 instead
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
+  }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
