@@ -9416,6 +9416,24 @@ app.get('/api/bookings/:id', async (req, res) => {
   }
 });
 
+// Delete booking
+app.delete('/api/bookings/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete payment transactions first
+    await pool.query('DELETE FROM payment_transactions WHERE booking_id = $1', [id]);
+    
+    // Delete the booking
+    await pool.query('DELETE FROM bookings WHERE id = $1', [id]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete booking error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Generate invoice for booking
 app.post('/api/bookings/:id/invoice', async (req, res) => {
   try {
