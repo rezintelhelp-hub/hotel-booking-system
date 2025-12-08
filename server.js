@@ -1600,6 +1600,319 @@ app.post('/api/accounts/:accountId/stripe-disconnect', async (req, res) => {
     }
 });
 
+// =====================================================
+// DEPOSIT RULES API
+// =====================================================
+
+// Get deposit rules for a property
+app.get('/api/properties/:propertyId/deposit-rules', async (req, res) => {
+    try {
+        const { propertyId } = req.params;
+        
+        const result = await pool.query(`
+            SELECT * FROM deposit_rules 
+            WHERE property_id = $1 
+            ORDER BY is_active DESC, created_at DESC
+        `, [propertyId]);
+        
+        res.json({ success: true, rules: result.rows });
+    } catch (error) {
+        console.error('Error getting deposit rules:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get single deposit rule
+app.get('/api/deposit-rules/:ruleId', async (req, res) => {
+    try {
+        const { ruleId } = req.params;
+        
+        const result = await pool.query('SELECT * FROM deposit_rules WHERE id = $1', [ruleId]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Rule not found' });
+        }
+        
+        res.json({ success: true, rule: result.rows[0] });
+    } catch (error) {
+        console.error('Error getting deposit rule:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Create deposit rule
+app.post('/api/properties/:propertyId/deposit-rules', async (req, res) => {
+    try {
+        const { propertyId } = req.params;
+        const {
+            rule_name,
+            deposit_type,
+            deposit_percentage,
+            deposit_fixed_amount,
+            balance_due_type,
+            balance_due_days,
+            auto_charge_balance,
+            auto_charge_days_before,
+            refund_policy,
+            valid_from,
+            valid_until,
+            min_nights,
+            max_nights,
+            is_active
+        } = req.body;
+        
+        // Get account_id from property
+        const property = await pool.query('SELECT account_id FROM properties WHERE id = $1', [propertyId]);
+        if (property.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Property not found' });
+        }
+        const accountId = property.rows[0].account_id;
+        
+        const result = await pool.query(`
+            INSERT INTO deposit_rules (
+                property_id, account_id, rule_name, deposit_type, deposit_percentage,
+                deposit_fixed_amount, balance_due_type, balance_due_days,
+                auto_charge_balance, auto_charge_days_before, refund_policy,
+                valid_from, valid_until, min_nights, max_nights, is_active
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            RETURNING *
+        `, [
+            propertyId, accountId, rule_name || 'Default',
+            deposit_type || 'percentage', deposit_percentage || 30,
+            deposit_fixed_amount, balance_due_type || 'days_before',
+            balance_due_days || 14, auto_charge_balance || false,
+            auto_charge_days_before || 14, refund_policy || 'flexible',
+            valid_from || null, valid_until || null,
+            min_nights || null, max_nights || null, is_active !== false
+        ]);
+        
+        res.json({ success: true, rule: result.rows[0] });
+    } catch (error) {
+        console.error('Error creating deposit rule:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Update deposit rule
+app.put('/api/deposit-rules/:ruleId', async (req, res) => {
+    try {
+        const { ruleId } = req.params;
+        const {
+            rule_name,
+            deposit_type,
+            deposit_percentage,
+            deposit_fixed_amount,
+            balance_due_type,
+            balance_due_days,
+            auto_charge_balance,
+            auto_charge_days_before,
+            refund_policy,
+            valid_from,
+            valid_until,
+            min_nights,
+            max_nights,
+            is_active
+        } = req.body;
+        
+        const result = await pool.query(`
+            UPDATE deposit_rules SET
+                rule_name = COALESCE($1, rule_name),
+                deposit_type = COALESCE($2, deposit_type),
+                deposit_percentage = COALESCE($3, deposit_percentage),
+                deposit_fixed_amount = $4,
+                balance_due_type = COALESCE($5, balance_due_type),
+                balance_due_days = COALESCE($6, balance_due_days),
+                auto_charge_balance = COALESCE($7, auto_charge_balance),
+                auto_charge_days_before = COALESCE($8, auto_charge_days_before),
+                refund_policy = COALESCE($9, refund_policy),
+                valid_from = $10,
+                valid_until = $11,
+                min_nights = $12,
+                max_nights = $13,
+                is_active = COALESCE($14, is_active),
+                updated_at = NOW()
+            WHERE id = $15
+            RETURNING *
+        `, [
+            rule_name, deposit_type, deposit_percentage, deposit_fixed_amount,
+            balance_due_type, balance_due_days, auto_charge_balance,
+            auto_charge_days_before, refund_policy, valid_from, valid_until,
+            min_nights, max_nights, is_active, ruleId
+        ]);
+        
+        if (result.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Rule not found' });
+        }
+        
+        res.json({ success: true, rule: result.rows[0] });
+    } catch (error) {
+        console.error('Error updating deposit rule:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Delete deposit rule
+app.delete('/api/deposit-rules/:ruleId', async (req, res) => {
+    try {
+        const { ruleId } = req.params;
+        
+        await pool.query('DELETE FROM deposit_rules WHERE id = $1', [ruleId]);
+        
+        res.json({ success: true, message: 'Rule deleted' });
+    } catch (error) {
+        console.error('Error deleting deposit rule:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// =====================================================
+// PAYMENT PROCESSING API
+// =====================================================
+
+// Create payment intent for a booking deposit
+app.post('/api/bookings/:bookingId/create-payment', async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        const { amount, payment_type } = req.body; // payment_type: 'deposit' or 'balance' or 'full'
+        
+        // Get booking with property and account info
+        const booking = await pool.query(`
+            SELECT b.*, p.account_id, p.name as property_name, a.stripe_account_id
+            FROM bookings b
+            JOIN properties p ON b.property_id = p.id
+            JOIN accounts a ON p.account_id = a.id
+            WHERE b.id = $1
+        `, [bookingId]);
+        
+        if (booking.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Booking not found' });
+        }
+        
+        const bookingData = booking.rows[0];
+        
+        if (!bookingData.stripe_account_id) {
+            return res.status(400).json({ success: false, error: 'Property owner has not connected Stripe' });
+        }
+        
+        // Create payment intent on connected account
+        const paymentIntent = await stripe.paymentIntents.create({
+            amount: Math.round(amount * 100), // Convert to cents
+            currency: 'gbp', // Default to GBP, could be made dynamic
+            metadata: {
+                booking_id: bookingId,
+                payment_type: payment_type,
+                property_name: bookingData.property_name
+            }
+        }, {
+            stripeAccount: bookingData.stripe_account_id
+        });
+        
+        // Update booking with payment intent ID
+        await pool.query(`
+            UPDATE bookings SET stripe_payment_intent_id = $1, updated_at = NOW()
+            WHERE id = $2
+        `, [paymentIntent.id, bookingId]);
+        
+        res.json({
+            success: true,
+            client_secret: paymentIntent.client_secret,
+            payment_intent_id: paymentIntent.id
+        });
+        
+    } catch (error) {
+        console.error('Error creating payment:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Confirm payment completed (webhook or manual)
+app.post('/api/payments/confirm', async (req, res) => {
+    try {
+        const { payment_intent_id, booking_id } = req.body;
+        
+        // Get booking
+        const booking = await pool.query(`
+            SELECT b.*, p.account_id, a.stripe_account_id
+            FROM bookings b
+            JOIN properties p ON b.property_id = p.id
+            JOIN accounts a ON p.account_id = a.id
+            WHERE b.id = $1
+        `, [booking_id]);
+        
+        if (booking.rows.length === 0) {
+            return res.status(404).json({ success: false, error: 'Booking not found' });
+        }
+        
+        const bookingData = booking.rows[0];
+        
+        // Verify payment with Stripe
+        const paymentIntent = await stripe.paymentIntents.retrieve(
+            payment_intent_id,
+            { stripeAccount: bookingData.stripe_account_id }
+        );
+        
+        if (paymentIntent.status !== 'succeeded') {
+            return res.status(400).json({ success: false, error: 'Payment not completed' });
+        }
+        
+        const amount = paymentIntent.amount / 100; // Convert from cents
+        const paymentType = paymentIntent.metadata.payment_type || 'deposit';
+        
+        // Record transaction
+        await pool.query(`
+            INSERT INTO payment_transactions (
+                booking_id, account_id, transaction_type, amount, currency,
+                payment_gateway, gateway_transaction_id, status,
+                payment_method_type, completed_at
+            ) VALUES ($1, $2, $3, $4, $5, 'stripe', $6, 'completed', 'card', NOW())
+        `, [
+            booking_id, bookingData.account_id, paymentType, amount,
+            paymentIntent.currency.toUpperCase(), payment_intent_id
+        ]);
+        
+        // Update booking status
+        let newStatus = 'deposit_paid';
+        let updateFields = 'deposit_amount = $1, deposit_paid_at = NOW()';
+        
+        if (paymentType === 'balance') {
+            newStatus = 'fully_paid';
+            updateFields = 'balance_amount = $1, balance_paid_at = NOW()';
+        } else if (paymentType === 'full') {
+            newStatus = 'fully_paid';
+            updateFields = 'total_amount = $1, deposit_paid_at = NOW(), balance_paid_at = NOW()';
+        }
+        
+        await pool.query(`
+            UPDATE bookings SET payment_status = $1, ${updateFields}, updated_at = NOW()
+            WHERE id = $2
+        `, [newStatus, amount, booking_id]);
+        
+        res.json({ success: true, status: newStatus, amount: amount });
+        
+    } catch (error) {
+        console.error('Error confirming payment:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Get payment history for a booking
+app.get('/api/bookings/:bookingId/payments', async (req, res) => {
+    try {
+        const { bookingId } = req.params;
+        
+        const result = await pool.query(`
+            SELECT * FROM payment_transactions
+            WHERE booking_id = $1
+            ORDER BY created_at DESC
+        `, [bookingId]);
+        
+        res.json({ success: true, payments: result.rows });
+    } catch (error) {
+        console.error('Error getting payments:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // Get account subscription
 app.get('/api/admin/accounts/:id/subscription', async (req, res) => {
   try {
