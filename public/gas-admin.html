@@ -8335,6 +8335,123 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+    <!-- Edit Booking Modal -->
+    <div id="edit-booking-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px;">
+            <div class="modal-header">
+                <h3>Edit Booking <span id="edit-booking-ref" style="color: var(--primary); font-weight: 600;"></span></h3>
+                <button class="modal-close" onclick="closeEditBookingModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="edit-booking-id">
+                <input type="hidden" id="edit-booking-beds24-id">
+                
+                <!-- Guest Details -->
+                <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">Guest Details</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">First Name *</label>
+                            <input type="text" class="form-input" id="edit-booking-first-name" required>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Last Name *</label>
+                            <input type="text" class="form-input" id="edit-booking-last-name" required>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Email *</label>
+                            <input type="email" class="form-input" id="edit-booking-email" required>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-input" id="edit-booking-phone">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Stay Details -->
+                <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">Stay Details</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Check-in *</label>
+                            <input type="date" class="form-input" id="edit-booking-checkin" required>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Check-out *</label>
+                            <input type="date" class="form-input" id="edit-booking-checkout" required>
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Adults</label>
+                            <input type="number" class="form-input" id="edit-booking-adults" min="1" value="1">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Children</label>
+                            <input type="number" class="form-input" id="edit-booking-children" min="0" value="0">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Pricing -->
+                <div style="background: #f8fafc; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">Pricing & Payment</h4>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Total Price</label>
+                            <input type="number" class="form-input" id="edit-booking-total" step="0.01" min="0">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Deposit Paid</label>
+                            <input type="number" class="form-input" id="edit-booking-deposit" step="0.01" min="0">
+                        </div>
+                        <div class="form-group" style="margin: 0;">
+                            <label class="form-label">Balance Due</label>
+                            <input type="number" class="form-input" id="edit-booking-balance" step="0.01" min="0">
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Status -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Booking Status</label>
+                        <select class="form-input" id="edit-booking-status">
+                            <option value="pending">Pending</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="cancelled">Cancelled</option>
+                            <option value="completed">Completed</option>
+                            <option value="no_show">No Show</option>
+                        </select>
+                    </div>
+                    <div class="form-group" style="margin: 0;">
+                        <label class="form-label">Payment Status</label>
+                        <select class="form-input" id="edit-booking-payment-status">
+                            <option value="pending">Pending</option>
+                            <option value="deposit_paid">Deposit Paid</option>
+                            <option value="paid">Fully Paid</option>
+                            <option value="refunded">Refunded</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Notes -->
+                <div class="form-group" style="margin-bottom: 0;">
+                    <label class="form-label">Notes</label>
+                    <textarea class="form-input" id="edit-booking-notes" rows="2" placeholder="Internal notes..."></textarea>
+                </div>
+                
+                <!-- Sync info -->
+                <div id="edit-booking-sync-info" style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-radius: 6px; font-size: 0.85rem; color: #92400e; display: none;">
+                    ⚠️ This booking is synced with <span id="edit-booking-sync-source"></span>. Changes will be pushed to the channel manager.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeEditBookingModal()">Cancel</button>
+                <button class="btn" onclick="saveBookingEdit()" id="save-booking-btn">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Offer Modal -->
     <div id="addOfferModal" class="modal">
         <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
@@ -18177,8 +18294,130 @@ Local honey and preserves"></textarea>
             viewBooking(id);
         }
         
-        function editBooking(id) {
-            alert('Booking edit coming soon!');
+        async function editBooking(id) {
+            try {
+                // Fetch booking details
+                const response = await fetch(`/api/bookings/${id}`);
+                const data = await response.json();
+                
+                if (!data.success || !data.booking) {
+                    alert('Error loading booking details');
+                    return;
+                }
+                
+                const booking = data.booking;
+                
+                // Populate modal fields
+                document.getElementById('edit-booking-id').value = booking.id;
+                document.getElementById('edit-booking-beds24-id').value = booking.beds24_booking_id || '';
+                document.getElementById('edit-booking-ref').textContent = `#${booking.id}`;
+                
+                // Guest details
+                document.getElementById('edit-booking-first-name').value = booking.guest_first_name || '';
+                document.getElementById('edit-booking-last-name').value = booking.guest_last_name || '';
+                document.getElementById('edit-booking-email').value = booking.guest_email || '';
+                document.getElementById('edit-booking-phone').value = booking.guest_phone || '';
+                
+                // Stay details
+                document.getElementById('edit-booking-checkin').value = booking.arrival_date?.split('T')[0] || '';
+                document.getElementById('edit-booking-checkout').value = booking.departure_date?.split('T')[0] || '';
+                document.getElementById('edit-booking-adults').value = booking.num_adults || 1;
+                document.getElementById('edit-booking-children').value = booking.num_children || 0;
+                
+                // Pricing
+                document.getElementById('edit-booking-total').value = booking.grand_total || booking.accommodation_price || 0;
+                document.getElementById('edit-booking-deposit').value = booking.deposit_amount || 0;
+                document.getElementById('edit-booking-balance').value = booking.balance_amount || 0;
+                
+                // Status
+                document.getElementById('edit-booking-status').value = booking.status || 'pending';
+                document.getElementById('edit-booking-payment-status').value = booking.payment_status || 'pending';
+                
+                // Notes
+                document.getElementById('edit-booking-notes').value = booking.notes || '';
+                
+                // Show sync warning if linked to channel manager
+                const syncInfo = document.getElementById('edit-booking-sync-info');
+                const syncSource = document.getElementById('edit-booking-sync-source');
+                if (booking.beds24_booking_id) {
+                    syncInfo.style.display = 'block';
+                    syncSource.textContent = 'Beds24';
+                } else if (booking.hostaway_reservation_id) {
+                    syncInfo.style.display = 'block';
+                    syncSource.textContent = 'Hostaway';
+                } else if (booking.smoobu_booking_id) {
+                    syncInfo.style.display = 'block';
+                    syncSource.textContent = 'Smoobu';
+                } else {
+                    syncInfo.style.display = 'none';
+                }
+                
+                // Open modal
+                document.getElementById('edit-booking-modal').style.display = 'flex';
+                
+            } catch (error) {
+                console.error('Error loading booking:', error);
+                alert('Error loading booking details');
+            }
+        }
+        
+        function closeEditBookingModal() {
+            document.getElementById('edit-booking-modal').style.display = 'none';
+        }
+        
+        async function saveBookingEdit() {
+            const btn = document.getElementById('save-booking-btn');
+            btn.disabled = true;
+            btn.textContent = 'Saving...';
+            
+            try {
+                const bookingId = document.getElementById('edit-booking-id').value;
+                
+                const updates = {
+                    guest_first_name: document.getElementById('edit-booking-first-name').value,
+                    guest_last_name: document.getElementById('edit-booking-last-name').value,
+                    guest_email: document.getElementById('edit-booking-email').value,
+                    guest_phone: document.getElementById('edit-booking-phone').value,
+                    arrival_date: document.getElementById('edit-booking-checkin').value,
+                    departure_date: document.getElementById('edit-booking-checkout').value,
+                    num_adults: parseInt(document.getElementById('edit-booking-adults').value) || 1,
+                    num_children: parseInt(document.getElementById('edit-booking-children').value) || 0,
+                    grand_total: parseFloat(document.getElementById('edit-booking-total').value) || 0,
+                    deposit_amount: parseFloat(document.getElementById('edit-booking-deposit').value) || 0,
+                    balance_amount: parseFloat(document.getElementById('edit-booking-balance').value) || 0,
+                    status: document.getElementById('edit-booking-status').value,
+                    payment_status: document.getElementById('edit-booking-payment-status').value,
+                    notes: document.getElementById('edit-booking-notes').value
+                };
+                
+                const response = await fetch(`/api/bookings/${bookingId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeEditBookingModal();
+                    loadBookingsForProperty();
+                    
+                    // Show sync status
+                    if (data.beds24_synced) {
+                        alert('✅ Booking updated and synced to Beds24');
+                    } else {
+                        alert('✅ Booking updated');
+                    }
+                } else {
+                    alert('Error saving booking: ' + (data.error || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error saving booking:', error);
+                alert('Error saving booking');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Save Changes';
+            }
         }
         
         async function deleteBooking(id) {
