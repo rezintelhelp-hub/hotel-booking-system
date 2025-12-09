@@ -5007,6 +5007,26 @@
 
                 <div class="card">
                     <div class="card-header">
+                        <h3 class="card-title">🔔 Webhook Setup (Beds24)</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">To receive real-time booking updates from Beds24 (when bookings come from Airbnb, Booking.com, etc.), configure the webhook in Beds24:</p>
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; margin: 0 0 0.5rem 0; color: #64748b;"><strong>Webhook URL:</strong></p>
+                        <code id="webhook-url" style="display: block; background: #1e293b; color: #22c55e; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; word-break: break-all;"></code>
+                        <button onclick="copyWebhookUrl()" class="btn btn-secondary btn-small" style="margin-top: 0.5rem;">📋 Copy URL</button>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary);"><strong>Steps in Beds24:</strong></p>
+                    <ol style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 1rem; line-height: 1.6;">
+                        <li>Go to Settings → Apps & Integrations → API</li>
+                        <li>Click "Notifications" or "Webhooks"</li>
+                        <li>Add the webhook URL above</li>
+                        <li>Enable notifications for: New Bookings, Modified Bookings, Cancelled Bookings</li>
+                        <li>Save changes</li>
+                    </ol>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
                         <h3 class="card-title">Review Apps</h3>
                         <button class="btn btn-secondary btn-small">Configure</button>
                     </div>
@@ -12618,6 +12638,26 @@ Local honey and preserves"></textarea>
                 setTimeout(() => notification.remove(), 2000);
             });
         }
+        
+        // Copy webhook URL to clipboard
+        function copyWebhookUrl() {
+            const webhookUrl = window.location.origin + '/api/webhooks/beds24';
+            navigator.clipboard.writeText(webhookUrl).then(() => {
+                const notification = document.createElement('div');
+                notification.textContent = '✅ Webhook URL copied!';
+                notification.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: var(--success); color: white; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 500; z-index: 9999; animation: fadeIn 0.2s;';
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 2000);
+            });
+        }
+        
+        // Initialize webhook URL display
+        function initWebhookUrl() {
+            const webhookUrlEl = document.getElementById('webhook-url');
+            if (webhookUrlEl) {
+                webhookUrlEl.textContent = window.location.origin + '/api/webhooks/beds24';
+            }
+        }
 
         // Load WordPress view data
         async function loadWordPressView() {
@@ -15014,6 +15054,9 @@ Local honey and preserves"></textarea>
                     </table>
                 </div>
             `;
+            
+            // Initialize webhook URL display
+            initWebhookUrl();
         }
 
         // Modal Functions
@@ -15471,10 +15514,24 @@ Local honey and preserves"></textarea>
             endDate.setDate(endDate.getDate() + GRID_DAYS - 1);
             const toDate = endDate.toISOString().split('T')[0];
             
-            // Update date range display and date picker
-            const opts = { month: 'short', day: 'numeric' };
-            document.getElementById('grid-date-range').textContent = 
-                `${gridStartDate.toLocaleDateString('en-US', opts)} - ${endDate.toLocaleDateString('en-US', opts)}`;
+            // Update date range display and date picker with month name
+            const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                               'July', 'August', 'September', 'October', 'November', 'December'];
+            const startMonth = monthNames[gridStartDate.getMonth()];
+            const endMonth = monthNames[endDate.getMonth()];
+            const startYear = gridStartDate.getFullYear();
+            const endYear = endDate.getFullYear();
+            
+            let dateRangeText = '';
+            if (startMonth === endMonth && startYear === endYear) {
+                dateRangeText = `${startMonth} ${startYear} (${gridStartDate.getDate()} - ${endDate.getDate()})`;
+            } else if (startYear === endYear) {
+                dateRangeText = `${startMonth} ${gridStartDate.getDate()} - ${endMonth} ${endDate.getDate()}, ${startYear}`;
+            } else {
+                dateRangeText = `${startMonth} ${gridStartDate.getDate()}, ${startYear} - ${endMonth} ${endDate.getDate()}, ${endYear}`;
+            }
+            
+            document.getElementById('grid-date-range').textContent = dateRangeText;
             document.getElementById('grid-date-picker').value = fromDate;
             
             // Load availability for all rooms
@@ -15551,12 +15608,16 @@ Local honey and preserves"></textarea>
                     let bgColor = '#d1fae5'; // green - available
                     let text = '';
                     let textColor = '#065f46';
+                    let isBooked = false;
+                    let bookingId = null;
                     
                     if (dayData) {
                         if (dayData.is_booked || (!dayData.is_available && !dayData.is_blocked)) {
                             bgColor = '#fee2e2'; // red - booked
                             text = dayData.guest_name ? dayData.guest_name.split(' ')[0] : '×';
                             textColor = '#991b1b';
+                            isBooked = true;
+                            bookingId = dayData.booking_id || null;
                         } else if (dayData.is_blocked) {
                             bgColor = '#fef3c7'; // yellow
                             text = '✕';
@@ -15569,8 +15630,16 @@ Local honey and preserves"></textarea>
                         textColor = '#9ca3af';
                     }
                     
-                    html += `<td style="padding: 2px; text-align: center; background: ${bgColor}; color: ${textColor}; font-size: 0.7rem; cursor: ${isPast ? 'default' : 'pointer'};"
-                        onclick="selectDateRange('${room.id}', '${dateStr}')">${text}</td>`;
+                    // If booked, clicking opens booking detail; otherwise select date range
+                    const clickHandler = isBooked && bookingId 
+                        ? `openBookingDetail(${bookingId})`
+                        : `selectDateRange('${room.id}', '${dateStr}')`;
+                    const cursorStyle = isPast ? 'default' : 'pointer';
+                    const titleAttr = isBooked && dayData.guest_name ? `title="View booking: ${dayData.guest_name}"` : '';
+                    
+                    html += `<td style="padding: 2px; text-align: center; background: ${bgColor}; color: ${textColor}; font-size: 0.7rem; cursor: ${cursorStyle};"
+                        ${titleAttr}
+                        onclick="${clickHandler}">${text}</td>`;
                 });
                 html += '</tr>';
                 
@@ -15668,21 +15737,37 @@ Local honey and preserves"></textarea>
         }
         
         async function syncBeds24() {
-            if (!confirm('Sync availability and pricing from Beds24?')) return;
+            if (!confirm('Sync availability, pricing AND bookings from Beds24?')) return;
             
             const btn = document.getElementById('sync-beds24-btn');
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
             
             try {
-                const response = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
-                const result = await response.json();
+                // First sync prices/availability
+                const priceResponse = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
+                const priceResult = await priceResponse.json();
                 
-                if (result.success) {
-                    alert(`✅ Beds24 Sync complete!\n\n${result.roomsCount} rooms\n${result.totalPricesFound} prices`);
+                // Then sync bookings (to block dates from external channels)
+                const bookingResponse = await fetch('/api/admin/sync-beds24-bookings', { method: 'POST' });
+                const bookingResult = await bookingResponse.json();
+                
+                let message = '✅ Beds24 Sync complete!\n\n';
+                if (priceResult.success) {
+                    message += `📊 Prices: ${priceResult.roomsCount} rooms, ${priceResult.totalPricesFound} prices\n`;
                 } else {
-                    alert(`❌ Beds24 Sync failed: ${result.error}`);
+                    message += `⚠️ Price sync: ${priceResult.error}\n`;
                 }
+                if (bookingResult.success) {
+                    message += `📅 Bookings: ${bookingResult.bookingsFound} found, ${bookingResult.bookingsProcessed || 0} processed, ${bookingResult.datesUpdated} dates blocked`;
+                    if (bookingResult.skipped > 0) {
+                        message += ` (${bookingResult.skipped} skipped)`;
+                    }
+                } else {
+                    message += `⚠️ Booking sync: ${bookingResult.error}`;
+                }
+                
+                alert(message);
             } catch (error) {
                 alert(`❌ Error: ${error.message}`);
             }
@@ -18023,6 +18108,11 @@ Local honey and preserves"></textarea>
                 console.error('Error cancelling booking:', error);
                 alert('Error cancelling booking');
             }
+        }
+        
+        // Alias for clicking on booked dates in the calendar grid
+        function openBookingDetail(id) {
+            viewBooking(id);
         }
         
         function editBooking(id) {
