@@ -15743,31 +15743,35 @@ Local honey and preserves"></textarea>
             btn.disabled = true;
             btn.textContent = '⏳ Syncing...';
             
+            let message = '';
+            
             try {
                 // First sync prices/availability
+                btn.textContent = '⏳ Syncing prices...';
                 const priceResponse = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
                 const priceResult = await priceResponse.json();
                 
+                if (priceResult.success) {
+                    message += `📊 Prices: ${priceResult.roomsCount || 0} rooms, ${priceResult.totalPricesFound || 0} prices\n`;
+                } else {
+                    message += `⚠️ Price sync: ${priceResult.error || 'Failed'}\n`;
+                }
+                
                 // Then sync bookings (to block dates from external channels)
+                btn.textContent = '⏳ Syncing bookings...';
                 const bookingResponse = await fetch('/api/admin/sync-beds24-bookings', { method: 'POST' });
                 const bookingResult = await bookingResponse.json();
                 
-                let message = '✅ Beds24 Sync complete!\n\n';
-                if (priceResult.success) {
-                    message += `📊 Prices: ${priceResult.roomsCount} rooms, ${priceResult.totalPricesFound} prices\n`;
-                } else {
-                    message += `⚠️ Price sync: ${priceResult.error}\n`;
-                }
                 if (bookingResult.success) {
-                    message += `📅 Bookings: ${bookingResult.bookingsFound} found, ${bookingResult.bookingsProcessed || 0} processed, ${bookingResult.datesUpdated} dates blocked`;
+                    message += `📅 Bookings: ${bookingResult.bookingsFound || 0} found, ${bookingResult.bookingsProcessed || 0} processed, ${bookingResult.datesUpdated || 0} dates blocked`;
                     if (bookingResult.skipped > 0) {
                         message += ` (${bookingResult.skipped} skipped)`;
                     }
                 } else {
-                    message += `⚠️ Booking sync: ${bookingResult.error}`;
+                    message += `⚠️ Booking sync: ${bookingResult.error || 'Failed'}`;
                 }
                 
-                alert(message);
+                alert('✅ Beds24 Sync complete!\n\n' + message);
             } catch (error) {
                 alert(`❌ Error: ${error.message}`);
             }
