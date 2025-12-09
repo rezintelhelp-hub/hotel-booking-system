@@ -18802,53 +18802,12 @@ app.get('/api/admin/fix-api-keys-table', async (req, res) => {
   }
 });
 
-// TEMP ADMIN SETUP - REMOVE AFTER USE
-app.get('/api/setup-admin/:email/:password', async (req, res) => {
-  try {
-    const { email, password } = req.params;
-    const crypto = require('crypto');
-    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
-    
-    // Check if account exists
-    const existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [email]);
-    
-    if (existing.rows.length > 0) {
-      // Update password
-      await pool.query('UPDATE accounts SET password_hash = $1 WHERE email = $2', [passwordHash, email]);
-      res.json({ success: true, message: 'Password updated for ' + email });
-    } else {
-      // Create new admin account
-      const apiKey = crypto.randomBytes(32).toString('hex');
-      await pool.query(
-        'INSERT INTO accounts (name, email, password_hash, role, api_key, status) VALUES ($1, $2, $3, $4, $5, $6)',
-        ['Admin', email, passwordHash, 'admin', apiKey, 'active']
-      );
-      res.json({ success: true, message: 'Admin created: ' + email });
-    }
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// TEMP - List all accounts and properties
-app.get('/api/debug/accounts', async (req, res) => {
-  try {
-    const accounts = await pool.query('SELECT id, name, email, role FROM accounts ORDER BY id');
-    const properties = await pool.query('SELECT id, name, account_id FROM properties ORDER BY id');
-    res.json({ accounts: accounts.rows, properties: properties.rows });
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
-
-// TEMP - Link all properties to an account
-app.get('/api/debug/link-properties/:accountId', async (req, res) => {
+// TEMP - Delete account by ID (use carefully!)
+app.get('/api/debug/delete-account/:accountId', async (req, res) => {
   try {
     const { accountId } = req.params;
-    await pool.query('UPDATE properties SET account_id = $1 WHERE account_id IS NULL OR account_id != $1', [accountId]);
-    await pool.query('UPDATE bookable_units SET account_id = $1', [accountId]);
-    await pool.query('UPDATE bookings SET property_owner_id = $1', [accountId]);
-    res.json({ success: true, message: 'All data linked to account ' + accountId });
+    await pool.query('DELETE FROM accounts WHERE id = $1', [accountId]);
+    res.json({ success: true, message: 'Account ' + accountId + ' deleted' });
   } catch (error) {
     res.json({ error: error.message });
   }
