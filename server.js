@@ -1990,6 +1990,40 @@ app.post('/api/payments/confirm', async (req, res) => {
             WHERE id = $2
         `, [newStatus, amount, booking_id]);
         
+        // Sync payment to Beds24 if booking is linked
+        try {
+          const beds24Check = await pool.query(`
+            SELECT b.beds24_booking_id, bu.beds24_room_id
+            FROM bookings b
+            LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+            WHERE b.id = $1 AND b.beds24_booking_id IS NOT NULL
+          `, [booking_id]);
+          
+          if (beds24Check.rows[0]?.beds24_booking_id) {
+            const accessToken = await getBeds24AccessToken(pool);
+            const paymentDesc = paymentType === 'balance' ? 'Balance payment via Stripe' : 
+                               paymentType === 'full' ? 'Full payment via Stripe' : 'Deposit via Stripe';
+            
+            const paymentData = [{
+              id: beds24Check.rows[0].beds24_booking_id,
+              payments: [{
+                description: paymentDesc,
+                amount: amount,
+                status: 'received',
+                date: new Date().toISOString().split('T')[0]
+              }]
+            }];
+            
+            await axios.post('https://beds24.com/api/v2/bookings', paymentData, {
+              headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+            });
+            console.log(`Payment synced to Beds24 for booking ${booking_id}`);
+          }
+        } catch (beds24Error) {
+          console.error('Could not sync payment to Beds24:', beds24Error.message);
+          // Continue - don't fail the payment confirmation
+        }
+        
         res.json({ success: true, status: newStatus, amount: amount });
         
     } catch (error) {
@@ -10787,6 +10821,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
       
       const bookings = await pool.query(`
         SELECT 
+          id as booking_id,
           "${checkInCol}" as check_in,
           "${checkOutCol}" as check_out,
           COALESCE(guest_first_name, '') || ' ' || COALESCE(guest_last_name, '') as guest_name,
@@ -10810,6 +10845,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
           }
           availMap[dateStr].is_booked = true;
           availMap[dateStr].guest_name = b.guest_name;
+          availMap[dateStr].booking_id = b.booking_id;
         }
       });
     } catch (bookingErr) {
@@ -13211,6 +13247,71 @@ app.get('/api/webhooks/beds24', (req, res) => {
 });
 
 // =========================================================
+// SYNC PAYMENT TO BEDS24
+// =========================================================
+app.post('/api/admin/sync-payment-to-beds24', async (req, res) => {
+  try {
+    const { booking_id, payment_type, amount, description } = req.body;
+    
+    if (!booking_id || !amount) {
+      return res.json({ success: false, error: 'booking_id and amount required' });
+    }
+    
+    // Get booking with Beds24 ID
+    const bookingResult = await pool.query(`
+      SELECT b.*, bu.beds24_room_id
+      FROM bookings b
+      LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+      WHERE b.id = $1
+    `, [booking_id]);
+    
+    const booking = bookingResult.rows[0];
+    
+    if (!booking) {
+      return res.json({ success: false, error: 'Booking not found' });
+    }
+    
+    if (!booking.beds24_booking_id) {
+      return res.json({ success: false, error: 'No Beds24 booking ID - booking may not be synced to Beds24' });
+    }
+    
+    // Get Beds24 access token
+    const accessToken = await getBeds24AccessToken(pool);
+    
+    // Update the booking in Beds24 with the payment
+    const paymentData = [{
+      id: booking.beds24_booking_id,
+      payments: [{
+        description: description || (payment_type === 'balance' ? 'Balance payment via Stripe' : 'Payment via Stripe'),
+        amount: parseFloat(amount),
+        status: 'received',
+        date: new Date().toISOString().split('T')[0]
+      }]
+    }];
+    
+    console.log('Syncing payment to Beds24:', JSON.stringify(paymentData));
+    
+    const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', paymentData, {
+      headers: {
+        'token': accessToken,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('Beds24 payment sync response:', JSON.stringify(beds24Response.data));
+    
+    res.json({
+      success: true,
+      beds24_response: beds24Response.data
+    });
+    
+  } catch (error) {
+    console.error('Sync payment to Beds24 error:', error.response?.data || error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
 // MANUAL SYNC TRIGGER - Pull changes from Beds24
 // =========================================================
 app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
@@ -13223,7 +13324,9 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
     const fromDate = new Date(today);
     fromDate.setDate(fromDate.getDate() - 7); // Include bookings from last week
     const toDate = new Date(today);
-    toDate.setDate(toDate.getDate() + 90); // Up to 90 days out
+    toDate.setDate(toDate.getDate() + 180); // Up to 180 days out
+    
+    console.log(`Fetching Beds24 bookings from ${fromDate.toISOString().split('T')[0]} to ${toDate.toISOString().split('T')[0]}`);
     
     const response = await axios.get('https://beds24.com/api/v2/bookings', {
       headers: { 'token': accessToken },
@@ -13233,8 +13336,62 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
       }
     });
     
-    const bookings = response.data.data || [];
+    console.log('Beds24 bookings API response structure:', JSON.stringify(response.data).substring(0, 500));
+    
+    // Beds24 v2 API returns array directly or in .data
+    const bookings = Array.isArray(response.data) ? response.data : (response.data.data || response.data.bookings || []);
     console.log(`Found ${bookings.length} bookings from Beds24`);
+    
+    if (bookings.length > 0) {
+      console.log('Sample booking structure:', JSON.stringify(bookings[0]).substring(0, 300));
+    }
+    
+    // Update availability based on bookings
+    const client = await pool.connect();
+    let updatedDates = 0;
+    let processedBookings = 0;
+    let skippedBookings = [];
+    
+    try {
+      await client.query('BEGIN');
+      
+      for (const booking of bookings) {
+        // Skip cancelled bookings
+        if (booking.status === 'cancelled' || booking.status === 'Cancelled') {
+          skippedBookings.push({ id: booking.id, reason: 'cancelled' });
+          continue;
+        }
+        
+        // Get room ID - Beds24 v2 uses roomId
+        const beds24RoomId = booking.roomId || booking.room_id || booking.unitId;
+        
+        if (!beds24RoomId) {
+          skippedBookings.push({ id: booking.id, reason: 'no room ID' });
+          continue;
+        }
+        
+        // Find our room
+        const roomResult = await client.query(`
+          SELECT id, name FROM bookable_units WHERE beds24_room_id = $1
+        `, [beds24RoomId]);
+        
+        if (roomResult.rows.length === 0) {
+          skippedBookings.push({ id: booking.id, beds24RoomId, reason: 'room not mapped' });
+          continue;
+        }
+        
+        const ourRoom = roomResult.rows[0];
+        
+        // Get dates - Beds24 v2 uses arrival/departure
+        const arrival = booking.arrival || booking.firstNight || booking.arrivalDate;
+        const departure = booking.departure || booking.lastNight || booking.departureDate;
+        
+        console.log(`Processing booking ${booking.id}: room ${beds24RoomId} (${ourRoom.name}), ${arrival} to ${departure}`);
+        
+        if (!arrival || !departure) {
+          skippedBookings.push({ id: booking.id, reason: 'missing dates' });
+          continue;
+        }
     
     // Update availability based on bookings
     const client = await pool.connect();
@@ -13257,7 +13414,10 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
         const arrival = booking.arrival || booking.firstNight;
         const departure = booking.departure || booking.lastNight;
         
-        if (!arrival || !departure) continue;
+        if (!arrival || !departure) {
+          skippedBookings.push({ id: booking.id, reason: 'missing dates' });
+          continue;
+        }
         
         // Block these dates
         const startDate = new Date(arrival);
@@ -13270,9 +13430,10 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
             VALUES ($1, $2, false, false, 'beds24_sync')
             ON CONFLICT (room_id, date) 
             DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
-          `, [ourRoomId, dateStr]);
+          `, [ourRoom.id, dateStr]);
           updatedDates++;
         }
+        processedBookings++;
       }
       
       await client.query('COMMIT');
@@ -13280,10 +13441,17 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
       client.release();
     }
     
+    console.log(`Sync complete: ${processedBookings} bookings processed, ${updatedDates} dates blocked`);
+    if (skippedBookings.length > 0) {
+      console.log('Skipped bookings:', JSON.stringify(skippedBookings.slice(0, 10)));
+    }
+    
     res.json({
       success: true,
       bookingsFound: bookings.length,
-      datesUpdated: updatedDates
+      bookingsProcessed: processedBookings,
+      datesUpdated: updatedDates,
+      skipped: skippedBookings.length
     });
     
   } catch (error) {
@@ -14719,6 +14887,17 @@ app.post('/api/public/book', async (req, res) => {
       try {
         const accessToken = await getBeds24AccessToken(pool);
         
+        // Build payment array if deposit was taken
+        const payments = [];
+        if (stripe_payment_intent_id && deposit_amount) {
+          payments.push({
+            description: 'Deposit via Stripe',
+            amount: parseFloat(deposit_amount),
+            status: 'received',
+            date: new Date().toISOString().split('T')[0]
+          });
+        }
+        
         const beds24Booking = [{
           roomId: cmData.beds24_room_id,
           status: 'confirmed',
@@ -14738,13 +14917,15 @@ app.post('/api/public/book', async (req, res) => {
           referer: 'GAS Direct Booking',
           notes: `GAS Booking ID: ${newBooking.id}`,
           price: parseFloat(total_price) || 0,
+          deposit: deposit_amount ? parseFloat(deposit_amount) : 0,
           invoiceItems: [{
             description: 'Accommodation',
             status: '',
             qty: 1,
             amount: parseFloat(total_price) || 0,
             vatRate: 0
-          }]
+          }],
+          payments: payments.length > 0 ? payments : undefined
         }];
         
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
