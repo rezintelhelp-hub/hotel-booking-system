@@ -2324,6 +2324,7 @@
                             </select>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
+                            <button class="btn btn-secondary" onclick="refreshCalendar()" title="Refresh calendar data" style="padding: 0.5rem 0.75rem;">🔄</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(-7)">‹‹</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(-1)">‹</button>
                             <button class="btn btn-secondary" onclick="goToToday()">Today</button>
@@ -15523,6 +15524,21 @@ Local honey and preserves"></textarea>
             gridStartDate = new Date();
             gridStartDate.setHours(0, 0, 0, 0);
             loadGridData();
+        }
+        
+        async function refreshCalendar() {
+            // Refresh calendar data without changing the current date position
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳';
+            btn.disabled = true;
+            
+            try {
+                await loadGridData();
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
         }
         
         async function loadGridData() {
