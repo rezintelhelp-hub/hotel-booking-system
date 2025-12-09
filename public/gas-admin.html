@@ -19541,15 +19541,19 @@ Local honey and preserves"></textarea>
             const listEl = document.getElementById('bulk-property-list');
             
             // Fetch properties for current account
-            const accountId = currentAccountFilter || '';
+            const accountId = currentAccountFilter && currentAccountFilter !== 'all' ? currentAccountFilter : '';
             let url = '/api/db/properties';
             if (accountId) {
                 url += `?account_id=${accountId}`;
             }
             
+            console.log('Fetching properties from:', url);
+            
             try {
                 const response = await fetch(url);
                 const data = await response.json();
+                
+                console.log('Properties response:', data);
                 
                 if (data.success && data.data && data.data.length > 0) {
                     listEl.innerHTML = data.data.map(prop => `
@@ -19559,7 +19563,7 @@ Local honey and preserves"></textarea>
                         </label>
                     `).join('');
                 } else {
-                    listEl.innerHTML = '<p style="color: var(--text-secondary); padding: 1rem; text-align: center;">No properties found</p>';
+                    listEl.innerHTML = '<p style="color: var(--text-secondary); padding: 1rem; text-align: center;">No properties found. Try selecting an account filter first.</p>';
                 }
             } catch (error) {
                 console.error('Error loading properties:', error);
