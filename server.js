@@ -14936,6 +14936,9 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     const { clientId } = req.params;
     const { property_id, room_ids, limit, random } = req.query;
     
+    // Get today's date for rate calendar lookup
+    const today = new Date().toISOString().split('T')[0];
+    
     let query = `
       SELECT 
         bu.id,
@@ -14953,14 +14956,15 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         p.name as property_name,
         p.city,
         p.currency,
-        (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url
+        (SELECT image_url FROM room_images WHERE room_id = bu.id AND is_active = true ORDER BY is_primary DESC, display_order ASC LIMIT 1) as image_url,
+        (SELECT COALESCE(standard_price, cm_price) FROM room_availability WHERE room_id = bu.id AND date = $2 LIMIT 1) as todays_rate
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       WHERE p.account_id = $1
     `;
     
-    const params = [clientId];
-    let paramIndex = 2;
+    const params = [clientId, today];
+    let paramIndex = 3;
     
     // Filter by property
     if (property_id) {
@@ -14994,6 +14998,12 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     
     const result = await pool.query(query, params);
     
+    // Use today's rate if available, otherwise fall back to base_price
+    const rooms = result.rows.map(room => ({
+      ...room,
+      price: room.todays_rate || room.base_price || 0
+    }));
+    
     // Get max guests across all rooms
     const maxGuestsResult = await pool.query(`
       SELECT MAX(COALESCE(bu.max_guests, bu.max_adults, 2)) as max_guests
@@ -15004,9 +15014,9 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     
     res.json({
       success: true,
-      rooms: result.rows,
+      rooms: rooms,
       meta: {
-        total: result.rows.length,
+        total: rooms.length,
         max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10
       }
     });
