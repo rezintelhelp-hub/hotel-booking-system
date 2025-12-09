@@ -13450,86 +13450,60 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
     `);
     
     const rooms = roomsResult.rows;
-    const beds24RoomIds = rooms.map(r => r.beds24_room_id);
-    
-    console.log(`Full inventory sync: checking ${rooms.length} rooms for next 90 days`);
+    console.log(`Full inventory sync: checking ${rooms.length} rooms using availability endpoint`);
     
     let inventoryBlocksFound = 0;
     let inventoryDatesBlocked = 0;
-    const numDays = 90;
     
-    for (let i = 0; i < numDays; i++) {
-      const checkDate = new Date(today);
-      checkDate.setDate(checkDate.getDate() + i);
-      const arrival = checkDate.toISOString().split('T')[0];
-      
-      const departDate = new Date(checkDate);
-      departDate.setDate(departDate.getDate() + 1);
-      const departure = departDate.toISOString().split('T')[0];
-      
+    // Calculate date range - next 90 days
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = new Date(today.getTime() + 90*24*60*60*1000).toISOString().split('T')[0];
+    
+    // For each room, get availability
+    for (const room of rooms) {
       try {
-        const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+        const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
           headers: { 'token': accessToken },
-          params: {
-            roomId: beds24RoomIds,
-            arrival: arrival,
-            departure: departure,
-            numAdults: 1
-          },
-          paramsSerializer: params => {
-            const parts = [];
-            for (const key in params) {
-              if (Array.isArray(params[key])) {
-                params[key].forEach(val => parts.push(`${key}=${val}`));
-              } else {
-                parts.push(`${key}=${params[key]}`);
-              }
-            }
-            return parts.join('&');
+          params: { 
+            roomId: room.beds24_room_id,
+            startDate,
+            endDate
           }
         });
         
-        const offers = Array.isArray(offerResponse.data) ? offerResponse.data : (offerResponse.data.data || []);
-        const availableRoomIds = new Set(offers.map(o => o.roomId));
-        
-        // Log first day to debug
-        if (i === 0) {
-          console.log(`Day 1 (${arrival}) - Offers returned for rooms:`, Array.from(availableRoomIds));
-          console.log(`Day 1 - All rooms:`, beds24RoomIds);
-          console.log(`Day 1 - Missing (blocked):`, beds24RoomIds.filter(id => !availableRoomIds.has(id)));
-        }
-        
-        for (const room of rooms) {
-          if (!availableRoomIds.has(room.beds24_room_id)) {
-            inventoryBlocksFound++;
-            
-            await pool.query(`
-              INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-              VALUES ($1, $2, false, true, 'beds24_inventory')
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET is_available = false, is_blocked = true, 
-                source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
-                updated_at = NOW()
-            `, [room.id, arrival]);
-            
-            inventoryDatesBlocked++;
+        const data = availResponse.data?.data?.[0];
+        if (data && data.availability) {
+          // Loop through each date
+          for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
+            if (isAvailable === false) {
+              // This date is blocked in Beds24
+              inventoryBlocksFound++;
+              
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                VALUES ($1, $2, false, true, 'beds24_inventory')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET is_available = false, is_blocked = true, 
+                  source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
+                  updated_at = NOW()
+              `, [room.id, dateStr]);
+              
+              inventoryDatesBlocked++;
+            }
           }
+          console.log(`Room ${room.name}: synced availability`);
         }
         
-      } catch (dayError) {
-        if (i === 0) console.log(`Error checking day ${arrival}: ${dayError.message}`);
-      }
-      
-      if (i % 30 === 0 && i > 0) {
-        console.log(`Inventory check: day ${i}/${numDays}, ${inventoryBlocksFound} blocks found`);
+      } catch (roomError) {
+        console.log(`Error syncing room ${room.beds24_room_id}: ${roomError.message}`);
       }
     }
     
-    console.log(`Full inventory sync complete: ${inventoryBlocksFound} blocked dates found`);
+    console.log(`Full inventory sync complete: ${inventoryBlocksFound} blocked dates found across ${rooms.length} rooms`);
     
     res.json({
       success: true,
-      daysChecked: numDays,
+      roomsChecked: rooms.length,
       inventoryBlocksFound,
       inventoryDatesBlocked
     });
