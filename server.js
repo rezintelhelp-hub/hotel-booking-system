@@ -13608,6 +13608,98 @@ app.get('/api/admin/debug/beds24-availability/:date', async (req, res) => {
   }
 });
 
+// Debug endpoint - check Beds24 inventory/calendar directly
+app.get('/api/admin/debug/beds24-inventory/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { from, to } = req.query;
+    const accessToken = await getBeds24AccessToken(pool);
+    
+    const startDate = from || new Date().toISOString().split('T')[0];
+    const endDate = to || new Date(Date.now() + 30*24*60*60*1000).toISOString().split('T')[0];
+    
+    // Try multiple Beds24 endpoints to find inventory data
+    const results = {};
+    
+    // 1. Try /inventory/rooms endpoint
+    try {
+      const invResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms', {
+        headers: { 'token': accessToken },
+        params: { roomId }
+      });
+      results.inventoryRooms = invResponse.data;
+    } catch (e) {
+      results.inventoryRooms = { error: e.message };
+    }
+    
+    // 2. Try /inventory/rooms/availability endpoint
+    try {
+      const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+        headers: { 'token': accessToken },
+        params: { 
+          roomId,
+          startDate,
+          endDate
+        }
+      });
+      results.availability = availResponse.data;
+    } catch (e) {
+      results.availability = { error: e.message };
+    }
+    
+    // 3. Try /inventory/rooms/calendar endpoint
+    try {
+      const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+        headers: { 'token': accessToken },
+        params: { 
+          roomId,
+          startDate,
+          endDate
+        }
+      });
+      results.calendar = calResponse.data;
+    } catch (e) {
+      results.calendar = { error: e.message };
+    }
+    
+    // 4. Try /properties/rooms endpoint
+    try {
+      const propsResponse = await axios.get('https://beds24.com/api/v2/properties/rooms', {
+        headers: { 'token': accessToken },
+        params: { roomId }
+      });
+      results.propertiesRooms = propsResponse.data;
+    } catch (e) {
+      results.propertiesRooms = { error: e.message };
+    }
+    
+    // 5. Try /inventory endpoint with dates
+    try {
+      const invDateResponse = await axios.get('https://beds24.com/api/v2/inventory', {
+        headers: { 'token': accessToken },
+        params: { 
+          roomId,
+          startDate,
+          endDate
+        }
+      });
+      results.inventory = invDateResponse.data;
+    } catch (e) {
+      results.inventory = { error: e.message };
+    }
+    
+    res.json({
+      roomId,
+      startDate,
+      endDate,
+      results
+    });
+    
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // AI CONTENT GENERATION
 // =====================================================
