@@ -5020,11 +5020,13 @@
                     </div>
                     <p style="font-size: 0.85rem; color: var(--text-secondary);"><strong>Steps in Beds24:</strong></p>
                     <ol style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 1rem; line-height: 1.8;">
-                        <li>Go to <strong>Settings → Apps & Integrations → API</strong></li>
-                        <li>Click <strong>"Notifications"</strong> or <strong>"Webhooks"</strong></li>
-                        <li>Add the webhook URL above</li>
-                        <li>Enable notifications for: <strong>New Bookings, Modified, Cancelled</strong></li>
-                        <li>Save changes</li>
+                        <li>Go to <strong>Settings → Properties → Access</strong></li>
+                        <li>Find the <strong>"Booking Webhooks"</strong> section</li>
+                        <li>Set <strong>Webhook Version</strong> to "2 - with personal data"</li>
+                        <li>Paste the webhook URL above into the <strong>URL</strong> field</li>
+                        <li>Leave Custom Header empty</li>
+                        <li>Click <strong>Save</strong></li>
+                        <li><em>Repeat for each property</em></li>
                     </ol>
                     <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.75rem; margin-top: 1rem;">
                         <p style="font-size: 0.85rem; margin: 0; color: #92400e;">
@@ -15805,7 +15807,7 @@ Local honey and preserves"></textarea>
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Full Inventory Sync Complete!\n\n🗓️ ${result.roomsChecked || 0} rooms checked (365 days)\n🚫 ${result.inventoryBlocksFound} blocked dates found`);
+                    alert(`✅ Full Inventory Sync Complete!\n\n🗓️ ${result.roomsChecked || 0} rooms checked (365 days)\n🚫 ${result.inventoryBlocksFound || 0} blocked dates\n✅ ${result.datesUnblocked || 0} dates unblocked`);
                 } else {
                     alert(`❌ Sync failed: ${result.error}`);
                 }
