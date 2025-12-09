@@ -3196,10 +3196,14 @@
                 <div class="card" style="margin-bottom: 1rem;">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Apply To</label>
                             <select id="deposit-rules-property-select" class="form-input" onchange="loadDepositRulesForProperty()">
                                 <option value="">Select Property...</option>
+                                <option value="all">🏢 All Properties (Account Default)</option>
                             </select>
+                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                                💡 "All Properties" creates a default rule for all properties. Property-specific rules override the default.
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -19315,17 +19319,29 @@ Local honey and preserves"></textarea>
         // =====================================================
         
         async function loadDepositRulesForProperty() {
-            const propertyId = document.getElementById('deposit-rules-property-select').value;
+            const selectValue = document.getElementById('deposit-rules-property-select').value;
             const listEl = document.getElementById('deposit-rules-list');
             
-            if (!propertyId) {
-                listEl.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Select a property to view deposit rules</p>';
+            if (!selectValue) {
+                listEl.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Select a property or "All Properties" to view deposit rules</p>';
                 return;
             }
             
             try {
-                const response = await fetch(`/api/properties/${propertyId}/deposit-rules`);
+                let response;
+                let isAccountLevel = selectValue === 'all';
+                
+                if (isAccountLevel) {
+                    // Get account ID from current filter or default
+                    const accountId = currentAccountFilter || 1;
+                    response = await fetch(`/api/accounts/${accountId}/deposit-rules`);
+                } else {
+                    response = await fetch(`/api/properties/${selectValue}/deposit-rules`);
+                }
+                
                 const data = await response.json();
+                
+                const scopeLabel = isAccountLevel ? '🏢 Account Default' : '🏠 Property Specific';
                 
                 if (data.success && data.rules && data.rules.length > 0) {
                     listEl.innerHTML = data.rules.map(rule => `
@@ -19335,6 +19351,7 @@ Local honey and preserves"></textarea>
                                     <h4 style="margin-bottom: 0.5rem;">
                                         ${rule.rule_name || 'Unnamed Rule'}
                                         ${rule.is_active ? '<span class="badge badge-success" style="margin-left: 0.5rem;">Active</span>' : '<span class="badge badge-secondary" style="margin-left: 0.5rem;">Inactive</span>'}
+                                        <span class="badge" style="margin-left: 0.5rem; background: #e0e7ff; color: #3730a3;">${scopeLabel}</span>
                                     </h4>
                                     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-top: 1rem;">
                                         <div>
@@ -19363,11 +19380,12 @@ Local honey and preserves"></textarea>
                         </div>
                     `).join('');
                 } else {
+                    const createLabel = isAccountLevel ? 'Create Account Default Rule' : 'Create First Rule';
                     listEl.innerHTML = `
                         <div style="text-align: center; padding: 2rem;">
-                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">No deposit rules configured for this property.</p>
+                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">No deposit rules configured${isAccountLevel ? ' for this account' : ' for this property'}.</p>
                             <button class="btn" onclick="openAddDepositRuleModal()">
-                                + Create First Rule
+                                + ${createLabel}
                             </button>
                         </div>
                     `;
@@ -19398,15 +19416,18 @@ Local honey and preserves"></textarea>
         }
         
         function openAddDepositRuleModal() {
-            const propertyId = document.getElementById('deposit-rules-property-select').value;
-            if (!propertyId) {
-                alert('Please select a property first');
+            const selectValue = document.getElementById('deposit-rules-property-select').value;
+            if (!selectValue) {
+                alert('Please select a property or "All Properties" first');
                 return;
             }
             
+            const isAccountLevel = selectValue === 'all';
+            const defaultName = isAccountLevel ? 'Account Default Deposit' : 'Standard Deposit';
+            
             document.getElementById('deposit-rule-id').value = '';
-            document.getElementById('deposit-rule-property-id').value = propertyId;
-            document.getElementById('deposit-rule-name').value = 'Standard Deposit';
+            document.getElementById('deposit-rule-property-id').value = selectValue;
+            document.getElementById('deposit-rule-name').value = defaultName;
             document.getElementById('deposit-type').value = 'percentage';
             document.getElementById('deposit-percentage').value = '30';
             document.getElementById('deposit-fixed-amount').value = '';
@@ -19454,7 +19475,8 @@ Local honey and preserves"></textarea>
         
         async function saveDepositRule() {
             const ruleId = document.getElementById('deposit-rule-id').value;
-            const propertyId = document.getElementById('deposit-rule-property-id').value;
+            const selectValue = document.getElementById('deposit-rule-property-id').value;
+            const isAccountLevel = selectValue === 'all';
             
             const data = {
                 rule_name: document.getElementById('deposit-rule-name').value,
@@ -19475,8 +19497,15 @@ Local honey and preserves"></textarea>
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data)
                     });
+                } else if (isAccountLevel) {
+                    const accountId = currentAccountFilter || 1;
+                    response = await fetch(`/api/accounts/${accountId}/deposit-rules`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
                 } else {
-                    response = await fetch(`/api/properties/${propertyId}/deposit-rules`, {
+                    response = await fetch(`/api/properties/${selectValue}/deposit-rules`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data)
