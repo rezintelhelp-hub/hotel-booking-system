@@ -15767,6 +15767,10 @@ Local honey and preserves"></textarea>
                     if (bookingResult.skipped > 0) {
                         message += ` (${bookingResult.skipped} skipped)`;
                     }
+                    message += '\n';
+                    if (bookingResult.inventoryBlocksFound > 0 || bookingResult.inventoryDatesBlocked > 0) {
+                        message += `🚫 Inventory blocks: ${bookingResult.inventoryBlocksFound || 0} found, ${bookingResult.inventoryDatesBlocked || 0} synced`;
+                    }
                 } else {
                     message += `⚠️ Booking sync: ${bookingResult.error || 'Failed'}`;
                 }
