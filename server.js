@@ -13136,46 +13136,67 @@ app.post('/api/rooms/:id/features', async (req, res) => {
 // URL: https://your-domain.railway.app/api/webhooks/beds24
 
 app.post('/api/webhooks/beds24', async (req, res) => {
+  // Log EVERYTHING that comes in
+  console.log('=== BEDS24 WEBHOOK RECEIVED ===');
+  console.log('Headers:', JSON.stringify(req.headers));
+  console.log('Body:', JSON.stringify(req.body));
+  console.log('Query:', JSON.stringify(req.query));
+  console.log('===============================');
+  
+  // Always respond 200 OK immediately so Beds24 doesn't retry
+  res.status(200).json({ success: true, received: true });
+  
   const client = await pool.connect();
   try {
     const webhookData = req.body;
-    console.log('Beds24 webhook received:', JSON.stringify(webhookData).substring(0, 500));
     
-    // Beds24 sends different event types
-    // Common events: booking created, booking modified, booking cancelled, availability changed
+    // Beds24 v2 webhook format may have booking data directly or nested
+    const booking = webhookData.booking || webhookData;
     
-    const eventType = webhookData.action || webhookData.type || 'unknown';
-    const bookingId = webhookData.bookingId || webhookData.id;
-    const roomId = webhookData.roomId;
-    const propertyId = webhookData.propertyId;
+    const eventType = webhookData.action || webhookData.type || webhookData.event || 'unknown';
+    const bookingId = booking.id || booking.bookingId || webhookData.bookingId;
+    const roomId = booking.roomId || webhookData.roomId;
+    const propertyId = booking.propertyId || webhookData.propertyId;
+    const status = booking.status || webhookData.status;
     
-    console.log(`Webhook event: ${eventType}, bookingId: ${bookingId}, roomId: ${roomId}`);
+    console.log(`Webhook parsed - event: ${eventType}, bookingId: ${bookingId}, roomId: ${roomId}, status: ${status}`);
     
-    // Handle different event types
-    if (eventType === 'new' || eventType === 'modify' || eventType === 'booking') {
-      // A booking was created or modified in Beds24
-      // We need to update our availability
+    // Handle different scenarios
+    // If status is cancelled, re-open dates. Otherwise block them.
+    const isCancelled = status === 'cancelled' || status === 'Cancelled' || 
+                        eventType === 'cancel' || eventType === 'delete' || eventType === 'cancelled';
+    
+    if (roomId) {
+      // Find our room by beds24_room_id
+      const roomResult = await client.query(`
+        SELECT id FROM bookable_units WHERE beds24_room_id = $1
+      `, [roomId]);
       
-      if (roomId) {
-        // Find our room by beds24_room_id
-        const roomResult = await client.query(`
-          SELECT id FROM bookable_units WHERE beds24_room_id = $1
-        `, [roomId]);
+      if (roomResult.rows.length > 0) {
+        const ourRoomId = roomResult.rows[0].id;
+        const arrival = booking.arrival || booking.firstNight || webhookData.arrival;
+        const departure = booking.departure || booking.lastNight || webhookData.departure;
         
-        if (roomResult.rows.length > 0) {
-          const ourRoomId = roomResult.rows[0].id;
-          const arrival = webhookData.arrival || webhookData.firstNight;
-          const departure = webhookData.departure || webhookData.lastNight;
+        console.log(`Found our room ${ourRoomId}, arrival: ${arrival}, departure: ${departure}, cancelled: ${isCancelled}`);
+        
+        if (arrival && departure) {
+          const startDate = new Date(arrival);
+          const endDate = new Date(departure);
           
-          if (arrival && departure) {
-            // Block these dates in our system
-            const startDate = new Date(arrival);
-            const endDate = new Date(departure);
+          await client.query('BEGIN');
+          
+          for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
             
-            await client.query('BEGIN');
-            
-            for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
-              const dateStr = d.toISOString().split('T')[0];
+            if (isCancelled) {
+              // Re-open the dates (only if source was webhook)
+              await client.query(`
+                UPDATE room_availability 
+                SET is_available = true, is_blocked = false, source = 'beds24_webhook_cancel', updated_at = NOW()
+                WHERE room_id = $1 AND date = $2 AND source LIKE 'beds24%'
+              `, [ourRoomId, dateStr]);
+            } else {
+              // Block the dates
               await client.query(`
                 INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
                 VALUES ($1, $2, false, false, 'beds24_webhook')
@@ -13183,55 +13204,20 @@ app.post('/api/webhooks/beds24', async (req, res) => {
                 DO UPDATE SET is_available = false, source = 'beds24_webhook', updated_at = NOW()
               `, [ourRoomId, dateStr]);
             }
-            
-            await client.query('COMMIT');
-            console.log(`Updated availability for room ${ourRoomId}: ${arrival} to ${departure}`);
           }
-        }
-      }
-    } else if (eventType === 'cancel' || eventType === 'delete') {
-      // A booking was cancelled - re-open the dates
-      console.log('Booking cancelled, re-opening availability');
-      
-      if (roomId) {
-        const roomResult = await client.query(`
-          SELECT id FROM bookable_units WHERE beds24_room_id = $1
-        `, [roomId]);
-        
-        if (roomResult.rows.length > 0) {
-          const ourRoomId = roomResult.rows[0].id;
-          const arrival = webhookData.arrival || webhookData.firstNight;
-          const departure = webhookData.departure || webhookData.lastNight;
           
-          if (arrival && departure) {
-            const startDate = new Date(arrival);
-            const endDate = new Date(departure);
-            
-            await client.query('BEGIN');
-            
-            for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
-              const dateStr = d.toISOString().split('T')[0];
-              await client.query(`
-                UPDATE room_availability 
-                SET is_available = true, source = 'beds24_webhook_cancel', updated_at = NOW()
-                WHERE room_id = $1 AND date = $2
-              `, [ourRoomId, dateStr]);
-            }
-            
-            await client.query('COMMIT');
-            console.log(`Re-opened availability for room ${ourRoomId}: ${arrival} to ${departure}`);
-          }
+          await client.query('COMMIT');
+          console.log(`✅ Webhook processed: ${isCancelled ? 'UNBLOCKED' : 'BLOCKED'} room ${ourRoomId} from ${arrival} to ${departure}`);
         }
+      } else {
+        console.log(`⚠️ No matching room found for beds24_room_id: ${roomId}`);
       }
+    } else {
+      console.log('⚠️ No roomId in webhook payload');
     }
-    
-    // Always respond with 200 to acknowledge receipt
-    res.status(200).json({ success: true, received: true });
     
   } catch (error) {
     console.error('Webhook processing error:', error);
-    // Still return 200 to prevent Beds24 from retrying
-    res.status(200).json({ success: false, error: error.message });
   } finally {
     client.release();
   }
@@ -13454,6 +13440,7 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
     
     let inventoryBlocksFound = 0;
     let inventoryDatesBlocked = 0;
+    let datesUnblocked = 0;
     
     // Calculate date range - next 365 days
     const startDate = today.toISOString().split('T')[0];
@@ -13489,6 +13476,18 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
               `, [room.id, dateStr]);
               
               inventoryDatesBlocked++;
+            } else {
+              // This date is AVAILABLE in Beds24 - unblock if it was blocked by beds24
+              const result = await pool.query(`
+                UPDATE room_availability 
+                SET is_available = true, is_blocked = false, source = 'beds24_unblocked', updated_at = NOW()
+                WHERE room_id = $1 AND date = $2 AND source IN ('beds24_inventory', 'beds24_sync', 'beds24_webhook')
+                RETURNING id
+              `, [room.id, dateStr]);
+              
+              if (result.rowCount > 0) {
+                datesUnblocked++;
+              }
             }
           }
           console.log(`Room ${room.name}: synced availability`);
@@ -13499,13 +13498,14 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
       }
     }
     
-    console.log(`Full inventory sync complete: ${inventoryBlocksFound} blocked dates found across ${rooms.length} rooms`);
+    console.log(`Full inventory sync complete: ${inventoryBlocksFound} blocked, ${datesUnblocked} unblocked across ${rooms.length} rooms`);
     
     res.json({
       success: true,
       roomsChecked: rooms.length,
       inventoryBlocksFound,
-      inventoryDatesBlocked
+      inventoryDatesBlocked,
+      datesUnblocked
     });
     
   } catch (error) {
@@ -18480,6 +18480,7 @@ async function runBeds24InventorySync() {
     const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
     
     let inventoryBlocksFound = 0;
+    let datesUnblocked = 0;
     
     for (const room of rooms) {
       try {
@@ -18501,6 +18502,14 @@ async function runBeds24InventorySync() {
                   source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
                   updated_at = NOW()
               `, [room.id, dateStr]);
+            } else {
+              // Unblock if it was blocked by beds24
+              const result = await pool.query(`
+                UPDATE room_availability 
+                SET is_available = true, is_blocked = false, source = 'beds24_unblocked', updated_at = NOW()
+                WHERE room_id = $1 AND date = $2 AND source IN ('beds24_inventory', 'beds24_sync', 'beds24_webhook')
+              `, [room.id, dateStr]);
+              if (result.rowCount > 0) datesUnblocked++;
             }
           }
         }
@@ -18509,7 +18518,7 @@ async function runBeds24InventorySync() {
       }
     }
     
-    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${inventoryBlocksFound} blocked dates from ${rooms.length} rooms`);
+    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${inventoryBlocksFound} blocked, ${datesUnblocked} unblocked from ${rooms.length} rooms`);
   } catch (error) {
     console.error('⏰ [Scheduled] Beds24 inventory sync error:', error.message);
   }
