@@ -3202,9 +3202,9 @@
                                 <option value="all">🏢 All Properties (Account Default)</option>
                             </select>
                         </div>
-                        <div style="display: flex; align-items: flex-end;">
-                            <button class="btn" onclick="openBulkDepositRuleModal()" style="background: #6366f1;">
-                                📋 Apply to Multiple Properties
+                        <div style="display: flex; align-items: flex-end; flex-shrink: 0;">
+                            <button class="btn" onclick="openBulkDepositRuleModal()" style="background: #6366f1; white-space: nowrap; padding: 0.75rem 1rem;">
+                                📋 Apply to Multiple
                             </button>
                         </div>
                     </div>
@@ -19417,8 +19417,8 @@ Local honey and preserves"></textarea>
                 let isAccountLevel = selectValue === 'all';
                 
                 if (isAccountLevel) {
-                    // Get account ID from current filter or default
-                    const accountId = currentAccountFilter || 1;
+                    // Get account ID from current filter
+                    const accountId = selectedAccountId || 1;
                     response = await fetch(`/api/accounts/${accountId}/deposit-rules`);
                 } else {
                     response = await fetch(`/api/properties/${selectValue}/deposit-rules`);
@@ -19540,14 +19540,14 @@ Local honey and preserves"></textarea>
         async function openBulkDepositRuleModal() {
             const listEl = document.getElementById('bulk-property-list');
             
-            // Fetch properties for current account
-            const accountId = currentAccountFilter && currentAccountFilter !== 'all' ? currentAccountFilter : '';
+            // Fetch properties for current account (use selectedAccountId from filter)
+            const accountId = selectedAccountId || '';
             let url = '/api/db/properties';
             if (accountId) {
                 url += `?account_id=${accountId}`;
             }
             
-            console.log('Fetching properties from:', url);
+            console.log('Fetching properties from:', url, 'selectedAccountId:', selectedAccountId);
             
             try {
                 const response = await fetch(url);
@@ -19693,7 +19693,7 @@ Local honey and preserves"></textarea>
                         body: JSON.stringify(data)
                     });
                 } else if (isAccountLevel) {
-                    const accountId = currentAccountFilter || 1;
+                    const accountId = selectedAccountId || 1;
                     response = await fetch(`/api/accounts/${accountId}/deposit-rules`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
