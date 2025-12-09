@@ -15072,6 +15072,47 @@ app.post('/api/public/book', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
+    // ========== REAL-TIME AVAILABILITY CHECK ==========
+    // Check Beds24 for latest availability before confirming booking
+    const beds24RoomId = unit.rows[0].beds24_room_id;
+    if (beds24RoomId) {
+      try {
+        const accessToken = await getBeds24AccessToken(pool);
+        if (accessToken) {
+          console.log(`Real-time availability check for room ${beds24RoomId}: ${check_in} to ${check_out}`);
+          
+          const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+            headers: { 'token': accessToken },
+            params: {
+              roomId: beds24RoomId,
+              startDate: check_in,
+              endDate: check_out
+            }
+          });
+          
+          const data = availResponse.data?.data?.[0];
+          if (data && data.availability) {
+            // Check each date in the range
+            for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
+              if (isAvailable === false) {
+                console.log(`Real-time check FAILED: ${dateStr} is not available`);
+                return res.json({ 
+                  success: false, 
+                  error: 'Sorry, these dates are no longer available. Please select different dates.',
+                  unavailable_date: dateStr
+                });
+              }
+            }
+            console.log('Real-time availability check PASSED');
+          }
+        }
+      } catch (availError) {
+        // Log but don't block - fall back to local availability
+        console.error('Real-time availability check error:', availError.message);
+      }
+    }
+    // ========== END AVAILABILITY CHECK ==========
+    
     // Determine payment status
     let paymentStatus = 'pending';
     let bookingStatus = 'pending';
