@@ -3194,18 +3194,23 @@
 
                 <!-- Property Selector -->
                 <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-start; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
                             <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Apply To</label>
                             <select id="deposit-rules-property-select" class="form-input" onchange="loadDepositRulesForProperty()">
                                 <option value="">Select Property...</option>
                                 <option value="all">🏢 All Properties (Account Default)</option>
                             </select>
-                            <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
-                                💡 "All Properties" creates a default rule for all properties. Property-specific rules override the default.
-                            </p>
+                        </div>
+                        <div style="display: flex; align-items: flex-end;">
+                            <button class="btn" onclick="openBulkDepositRuleModal()" style="background: #6366f1;">
+                                📋 Apply to Multiple Properties
+                            </button>
                         </div>
                     </div>
+                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.5rem;">
+                        💡 Use "All Properties" for account default, select a single property for specific rules, or click "Apply to Multiple" to set the same rule on several properties at once.
+                    </p>
                 </div>
 
                 <!-- Deposit Rules Info -->
@@ -9184,6 +9189,86 @@ Local honey and preserves"></textarea>
                     <div style="display: flex; gap: 1rem; justify-content: flex-end;">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('depositRuleModal')">Cancel</button>
                         <button type="submit" class="btn" style="background: #059669;">Save Rule</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bulk Deposit Rule Modal -->
+    <div id="bulkDepositRuleModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0;">📋 Apply Deposit Rule to Multiple Properties</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Select properties and configure the rule</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('bulkDepositRuleModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
+                <form id="bulk-deposit-rule-form" onsubmit="event.preventDefault(); saveBulkDepositRule();">
+                    
+                    <!-- Property Selection -->
+                    <div style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; display: block; margin-bottom: 0.75rem;">Select Properties</label>
+                        <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                            <button type="button" class="btn btn-small" onclick="selectAllBulkProperties()" style="font-size: 0.8rem;">Select All</button>
+                            <button type="button" class="btn btn-small btn-secondary" onclick="deselectAllBulkProperties()" style="font-size: 0.8rem;">Deselect All</button>
+                        </div>
+                        <div id="bulk-property-list" style="max-height: 200px; overflow-y: auto; border: 1px solid #e5e7eb; border-radius: 8px; padding: 0.5rem;">
+                            <!-- Property checkboxes populated by JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Rule Name -->
+                    <div class="form-group">
+                        <label>Rule Name</label>
+                        <input type="text" id="bulk-deposit-rule-name" class="form-input" value="Standard Deposit" required>
+                    </div>
+                    
+                    <!-- Deposit Type -->
+                    <div class="form-group">
+                        <label>Deposit Type</label>
+                        <select id="bulk-deposit-type" class="form-input" onchange="toggleBulkDepositTypeFields()">
+                            <option value="percentage">Percentage of Total</option>
+                            <option value="fixed">Fixed Amount</option>
+                            <option value="first_night">First Night</option>
+                            <option value="full">Full Payment</option>
+                        </select>
+                    </div>
+                    
+                    <!-- Percentage -->
+                    <div class="form-group" id="bulk-percentage-field">
+                        <label>Deposit Percentage (%)</label>
+                        <input type="number" id="bulk-deposit-percentage" class="form-input" value="30" min="1" max="100">
+                    </div>
+                    
+                    <!-- Fixed Amount -->
+                    <div class="form-group" id="bulk-fixed-amount-field" style="display: none;">
+                        <label>Fixed Amount ($)</label>
+                        <input type="number" id="bulk-deposit-fixed-amount" class="form-input" step="0.01" min="0">
+                    </div>
+                    
+                    <!-- Balance Due -->
+                    <div class="form-group">
+                        <label>Balance Due (days before check-in)</label>
+                        <input type="number" id="bulk-balance-due-days" class="form-input" value="14" min="0">
+                    </div>
+                    
+                    <!-- Refund Policy -->
+                    <div class="form-group">
+                        <label>Refund Policy</label>
+                        <select id="bulk-refund-policy" class="form-input">
+                            <option value="flexible">Flexible</option>
+                            <option value="moderate">Moderate</option>
+                            <option value="strict">Strict</option>
+                            <option value="non_refundable">Non-refundable</option>
+                        </select>
+                    </div>
+                    
+                    <div class="modal-footer" style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #e5e7eb;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('bulkDepositRuleModal')">Cancel</button>
+                        <button type="submit" class="btn" style="background: #6366f1;">Apply to Selected Properties</button>
                     </div>
                 </form>
             </div>
@@ -19444,6 +19529,112 @@ Local honey and preserves"></textarea>
             const type = document.getElementById('deposit-type').value;
             document.getElementById('percentage-field').style.display = (type === 'percentage') ? 'block' : 'none';
             document.getElementById('fixed-amount-field').style.display = (type === 'fixed') ? 'block' : 'none';
+        }
+        
+        function toggleBulkDepositTypeFields() {
+            const type = document.getElementById('bulk-deposit-type').value;
+            document.getElementById('bulk-percentage-field').style.display = (type === 'percentage') ? 'block' : 'none';
+            document.getElementById('bulk-fixed-amount-field').style.display = (type === 'fixed') ? 'block' : 'none';
+        }
+        
+        async function openBulkDepositRuleModal() {
+            const listEl = document.getElementById('bulk-property-list');
+            
+            // Fetch properties for current account
+            const accountId = currentAccountFilter || '';
+            let url = '/api/properties';
+            if (accountId) {
+                url += `?account_id=${accountId}`;
+            }
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success && data.properties) {
+                    listEl.innerHTML = data.properties.map(prop => `
+                        <label style="display: flex; align-items: center; padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f3f4f6;">
+                            <input type="checkbox" class="bulk-property-checkbox" value="${prop.id}" style="margin-right: 0.75rem;">
+                            <span>${prop.name}</span>
+                        </label>
+                    `).join('');
+                } else {
+                    listEl.innerHTML = '<p style="color: var(--text-secondary); padding: 1rem; text-align: center;">No properties found</p>';
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+                listEl.innerHTML = '<p style="color: #ef4444; padding: 1rem;">Error loading properties</p>';
+            }
+            
+            // Reset form
+            document.getElementById('bulk-deposit-rule-name').value = 'Standard Deposit';
+            document.getElementById('bulk-deposit-type').value = 'percentage';
+            document.getElementById('bulk-deposit-percentage').value = '30';
+            document.getElementById('bulk-deposit-fixed-amount').value = '';
+            document.getElementById('bulk-balance-due-days').value = '14';
+            document.getElementById('bulk-refund-policy').value = 'flexible';
+            toggleBulkDepositTypeFields();
+            
+            openModal('bulkDepositRuleModal');
+        }
+        
+        function selectAllBulkProperties() {
+            document.querySelectorAll('.bulk-property-checkbox').forEach(cb => cb.checked = true);
+        }
+        
+        function deselectAllBulkProperties() {
+            document.querySelectorAll('.bulk-property-checkbox').forEach(cb => cb.checked = false);
+        }
+        
+        async function saveBulkDepositRule() {
+            const selectedProperties = Array.from(document.querySelectorAll('.bulk-property-checkbox:checked')).map(cb => cb.value);
+            
+            if (selectedProperties.length === 0) {
+                alert('Please select at least one property');
+                return;
+            }
+            
+            const data = {
+                rule_name: document.getElementById('bulk-deposit-rule-name').value,
+                deposit_type: document.getElementById('bulk-deposit-type').value,
+                deposit_percentage: parseFloat(document.getElementById('bulk-deposit-percentage').value) || 30,
+                deposit_fixed_amount: parseFloat(document.getElementById('bulk-deposit-fixed-amount').value) || null,
+                balance_due_days: parseInt(document.getElementById('bulk-balance-due-days').value) || 14,
+                refund_policy: document.getElementById('bulk-refund-policy').value,
+                is_active: true
+            };
+            
+            let successCount = 0;
+            let failCount = 0;
+            
+            for (const propertyId of selectedProperties) {
+                try {
+                    const response = await fetch(`/api/properties/${propertyId}/deposit-rules`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data)
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (error) {
+                    failCount++;
+                }
+            }
+            
+            closeModal('bulkDepositRuleModal');
+            
+            if (failCount === 0) {
+                alert(`✅ Deposit rule applied to ${successCount} properties!`);
+            } else {
+                alert(`Applied to ${successCount} properties, ${failCount} failed.`);
+            }
+            
+            loadDepositRulesForProperty();
         }
         
         async function editDepositRule(ruleId) {
