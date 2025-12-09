@@ -13492,6 +13492,13 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
         const offers = Array.isArray(offerResponse.data) ? offerResponse.data : (offerResponse.data.data || []);
         const availableRoomIds = new Set(offers.map(o => o.roomId));
         
+        // Log first day to debug
+        if (i === 0) {
+          console.log(`Day 1 (${arrival}) - Offers returned for rooms:`, Array.from(availableRoomIds));
+          console.log(`Day 1 - All rooms:`, beds24RoomIds);
+          console.log(`Day 1 - Missing (blocked):`, beds24RoomIds.filter(id => !availableRoomIds.has(id)));
+        }
+        
         for (const room of rooms) {
           if (!availableRoomIds.has(room.beds24_room_id)) {
             inventoryBlocksFound++;
@@ -13529,6 +13536,74 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
     
   } catch (error) {
     console.error('Inventory sync error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint - check specific date availability from Beds24
+app.get('/api/admin/debug/beds24-availability/:date', async (req, res) => {
+  try {
+    const { date } = req.params; // Format: 2026-01-03
+    const accessToken = await getBeds24AccessToken(pool);
+    
+    // Get all rooms
+    const roomsResult = await pool.query(`
+      SELECT bu.id, bu.beds24_room_id, bu.name 
+      FROM bookable_units bu 
+      WHERE bu.beds24_room_id IS NOT NULL
+    `);
+    
+    const rooms = roomsResult.rows;
+    const beds24RoomIds = rooms.map(r => r.beds24_room_id);
+    
+    // Calculate departure (next day)
+    const arrivalDate = new Date(date);
+    const departDate = new Date(arrivalDate);
+    departDate.setDate(departDate.getDate() + 1);
+    const departure = departDate.toISOString().split('T')[0];
+    
+    // Call offers endpoint
+    const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+      headers: { 'token': accessToken },
+      params: {
+        roomId: beds24RoomIds,
+        arrival: date,
+        departure: departure,
+        numAdults: 1
+      },
+      paramsSerializer: params => {
+        const parts = [];
+        for (const key in params) {
+          if (Array.isArray(params[key])) {
+            params[key].forEach(val => parts.push(`${key}=${val}`));
+          } else {
+            parts.push(`${key}=${params[key]}`);
+          }
+        }
+        return parts.join('&');
+      }
+    });
+    
+    const rawResponse = offerResponse.data;
+    const offers = Array.isArray(rawResponse) ? rawResponse : (rawResponse.data || []);
+    const availableRoomIds = offers.map(o => o.roomId);
+    
+    // Find which rooms are missing (blocked)
+    const blockedRooms = rooms.filter(r => !availableRoomIds.includes(r.beds24_room_id));
+    const availableRooms = rooms.filter(r => availableRoomIds.includes(r.beds24_room_id));
+    
+    res.json({
+      date,
+      departure,
+      allRoomIds: beds24RoomIds,
+      availableRoomIds,
+      blockedRooms: blockedRooms.map(r => ({ id: r.id, beds24_id: r.beds24_room_id, name: r.name })),
+      availableRooms: availableRooms.map(r => ({ id: r.id, beds24_id: r.beds24_room_id, name: r.name })),
+      rawOffersCount: offers.length,
+      sampleOffer: offers[0] || null
+    });
+    
+  } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
