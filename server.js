@@ -13324,7 +13324,7 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
     const fromDate = new Date(today);
     fromDate.setDate(fromDate.getDate() - 7); // Include bookings from last week
     const toDate = new Date(today);
-    toDate.setDate(toDate.getDate() + 180); // Up to 180 days out
+    toDate.setDate(toDate.getDate() + 365); // Up to 365 days out
     
     console.log(`Fetching Beds24 bookings from ${fromDate.toISOString().split('T')[0]} to ${toDate.toISOString().split('T')[0]}`);
     
@@ -13455,9 +13455,9 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
     let inventoryBlocksFound = 0;
     let inventoryDatesBlocked = 0;
     
-    // Calculate date range - next 90 days
+    // Calculate date range - next 365 days
     const startDate = today.toISOString().split('T')[0];
-    const endDate = new Date(today.getTime() + 90*24*60*60*1000).toISOString().split('T')[0];
+    const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
     
     // For each room, get availability
     for (const room of rooms) {
@@ -18387,7 +18387,147 @@ setInterval(syncAllChannelManagers, SYNC_INTERVAL);
 // Also run once on startup (after 30 seconds to let DB connect)
 setTimeout(syncAllChannelManagers, 30000);
 
+// =========================================================
+// BEDS24 SPECIFIC SCHEDULED SYNC
+// =========================================================
+
+// Helper function to run Beds24 bookings sync
+async function runBeds24BookingsSync() {
+  try {
+    console.log('⏰ [Scheduled] Starting Beds24 bookings sync...');
+    
+    const accessToken = await getBeds24AccessToken(pool);
+    const today = new Date();
+    const fromDate = new Date(today);
+    fromDate.setDate(fromDate.getDate() - 7);
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + 365);
+    
+    const response = await axios.get('https://beds24.com/api/v2/bookings', {
+      headers: { 'token': accessToken },
+      params: {
+        arrivalFrom: fromDate.toISOString().split('T')[0],
+        arrivalTo: toDate.toISOString().split('T')[0]
+      }
+    });
+    
+    const bookings = Array.isArray(response.data) ? response.data : (response.data.data || []);
+    let updatedDates = 0;
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      for (const booking of bookings) {
+        if (booking.status === 'cancelled' || booking.status === 'Cancelled') continue;
+        
+        const beds24RoomId = booking.roomId || booking.room_id || booking.unitId;
+        if (!beds24RoomId) continue;
+        
+        const roomResult = await client.query(
+          'SELECT id FROM bookable_units WHERE beds24_room_id = $1',
+          [beds24RoomId]
+        );
+        if (roomResult.rows.length === 0) continue;
+        
+        const ourRoomId = roomResult.rows[0].id;
+        const arrival = booking.arrival || booking.firstNight || booking.arrivalDate;
+        const departure = booking.departure || booking.lastNight || booking.departureDate;
+        if (!arrival || !departure) continue;
+        
+        const startDate = new Date(arrival);
+        const endDate = new Date(departure);
+        
+        for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          await client.query(`
+            INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+            VALUES ($1, $2, false, false, 'beds24_sync')
+            ON CONFLICT (room_id, date) 
+            DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
+          `, [ourRoomId, dateStr]);
+          updatedDates++;
+        }
+      }
+      
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    
+    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${bookings.length} bookings, ${updatedDates} dates`);
+  } catch (error) {
+    console.error('⏰ [Scheduled] Beds24 bookings sync error:', error.message);
+  }
+}
+
+// Helper function to run Beds24 full inventory sync
+async function runBeds24InventorySync() {
+  try {
+    console.log('⏰ [Scheduled] Starting Beds24 full inventory sync...');
+    
+    const accessToken = await getBeds24AccessToken(pool);
+    const today = new Date();
+    
+    const roomsResult = await pool.query(`
+      SELECT bu.id, bu.beds24_room_id, bu.name 
+      FROM bookable_units bu 
+      WHERE bu.beds24_room_id IS NOT NULL
+    `);
+    
+    const rooms = roomsResult.rows;
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
+    
+    let inventoryBlocksFound = 0;
+    
+    for (const room of rooms) {
+      try {
+        const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+          headers: { 'token': accessToken },
+          params: { roomId: room.beds24_room_id, startDate, endDate }
+        });
+        
+        const data = availResponse.data?.data?.[0];
+        if (data && data.availability) {
+          for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
+            if (isAvailable === false) {
+              inventoryBlocksFound++;
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                VALUES ($1, $2, false, true, 'beds24_inventory')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET is_available = false, is_blocked = true, 
+                  source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
+                  updated_at = NOW()
+              `, [room.id, dateStr]);
+            }
+          }
+        }
+      } catch (roomError) {
+        // Silently skip errors for individual rooms
+      }
+    }
+    
+    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${inventoryBlocksFound} blocked dates from ${rooms.length} rooms`);
+  } catch (error) {
+    console.error('⏰ [Scheduled] Beds24 inventory sync error:', error.message);
+  }
+}
+
+// Schedule Beds24 bookings sync every 15 minutes
+setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
+
+// Schedule Beds24 full inventory sync every 6 hours
+setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
+
+// Run initial Beds24 sync 60 seconds after startup
+setTimeout(() => {
+  runBeds24BookingsSync();
+  runBeds24InventorySync();
+}, 60 * 1000);
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 Server running on port ' + PORT);
-  console.log('🔄 Auto-sync scheduled every 15 minutes');
+  console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
 });
