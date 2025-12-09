@@ -18,6 +18,178 @@ const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Email configuration
+const RESEND_API_KEY = process.env.RESEND_API_KEY;
+const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@gas.travel';
+
+// Send email via Resend API
+async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
+  if (!RESEND_API_KEY) {
+    console.log('⚠️ Email not sent - RESEND_API_KEY not configured');
+    return { success: false, error: 'Email not configured' };
+  }
+  
+  try {
+    const response = await axios.post('https://api.resend.com/emails', {
+      from,
+      to: Array.isArray(to) ? to : [to],
+      subject,
+      html
+    }, {
+      headers: {
+        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    
+    console.log('✅ Email sent to:', to);
+    return { success: true, id: response.data?.id };
+  } catch (error) {
+    console.error('❌ Email error:', error.response?.data || error.message);
+    return { success: false, error: error.message };
+  }
+}
+
+// Generate booking confirmation email HTML
+function generateBookingConfirmationEmail(booking, property, room) {
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  };
+  
+  const depositPaid = booking.deposit_amount && parseFloat(booking.deposit_amount) > 0;
+  const balanceDue = booking.balance_amount && parseFloat(booking.balance_amount) > 0;
+  
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Booking Confirmation</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
+              <div style="width: 60px; height: 60px; background: white; border-radius: 50%; margin: 0 auto 16px; line-height: 60px; font-size: 30px;">✓</div>
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed!</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">Thank you for your reservation</p>
+            </td>
+          </tr>
+          
+          <!-- Booking Reference -->
+          <tr>
+            <td style="padding: 32px 40px 0;">
+              <table width="100%" style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 12px; padding: 20px; text-align: center;">
+                <tr>
+                  <td>
+                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #059669;">Booking Reference</span>
+                    <div style="font-size: 28px; font-weight: 700; color: #047857; margin-top: 4px;">${booking.id}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Property Details -->
+          <tr>
+            <td style="padding: 32px 40px 0; text-align: center;">
+              <h2 style="margin: 0 0 4px; font-size: 20px; color: #1e293b;">${property?.name || 'Property'}</h2>
+              <p style="margin: 0; color: #64748b; font-size: 14px;">${room?.name || 'Room'}</p>
+            </td>
+          </tr>
+          
+          <!-- Dates -->
+          <tr>
+            <td style="padding: 32px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-in</span>
+                    <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(booking.arrival_date)}</strong>
+                    <span style="font-size: 12px; color: #64748b;">From 3:00 PM</span>
+                  </td>
+                  <td width="10%" style="text-align: center; color: #cbd5e1; font-size: 20px;">→</td>
+                  <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-out</span>
+                    <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(booking.departure_date)}</strong>
+                    <span style="font-size: 12px; color: #64748b;">By 11:00 AM</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Guest Info -->
+          <tr>
+            <td style="padding: 0 40px 24px; text-align: center;">
+              <span style="font-size: 14px; color: #475569;">👤 ${booking.num_adults} ${booking.num_adults === 1 ? 'Guest' : 'Guests'}</span>
+            </td>
+          </tr>
+          
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 40px;">
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 0;">
+            </td>
+          </tr>
+          
+          <!-- Pricing -->
+          <tr>
+            <td style="padding: 24px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding: 8px 0; font-size: 16px; font-weight: 600; color: #1e293b;">Total</td>
+                  <td style="padding: 8px 0; font-size: 16px; font-weight: 600; color: #1e293b; text-align: right;">${booking.currency || '$'}${parseFloat(booking.grand_total || 0).toFixed(2)}</td>
+                </tr>
+                ${depositPaid ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Deposit Paid</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #10b981; text-align: right; font-weight: 500;">✓ ${booking.currency || '$'}${parseFloat(booking.deposit_amount).toFixed(2)}</td>
+                </tr>
+                ` : ''}
+                ${balanceDue ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Balance Due at Check-in</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #f59e0b; text-align: right; font-weight: 500;">${booking.currency || '$'}${parseFloat(booking.balance_amount).toFixed(2)}</td>
+                </tr>
+                ` : ''}
+                ${!depositPaid ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Payment</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569; text-align: right;">Pay at Property</td>
+                </tr>
+                ` : ''}
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Questions about your booking?</p>
+              <p style="margin: 0; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${property?.email || EMAIL_FROM}" style="color: #10b981;">${property?.email || EMAIL_FROM}</a></p>
+            </td>
+          </tr>
+        </table>
+        
+        <!-- Unsubscribe -->
+        <p style="text-align: center; margin-top: 24px; font-size: 12px; color: #94a3b8;">
+          This is a transactional email regarding your booking.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -9591,6 +9763,140 @@ app.get('/api/bookings/:id', async (req, res) => {
   }
 });
 
+// Update booking
+app.put('/api/bookings/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const {
+      guest_first_name, guest_last_name, guest_email, guest_phone,
+      arrival_date, departure_date, num_adults, num_children,
+      grand_total, deposit_amount, balance_amount,
+      status, payment_status, notes
+    } = req.body;
+    
+    // Get existing booking for comparison
+    const existingResult = await client.query(`
+      SELECT * FROM bookings WHERE id = $1
+    `, [id]);
+    
+    if (existingResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Booking not found' });
+    }
+    
+    const existingBooking = existingResult.rows[0];
+    const datesChanged = (arrival_date !== existingBooking.arrival_date?.toISOString().split('T')[0]) ||
+                         (departure_date !== existingBooking.departure_date?.toISOString().split('T')[0]);
+    const wasCancelled = existingBooking.status !== 'cancelled' && status === 'cancelled';
+    
+    await client.query('BEGIN');
+    
+    // Update booking
+    await client.query(`
+      UPDATE bookings SET
+        guest_first_name = $1,
+        guest_last_name = $2,
+        guest_email = $3,
+        guest_phone = $4,
+        arrival_date = $5,
+        departure_date = $6,
+        num_adults = $7,
+        num_children = $8,
+        grand_total = $9,
+        accommodation_price = $9,
+        deposit_amount = $10,
+        balance_amount = $11,
+        status = $12,
+        payment_status = $13,
+        notes = $14,
+        updated_at = NOW()
+      WHERE id = $15
+    `, [
+      guest_first_name, guest_last_name, guest_email, guest_phone,
+      arrival_date, departure_date, num_adults, num_children,
+      grand_total, deposit_amount, balance_amount,
+      status, payment_status, notes,
+      id
+    ]);
+    
+    // Handle availability changes
+    if (datesChanged || wasCancelled) {
+      // Clear old dates
+      await client.query(`
+        DELETE FROM room_availability 
+        WHERE room_id = $1 AND date >= $2 AND date < $3 AND source = 'booking'
+      `, [existingBooking.bookable_unit_id, existingBooking.arrival_date, existingBooking.departure_date]);
+      
+      // Add new dates if not cancelled
+      if (status !== 'cancelled') {
+        const startDate = new Date(arrival_date);
+        const endDate = new Date(departure_date);
+        
+        for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          await client.query(`
+            INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+            VALUES ($1, $2, false, true, 'booking')
+            ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'booking'
+          `, [existingBooking.bookable_unit_id, dateStr]);
+        }
+      }
+    }
+    
+    await client.query('COMMIT');
+    
+    // Sync to Beds24 if linked
+    let beds24Synced = false;
+    if (existingBooking.beds24_booking_id) {
+      try {
+        const accessToken = await getBeds24AccessToken(pool);
+        if (accessToken) {
+          const beds24Update = [{
+            id: parseInt(existingBooking.beds24_booking_id),
+            status: status === 'cancelled' ? 'cancelled' : 'confirmed',
+            arrival: arrival_date,
+            departure: departure_date,
+            numAdult: num_adults,
+            numChild: num_children || 0,
+            firstName: guest_first_name,
+            lastName: guest_last_name,
+            email: guest_email,
+            mobile: guest_phone || '',
+            price: parseFloat(grand_total) || 0,
+            deposit: parseFloat(deposit_amount) || 0
+          }];
+          
+          console.log('Updating Beds24 booking:', JSON.stringify(beds24Update));
+          
+          const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Update, {
+            headers: {
+              'token': accessToken,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('Beds24 update response:', JSON.stringify(beds24Response.data));
+          beds24Synced = beds24Response.data?.[0]?.success || false;
+        }
+      } catch (beds24Error) {
+        console.error('Beds24 update error:', beds24Error.response?.data || beds24Error.message);
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      beds24_synced: beds24Synced
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Update booking error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
 // Delete booking
 app.delete('/api/bookings/:id', async (req, res) => {
   try {
@@ -15383,6 +15689,54 @@ app.post('/api/public/book', async (req, res) => {
       }
     }
     // ========== END CM SYNC ==========
+    
+    // ========== SEND CONFIRMATION EMAIL ==========
+    try {
+      // Get property details for the email
+      const propertyResult = await pool.query(`
+        SELECT p.*, a.email as account_email 
+        FROM properties p 
+        LEFT JOIN accounts a ON p.account_id = a.id 
+        WHERE p.id = $1
+      `, [unit.rows[0].property_id]);
+      
+      const property = propertyResult.rows[0];
+      const room = unit.rows[0];
+      
+      // Build booking object with all details
+      const bookingForEmail = {
+        id: newBooking.id,
+        arrival_date: check_in,
+        departure_date: check_out,
+        num_adults: guests || 1,
+        grand_total: total_price,
+        deposit_amount: deposit_amount,
+        balance_amount: balance_amount,
+        currency: room.currency || '$'
+      };
+      
+      const emailHtml = generateBookingConfirmationEmail(bookingForEmail, property, room);
+      
+      // Send to guest
+      await sendEmail({
+        to: guest_email,
+        subject: `Booking Confirmed - ${property?.name || 'Your Reservation'} (Ref: ${newBooking.id})`,
+        html: emailHtml
+      });
+      
+      // Also send to property owner if different email
+      if (property?.account_email && property.account_email !== guest_email) {
+        await sendEmail({
+          to: property.account_email,
+          subject: `New Booking - ${guest_first_name} ${guest_last_name} (Ref: ${newBooking.id})`,
+          html: emailHtml
+        });
+      }
+    } catch (emailError) {
+      console.error('Email sending error:', emailError.message);
+      // Don't fail the booking if email fails
+    }
+    // ========== END EMAIL ==========
     
     res.json({
       success: true,
