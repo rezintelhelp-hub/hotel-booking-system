@@ -323,9 +323,8 @@ const upload = multer({
 
 app.use(cors());
 app.use(express.json());
-app.use(express.static('public'));
 
-// Root URL routing based on domain
+// Root URL routing based on domain - MUST be before static middleware
 app.get('/', (req, res) => {
   const host = req.hostname;
   if (host === 'admin.gas.travel') {
@@ -334,6 +333,8 @@ app.get('/', (req, res) => {
     res.redirect('/home.html');
   }
 });
+
+app.use(express.static('public'));
 
 const BEDS24_TOKEN = process.env.BEDS24_TOKEN;
 const BEDS24_API = 'https://beds24.com/api/v2';
