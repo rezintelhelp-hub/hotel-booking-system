@@ -1810,6 +1810,64 @@ app.delete('/api/deposit-rules/:ruleId', async (req, res) => {
     }
 });
 
+// Get account-level deposit rules (applies to all properties under account)
+app.get('/api/accounts/:accountId/deposit-rules', async (req, res) => {
+    try {
+        const { accountId } = req.params;
+        
+        const result = await pool.query(`
+            SELECT * FROM deposit_rules 
+            WHERE account_id = $1 AND property_id IS NULL
+            ORDER BY is_active DESC, created_at DESC
+        `, [accountId]);
+        
+        res.json({ success: true, rules: result.rows });
+    } catch (error) {
+        console.error('Error getting account deposit rules:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
+// Create account-level deposit rule (applies to all properties)
+app.post('/api/accounts/:accountId/deposit-rules', async (req, res) => {
+    try {
+        const { accountId } = req.params;
+        const {
+            rule_name,
+            deposit_type,
+            deposit_percentage,
+            deposit_fixed_amount,
+            balance_due_type,
+            balance_due_days,
+            auto_charge_balance,
+            auto_charge_days_before,
+            refund_policy,
+            is_active
+        } = req.body;
+        
+        const result = await pool.query(`
+            INSERT INTO deposit_rules (
+                property_id, account_id, rule_name, deposit_type, deposit_percentage,
+                deposit_fixed_amount, balance_due_type, balance_due_days,
+                auto_charge_balance, auto_charge_days_before, refund_policy, is_active
+            ) VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+            RETURNING *
+        `, [
+            accountId, rule_name || 'Account Default',
+            deposit_type || 'percentage', deposit_percentage || 30,
+            deposit_fixed_amount, balance_due_type || 'days_before',
+            balance_due_days || 14, auto_charge_balance || false,
+            auto_charge_days_before || 14, refund_policy || 'flexible',
+            is_active !== false
+        ]);
+        
+        res.json({ success: true, rule: result.rows[0] });
+    } catch (error) {
+        console.error('Error creating account deposit rule:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+});
+
 // =====================================================
 // PAYMENT PROCESSING API
 // =====================================================
@@ -1978,9 +2036,10 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         const data = result.rows[0];
         const stripeEnabled = !!(data.stripe_account_id && data.stripe_onboarding_complete);
         
-        // Get deposit rules for this property
+        // Get deposit rules for this property (or fall back to account-level rule)
         let depositRule = null;
         if (stripeEnabled) {
+            // First try property-specific rule
             const ruleResult = await pool.query(`
                 SELECT * FROM deposit_rules 
                 WHERE property_id = $1 AND is_active = true 
@@ -1989,6 +2048,18 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
             
             if (ruleResult.rows.length > 0) {
                 depositRule = ruleResult.rows[0];
+            } else {
+                // Fall back to account-level rule
+                const accountRuleResult = await pool.query(`
+                    SELECT dr.* FROM deposit_rules dr
+                    JOIN properties p ON dr.account_id = p.account_id
+                    WHERE p.id = $1 AND dr.property_id IS NULL AND dr.is_active = true
+                    ORDER BY dr.created_at DESC LIMIT 1
+                `, [propertyId]);
+                
+                if (accountRuleResult.rows.length > 0) {
+                    depositRule = accountRuleResult.rows[0];
+                }
             }
         }
         
