@@ -13392,32 +13392,6 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
           skippedBookings.push({ id: booking.id, reason: 'missing dates' });
           continue;
         }
-    
-    // Update availability based on bookings
-    const client = await pool.connect();
-    let updatedDates = 0;
-    
-    try {
-      await client.query('BEGIN');
-      
-      for (const booking of bookings) {
-        if (booking.status === 'cancelled') continue;
-        
-        // Find our room
-        const roomResult = await client.query(`
-          SELECT id FROM bookable_units WHERE beds24_room_id = $1
-        `, [booking.roomId]);
-        
-        if (roomResult.rows.length === 0) continue;
-        
-        const ourRoomId = roomResult.rows[0].id;
-        const arrival = booking.arrival || booking.firstNight;
-        const departure = booking.departure || booking.lastNight;
-        
-        if (!arrival || !departure) {
-          skippedBookings.push({ id: booking.id, reason: 'missing dates' });
-          continue;
-        }
         
         // Block these dates
         const startDate = new Date(arrival);
@@ -13455,8 +13429,8 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Sync bookings error:', error);
-    res.json({ success: false, error: error.message });
+    console.error('Sync bookings error:', error.response?.data || error.message || error);
+    res.json({ success: false, error: error.response?.data?.message || error.message || 'Unknown error' });
   }
 });
 
