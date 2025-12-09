@@ -5030,8 +5030,12 @@
                         <p style="font-size: 0.85rem; margin: 0; color: #92400e;">
                             <strong>💡 Sync Strategy:</strong><br>
                             • <strong>Webhook</strong> = Real-time booking updates (instant)<br>
-                            • <strong>🔄 Beds24 button</strong> = Quick sync prices + bookings (few seconds)<br>
-                            • <strong>📅 Full button</strong> = Full inventory check for blackouts (run daily, takes 1-2 min)
+                            • <strong>🔄 Beds24 button</strong> = Quick sync prices + bookings (manual)<br>
+                            • <strong>📅 Full button</strong> = Full inventory check for blackouts (manual)<br><br>
+                            <strong>⏰ Automatic Schedule:</strong><br>
+                            • Bookings sync: Every 15 minutes<br>
+                            • Full inventory sync: Every 6 hours<br>
+                            • Date range: 365 days ahead
                         </p>
                     </div>
                 </div>
@@ -15790,7 +15794,7 @@ Local honey and preserves"></textarea>
         }
         
         async function syncBeds24FullInventory() {
-            if (!confirm('Run FULL inventory sync? This checks all dates for the next 90 days and takes 1-2 minutes. Usually only needed once daily.')) return;
+            if (!confirm('Run FULL inventory sync? This checks all dates for the next 365 days. Usually runs automatically every 6 hours.')) return;
             
             const btn = document.getElementById('sync-beds24-btn');
             btn.disabled = true;
@@ -15801,7 +15805,7 @@ Local honey and preserves"></textarea>
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(`✅ Full Inventory Sync Complete!\n\n🗓️ ${result.daysChecked} days checked\n🚫 ${result.inventoryBlocksFound} blocked dates found`);
+                    alert(`✅ Full Inventory Sync Complete!\n\n🗓️ ${result.roomsChecked || 0} rooms checked (365 days)\n🚫 ${result.inventoryBlocksFound} blocked dates found`);
                 } else {
                     alert(`❌ Sync failed: ${result.error}`);
                 }
