@@ -18802,17 +18802,6 @@ app.get('/api/admin/fix-api-keys-table', async (req, res) => {
   }
 });
 
-// TEMP - Delete account by ID (use carefully!)
-app.get('/api/debug/delete-account/:accountId', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    await pool.query('DELETE FROM accounts WHERE id = $1', [accountId]);
-    res.json({ success: true, message: 'Account ' + accountId + ' deleted' });
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
-
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   // Don't serve index.html for API routes - return 404 instead
