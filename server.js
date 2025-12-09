@@ -13415,17 +13415,121 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
       client.release();
     }
     
-    console.log(`Sync complete: ${processedBookings} bookings processed, ${updatedDates} dates blocked`);
+    console.log(`Bookings sync: ${processedBookings} bookings processed, ${updatedDates} dates blocked`);
     if (skippedBookings.length > 0) {
       console.log('Skipped bookings:', JSON.stringify(skippedBookings.slice(0, 10)));
     }
+    
+    // ===== PART 2: SYNC INVENTORY BLOCKS (Blackouts) =====
+    let inventoryBlocksFound = 0;
+    let inventoryDatesBlocked = 0;
+    
+    try {
+      // Get all rooms with beds24_room_id
+      const roomsResult = await pool.query(`
+        SELECT bu.id, bu.beds24_room_id, bu.name 
+        FROM bookable_units bu 
+        WHERE bu.beds24_room_id IS NOT NULL
+      `);
+      
+      const rooms = roomsResult.rows;
+      console.log(`Checking inventory blocks for ${rooms.length} rooms`);
+      
+      // For each room, get calendar/availability
+      for (const room of rooms) {
+        try {
+          // Try Beds24 v2 calendar endpoint first
+          let calendarData = [];
+          
+          try {
+            const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+              headers: { 'token': accessToken },
+              params: {
+                roomId: room.beds24_room_id,
+                startDate: fromDate.toISOString().split('T')[0],
+                endDate: toDate.toISOString().split('T')[0]
+              }
+            });
+            calendarData = Array.isArray(calResponse.data) ? calResponse.data : (calResponse.data.data || calResponse.data.calendar || []);
+            console.log(`Room ${room.beds24_room_id} calendar response:`, JSON.stringify(calResponse.data).substring(0, 200));
+          } catch (calErr) {
+            // Fallback to availability endpoint
+            console.log(`Calendar endpoint failed for ${room.beds24_room_id}, trying availability...`);
+            try {
+              const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+                headers: { 'token': accessToken },
+                params: {
+                  roomId: room.beds24_room_id,
+                  from: fromDate.toISOString().split('T')[0],
+                  to: toDate.toISOString().split('T')[0]
+                }
+              });
+              calendarData = Array.isArray(availResponse.data) ? availResponse.data : (availResponse.data.data || availResponse.data.availability || []);
+              console.log(`Room ${room.beds24_room_id} availability response:`, JSON.stringify(availResponse.data).substring(0, 200));
+            } catch (availErr) {
+              console.log(`Both endpoints failed for room ${room.beds24_room_id}`);
+            }
+          }
+          
+          for (const day of calendarData) {
+            // Check if day is blocked (not available) but not from a booking
+            // Beds24 uses various fields depending on API version
+            const dateStr = day.date || day.Date || day.d;
+            
+            // Log first day to see structure
+            if (calendarData.indexOf(day) === 0) {
+              console.log(`Sample day data for room ${room.beds24_room_id}:`, JSON.stringify(day));
+            }
+            
+            // Check multiple possible field names for blocked/unavailable status
+            const numAvail = day.numAvail ?? day.numAvailable ?? day.available ?? day.qty ?? day.inventory;
+            const isBlocked = 
+              numAvail === 0 || 
+              numAvail === '0' ||
+              day.isBlocked === true || 
+              day.blocked === true ||
+              day.available === false ||
+              day.available === 0 ||
+              day.closed === true ||
+              day.status === 'blocked' ||
+              day.status === 'closed';
+            
+            if (isBlocked && dateStr) {
+              inventoryBlocksFound++;
+              
+              // Only block if not already blocked by a booking
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                VALUES ($1, $2, false, true, 'beds24_inventory')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET is_available = false, is_blocked = true, source = 
+                  CASE WHEN room_availability.source = 'beds24_sync' THEN 'beds24_sync' ELSE 'beds24_inventory' END,
+                  updated_at = NOW()
+              `, [room.id, dateStr]);
+              
+              inventoryDatesBlocked++;
+            }
+          }
+          
+          console.log(`Room ${room.name}: checked calendar`);
+        } catch (calError) {
+          console.log(`Could not fetch calendar for room ${room.beds24_room_id}: ${calError.message}`);
+        }
+      }
+    } catch (invError) {
+      console.error('Inventory sync error:', invError.message);
+    }
+    
+    console.log(`Inventory sync: ${inventoryBlocksFound} blocked dates found, ${inventoryDatesBlocked} updated`);
     
     res.json({
       success: true,
       bookingsFound: bookings.length,
       bookingsProcessed: processedBookings,
       datesUpdated: updatedDates,
-      skipped: skippedBookings.length
+      skipped: skippedBookings.length,
+      inventoryBlocksFound,
+      inventoryDatesBlocked
     });
     
   } catch (error) {
