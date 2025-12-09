@@ -18830,6 +18830,30 @@ app.get('/api/setup-admin/:email/:password', async (req, res) => {
   }
 });
 
+// TEMP - List all accounts and properties
+app.get('/api/debug/accounts', async (req, res) => {
+  try {
+    const accounts = await pool.query('SELECT id, name, email, role FROM accounts ORDER BY id');
+    const properties = await pool.query('SELECT id, name, account_id FROM properties ORDER BY id');
+    res.json({ accounts: accounts.rows, properties: properties.rows });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// TEMP - Link all properties to an account
+app.get('/api/debug/link-properties/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    await pool.query('UPDATE properties SET account_id = $1 WHERE account_id IS NULL OR account_id != $1', [accountId]);
+    await pool.query('UPDATE bookable_units SET account_id = $1', [accountId]);
+    await pool.query('UPDATE bookings SET property_owner_id = $1', [accountId]);
+    res.json({ success: true, message: 'All data linked to account ' + accountId });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   // Don't serve index.html for API routes - return 404 instead
