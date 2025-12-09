@@ -14737,12 +14737,13 @@ app.post('/api/public/book', async (req, res) => {
           country: guest_country || '',
           referer: 'GAS Direct Booking',
           notes: `GAS Booking ID: ${newBooking.id}`,
-          price: total_price || 0,
+          price: parseFloat(total_price) || 0,
           invoiceItems: [{
             description: 'Accommodation',
+            status: '',
             qty: 1,
-            price: total_price || 0,
-            vatPercent: 0
+            amount: parseFloat(total_price) || 0,
+            vatRate: 0
           }]
         }];
         
