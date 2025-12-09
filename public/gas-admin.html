@@ -19542,7 +19542,7 @@ Local honey and preserves"></textarea>
             
             // Fetch properties for current account
             const accountId = currentAccountFilter || '';
-            let url = '/api/properties';
+            let url = '/api/db/properties';
             if (accountId) {
                 url += `?account_id=${accountId}`;
             }
@@ -19551,8 +19551,8 @@ Local honey and preserves"></textarea>
                 const response = await fetch(url);
                 const data = await response.json();
                 
-                if (data.success && data.properties) {
-                    listEl.innerHTML = data.properties.map(prop => `
+                if (data.success && data.data && data.data.length > 0) {
+                    listEl.innerHTML = data.data.map(prop => `
                         <label style="display: flex; align-items: center; padding: 0.5rem; cursor: pointer; border-bottom: 1px solid #f3f4f6;">
                             <input type="checkbox" class="bulk-property-checkbox" value="${prop.id}" style="margin-right: 0.75rem;">
                             <span>${prop.name}</span>
