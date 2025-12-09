@@ -9875,17 +9875,20 @@ app.post('/api/bookings/:id/cancel', async (req, res) => {
       try {
         const accessToken = await getBeds24AccessToken(pool);
         if (accessToken) {
-          await fetch(`https://beds24.com/api/v2/bookings/${booking.beds24_booking_id}`, {
-            method: 'PUT',
+          // Beds24 v2 API - POST to /bookings with status update
+          const cancelResponse = await axios.post('https://beds24.com/api/v2/bookings', [{
+            id: parseInt(booking.beds24_booking_id),
+            status: 'cancelled'
+          }], {
             headers: {
-              'Authorization': `Bearer ${accessToken}`,
+              'token': accessToken,
               'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ status: 0 }) // 0 = cancelled
+            }
           });
+          console.log('Beds24 cancellation response:', JSON.stringify(cancelResponse.data));
         }
       } catch (err) {
-        console.error('Beds24 cancel error:', err);
+        console.error('Beds24 cancel error:', err.response?.data || err.message);
       }
     }
     
@@ -13337,17 +13340,13 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
     let updatedDates = 0;
     let processedBookings = 0;
     let skippedBookings = [];
+    let unblockedDates = 0;
+    let gasBookingsCancelled = 0;
     
     try {
       await client.query('BEGIN');
       
       for (const booking of bookings) {
-        // Skip cancelled bookings
-        if (booking.status === 'cancelled' || booking.status === 'Cancelled') {
-          skippedBookings.push({ id: booking.id, reason: 'cancelled' });
-          continue;
-        }
-        
         // Get room ID - Beds24 v2 uses roomId
         const beds24RoomId = booking.roomId || booking.room_id || booking.unitId;
         
@@ -13372,26 +13371,53 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
         const arrival = booking.arrival || booking.firstNight || booking.arrivalDate;
         const departure = booking.departure || booking.lastNight || booking.departureDate;
         
-        console.log(`Processing booking ${booking.id}: room ${beds24RoomId} (${ourRoom.name}), ${arrival} to ${departure}`);
-        
         if (!arrival || !departure) {
           skippedBookings.push({ id: booking.id, reason: 'missing dates' });
           continue;
         }
         
-        // Block these dates
+        const isCancelled = booking.status === 'cancelled' || booking.status === 'Cancelled';
+        console.log(`Processing booking ${booking.id}: room ${beds24RoomId} (${ourRoom.name}), ${arrival} to ${departure}, cancelled: ${isCancelled}`);
+        
+        // Check if we have a matching GAS booking (created from our system)
+        if (isCancelled) {
+          const gasBookingResult = await client.query(`
+            UPDATE bookings 
+            SET status = 'cancelled', updated_at = NOW()
+            WHERE beds24_booking_id = $1 AND status != 'cancelled'
+            RETURNING id
+          `, [booking.id.toString()]);
+          
+          if (gasBookingResult.rowCount > 0) {
+            console.log(`Cancelled GAS booking ${gasBookingResult.rows[0].id} (Beds24 booking ${booking.id} was cancelled)`);
+            gasBookingsCancelled++;
+          }
+        }
+        
         const startDate = new Date(arrival);
         const endDate = new Date(departure);
         
         for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
-          await client.query(`
-            INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-            VALUES ($1, $2, false, false, 'beds24_sync')
-            ON CONFLICT (room_id, date) 
-            DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
-          `, [ourRoom.id, dateStr]);
-          updatedDates++;
+          
+          if (isCancelled) {
+            // Unblock cancelled booking dates
+            const result = await client.query(`
+              UPDATE room_availability 
+              SET is_available = true, is_blocked = false, source = 'beds24_cancelled', updated_at = NOW()
+              WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking')
+            `, [ourRoom.id, dateStr]);
+            if (result.rowCount > 0) unblockedDates++;
+          } else {
+            // Block confirmed booking dates
+            await client.query(`
+              INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+              VALUES ($1, $2, false, false, 'beds24_sync')
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
+            `, [ourRoom.id, dateStr]);
+            updatedDates++;
+          }
         }
         processedBookings++;
       }
@@ -13401,7 +13427,7 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
       client.release();
     }
     
-    console.log(`Bookings sync complete: ${processedBookings} bookings processed, ${updatedDates} dates blocked`);
+    console.log(`Bookings sync complete: ${processedBookings} processed, ${updatedDates} blocked, ${unblockedDates} unblocked, ${gasBookingsCancelled} GAS bookings cancelled`);
     if (skippedBookings.length > 0) {
       console.log('Skipped bookings:', JSON.stringify(skippedBookings.slice(0, 10)));
     }
@@ -13411,6 +13437,8 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
       bookingsFound: bookings.length,
       bookingsProcessed: processedBookings,
       datesUpdated: updatedDates,
+      datesUnblocked: unblockedDates,
+      gasBookingsCancelled,
       skipped: skippedBookings.length
     });
     
@@ -18413,14 +18441,14 @@ async function runBeds24BookingsSync() {
     
     const bookings = Array.isArray(response.data) ? response.data : (response.data.data || []);
     let updatedDates = 0;
+    let unblockedDates = 0;
+    let gasBookingsCancelled = 0;
     
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
       
       for (const booking of bookings) {
-        if (booking.status === 'cancelled' || booking.status === 'Cancelled') continue;
-        
         const beds24RoomId = booking.roomId || booking.room_id || booking.unitId;
         if (!beds24RoomId) continue;
         
@@ -18435,18 +18463,46 @@ async function runBeds24BookingsSync() {
         const departure = booking.departure || booking.lastNight || booking.departureDate;
         if (!arrival || !departure) continue;
         
+        const isCancelled = booking.status === 'cancelled' || booking.status === 'Cancelled';
+        
+        // If cancelled, check if we have a matching GAS booking to cancel
+        if (isCancelled) {
+          const gasBookingResult = await client.query(`
+            UPDATE bookings 
+            SET status = 'cancelled', updated_at = NOW()
+            WHERE beds24_booking_id = $1 AND status != 'cancelled'
+            RETURNING id
+          `, [booking.id.toString()]);
+          
+          if (gasBookingResult.rowCount > 0) {
+            gasBookingsCancelled++;
+          }
+        }
+        
         const startDate = new Date(arrival);
         const endDate = new Date(departure);
         
         for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
           const dateStr = d.toISOString().split('T')[0];
-          await client.query(`
-            INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-            VALUES ($1, $2, false, false, 'beds24_sync')
-            ON CONFLICT (room_id, date) 
-            DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
-          `, [ourRoomId, dateStr]);
-          updatedDates++;
+          
+          if (isCancelled) {
+            // Unblock cancelled booking dates (only if blocked by beds24)
+            const result = await client.query(`
+              UPDATE room_availability 
+              SET is_available = true, is_blocked = false, source = 'beds24_cancelled', updated_at = NOW()
+              WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking')
+            `, [ourRoomId, dateStr]);
+            if (result.rowCount > 0) unblockedDates++;
+          } else {
+            // Block confirmed booking dates
+            await client.query(`
+              INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+              VALUES ($1, $2, false, false, 'beds24_sync')
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
+            `, [ourRoomId, dateStr]);
+            updatedDates++;
+          }
         }
       }
       
@@ -18455,13 +18511,11 @@ async function runBeds24BookingsSync() {
       client.release();
     }
     
-    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${bookings.length} bookings, ${updatedDates} dates`);
+    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${bookings.length} bookings, ${updatedDates} blocked, ${unblockedDates} unblocked, ${gasBookingsCancelled} GAS cancelled`);
   } catch (error) {
     console.error('⏰ [Scheduled] Beds24 bookings sync error:', error.message);
   }
 }
-
-// Helper function to run Beds24 full inventory sync
 async function runBeds24InventorySync() {
   try {
     console.log('⏰ [Scheduled] Starting Beds24 full inventory sync...');
