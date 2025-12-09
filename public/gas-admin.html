@@ -5010,35 +5010,41 @@
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">🔔 Real-time Booking Sync (Beds24 Webhook)</h3>
+                        <button class="btn btn-secondary btn-small" onclick="testWebhookEndpoint()">🧪 Test Endpoint</button>
                     </div>
                     <p style="color: var(--text-secondary); margin-bottom: 1rem;">
-                        <strong>Important:</strong> For instant updates when bookings arrive from Airbnb/Booking.com, configure the webhook in Beds24:
+                        <strong>Important:</strong> For instant updates when bookings arrive from Airbnb/Booking.com, configure the webhook <strong>for each property</strong> in Beds24:
                     </p>
                     <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
                         <p style="font-size: 0.85rem; margin: 0 0 0.5rem 0; color: #64748b;"><strong>Webhook URL:</strong></p>
                         <code id="webhook-url" style="display: block; background: #1e293b; color: #22c55e; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; word-break: break-all;"></code>
-                        <button onclick="copyWebhookUrl()" class="btn btn-secondary btn-small" style="margin-top: 0.5rem;">📋 Copy URL</button>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                            <button onclick="copyWebhookUrl()" class="btn btn-secondary btn-small">📋 Copy URL</button>
+                            <span id="webhook-status" style="font-size: 0.8rem; color: #6b7280; display: flex; align-items: center;"></span>
+                        </div>
                     </div>
-                    <p style="font-size: 0.85rem; color: var(--text-secondary);"><strong>Steps in Beds24:</strong></p>
-                    <ol style="font-size: 0.85rem; color: var(--text-secondary); margin-left: 1rem; line-height: 1.8;">
-                        <li>Go to <strong>Settings → Properties → Access</strong></li>
-                        <li>Find the <strong>"Booking Webhooks"</strong> section</li>
-                        <li>Set <strong>Webhook Version</strong> to "2 - with personal data"</li>
-                        <li>Paste the webhook URL above into the <strong>URL</strong> field</li>
-                        <li>Leave Custom Header empty</li>
-                        <li>Click <strong>Save</strong></li>
-                        <li><em>Repeat for each property</em></li>
-                    </ol>
+                    
+                    <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; margin: 0 0 0.5rem 0; color: #1e40af;"><strong>⚠️ Must be done for EACH property:</strong></p>
+                        <ol style="font-size: 0.85rem; color: #1e40af; margin: 0; padding-left: 1.25rem; line-height: 1.8;">
+                            <li>Go to <strong>Settings → Properties</strong> and select your property</li>
+                            <li>Click <strong>Access</strong> tab</li>
+                            <li>Find <strong>"Booking Webhooks"</strong> section</li>
+                            <li>Set <strong>Webhook Version</strong> to <code style="background: white; padding: 0.15rem 0.3rem; border-radius: 3px;">2 - with personal data</code></li>
+                            <li>Paste the webhook URL above</li>
+                            <li>Leave Custom Header and Additional Data empty</li>
+                            <li>Click <strong>Save</strong></li>
+                            <li style="color: #dc2626; font-weight: 600;">Repeat steps 1-7 for each property!</li>
+                        </ol>
+                    </div>
+                    
                     <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 0.75rem; margin-top: 1rem;">
                         <p style="font-size: 0.85rem; margin: 0; color: #92400e;">
                             <strong>💡 Sync Strategy:</strong><br>
-                            • <strong>Webhook</strong> = Real-time booking updates (instant)<br>
-                            • <strong>🔄 Beds24 button</strong> = Quick sync prices + bookings (manual)<br>
-                            • <strong>📅 Full button</strong> = Full inventory check for blackouts (manual)<br><br>
-                            <strong>⏰ Automatic Schedule:</strong><br>
-                            • Bookings sync: Every 15 minutes<br>
-                            • Full inventory sync: Every 6 hours<br>
-                            • Date range: 365 days ahead
+                            • <strong>Webhook</strong> = Real-time (~1 min delay per Beds24)<br>
+                            • <strong>🔄 Beds24 button</strong> = Manual quick sync<br>
+                            • <strong>📅 Full button</strong> = Manual inventory/blackout sync<br><br>
+                            <strong>⏰ Automatic Backup:</strong> Every 15 min (bookings), Every 6 hrs (inventory)
                         </p>
                     </div>
                 </div>
@@ -12786,11 +12792,47 @@ Local honey and preserves"></textarea>
             });
         }
         
+        async function testWebhookEndpoint() {
+            const statusEl = document.getElementById('webhook-status');
+            statusEl.innerHTML = '⏳ Testing...';
+            
+            try {
+                // First test GET endpoint
+                const getResponse = await fetch('/api/webhooks/beds24');
+                const getData = await getResponse.json();
+                
+                if (getData.status === 'active') {
+                    statusEl.innerHTML = '<span style="color: #10b981;">✅ Endpoint active and reachable</span>';
+                    
+                    // Now test POST with simulated webhook data
+                    const testResponse = await fetch('/api/webhooks/beds24', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            type: 'test',
+                            message: 'GAS Admin test webhook',
+                            timestamp: new Date().toISOString()
+                        })
+                    });
+                    
+                    if (testResponse.ok) {
+                        statusEl.innerHTML = '<span style="color: #10b981;">✅ Endpoint working! Check Railway logs for webhook receipt.</span>';
+                    }
+                } else {
+                    statusEl.innerHTML = '<span style="color: #ef4444;">❌ Endpoint not responding correctly</span>';
+                }
+            } catch (error) {
+                console.error('Webhook test error:', error);
+                statusEl.innerHTML = '<span style="color: #ef4444;">❌ Failed to reach endpoint</span>';
+            }
+        }
+        
         // Initialize webhook URL display
         function initWebhookUrl() {
             const webhookUrlEl = document.getElementById('webhook-url');
             if (webhookUrlEl) {
                 webhookUrlEl.textContent = window.location.origin + '/api/webhooks/beds24';
+            }
             }
         }
 
