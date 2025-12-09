@@ -6047,6 +6047,17 @@ app.post('/api/db/book', async (req, res) => {
       try {
         const accessToken = await getBeds24AccessToken(pool);
         
+        // Build payments array if deposit was paid
+        const payments = [];
+        if (stripe_payment_intent_id && deposit_amount && parseFloat(deposit_amount) > 0) {
+          payments.push({
+            description: 'Deposit via Stripe (GAS)',
+            amount: parseFloat(deposit_amount),
+            status: 'received',
+            date: new Date().toISOString().split('T')[0]
+          });
+        }
+        
         const beds24Booking = [{
           roomId: beds24RoomId,
           status: 'confirmed',
@@ -6063,7 +6074,19 @@ app.post('/api/db/book', async (req, res) => {
           country: guest_country || '',
           postcode: guest_postcode || '',
           referer: 'GAS Direct Booking',
-          notes: `GAS Booking ID: ${booking.id}`
+          notes: `GAS Booking ID: ${booking.id}`,
+          // Price and financial info
+          price: parseFloat(total_price) || 0,
+          deposit: parseFloat(deposit_amount) || 0,
+          // Invoice items
+          invoiceItems: [{
+            description: 'Accommodation',
+            qty: 1,
+            amount: parseFloat(total_price) || 0,
+            vatRate: 0
+          }],
+          // Payments if deposit was collected
+          ...(payments.length > 0 && { payments })
         }];
         
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
@@ -9572,6 +9595,44 @@ app.get('/api/bookings/:id', async (req, res) => {
 app.delete('/api/bookings/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Get booking info first (for Beds24 sync and date unblocking)
+    const bookingResult = await pool.query(`
+      SELECT beds24_booking_id, bookable_unit_id, arrival_date, departure_date 
+      FROM bookings WHERE id = $1
+    `, [id]);
+    
+    const booking = bookingResult.rows[0];
+    
+    // Cancel in Beds24 if linked
+    if (booking?.beds24_booking_id) {
+      try {
+        const accessToken = await getBeds24AccessToken(pool);
+        if (accessToken) {
+          const cancelResponse = await axios.post('https://beds24.com/api/v2/bookings', [{
+            id: parseInt(booking.beds24_booking_id),
+            status: 'cancelled'
+          }], {
+            headers: {
+              'token': accessToken,
+              'Content-Type': 'application/json'
+            }
+          });
+          console.log('Beds24 cancellation on delete:', JSON.stringify(cancelResponse.data));
+        }
+      } catch (err) {
+        console.error('Beds24 cancel on delete error:', err.response?.data || err.message);
+      }
+    }
+    
+    // Unblock dates in availability
+    if (booking?.bookable_unit_id && booking?.arrival_date && booking?.departure_date) {
+      await pool.query(`
+        UPDATE room_availability 
+        SET is_available = true, is_blocked = false, source = 'booking_deleted', updated_at = NOW()
+        WHERE room_id = $1 AND date >= $2 AND date < $3 AND source IN ('booking', 'beds24_sync', 'beds24_webhook')
+      `, [booking.bookable_unit_id, booking.arrival_date, booking.departure_date]);
+    }
     
     // Delete payment transactions first
     await pool.query('DELETE FROM payment_transactions WHERE booking_id = $1', [id]);
@@ -15131,6 +15192,8 @@ app.post('/api/public/book', async (req, res) => {
         
         // Build payment array if deposit was taken
         const payments = [];
+        console.log(`Beds24 sync - deposit_amount: ${deposit_amount}, stripe_payment_intent_id: ${stripe_payment_intent_id}`);
+        
         if (stripe_payment_intent_id && deposit_amount) {
           payments.push({
             description: 'Deposit via Stripe',
@@ -15138,6 +15201,7 @@ app.post('/api/public/book', async (req, res) => {
             status: 'received',
             date: new Date().toISOString().split('T')[0]
           });
+          console.log('Added deposit payment to Beds24 payload:', JSON.stringify(payments));
         }
         
         const beds24Booking = [{
