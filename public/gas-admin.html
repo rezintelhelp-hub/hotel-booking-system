@@ -15780,7 +15780,10 @@ Local honey and preserves"></textarea>
                 const bookingResult = await bookingResponse.json();
                 
                 if (bookingResult.success) {
-                    message += `📅 Bookings: ${bookingResult.bookingsFound || 0} found, ${bookingResult.datesUpdated || 0} dates blocked`;
+                    message += `📅 Bookings: ${bookingResult.bookingsFound || 0} found, ${bookingResult.datesUpdated || 0} blocked, ${bookingResult.datesUnblocked || 0} unblocked`;
+                    if (bookingResult.gasBookingsCancelled > 0) {
+                        message += `\n⚠️ ${bookingResult.gasBookingsCancelled} GAS bookings marked cancelled`;
+                    }
                 } else {
                     message += `⚠️ Booking sync: ${bookingResult.error || 'Failed'}`;
                 }
