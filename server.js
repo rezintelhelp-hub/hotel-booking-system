@@ -325,6 +325,16 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public'));
 
+// Root URL routing based on domain
+app.get('/', (req, res) => {
+  const host = req.hostname;
+  if (host === 'admin.gas.travel') {
+    res.redirect('/gas-admin.html');
+  } else {
+    res.redirect('/home.html');
+  }
+});
+
 const BEDS24_TOKEN = process.env.BEDS24_TOKEN;
 const BEDS24_API = 'https://beds24.com/api/v2';
 
