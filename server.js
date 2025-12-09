@@ -2667,6 +2667,8 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`CREATE TABLE IF NOT EXISTS bookings (id SERIAL PRIMARY KEY, property_id INTEGER REFERENCES properties(id), room_id INTEGER REFERENCES rooms(id), check_in DATE NOT NULL, check_out DATE NOT NULL, num_adults INTEGER NOT NULL, num_children INTEGER DEFAULT 0, guest_first_name VARCHAR(100) NOT NULL, guest_last_name VARCHAR(100) NOT NULL, guest_email VARCHAR(255) NOT NULL, guest_phone VARCHAR(50), total_price DECIMAL(10, 2) NOT NULL, status VARCHAR(50) DEFAULT 'confirmed', beds24_booking_id VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`);
     // Add beds24_booking_id column if it doesn't exist
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS beds24_booking_id VARCHAR(50)`);
+    // Add smoobu_booking_id column
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS smoobu_booking_id VARCHAR(50)`);
     // Add bookable_unit_id column for linking to bookable_units table
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS bookable_unit_id INTEGER`);
     // Add hostaway columns
@@ -14614,10 +14616,160 @@ app.post('/api/public/book', async (req, res) => {
       current.setDate(current.getDate() + 1);
     }
     
+    // ========== CHANNEL MANAGER SYNC ==========
+    let beds24BookingId = null;
+    let smoobuBookingId = null;
+    let hostawayReservationId = null;
+    
+    // Get CM IDs for this unit
+    const cmResult = await pool.query(`
+      SELECT bu.beds24_room_id, bu.smoobu_id, bu.hostaway_listing_id,
+             p.account_id
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [unit_id]);
+    
+    const cmData = cmResult.rows[0];
+    
+    // BEDS24 SYNC
+    if (cmData?.beds24_room_id) {
+      try {
+        const accessToken = await getBeds24AccessToken(pool);
+        
+        const beds24Booking = [{
+          roomId: cmData.beds24_room_id,
+          status: 'confirmed',
+          arrival: check_in,
+          departure: check_out,
+          numAdult: guests || 1,
+          numChild: 0,
+          firstName: guest_first_name,
+          lastName: guest_last_name,
+          email: guest_email,
+          mobile: guest_phone || '',
+          referer: 'GAS Direct Booking',
+          notes: `GAS Booking ID: ${newBooking.id}`
+        }];
+        
+        console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
+        
+        const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+          headers: {
+            'token': accessToken,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        console.log('Beds24 response:', JSON.stringify(beds24Response.data));
+        
+        if (beds24Response.data && beds24Response.data[0]?.success) {
+          beds24BookingId = beds24Response.data[0]?.new?.id;
+          if (beds24BookingId) {
+            await pool.query(`UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2`, [beds24BookingId, newBooking.id]);
+          }
+        }
+      } catch (beds24Error) {
+        console.error('Error syncing to Beds24:', beds24Error.response?.data || beds24Error.message);
+      }
+    }
+    
+    // SMOOBU SYNC
+    if (cmData?.smoobu_id) {
+      try {
+        // Get Smoobu API key for this account
+        const smoobuKeyResult = await pool.query(`
+          SELECT setting_value FROM client_settings 
+          WHERE client_id = $1 AND setting_key = 'smoobu_api_key'
+        `, [cmData.account_id]);
+        
+        const smoobuApiKey = smoobuKeyResult.rows[0]?.setting_value;
+        
+        if (smoobuApiKey) {
+          const smoobuResponse = await axios.post('https://login.smoobu.com/api/reservations', {
+            arrivalDate: check_in,
+            departureDate: check_out,
+            apartmentId: parseInt(cmData.smoobu_id),
+            channelId: 13, // Direct booking
+            firstName: guest_first_name,
+            lastName: guest_last_name,
+            email: guest_email,
+            phone: guest_phone || '',
+            adults: guests || 1,
+            children: 0,
+            price: total_price || 0,
+            notice: `GAS Booking ID: ${newBooking.id}`
+          }, {
+            headers: {
+              'Api-Key': smoobuApiKey,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('Smoobu response:', JSON.stringify(smoobuResponse.data));
+          
+          if (smoobuResponse.data?.id) {
+            smoobuBookingId = smoobuResponse.data.id;
+            await pool.query(`UPDATE bookings SET smoobu_booking_id = $1 WHERE id = $2`, [smoobuBookingId, newBooking.id]);
+          }
+        }
+      } catch (smoobuError) {
+        console.error('Error syncing to Smoobu:', smoobuError.response?.data || smoobuError.message);
+      }
+    }
+    
+    // HOSTAWAY SYNC
+    if (cmData?.hostaway_listing_id) {
+      try {
+        const stored = await getStoredHostawayToken(pool);
+        
+        if (stored?.accessToken) {
+          const hostawayResponse = await axios.post('https://api.hostaway.com/v1/reservations', {
+            listingMapId: cmData.hostaway_listing_id,
+            channelId: 2000,
+            source: 'manual',
+            arrivalDate: check_in,
+            departureDate: check_out,
+            guestFirstName: guest_first_name,
+            guestLastName: guest_last_name,
+            guestEmail: guest_email,
+            guestPhone: guest_phone || '',
+            numberOfGuests: guests || 1,
+            adults: guests || 1,
+            children: 0,
+            totalPrice: total_price || 0,
+            isPaid: deposit_amount ? 1 : 0,
+            status: 'new',
+            comment: `GAS Booking ID: ${newBooking.id}`
+          }, {
+            headers: {
+              'Authorization': `Bearer ${stored.accessToken}`,
+              'Content-Type': 'application/json'
+            }
+          });
+          
+          console.log('Hostaway response:', JSON.stringify(hostawayResponse.data));
+          
+          if (hostawayResponse.data?.result?.id) {
+            hostawayReservationId = hostawayResponse.data.result.id;
+            await pool.query(`UPDATE bookings SET hostaway_reservation_id = $1 WHERE id = $2`, [hostawayReservationId, newBooking.id]);
+          }
+        }
+      } catch (hostawayError) {
+        console.error('Error syncing to Hostaway:', hostawayError.response?.data || hostawayError.message);
+      }
+    }
+    // ========== END CM SYNC ==========
+    
     res.json({
       success: true,
       booking_id: newBooking.id,
-      booking: newBooking
+      booking: newBooking,
+      cm_sync: {
+        beds24: beds24BookingId ? { success: true, id: beds24BookingId } : null,
+        smoobu: smoobuBookingId ? { success: true, id: smoobuBookingId } : null,
+        hostaway: hostawayReservationId ? { success: true, id: hostawayReservationId } : null
+      }
     });
   } catch (error) {
     console.error('Create booking error:', error);
