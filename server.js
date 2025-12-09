@@ -14579,6 +14579,7 @@ app.post('/api/public/book', async (req, res) => {
     const { 
       unit_id, check_in, check_out, guests,
       guest_first_name, guest_last_name, guest_email, guest_phone,
+      guest_address, guest_city, guest_country, guest_postcode,
       voucher_code, notes, total_price,
       stripe_payment_intent_id, deposit_amount, balance_amount, payment_method
     } = req.body;
@@ -14673,19 +14674,29 @@ app.post('/api/public/book', async (req, res) => {
     }
     
     // Block availability for these dates
-    const checkInDate = new Date(check_in);
-    const checkOutDate = new Date(check_out);
-    let current = new Date(check_in);
+    console.log(`Blocking dates for unit ${unit_id} from ${check_in} to ${check_out}`);
+    
+    // Parse dates properly (avoid timezone issues)
+    const startParts = check_in.split('-');
+    const endParts = check_out.split('-');
+    let current = new Date(startParts[0], startParts[1] - 1, startParts[2]);
+    const checkOutDate = new Date(endParts[0], endParts[1] - 1, endParts[2]);
     
     while (current < checkOutDate) {
       const dateStr = current.toISOString().split('T')[0];
-      await pool.query(`
-        INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-        VALUES ($1, $2, false, true, 'booking')
-        ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true
-      `, [unit_id, dateStr]);
+      console.log(`Blocking date: ${dateStr} for unit ${unit_id}`);
+      try {
+        await pool.query(`
+          INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+          VALUES ($1, $2, false, true, 'booking')
+          ON CONFLICT (room_id, date) DO UPDATE SET is_available = false, is_blocked = true, source = 'booking'
+        `, [unit_id, dateStr]);
+      } catch (blockErr) {
+        console.error(`Error blocking date ${dateStr}:`, blockErr.message);
+      }
       current.setDate(current.getDate() + 1);
     }
+    console.log('Finished blocking dates');
     
     // ========== CHANNEL MANAGER SYNC ==========
     let beds24BookingId = null;
@@ -14719,8 +14730,20 @@ app.post('/api/public/book', async (req, res) => {
           lastName: guest_last_name,
           email: guest_email,
           mobile: guest_phone || '',
+          phone: guest_phone || '',
+          address: guest_address || '',
+          city: guest_city || '',
+          postcode: guest_postcode || '',
+          country: guest_country || '',
           referer: 'GAS Direct Booking',
-          notes: `GAS Booking ID: ${newBooking.id}`
+          notes: `GAS Booking ID: ${newBooking.id}`,
+          price: total_price || 0,
+          invoiceItems: [{
+            description: 'Accommodation',
+            qty: 1,
+            price: total_price || 0,
+            vatPercent: 0
+          }]
         }];
         
         console.log('Pushing booking to Beds24:', JSON.stringify(beds24Booking));
