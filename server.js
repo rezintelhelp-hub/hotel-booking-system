@@ -18802,6 +18802,33 @@ app.get('/api/admin/fix-api-keys-table', async (req, res) => {
   }
 });
 
+// TEMP ADMIN SETUP - REMOVE AFTER USE
+app.get('/api/setup-admin/:email/:password', async (req, res) => {
+  try {
+    const { email, password } = req.params;
+    const bcrypt = require('bcryptjs');
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // Check if user exists
+    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
+    
+    if (existing.rows.length > 0) {
+      // Update password
+      await pool.query('UPDATE users SET password = $1 WHERE email = $2', [hashedPassword, email]);
+      res.json({ success: true, message: 'Password updated for ' + email });
+    } else {
+      // Create new admin user
+      await pool.query(
+        'INSERT INTO users (email, password, role, name) VALUES ($1, $2, $3, $4)',
+        [email, hashedPassword, 'admin', 'Admin']
+      );
+      res.json({ success: true, message: 'Admin created: ' + email });
+    }
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   // Don't serve index.html for API routes - return 404 instead
@@ -19068,33 +19095,6 @@ setTimeout(() => {
   runBeds24BookingsSync();
   runBeds24InventorySync();
 }, 60 * 1000);
-
-// TEMP ADMIN SETUP - REMOVE AFTER USE
-app.get('/api/setup-admin/:email/:password', async (req, res) => {
-  try {
-    const { email, password } = req.params;
-    const bcrypt = require('bcryptjs');
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Check if user exists
-    const existing = await pool.query('SELECT id FROM users WHERE email = $1', [email]);
-    
-    if (existing.rows.length > 0) {
-      // Update password
-      await pool.query('UPDATE users SET password = $1 WHERE email = $2', [hashedPassword, email]);
-      res.json({ success: true, message: 'Password updated for ' + email });
-    } else {
-      // Create new admin user
-      await pool.query(
-        'INSERT INTO users (email, password, role, name) VALUES ($1, $2, $3, $4)',
-        [email, hashedPassword, 'admin', 'Admin']
-      );
-      res.json({ success: true, message: 'Admin created: ' + email });
-    }
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 Server running on port ' + PORT);
