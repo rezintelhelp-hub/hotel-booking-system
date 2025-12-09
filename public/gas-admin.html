@@ -12833,7 +12833,6 @@ Local honey and preserves"></textarea>
             if (webhookUrlEl) {
                 webhookUrlEl.textContent = window.location.origin + '/api/webhooks/beds24';
             }
-            }
         }
 
         // Load WordPress view data
@@ -18337,13 +18336,15 @@ Local honey and preserves"></textarea>
         }
         
         async function editBooking(id) {
+            console.log('editBooking called with id:', id);
             try {
                 // Fetch booking details
                 const response = await fetch(`/api/bookings/${id}`);
                 const data = await response.json();
+                console.log('Booking data:', data);
                 
                 if (!data.success || !data.booking) {
-                    alert('Error loading booking details');
+                    alert('Error loading booking details: ' + (data.error || 'Unknown error'));
                     return;
                 }
                 
