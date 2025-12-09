@@ -18,29 +18,38 @@ const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// Email configuration
-const RESEND_API_KEY = process.env.RESEND_API_KEY;
-const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@gas.travel';
+// Email configuration - Mailgun
+const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
+const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.gas.travel';
+const EMAIL_FROM = process.env.EMAIL_FROM || 'bookings@mg.gas.travel';
 
-// Send email via Resend API
+// Send email via Mailgun API
 async function sendEmail({ to, subject, html, from = EMAIL_FROM }) {
-  if (!RESEND_API_KEY) {
-    console.log('⚠️ Email not sent - RESEND_API_KEY not configured');
+  if (!MAILGUN_API_KEY) {
+    console.log('⚠️ Email not sent - MAILGUN_API_KEY not configured');
     return { success: false, error: 'Email not configured' };
   }
   
   try {
-    const response = await axios.post('https://api.resend.com/emails', {
-      from,
-      to: Array.isArray(to) ? to : [to],
-      subject,
-      html
-    }, {
-      headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
-        'Content-Type': 'application/json'
+    const formData = new URLSearchParams();
+    formData.append('from', from);
+    formData.append('to', Array.isArray(to) ? to.join(',') : to);
+    formData.append('subject', subject);
+    formData.append('html', html);
+    
+    const response = await axios.post(
+      `https://api.mailgun.net/v3/${MAILGUN_DOMAIN}/messages`,
+      formData.toString(),
+      {
+        auth: {
+          username: 'api',
+          password: MAILGUN_API_KEY
+        },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        }
       }
-    });
+    );
     
     console.log('✅ Email sent to:', to);
     return { success: true, id: response.data?.id };
@@ -1685,7 +1694,7 @@ app.get('/api/stripe/connect/:accountId', async (req, res) => {
             `client_id=${process.env.STRIPE_CLIENT_ID}&` +
             `scope=read_write&` +
             `state=${state}&` +
-            `redirect_uri=${encodeURIComponent('https://hotel-booking-system-production-d6db.up.railway.app/api/stripe/callback')}`;
+            `redirect_uri=${encodeURIComponent('https://admin.gas.travel/api/stripe/callback')}`;
         
         res.redirect(stripeConnectUrl);
     } catch (error) {
@@ -1702,7 +1711,7 @@ app.get('/api/stripe/callback', async (req, res) => {
         // Handle user cancellation or errors
         if (error) {
             console.error('Stripe OAuth error:', error, error_description);
-            return res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html#accounts?stripe_error=' + encodeURIComponent(error_description || error));
+            return res.redirect('https://admin.gas.travel/gas-admin.html#accounts?stripe_error=' + encodeURIComponent(error_description || error));
         }
         
         // Decode state to get account ID
@@ -1711,7 +1720,7 @@ app.get('/api/stripe/callback', async (req, res) => {
             const stateData = JSON.parse(Buffer.from(state, 'base64').toString());
             accountId = stateData.accountId;
         } catch (e) {
-            return res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html#accounts?stripe_error=invalid_state');
+            return res.redirect('https://admin.gas.travel/gas-admin.html#accounts?stripe_error=invalid_state');
         }
         
         // Exchange authorization code for access token
@@ -1735,11 +1744,11 @@ app.get('/api/stripe/callback', async (req, res) => {
         console.log(`✅ Stripe connected for account ${accountId}: ${connectedAccountId}`);
         
         // Redirect back to admin accounts page with success
-        res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html#accounts?stripe_connected=true');
+        res.redirect('https://admin.gas.travel/gas-admin.html#accounts?stripe_connected=true');
         
     } catch (error) {
         console.error('Stripe callback error:', error);
-        res.redirect('https://hotel-booking-system-production-d6db.up.railway.app/gas-admin.html#accounts?stripe_error=' + encodeURIComponent(error.message));
+        res.redirect('https://admin.gas.travel/gas-admin.html#accounts?stripe_error=' + encodeURIComponent(error.message));
     }
 });
 
