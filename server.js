@@ -6480,26 +6480,24 @@ app.get('/api/channel-connections', async (req, res) => {
         cm.cm_name,
         a.name as account_name,
         (SELECT COUNT(*) FROM properties p WHERE 
-          (cm.cm_code = 'beds24' AND p.beds24_id IS NOT NULL AND p.account_id = cc.account_id) OR
-          (cm.cm_code = 'hostaway' AND p.hostaway_listing_id IS NOT NULL AND p.account_id = cc.account_id) OR
-          (cm.cm_code = 'smoobu' AND p.smoobu_id IS NOT NULL AND p.account_id = cc.account_id)
+          (cm.cm_code = 'beds24' AND p.beds24_id IS NOT NULL AND p.account_id::text = cc.account_id::text) OR
+          (cm.cm_code = 'hostaway' AND p.hostaway_listing_id IS NOT NULL AND p.account_id::text = cc.account_id::text) OR
+          (cm.cm_code = 'smoobu' AND p.smoobu_id IS NOT NULL AND p.account_id::text = cc.account_id::text)
         ) as property_count
       FROM channel_connections cc
       JOIN channel_managers cm ON cc.cm_id = cm.id
-      LEFT JOIN accounts a ON cc.account_id = a.id
+      LEFT JOIN accounts a ON a.id::text = cc.account_id::text
     `;
     
     const params = [];
     if (accountId) {
-      query += ' WHERE cc.account_id = $1';
-      params.push(accountId);
+      query += ' WHERE cc.account_id::text = $1';
+      params.push(String(accountId));
     }
     
     query += ' ORDER BY cc.created_at DESC';
     
-    console.log('Channel connections query:', query, params);
     const result = await pool.query(query, params);
-    console.log('Channel connections found:', result.rows.length);
     
     res.json({ success: true, connections: result.rows });
   } catch (error) {
