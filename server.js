@@ -7137,37 +7137,39 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_booking_import BOOLEAN DEFAULT false`).catch(() => {});
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`).catch(() => {});
 
-    // Ensure Beds24 exists in channel_managers table
-    await pool.query(`
-      INSERT INTO channel_managers (
-        name,
-        cm_name,
-        cm_code,
-        cm_website,
-        api_version,
-        api_base_url,
-        auth_type,
-        supports_availability_sync,
-        supports_rate_sync,
-        supports_property_import,
-        supports_booking_import,
-        is_active
-      ) VALUES (
-        'Beds24',
-        'Beds24',
-        'beds24',
-        'https://beds24.com',
-        'v2',
-        'https://api.beds24.com/v2',
-        'bearer_token',
-        true,
-        true,
-        true,
-        true,
-        true
-      )
-      ON CONFLICT (cm_code) DO NOTHING
-    `);
+    // Ensure Beds24 exists in channel_managers table (check first, then insert if needed)
+    const beds24Check = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'beds24' OR LOWER(name) = 'beds24' LIMIT 1`);
+    if (beds24Check.rows.length === 0) {
+      await pool.query(`
+        INSERT INTO channel_managers (
+          name,
+          cm_name,
+          cm_code,
+          cm_website,
+          api_version,
+          api_base_url,
+          auth_type,
+          supports_availability_sync,
+          supports_rate_sync,
+          supports_property_import,
+          supports_booking_import,
+          is_active
+        ) VALUES (
+          'Beds24',
+          'Beds24',
+          'beds24',
+          'https://beds24.com',
+          'v2',
+          'https://api.beds24.com/v2',
+          'bearer_token',
+          true,
+          true,
+          true,
+          true,
+          true
+        )
+      `);
+    }
     
     // Get tokens from Beds24
     const response = await axios.get('https://beds24.com/api/v2/authentication/setup', {
