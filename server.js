@@ -11477,6 +11477,8 @@ app.put('/api/admin/units/:id', async (req, res) => {
       display_name
     } = req.body;
     
+    console.log('Updating unit:', id, 'display_name:', display_name);
+    
     // Update main fields only - no descriptions to avoid JSON issues
     const result = await pool.query(`
       UPDATE bookable_units 
@@ -11492,6 +11494,8 @@ app.put('/api/admin/units/:id', async (req, res) => {
       WHERE id = $8
       RETURNING *
     `, [quantity, status, room_type, max_guests, max_adults, max_children, display_name || null, id]);
+    
+    console.log('Updated unit result:', result.rows[0]?.display_name);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
