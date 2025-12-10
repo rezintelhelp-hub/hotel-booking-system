@@ -7126,7 +7126,6 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       INSERT INTO channel_managers (
         cm_name,
         cm_code,
-        cm_website,
         api_version,
         api_base_url,
         auth_type,
@@ -7138,7 +7137,6 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       ) VALUES (
         'Beds24',
         'beds24',
-        'https://beds24.com',
         'v2',
         'https://api.beds24.com/v2',
         'bearer_token',
