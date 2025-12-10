@@ -7187,43 +7187,58 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
     `).catch(() => {});
     
     // Save to channel_connections table (or update if exists)
-    const result = await pool.query(`
-      INSERT INTO channel_connections (
-        user_id,
-        cm_id,
-        api_key,
-        refresh_token,
-        access_token,
-        account_id,
-        token_expires_at,
-        status,
-        sync_enabled,
-        sync_interval_minutes
-      ) VALUES (
-        $1,
-        (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
-        $2,
-        $3,
-        $4,
-        $5,
-        NOW() + INTERVAL '30 days',
-        'active',
-        true,
-        60
-      )
-      ON CONFLICT (user_id, cm_id) 
-      DO UPDATE SET
-        api_key = EXCLUDED.api_key,
-        refresh_token = EXCLUDED.refresh_token,
-        access_token = EXCLUDED.access_token,
-        account_id = EXCLUDED.account_id,
-        token_expires_at = EXCLUDED.token_expires_at,
-        status = 'active',
-        updated_at = NOW()
-      RETURNING id
-    `, [userId, inviteCode, refreshToken, token, accountId || null]);
+    // Check if connection already exists
+    const existingConn = await pool.query(
+      'SELECT id FROM channel_connections WHERE user_id = $1 AND cm_id = (SELECT id FROM channel_managers WHERE cm_code = $2 LIMIT 1)',
+      [userId, 'beds24']
+    );
     
-    const connectionId = result.rows[0].id;
+    let connectionId;
+    
+    if (existingConn.rows.length > 0) {
+      // UPDATE existing connection
+      connectionId = existingConn.rows[0].id;
+      await pool.query(`
+        UPDATE channel_connections SET
+          api_key = $1,
+          refresh_token = $2,
+          access_token = $3,
+          account_id = $4,
+          token_expires_at = NOW() + INTERVAL '30 days',
+          status = 'active',
+          updated_at = NOW()
+        WHERE id = $5
+      `, [inviteCode, refreshToken, token, accountId || null, connectionId]);
+    } else {
+      // INSERT new connection
+      const result = await pool.query(`
+        INSERT INTO channel_connections (
+          user_id,
+          cm_id,
+          api_key,
+          refresh_token,
+          access_token,
+          account_id,
+          token_expires_at,
+          status,
+          sync_enabled,
+          sync_interval_minutes
+        ) VALUES (
+          $1,
+          (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
+          $2,
+          $3,
+          $4,
+          $5,
+          NOW() + INTERVAL '30 days',
+          'active',
+          true,
+          60
+        )
+        RETURNING id
+      `, [userId, inviteCode, refreshToken, token, accountId || null]);
+      connectionId = result.rows[0].id;
+    }
     
     console.log('✓ Connection saved to database');
     
@@ -7391,12 +7406,13 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     console.log('🚀 ENHANCED BEDS24 IMPORT - Property ID: ' + propertyId);
     console.log('═══════════════════════════════════════════════════════');
     
-    // Get the user_id from the connection
-    const connResult = await client.query('SELECT user_id FROM channel_connections WHERE id = $1', [connectionId]);
+    // Get the user_id and account_id from the connection
+    const connResult = await client.query('SELECT user_id, account_id FROM channel_connections WHERE id = $1', [connectionId]);
     if (connResult.rows.length === 0) {
-      throw new Error('Connection not found');
+      throw new Error('Connection not found - connectionId: ' + connectionId);
     }
     const userId = connResult.rows[0].user_id;
+    const accountId = connResult.rows[0].account_id;
     
     // =========================================================
     // 1. FETCH COMPLETE PROPERTY DATA FROM BEDS24
@@ -7516,6 +7532,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       const propertyResult = await client.query(`
         INSERT INTO properties (
           user_id,
+          account_id,
           beds24_property_id,
           cm_source,
           name,
@@ -7542,11 +7559,12 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           contact_last_name,
           status
         ) VALUES (
-          $1, $2, 'beds24', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, 'active'
+          $1, $2, $3, 'beds24', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, 'active'
         )
         RETURNING id
       `, [
         userId,
+        accountId || null,
         propertyId,
         prop.name || prop.propName || 'Property',
         prop.propertyType || prop.propType || 'hotel',
