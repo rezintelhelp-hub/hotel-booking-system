@@ -6520,6 +6520,36 @@ app.get('/api/debug/channel-connections', async (req, res) => {
   }
 });
 
+// Fix channel connections - update account_id and delete bad records
+app.get('/api/fix/channel-connections', async (req, res) => {
+  try {
+    // Fix Beds24 connection (id=2) to point to GAS account 4
+    await pool.query('UPDATE channel_connections SET account_id = $1 WHERE id = $2', ['4', 2]);
+    
+    // Delete Cloudbeds connection (id=23) - shouldn't exist
+    await pool.query('DELETE FROM channel_connections WHERE id = $1', [23]);
+    
+    // Check if Hostaway connection exists for account 3
+    const hostawayCheck = await pool.query(
+      "SELECT id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'hostaway')"
+    );
+    
+    // Check if Smoobu connection exists for account 2
+    const smoobuCheck = await pool.query(
+      "SELECT id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'smoobu')"
+    );
+    
+    res.json({ 
+      success: true, 
+      message: 'Fixed Beds24 (account 4), deleted Cloudbeds',
+      hostaway_exists: hostawayCheck.rows.length > 0,
+      smoobu_exists: smoobuCheck.rows.length > 0
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // Get single channel connection details (with token for refresh)
 app.get('/api/channel-connection/:id', async (req, res) => {
   try {
