@@ -1610,6 +1610,9 @@ app.post('/api/accounts', async (req, res) => {
       return res.json({ success: false, error: 'Account name is required' });
     }
     
+    // Ensure account_code column exists
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
+    
     const result = await pool.query(`
       INSERT INTO accounts (name, email, phone, account_code, role, status, created_at)
       VALUES ($1, $2, $3, $4, $5, $6, NOW())
@@ -1628,6 +1631,9 @@ app.put('/api/accounts/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { account_code, name, email, phone, business_name, status, notes, role } = req.body;
+    
+    // Ensure account_code column exists
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
     
     // Build dynamic update query
     const updates = [];
