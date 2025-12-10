@@ -3031,6 +3031,12 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_max_nights INTEGER`); // NULL = no max
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS tourist_tax_exempt_children BOOLEAN DEFAULT true`);
     
+    // Add description columns to properties and bookable_units for website display
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT`);
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT`);
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT`);
+    
     // Add pricing columns to room_availability
     await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS reference_price DECIMAL(10,2)`);
     await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS standard_price DECIMAL(10,2)`);
@@ -5991,7 +5997,11 @@ app.post('/api/db/properties', async (req, res) => {
 app.put('/api/db/properties/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { name, description, address, city, country, property_type, status } = req.body;
+    const { 
+      name, description, address, city, country, property_type, status,
+      district, state, zip_code, latitude, longitude,
+      short_description, full_description
+    } = req.body;
 
     const result = await pool.query(
       `UPDATE properties SET 
@@ -6002,10 +6012,19 @@ app.put('/api/db/properties/:id', async (req, res) => {
         country = COALESCE($5, country), 
         property_type = COALESCE($6, property_type),
         status = COALESCE($7, status),
+        district = COALESCE($8, district),
+        state = COALESCE($9, state),
+        zip_code = COALESCE($10, zip_code),
+        latitude = COALESCE($11, latitude),
+        longitude = COALESCE($12, longitude),
+        short_description = COALESCE($13, short_description),
+        full_description = COALESCE($14, full_description),
         updated_at = NOW()
-      WHERE id = $8
+      WHERE id = $15
       RETURNING *`,
-      [name, description, address, city, country, property_type, status, id]
+      [name, description, address, city, country, property_type, status,
+       district, state, zip_code, latitude, longitude,
+       short_description, full_description, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -11454,7 +11473,9 @@ app.put('/api/admin/units/:id', async (req, res) => {
       max_guests,
       max_adults, 
       max_children,
-      bed_configuration 
+      bed_configuration,
+      short_description,
+      full_description
     } = req.body;
     
     // Update all fields (GAS-controlled and editable)
@@ -11468,11 +11489,14 @@ app.put('/api/admin/units/:id', async (req, res) => {
         max_adults = COALESCE($5, max_adults),
         max_children = COALESCE($6, max_children),
         bed_configuration = COALESCE($7, bed_configuration),
+        short_description = COALESCE($8, short_description),
+        full_description = COALESCE($9, full_description),
         updated_at = NOW()
-      WHERE id = $8
+      WHERE id = $10
       RETURNING *
     `, [quantity, status, room_type, max_guests, max_adults, max_children, 
-        bed_configuration ? JSON.stringify(bed_configuration) : null, id]);
+        bed_configuration ? JSON.stringify(bed_configuration) : null,
+        short_description, full_description, id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
