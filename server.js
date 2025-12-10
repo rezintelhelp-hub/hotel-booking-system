@@ -11467,39 +11467,39 @@ app.get('/api/admin/units/:id', async (req, res) => {
 app.put('/api/admin/units/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { 
-      quantity, 
-      status, 
-      room_type,
-      max_guests,
-      max_adults, 
-      max_children,
-      display_name
-    } = req.body;
+    console.log('PUT /api/admin/units/' + id, 'body:', JSON.stringify(req.body));
     
-    console.log('Updating unit:', id, 'display_name:', display_name);
+    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name } = req.body;
     
-    // Update main fields only - no descriptions to avoid JSON issues
+    // Ultra simple update - no JSONB columns at all
     const result = await pool.query(`
       UPDATE bookable_units 
       SET 
-        quantity = COALESCE($1, quantity),
-        status = COALESCE($2, status),
-        unit_type = COALESCE($3, unit_type),
-        max_guests = COALESCE($4, max_guests),
-        max_adults = COALESCE($5, max_adults),
-        max_children = COALESCE($6, max_children),
+        quantity = $1,
+        status = $2,
+        unit_type = $3,
+        max_guests = $4,
+        max_adults = $5,
+        max_children = $6,
         display_name = $7,
         updated_at = NOW()
       WHERE id = $8
-      RETURNING *
-    `, [quantity, status, room_type, max_guests, max_adults, max_children, display_name || null, id]);
+      RETURNING id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children
+    `, [
+      quantity || 1, 
+      status || 'available', 
+      room_type || 'double', 
+      max_guests || 2, 
+      max_adults || 2, 
+      max_children || 0, 
+      display_name || null, 
+      id
+    ]);
     
-    console.log('Updated unit result:', result.rows[0]?.display_name);
-    
+    console.log('Update success:', result.rows[0]);
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
-    console.error('Unit update error:', error.message);
+    console.error('Unit update error:', error);
     res.json({ success: false, error: error.message });
   }
 });
