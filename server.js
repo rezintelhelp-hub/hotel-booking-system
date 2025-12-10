@@ -7335,7 +7335,12 @@ app.post('/api/beds24/import-property', async (req, res) => {
   try {
     console.log('═══════════════════════════════════════════════════════');
     console.log('🚀 BEDS24 IMPORT - Property ID: ' + propId);
+    console.log('   Request body:', JSON.stringify(req.body));
     console.log('═══════════════════════════════════════════════════════');
+    
+    if (!propId) {
+      throw new Error('Property ID is required');
+    }
     
     // 1. Fetch property from Beds24
     const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
@@ -7343,13 +7348,21 @@ app.post('/api/beds24/import-property', async (req, res) => {
       params: { id: propId, includeTexts: 'all', includeAllRooms: true }
     });
     
-    const prop = propResponse.data.data?.[0] || propResponse.data[0];
+    console.log('   Beds24 response keys:', Object.keys(propResponse.data));
+    
+    const props = propResponse.data.data || propResponse.data || [];
+    const prop = Array.isArray(props) ? props[0] : props;
+    
     if (!prop) {
       throw new Error('Property not found in Beds24');
     }
     
+    console.log('   Property object keys:', Object.keys(prop));
+    
+    // Use propId from response or from request
+    const beds24PropId = prop.propId || prop.id || propId;
     const propName = prop.name || prop.propName || 'Beds24 Property';
-    console.log('   Property: ' + propName);
+    console.log('   Property: ' + propName + ' (Beds24 ID: ' + beds24PropId + ')');
     
     // 2. Check if account with this name exists, or create new one
     let accountId;
@@ -7374,7 +7387,7 @@ app.post('/api/beds24/import-property', async (req, res) => {
     
     // 3. Check if property already exists
     const existingProp = await pool.query(
-      'SELECT id FROM properties WHERE beds24_property_id = $1',
+      'SELECT id FROM properties WHERE beds24_property_id::text = $1',
       [String(propId)]
     );
     
@@ -7386,29 +7399,14 @@ app.post('/api/beds24/import-property', async (req, res) => {
       console.log('   Updated existing property ID: ' + gasPropertyId);
     } else {
       // 4. Create property
+      console.log('   INSERT values: accountId=' + accountId + ', propId=' + propId + ', name=' + propName);
       const propResult = await pool.query(`
         INSERT INTO properties (
           account_id, user_id, beds24_property_id, name, 
-          city, country, property_type, cm_source, status,
-          address, postcode, latitude, longitude,
-          check_in_from, check_out_by, currency
-        ) VALUES ($1, 1, $2, $3, $4, $5, $6, 'beds24', 'active', $7, $8, $9, $10, $11, $12, $13)
+          property_type, cm_source, status
+        ) VALUES ($1, 1, $2, $3, 'hotel', 'beds24', 'active')
         RETURNING id
-      `, [
-        accountId, 
-        String(propId), 
-        propName,
-        prop.city || '',
-        prop.country || '',
-        prop.propertyType || 'hotel',
-        prop.address || '',
-        prop.postcode || '',
-        prop.latitude || null,
-        prop.longitude || null,
-        prop.checkInStart || '15:00',
-        prop.checkOutEnd || '11:00',
-        prop.currency || 'EUR'
-      ]);
+      `, [accountId, String(propId), propName]);
       gasPropertyId = propResult.rows[0].id;
       console.log('   Created property ID: ' + gasPropertyId);
     }
@@ -7420,27 +7418,31 @@ app.post('/api/beds24/import-property', async (req, res) => {
     for (const room of rooms) {
       const roomId = room.id || room.roomId;
       
+      // Skip if no room ID
+      if (!roomId) {
+        console.log('   Skipping room without ID');
+        continue;
+      }
+      
       // Check if room exists
       const existingRoom = await pool.query(
-        'SELECT id FROM bookable_units WHERE property_id = $1 AND beds24_room_id = $2',
-        [gasPropertyId, roomId]
+        'SELECT id FROM bookable_units WHERE property_id = $1 AND beds24_room_id::text = $2',
+        [gasPropertyId, String(roomId)]
       );
       
       if (existingRoom.rows.length === 0) {
         await pool.query(`
           INSERT INTO bookable_units (
             property_id, beds24_room_id, cm_room_id, name, 
-            max_guests, max_adults, base_price, quantity, status
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'available')
+            max_guests, base_price, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'available')
         `, [
           gasPropertyId, 
-          roomId, 
+          String(roomId), 
           String(roomId), 
           room.name || room.roomName || 'Room',
           room.maxPeople || room.maxGuests || 2,
-          room.maxAdult || room.maxAdults || 2,
-          room.rackRate || room.basePrice || 100,
-          room.qty || room.quantity || 1
+          room.rackRate || room.basePrice || 100
         ]);
         roomsCreated++;
       }
