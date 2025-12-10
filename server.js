@@ -2913,6 +2913,13 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS cm_name VARCHAR(100)`);
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS api_base_url VARCHAR(255)`);
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS auth_type VARCHAR(50) DEFAULT 'oauth2'`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS cm_website VARCHAR(255)`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS api_version VARCHAR(20)`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_availability_sync BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_rate_sync BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_property_import BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_booking_import BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
     
     // Create unique index if not exists
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cm_code ON channel_managers(cm_code) WHERE cm_code IS NOT NULL`);
@@ -7121,20 +7128,43 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       console.log('✓ Using existing user ID: ' + userId);
     }
     
+    // Ensure channel_managers has all required columns
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS cm_website VARCHAR(255)`).catch(() => {});
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS api_version VARCHAR(20)`).catch(() => {});
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_availability_sync BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_rate_sync BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_property_import BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_booking_import BOOLEAN DEFAULT false`).catch(() => {});
+    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`).catch(() => {});
+
     // Ensure Beds24 exists in channel_managers table
     await pool.query(`
       INSERT INTO channel_managers (
         name,
         cm_name,
         cm_code,
+        cm_website,
+        api_version,
         api_base_url,
-        auth_type
+        auth_type,
+        supports_availability_sync,
+        supports_rate_sync,
+        supports_property_import,
+        supports_booking_import,
+        is_active
       ) VALUES (
         'Beds24',
         'Beds24',
         'beds24',
+        'https://beds24.com',
+        'v2',
         'https://api.beds24.com/v2',
-        'bearer_token'
+        'bearer_token',
+        true,
+        true,
+        true,
+        true,
+        true
       )
       ON CONFLICT (cm_code) DO NOTHING
     `);
