@@ -12782,7 +12782,7 @@ Local honey and preserves"></textarea>
         
         // Copy webhook URL to clipboard
         function copyWebhookUrl() {
-            const webhookUrl = window.location.origin + '/api/webhooks/beds24';
+            const webhookUrl = 'https://admin.gas.travel/api/webhooks/beds24';
             navigator.clipboard.writeText(webhookUrl).then(() => {
                 const notification = document.createElement('div');
                 notification.textContent = '✅ Webhook URL copied!';
@@ -12831,7 +12831,7 @@ Local honey and preserves"></textarea>
         function initWebhookUrl() {
             const webhookUrlEl = document.getElementById('webhook-url');
             if (webhookUrlEl) {
-                webhookUrlEl.textContent = window.location.origin + '/api/webhooks/beds24';
+                webhookUrlEl.textContent = 'https://admin.gas.travel/api/webhooks/beds24';
             }
         }
 
@@ -15222,6 +15222,7 @@ Local honey and preserves"></textarea>
                                 <thead>
                                     <tr>
                                         <th>Service</th>
+                                        <th>Account</th>
                                         <th>Status</th>
                                         <th>Properties</th>
                                         <th>Actions</th>
@@ -15241,6 +15242,7 @@ Local honey and preserves"></textarea>
                         html += `
                             <tr>
                                 <td><strong>${cmName}</strong></td>
+                                <td>${conn.account_name || 'Unknown'}</td>
                                 <td>${statusBadge}</td>
                                 <td>${conn.property_count || 0}</td>
                                 <td>
