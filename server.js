@@ -3034,6 +3034,7 @@ app.get('/api/setup-database', async (req, res) => {
     // Add description columns to properties and bookable_units for website display
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT`);
     
@@ -6000,7 +6001,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
     const { 
       name, description, address, city, country, property_type, status,
       district, state, zip_code, latitude, longitude,
-      short_description, full_description
+      short_description, full_description, display_name
     } = req.body;
 
     const result = await pool.query(
@@ -6019,12 +6020,13 @@ app.put('/api/db/properties/:id', async (req, res) => {
         longitude = COALESCE($12, longitude),
         short_description = COALESCE($13, short_description),
         full_description = COALESCE($14, full_description),
+        display_name = $15,
         updated_at = NOW()
-      WHERE id = $15
+      WHERE id = $16
       RETURNING *`,
       [name, description, address, city, country, property_type, status,
        district, state, zip_code, latitude, longitude,
-       short_description, full_description, id]
+       short_description, full_description, display_name || null, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -14948,6 +14950,9 @@ app.post('/api/ai/generate-content', async (req, res) => {
       case 'property_description':
         userPrompt = `Write a property description (2-3 paragraphs). ${propertyContext} ${prompt ? `Notes: ${prompt}` : ''}`;
         break;
+      case 'property_short':
+        userPrompt = `Write a short property description (1-2 sentences, max 30 words). ${propertyContext} ${prompt ? `Notes: ${prompt}` : ''}`;
+        break;
       case 'property_location':
         userPrompt = `Write a location description (1-2 paragraphs). ${propertyContext} ${prompt ? `Notes: ${prompt}` : ''}`;
         break;
@@ -14956,6 +14961,20 @@ app.post('/api/ai/generate-content', async (req, res) => {
         break;
       case 'room_full':
         userPrompt = `Write a detailed room description (2-3 paragraphs). ${roomContext} ${propertyContext} ${prompt ? `Notes: ${prompt}` : ''}`;
+        break;
+      case 'display_name':
+        const { original_name, property_type: propType, city: propCity } = req.body;
+        userPrompt = `Create a marketing-friendly property name from this original name: "${original_name}". Property type: ${propType || 'accommodation'}. Location: ${propCity || 'unknown'}.
+
+Rules:
+- Remove codes like BC138, ME3, Coastal1 etc
+- Keep the core descriptive words
+- Make it appealing but not overly flowery
+- Max 6 words
+- Don't use words like "Luxurious", "Stunning", "Paradise"
+- Keep it natural and professional
+
+Just return the new name, nothing else.`;
         break;
       default:
         return res.json({ success: false, error: 'Unknown content type' });
@@ -15732,7 +15751,12 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     const { unitId } = req.params;
     
     const unit = await pool.query(`
-      SELECT bu.*, p.name as property_name, p.currency, p.timezone
+      SELECT bu.*, 
+             p.name as property_name, 
+             p.display_name as property_display_name,
+             COALESCE(p.display_name, p.name) as property_name_display,
+             p.currency, 
+             p.timezone
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
