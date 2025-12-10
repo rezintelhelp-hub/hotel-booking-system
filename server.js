@@ -11471,7 +11471,9 @@ app.put('/api/admin/units/:id', async (req, res) => {
     
     const { quantity, status, room_type, max_guests, max_adults, max_children, display_name } = req.body;
     
-    // Ultra simple update - no JSONB columns at all
+    // display_name column is JSON type, so wrap it
+    const displayNameJson = display_name ? JSON.stringify({ en: display_name }) : null;
+    
     const result = await pool.query(`
       UPDATE bookable_units 
       SET 
@@ -11492,7 +11494,7 @@ app.put('/api/admin/units/:id', async (req, res) => {
       max_guests || 2, 
       max_adults || 2, 
       max_children || 0, 
-      display_name || null, 
+      displayNameJson, 
       id
     ]);
     
