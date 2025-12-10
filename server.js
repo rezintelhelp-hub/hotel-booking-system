@@ -1503,6 +1503,9 @@ app.post('/api/migrate-to-accounts', async (req, res) => {
 // Get all accounts (for admin view)
 app.get('/api/admin/accounts', async (req, res) => {
   try {
+    // Ensure account_code column exists
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
+    
     const result = await pool.query(`
       SELECT 
         a.*,
