@@ -6677,6 +6677,53 @@ app.get('/api/debug/client-settings', async (req, res) => {
   }
 });
 
+// Debug: Show all properties with their account_id
+app.get('/api/debug/properties', async (req, res) => {
+  try {
+    const props = await pool.query(`
+      SELECT p.id, p.name, p.account_id, p.beds24_property_id, p.created_at,
+             a.name as account_name, a.public_id as account_public_id
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      ORDER BY p.created_at DESC
+      LIMIT 20
+    `);
+    const accounts = await pool.query('SELECT id, name, public_id, role FROM accounts ORDER BY id');
+    res.json({
+      properties: props.rows,
+      accounts: accounts.rows
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// Fix: Assign property to account
+app.get('/api/fix/property-account/:propertyId/:accountId', async (req, res) => {
+  try {
+    const { propertyId, accountId } = req.params;
+    await pool.query('UPDATE properties SET account_id = $1 WHERE id = $2', [accountId, propertyId]);
+    const updated = await pool.query('SELECT id, name, account_id FROM properties WHERE id = $1', [propertyId]);
+    res.json({ success: true, property: updated.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fix: Assign all unassigned properties to an account
+app.get('/api/fix/assign-all-properties/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    const result = await pool.query(
+      'UPDATE properties SET account_id = $1 WHERE account_id IS NULL RETURNING id, name',
+      [accountId]
+    );
+    res.json({ success: true, updated: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get single channel connection details (with token for refresh)
 app.get('/api/channel-connection/:id', async (req, res) => {
   try {
@@ -7193,6 +7240,58 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
     });
     
     const { token, refreshToken } = response.data;
+    
+    // If no gasAccountId yet, fetch properties from Beds24 and create a new account
+    if (!gasAccountId) {
+      console.log('📋 No account linked - fetching Beds24 properties to create account...');
+      
+      try {
+        const propsResponse = await axios.get('https://beds24.com/api/v2/properties', {
+          headers: { 'token': token, 'accept': 'application/json' },
+          params: { includeTexts: 'all' }
+        });
+        
+        const properties = propsResponse.data.data || [];
+        
+        if (properties.length > 0) {
+          // Use first property name as account name
+          const firstProp = properties[0];
+          const accountName = firstProp.name || firstProp.propName || 'New Beds24 Account';
+          const accountEmail = firstProp.email || firstProp.propEmail || `beds24_${Date.now()}@gas.travel`;
+          
+          // Check if account with this name already exists
+          const existingAccount = await pool.query(
+            'SELECT id, name FROM accounts WHERE LOWER(name) = LOWER($1) OR email = $2',
+            [accountName, accountEmail]
+          );
+          
+          if (existingAccount.rows.length > 0) {
+            gasAccountId = existingAccount.rows[0].id;
+            console.log('   ✓ Using existing account ID: ' + gasAccountId + ' (' + existingAccount.rows[0].name + ')');
+          } else {
+            console.log('   Creating new account: ' + accountName);
+            
+            // Create new account
+            const newAccountResult = await pool.query(`
+              INSERT INTO accounts (
+                name,
+                email,
+                role,
+                business_name,
+                status
+              ) VALUES ($1, $2, 'admin', $3, 'active')
+              RETURNING id, public_id, name
+            `, [accountName, accountEmail, accountName]);
+            
+            gasAccountId = newAccountResult.rows[0].id;
+            console.log('   ✓ Created account ID: ' + gasAccountId + ' (' + accountName + ')');
+          }
+        }
+      } catch (propError) {
+        console.log('   ⚠ Could not fetch properties to create account: ' + propError.message);
+        // Continue without account - can be fixed later
+      }
+    }
     
     // Ensure account_id column exists
     await pool.query(`
