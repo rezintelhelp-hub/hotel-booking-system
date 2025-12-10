@@ -1506,15 +1506,15 @@
                             <p>Welcome back! Here's what's happening with your properties.</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                            <a href="/beds24-wizard.html" class="btn">
+                            <a href="#" onclick="openWizard('beds24')" class="btn">
                                 <span>+</span>
                                 <span>Import from Beds24</span>
                             </a>
-                            <a href="/hostaway-wizard.html" class="btn" style="background: #1e3a5f;">
+                            <a href="#" onclick="openWizard('hostaway')" class="btn" style="background: #1e3a5f;">
                                 <span>+</span>
                                 <span>Import from Hostaway</span>
                             </a>
-                            <a href="/smoobu-wizard.html" class="btn" style="background: #00b4b4;">
+                            <a href="#" onclick="openWizard('smoobu')" class="btn" style="background: #00b4b4;">
                                 <span>+</span>
                                 <span>Import from Smoobu</span>
                             </a>
@@ -1652,7 +1652,7 @@
                             <h2>Properties</h2>
                             <p>Manage your property listings</p>
                         </div>
-                        <a href="/beds24-wizard.html" class="btn">
+                        <a href="#" onclick="openWizard('beds24')" class="btn">
                             <span>+</span>
                             <span>Import Property</span>
                         </a>
@@ -5078,21 +5078,21 @@
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <!-- Beds24 - Ready -->
-                            <a href="/beds24-wizard.html" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                            <a href="#" onclick="openWizard('beds24')" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
                                 <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
                                 <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Beds24</div>
                                 <div style="color: var(--text-secondary); font-size: 0.85rem;">PMS + Channel Manager</div>
                             </a>
                             
                             <!-- Hostaway - Ready -->
-                            <a href="/hostaway-wizard.html" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                            <a href="#" onclick="openWizard('hostaway')" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
                                 <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
                                 <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Hostaway</div>
                                 <div style="color: var(--text-secondary); font-size: 0.85rem;">Vacation Rental Software</div>
                             </a>
                             
                             <!-- Smoobu - Ready -->
-                            <a href="/smoobu-wizard.html" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                            <a href="#" onclick="openWizard('smoobu')" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
                                 <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
                                 <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Smoobu</div>
                                 <div style="color: var(--text-secondary); font-size: 0.85rem;">Channel Manager</div>
@@ -12909,6 +12909,16 @@ Local honey and preserves"></textarea>
             }
         }
 
+        // Open channel manager wizard with current account context
+        function openWizard(cm) {
+            let url = `/${cm}-wizard.html`;
+            // Pass current account's public_id if available
+            if (currentAccount && currentAccount.public_id) {
+                url += `?c=${currentAccount.public_id}`;
+            }
+            window.location.href = url;
+        }
+
         // Data Loading
         async function loadDashboard() {
             try {
@@ -13023,7 +13033,7 @@ Local honey and preserves"></textarea>
                             <div class="empty-icon">🏨</div>
                             <h3>No Properties ${selectedAgencyId ? 'for this Agency' : 'Yet'}</h3>
                             <p>${selectedAgencyId ? 'Assign properties to this agency from the Properties view.' : 'Import your first property from Beds24'}</p>
-                            ${!selectedAgencyId ? '<a href="/beds24-wizard.html" class="btn">Import Property</a>' : ''}
+                            ${!selectedAgencyId ? '<a href="#" onclick="openWizard(\'beds24\')" class="btn">Import Property</a>' : ''}
                         </div>
                     `;
                 }
