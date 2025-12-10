@@ -6660,7 +6660,7 @@ app.get('/api/debug/find-credentials', async (req, res) => {
 app.get('/api/debug/client-settings', async (req, res) => {
   try {
     const settings = await pool.query('SELECT * FROM client_settings');
-    const websiteSettings = await pool.query('SELECT client_id, smoobu_api_key, hostaway_token, hostaway_account_id FROM website_settings WHERE smoobu_api_key IS NOT NULL OR hostaway_token IS NOT NULL');
+    const websiteSettings = await pool.query('SELECT * FROM website_settings');
     res.json({
       client_settings: settings.rows,
       website_settings: websiteSettings.rows
