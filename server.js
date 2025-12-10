@@ -6571,17 +6571,22 @@ app.get('/api/fix/link-beds24/:accountId', async (req, res) => {
     }
     const cmId = cmResult.rows[0].id;
     
-    // Check if connection already exists for this account
+    // Find any existing Beds24 connection
     const existing = await pool.query(
-      'SELECT id FROM channel_connections WHERE gas_account_id = $1 AND cm_id = $2',
-      [parseInt(accountId), cmId]
+      'SELECT id FROM channel_connections WHERE cm_id = $1 LIMIT 1',
+      [cmId]
     );
     
     if (existing.rows.length > 0) {
-      return res.json({ success: true, message: 'Connection already exists', connectionId: existing.rows[0].id });
+      // Update existing connection to link to this account
+      await pool.query(
+        'UPDATE channel_connections SET gas_account_id = $1, status = $2, updated_at = NOW() WHERE id = $3',
+        [parseInt(accountId), 'active', existing.rows[0].id]
+      );
+      return res.json({ success: true, message: 'Updated Beds24 connection to account ' + accountId, connectionId: existing.rows[0].id });
     }
     
-    // Create new connection
+    // Create new connection if none exists
     const result = await pool.query(`
       INSERT INTO channel_connections (cm_id, user_id, gas_account_id, status, created_at, updated_at)
       VALUES ($1, 1, $2, 'active', NOW(), NOW())
