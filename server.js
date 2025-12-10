@@ -6688,6 +6688,29 @@ app.get('/api/fix/merge-accounts/:newName', async (req, res) => {
   }
 });
 
+// Fix: Update account email
+// Usage: /api/fix/account-email/AccountName/newemail@example.com
+app.get('/api/fix/account-email/:name/:email', async (req, res) => {
+  try {
+    const { name, email } = req.params;
+    const decodedName = decodeURIComponent(name);
+    const decodedEmail = decodeURIComponent(email);
+    
+    const result = await pool.query(
+      'UPDATE accounts SET email = $1, updated_at = NOW() WHERE LOWER(name) = LOWER($2) RETURNING id, name, email',
+      [decodedEmail, decodedName]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found: ' + decodedName });
+    }
+    
+    res.json({ success: true, account: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Add Hostaway connection manually
 app.get('/api/fix/add-hostaway/:token/:accountId', async (req, res) => {
   try {
@@ -7481,12 +7504,12 @@ app.post('/api/beds24/refresh-properties', async (req, res) => {
 
 // Simple Beds24 import - creates account automatically (used by wizard)
 app.post('/api/beds24/import-property', async (req, res) => {
-  const { token, propId } = req.body;
+  const { token, propId, accountName, accountEmail } = req.body;
   
   try {
     console.log('═══════════════════════════════════════════════════════');
     console.log('🚀 BEDS24 IMPORT - Property ID: ' + propId);
-    console.log('   Request body:', JSON.stringify(req.body));
+    console.log('   Account: ' + (accountName || 'auto-generate'));
     console.log('═══════════════════════════════════════════════════════');
     
     if (!propId) {
@@ -7499,8 +7522,6 @@ app.post('/api/beds24/import-property', async (req, res) => {
       params: { id: propId, includeTexts: 'all', includeAllRooms: true }
     });
     
-    console.log('   Beds24 response keys:', Object.keys(propResponse.data));
-    
     const props = propResponse.data.data || propResponse.data || [];
     const prop = Array.isArray(props) ? props[0] : props;
     
@@ -7508,32 +7529,32 @@ app.post('/api/beds24/import-property', async (req, res) => {
       throw new Error('Property not found in Beds24');
     }
     
-    console.log('   Property object keys:', Object.keys(prop));
-    
     // Use propId from response or from request
     const beds24PropId = prop.propId || prop.id || propId;
     const propName = prop.name || prop.propName || 'Beds24 Property';
     console.log('   Property: ' + propName + ' (Beds24 ID: ' + beds24PropId + ')');
     
-    // 2. Check if account with this name exists, or create new one
+    // 2. Use provided account name, or fall back to property name
+    const targetAccountName = accountName || propName;
+    const targetEmail = accountEmail || `${targetAccountName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}@gas.travel`;
+    
     let accountId;
     const existingAccount = await pool.query(
       'SELECT id FROM accounts WHERE LOWER(name) = LOWER($1)',
-      [propName]
+      [targetAccountName]
     );
     
     if (existingAccount.rows.length > 0) {
       accountId = existingAccount.rows[0].id;
       console.log('   Using existing account ID: ' + accountId);
     } else {
-      const email = `${propName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}@gas.travel`;
       const newAccount = await pool.query(`
         INSERT INTO accounts (name, email, role, business_name, status)
         VALUES ($1, $2, 'admin', $1, 'active')
         RETURNING id
-      `, [propName, email]);
+      `, [targetAccountName, targetEmail]);
       accountId = newAccount.rows[0].id;
-      console.log('   Created new account ID: ' + accountId + ' (' + propName + ')');
+      console.log('   Created new account ID: ' + accountId + ' (' + targetAccountName + ')');
     }
     
     // 3. Check if property already exists
