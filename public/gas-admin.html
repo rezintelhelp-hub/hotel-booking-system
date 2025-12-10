@@ -15208,31 +15208,301 @@ Local honey and preserves"></textarea>
 
         async function loadIntegrations() {
             const container = document.getElementById('channel-connections');
-            container.innerHTML = `
-                <div class="table-container">
-                    <table>
-                        <thead>
+            container.innerHTML = '<div class="loading"><div class="spinner"></div></div>';
+            
+            try {
+                // Fetch actual channel connections for this account
+                const response = await fetch('/api/channel-connections' + buildQueryString(), { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.connections && data.connections.length > 0) {
+                    let html = `
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Service</th>
+                                        <th>Status</th>
+                                        <th>Properties</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                    `;
+                    
+                    for (const conn of data.connections) {
+                        const cmName = conn.cm_code === 'beds24' ? '🛏️ Beds24' : 
+                                       conn.cm_code === 'hostaway' ? '🏠 Hostaway' : 
+                                       conn.cm_code === 'smoobu' ? '🏨 Smoobu' : conn.cm_name;
+                        const statusBadge = conn.status === 'active' ? 
+                            '<span class="badge badge-success">Active</span>' : 
+                            '<span class="badge badge-warning">Inactive</span>';
+                        
+                        html += `
                             <tr>
-                                <th>Service</th>
-                                <th>Status</th>
-                                <th>Properties</th>
-                                <th>Last Sync</th>
+                                <td><strong>${cmName}</strong></td>
+                                <td>${statusBadge}</td>
+                                <td>${conn.property_count || 0}</td>
+                                <td>
+                                    <button class="btn btn-secondary btn-small" onclick="refreshCMProperties('${conn.cm_code}', ${conn.id})" title="Check for new/removed properties">
+                                        🔄 Refresh
+                                    </button>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td><strong>Beds24</strong></td>
-                                <td><span class="badge badge-success">Active</span></td>
-                                <td>1</td>
-                                <td>Just now</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-            `;
+                        `;
+                    }
+                    
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `
+                        <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
+                            <p style="margin-bottom: 1rem;">No channel managers connected yet.</p>
+                            <button class="btn btn-primary" onclick="openChannelManagerModal()">+ Connect Channel Manager</button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading integrations:', error);
+                container.innerHTML = `
+                    <div style="padding: 2rem; text-align: center; color: var(--text-secondary);">
+                        <p>Error loading integrations. <a href="#" onclick="loadIntegrations(); return false;">Retry</a></p>
+                    </div>
+                `;
+            }
             
             // Initialize webhook URL display
             initWebhookUrl();
+        }
+        
+        // Refresh properties from Channel Manager
+        async function refreshCMProperties(cmCode, connectionId) {
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Checking...';
+            
+            try {
+                // Get connection details (token) from server
+                const connResponse = await fetch(`/api/channel-connection/${connectionId}`, { headers: authHeaders() });
+                const connData = await connResponse.json();
+                
+                if (!connData.success) {
+                    throw new Error(connData.error || 'Failed to get connection details');
+                }
+                
+                // Call refresh endpoint
+                const response = await fetch(`/api/${cmCode}/refresh-properties`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        token: connData.connection.access_token,
+                        apiKey: connData.connection.api_key,
+                        accountId: getAccountParam() ? new URLSearchParams(window.location.search).get('account') : connData.connection.account_id
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showRefreshResultsModal(data, cmCode, connectionId);
+                } else {
+                    throw new Error(data.error || 'Failed to refresh properties');
+                }
+            } catch (error) {
+                console.error('Error refreshing:', error);
+                alert('Error: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = originalText;
+            }
+        }
+        
+        // Show modal with refresh results
+        function showRefreshResultsModal(data, cmCode, connectionId) {
+            const cmName = cmCode === 'beds24' ? 'Beds24' : cmCode === 'hostaway' ? 'Hostaway' : 'Smoobu';
+            
+            let html = `
+                <div id="refresh-results-modal" class="modal active">
+                    <div class="modal-content" style="max-width: 500px;">
+                        <div class="modal-header">
+                            <h3>🔄 ${cmName} Property Comparison</h3>
+                            <button class="modal-close" onclick="closeRefreshResultsModal()">×</button>
+                        </div>
+                        <div class="modal-body">
+            `;
+            
+            // Existing properties
+            html += `
+                <div style="margin-bottom: 1.5rem;">
+                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                        <span style="color: #10b981; font-size: 1.2rem;">✅</span>
+                        <strong>${data.existing.length} existing properties matched</strong>
+                    </div>
+                </div>
+            `;
+            
+            // New properties
+            if (data.new.length > 0) {
+                html += `
+                    <div style="margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <span style="color: #3b82f6; font-size: 1.2rem;">🆕</span>
+                            <strong>${data.new.length} new properties found:</strong>
+                        </div>
+                        <div style="background: #eff6ff; border-radius: 8px; padding: 1rem;">
+                `;
+                
+                data.new.forEach((prop, i) => {
+                    html += `
+                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.5rem 0; ${i > 0 ? 'border-top: 1px solid #bfdbfe;' : ''}">
+                            <input type="checkbox" class="new-prop-checkbox" data-cm-id="${prop.cm_id}" data-name="${prop.name.replace(/"/g, '&quot;')}" checked>
+                            <div>
+                                <div style="font-weight: 500;">${prop.name}</div>
+                                <div style="font-size: 0.85rem; color: #64748b;">${prop.city || 'No location'} · ${prop.rooms || 1} room(s)</div>
+                            </div>
+                        </label>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+            
+            // Removed properties
+            if (data.removed.length > 0) {
+                html += `
+                    <div style="margin-bottom: 1.5rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                            <span style="color: #f59e0b; font-size: 1.2rem;">⚠️</span>
+                            <strong>${data.removed.length} properties no longer in ${cmName}:</strong>
+                        </div>
+                        <div style="background: #fef3c7; border-radius: 8px; padding: 1rem;">
+                `;
+                
+                data.removed.forEach((prop, i) => {
+                    html += `
+                        <div style="padding: 0.5rem 0; ${i > 0 ? 'border-top: 1px solid #fde68a;' : ''}">
+                            <div style="font-weight: 500;">${prop.name}</div>
+                            <div style="font-size: 0.85rem; color: #92400e;">GAS ID: ${prop.gas_id}</div>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                        </div>
+                        <p style="font-size: 0.85rem; color: #92400e; margin-top: 0.5rem;">
+                            ℹ️ Removed properties remain in GAS. You can archive them manually if needed.
+                        </p>
+                    </div>
+                `;
+            }
+            
+            // No changes message
+            if (data.new.length === 0 && data.removed.length === 0) {
+                html += `
+                    <div style="text-align: center; padding: 1rem; background: #f0fdf4; border-radius: 8px; color: #166534;">
+                        ✅ All properties are in sync - no changes detected!
+                    </div>
+                `;
+            }
+            
+            html += `
+                        </div>
+                        <div class="modal-footer" style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--border);">
+            `;
+            
+            if (data.new.length > 0) {
+                html += `<button class="btn btn-primary" onclick="importSelectedNewProperties('${cmCode}', ${connectionId})">Import Selected</button>`;
+            }
+            
+            html += `
+                            <button class="btn btn-secondary" onclick="closeRefreshResultsModal()">Close</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', html);
+        }
+        
+        function closeRefreshResultsModal() {
+            const modal = document.getElementById('refresh-results-modal');
+            if (modal) modal.remove();
+        }
+        
+        async function importSelectedNewProperties(cmCode, connectionId) {
+            const checkboxes = document.querySelectorAll('.new-prop-checkbox:checked');
+            if (checkboxes.length === 0) {
+                alert('Please select at least one property to import');
+                return;
+            }
+            
+            const btn = event.target;
+            btn.disabled = true;
+            btn.innerHTML = '⏳ Importing...';
+            
+            try {
+                // Get connection details
+                const connResponse = await fetch(`/api/channel-connection/${connectionId}`, { headers: authHeaders() });
+                const connData = await connResponse.json();
+                
+                let imported = 0;
+                let failed = 0;
+                
+                for (const checkbox of checkboxes) {
+                    const cmId = checkbox.dataset.cmId;
+                    const name = checkbox.dataset.name;
+                    
+                    try {
+                        const endpoint = cmCode === 'beds24' ? '/api/beds24/import-complete-property' :
+                                        cmCode === 'hostaway' ? '/api/hostaway/import-property' :
+                                        '/api/smoobu/import-property';
+                        
+                        const body = cmCode === 'beds24' ? {
+                            propertyId: cmId,
+                            connectionId: connectionId,
+                            token: connData.connection.access_token
+                        } : cmCode === 'hostaway' ? {
+                            property: { id: cmId, name: name },
+                            token: connData.connection.access_token,
+                            connectionId: connectionId
+                        } : {
+                            apiKey: connData.connection.api_key,
+                            apartmentId: cmId,
+                            clientId: connData.connection.account_id
+                        };
+                        
+                        const response = await fetch(endpoint, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify(body)
+                        });
+                        
+                        const result = await response.json();
+                        if (result.success) {
+                            imported++;
+                        } else {
+                            failed++;
+                        }
+                    } catch (e) {
+                        failed++;
+                    }
+                }
+                
+                closeRefreshResultsModal();
+                alert(`Imported ${imported} properties${failed > 0 ? ` (${failed} failed)` : ''}`);
+                loadIntegrations();
+                
+            } catch (error) {
+                console.error('Error importing:', error);
+                alert('Error importing properties: ' + error.message);
+            } finally {
+                btn.disabled = false;
+                btn.innerHTML = 'Import Selected';
+            }
         }
 
         // Modal Functions
