@@ -7085,7 +7085,7 @@ app.get('/api/beds24/check-connection', async (req, res) => {
 
 // Step 1: Setup Beds24 Connection (Save to channel_connections table)
 app.post('/api/beds24/setup-connection', async (req, res) => {
-  const { inviteCode, accountId } = req.body;
+  const { inviteCode, accountId, clientPublicId } = req.body;
   
   if (!inviteCode) {
     return res.json({ success: false, error: 'Invite code required' });
@@ -7093,8 +7093,21 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
   
   try {
     console.log('🔗 Setting up Beds24 connection...');
-    if (accountId) {
-      console.log('   Account ID specified:', accountId);
+    
+    // Get GAS account_id from public_id if provided
+    let gasAccountId = null;
+    if (clientPublicId) {
+      const accountResult = await pool.query('SELECT id FROM accounts WHERE public_id = $1', [clientPublicId]);
+      if (accountResult.rows.length > 0) {
+        gasAccountId = accountResult.rows[0].id;
+        console.log('   GAS Account ID:', gasAccountId);
+      }
+    } else if (accountId) {
+      // Fallback to accountId if it's a number (GAS account ID)
+      if (!isNaN(parseInt(accountId))) {
+        gasAccountId = parseInt(accountId);
+        console.log('   Using provided Account ID:', gasAccountId);
+      }
     }
     
     // Ensure we have at least one user (create default if needed)
@@ -7186,6 +7199,11 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS account_id VARCHAR(50)
     `).catch(() => {});
     
+    // Ensure gas_account_id column exists for linking to GAS accounts
+    await pool.query(`
+      ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS gas_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL
+    `).catch(() => {});
+    
     // Save to channel_connections table (or update if exists)
     // Check if connection already exists
     const existingConn = await pool.query(
@@ -7204,11 +7222,12 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
           refresh_token = $2,
           access_token = $3,
           account_id = $4,
+          gas_account_id = $5,
           token_expires_at = NOW() + INTERVAL '30 days',
           status = 'active',
           updated_at = NOW()
-        WHERE id = $5
-      `, [inviteCode, refreshToken, token, accountId || null, connectionId]);
+        WHERE id = $6
+      `, [inviteCode, refreshToken, token, accountId || null, gasAccountId, connectionId]);
     } else {
       // INSERT new connection
       const result = await pool.query(`
@@ -7219,6 +7238,7 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
           refresh_token,
           access_token,
           account_id,
+          gas_account_id,
           token_expires_at,
           status,
           sync_enabled,
@@ -7230,13 +7250,14 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
           $3,
           $4,
           $5,
+          $6,
           NOW() + INTERVAL '30 days',
           'active',
           true,
           60
         )
         RETURNING id
-      `, [userId, inviteCode, refreshToken, token, accountId || null]);
+      `, [userId, inviteCode, refreshToken, token, accountId || null, gasAccountId]);
       connectionId = result.rows[0].id;
     }
     
@@ -7247,6 +7268,7 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       token,
       refreshToken,
       connectionId,
+      gasAccountId,
       message: 'Connected to Beds24 successfully'
     });
     
@@ -7406,13 +7428,13 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     console.log('🚀 ENHANCED BEDS24 IMPORT - Property ID: ' + propertyId);
     console.log('═══════════════════════════════════════════════════════');
     
-    // Get the user_id and account_id from the connection
-    const connResult = await client.query('SELECT user_id, account_id FROM channel_connections WHERE id = $1', [connectionId]);
+    // Get the user_id and gas_account_id from the connection
+    const connResult = await client.query('SELECT user_id, gas_account_id FROM channel_connections WHERE id = $1', [connectionId]);
     if (connResult.rows.length === 0) {
       throw new Error('Connection not found - connectionId: ' + connectionId);
     }
     const userId = connResult.rows[0].user_id;
-    const accountId = connResult.rows[0].account_id;
+    const accountId = connResult.rows[0].gas_account_id;
     
     // =========================================================
     // 1. FETCH COMPLETE PROPERTY DATA FROM BEDS24
