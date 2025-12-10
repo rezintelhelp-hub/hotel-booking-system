@@ -9824,11 +9824,28 @@ Local honey and preserves"></textarea>
                 <!-- Basic Info Section -->
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">Basic Information</h4>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group" style="grid-column: 1 / -1;">
-                            <label class="form-label">Property Name *</label>
-                            <input type="text" class="form-input" id="edit-property-name" required>
+                    
+                    <!-- Original Name from Channel Manager (read-only) -->
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label" style="color: var(--text-secondary);">📡 Original Name (from Channel Manager)</label>
+                        <input type="text" class="form-input" id="edit-property-name" readonly style="background: var(--bg-secondary); color: var(--text-secondary);">
+                    </div>
+                    
+                    <!-- Display Name for Website -->
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">✨ Display Name (shown on website)</label>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <input type="text" class="form-input" id="edit-property-display-name" placeholder="Leave blank to use original name" style="flex: 1;">
+                            <button type="button" class="btn" onclick="generateDisplayName()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                                🪄 Generate
+                            </button>
                         </div>
+                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            AI-generated marketing-friendly name for your booking website
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Property Type</label>
                             <select class="form-input" id="edit-property-type">
@@ -20870,6 +20887,7 @@ Local honey and preserves"></textarea>
                     const prop = data.data;
                     document.getElementById('edit-property-id').value = prop.id;
                     document.getElementById('edit-property-name').value = prop.name || '';
+                    document.getElementById('edit-property-display-name').value = prop.display_name || '';
                     document.getElementById('edit-property-type').value = prop.property_type || 'hotel';
                     document.getElementById('edit-property-address').value = prop.address || '';
                     document.getElementById('edit-property-city').value = prop.city || '';
@@ -20905,6 +20923,7 @@ Local honey and preserves"></textarea>
             const id = document.getElementById('edit-property-id').value;
             const data = {
                 name: document.getElementById('edit-property-name').value,
+                display_name: document.getElementById('edit-property-display-name').value || null,
                 property_type: document.getElementById('edit-property-type').value,
                 address: document.getElementById('edit-property-address').value,
                 city: document.getElementById('edit-property-city').value,
@@ -21217,6 +21236,46 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('AI generation error:', error);
                 alert('Error generating content');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function generateDisplayName() {
+            const propertyId = document.getElementById('edit-property-id').value;
+            const originalName = document.getElementById('edit-property-name').value;
+            const propertyType = document.getElementById('edit-property-type').value;
+            const city = document.getElementById('edit-property-city').value;
+            
+            if (!originalName) return alert('No property name to work with');
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/ai/generate-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: 'display_name',
+                        original_name: originalName,
+                        property_type: propertyType,
+                        city: city
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('edit-property-display-name').value = result.content;
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('AI generation error:', error);
+                alert('Error generating display name');
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
