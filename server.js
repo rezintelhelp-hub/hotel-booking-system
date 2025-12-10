@@ -7218,6 +7218,19 @@ app.post('/api/beds24/list-properties', async (req, res) => {
     let properties = response.data.data || [];
     console.log('Found ' + properties.length + ' total properties');
     
+    // Normalize propId (Beds24 API may return id or propId)
+    properties = properties.map(p => ({
+      ...p,
+      propId: p.propId || p.id,
+      name: p.name || p.propName || 'Property'
+    }));
+    
+    // Log first property structure for debugging
+    if (properties.length > 0) {
+      console.log('First property keys:', Object.keys(properties[0]));
+      console.log('First property propId:', properties[0].propId);
+    }
+    
     // Filter by account ID if provided
     if (accountId) {
       properties = properties.filter(p => {
