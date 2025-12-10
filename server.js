@@ -11483,9 +11483,21 @@ app.put('/api/admin/units/:id', async (req, res) => {
     } = req.body;
     
     // Update all fields (GAS-controlled and editable)
-    // Try as JSONB first for descriptions, fall back to TEXT
-    try {
-      const result = await pool.query(`
+    // First, check if description columns are JSONB or TEXT
+    const colCheck = await pool.query(`
+      SELECT data_type FROM information_schema.columns 
+      WHERE table_name = 'bookable_units' AND column_name = 'short_description'
+    `);
+    
+    const isJsonb = colCheck.rows.length > 0 && colCheck.rows[0].data_type === 'jsonb';
+    
+    let result;
+    if (isJsonb) {
+      // Use JSONB format
+      const shortDescValue = short_description ? JSON.stringify({ en: short_description }) : null;
+      const fullDescValue = full_description ? JSON.stringify({ en: full_description }) : null;
+      
+      result = await pool.query(`
         UPDATE bookable_units 
         SET 
           quantity = COALESCE($1, quantity),
@@ -11494,7 +11506,7 @@ app.put('/api/admin/units/:id', async (req, res) => {
           max_guests = COALESCE($4, max_guests),
           max_adults = COALESCE($5, max_adults),
           max_children = COALESCE($6, max_children),
-          bed_configuration = COALESCE($7, bed_configuration),
+          bed_configuration = $7,
           short_description = $8::jsonb,
           full_description = $9::jsonb,
           display_name = $10,
@@ -11503,15 +11515,10 @@ app.put('/api/admin/units/:id', async (req, res) => {
         RETURNING *
       `, [quantity, status, room_type, max_guests, max_adults, max_children, 
           bed_configuration ? JSON.stringify(bed_configuration) : null,
-          JSON.stringify({ en: short_description || '' }),
-          JSON.stringify({ en: full_description || '' }), 
-          display_name || null, id]);
-      
-      res.json({ success: true, data: result.rows[0] });
-    } catch (jsonErr) {
-      // If JSONB fails, try as TEXT
-      console.log('JSONB failed, trying TEXT:', jsonErr.message);
-      const result = await pool.query(`
+          shortDescValue, fullDescValue, display_name || null, id]);
+    } else {
+      // Use TEXT format
+      result = await pool.query(`
         UPDATE bookable_units 
         SET 
           quantity = COALESCE($1, quantity),
@@ -11520,19 +11527,19 @@ app.put('/api/admin/units/:id', async (req, res) => {
           max_guests = COALESCE($4, max_guests),
           max_adults = COALESCE($5, max_adults),
           max_children = COALESCE($6, max_children),
-          bed_configuration = COALESCE($7, bed_configuration),
-          short_description = COALESCE($8, short_description),
-          full_description = COALESCE($9, full_description),
+          bed_configuration = $7,
+          short_description = $8,
+          full_description = $9,
           display_name = $10,
           updated_at = NOW()
         WHERE id = $11
         RETURNING *
       `, [quantity, status, room_type, max_guests, max_adults, max_children, 
           bed_configuration ? JSON.stringify(bed_configuration) : null,
-          short_description, full_description, display_name || null, id]);
-      
-      res.json({ success: true, data: result.rows[0] });
+          short_description || null, full_description || null, display_name || null, id]);
     }
+    
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Unit update error:', error.message);
     res.json({ success: false, error: error.message });
