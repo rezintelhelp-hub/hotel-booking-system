@@ -7911,6 +7911,89 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     // =========================================================
     await client.query('COMMIT');
     
+    // =========================================================
+    // 8. AUTO-SYNC AVAILABILITY & PRICES FOR IMPORTED ROOMS
+    // =========================================================
+    console.log('\n📅 STEP 8: Syncing availability & prices from Beds24...');
+    
+    let availabilitySynced = 0;
+    let pricesSynced = 0;
+    
+    try {
+      // Get the rooms we just imported
+      const importedRooms = await pool.query(`
+        SELECT id, beds24_room_id, name 
+        FROM bookable_units 
+        WHERE property_id = $1 AND beds24_room_id IS NOT NULL
+      `, [gasPropertyId]);
+      
+      const today = new Date();
+      const startDate = today.toISOString().split('T')[0];
+      const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
+      
+      for (const room of importedRooms.rows) {
+        try {
+          // Sync availability
+          const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+            headers: { 'token': token },
+            params: { 
+              roomId: room.beds24_room_id,
+              startDate,
+              endDate
+            }
+          });
+          
+          const availData = availResponse.data?.data?.[0];
+          if (availData && availData.availability) {
+            for (const [dateStr, isAvailable] of Object.entries(availData.availability)) {
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                VALUES ($1, $2, $3, $4, 'beds24_sync')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET is_available = $3, is_blocked = $4, source = 'beds24_sync', updated_at = NOW()
+              `, [room.id, dateStr, isAvailable !== false, isAvailable === false]);
+              availabilitySynced++;
+            }
+          }
+          
+          // Sync prices
+          const priceResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/prices', {
+            headers: { 'token': token },
+            params: { 
+              roomId: room.beds24_room_id,
+              startDate,
+              endDate
+            }
+          });
+          
+          const priceData = priceResponse.data?.data?.[0];
+          if (priceData && priceData.prices) {
+            for (const [dateStr, price] of Object.entries(priceData.prices)) {
+              if (price && price > 0) {
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, source)
+                  VALUES ($1, $2, $3, 'beds24_sync')
+                  ON CONFLICT (room_id, date) 
+                  DO UPDATE SET cm_price = $3, source = 'beds24_sync', updated_at = NOW()
+                `, [room.id, dateStr, price]);
+                pricesSynced++;
+              }
+            }
+          }
+          
+          console.log('   ✓ Synced: ' + room.name);
+        } catch (roomSyncError) {
+          console.log('   ⚠ Could not sync ' + room.name + ': ' + roomSyncError.message);
+        }
+      }
+      
+      console.log('   📊 Availability: ' + availabilitySynced + ' dates synced');
+      console.log('   💰 Prices: ' + pricesSynced + ' prices synced');
+    } catch (syncError) {
+      console.log('   ⚠ Auto-sync warning: ' + syncError.message);
+      // Don't fail the whole import if sync fails
+    }
+    
     console.log('\n═══════════════════════════════════════════════════════');
     console.log('🎉 IMPORT COMPLETE!');
     console.log('═══════════════════════════════════════════════════════');
@@ -7922,6 +8005,8 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       policies: policiesCount,
       roomsAdded: roomsAdded,
       roomsUpdated: roomsUpdated,
+      availabilitySynced: availabilitySynced,
+      pricesSynced: pricesSynced,
       isUpdate: isUpdate,
       note: 'Amenities not imported - users select from master list in GAS'
     };
@@ -7931,7 +8016,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     res.json({
       success: true,
       stats: stats,
-      message: isUpdate ? 'Property & rooms updated. Select amenities in GAS.' : 'Property & rooms imported. Select amenities in GAS.'
+      message: isUpdate ? 'Property, rooms, availability & prices updated.' : 'Property, rooms, availability & prices imported.'
     });
     
   } catch (error) {
