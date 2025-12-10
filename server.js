@@ -3035,6 +3035,9 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS district VARCHAR(255)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(255)`);
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS zip_code VARCHAR(50)`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)`);
@@ -6001,8 +6004,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
     const { id } = req.params;
     const { 
       name, description, address, city, country, property_type, status,
-      district, state, zip_code, latitude, longitude,
-      short_description, full_description, display_name
+      district, state, zip_code, latitude, longitude
     } = req.body;
 
     const result = await pool.query(
@@ -6019,15 +6021,11 @@ app.put('/api/db/properties/:id', async (req, res) => {
         zip_code = COALESCE($10, zip_code),
         latitude = COALESCE($11, latitude),
         longitude = COALESCE($12, longitude),
-        short_description = COALESCE($13, short_description),
-        full_description = COALESCE($14, full_description),
-        display_name = $15,
         updated_at = NOW()
-      WHERE id = $16
+      WHERE id = $13
       RETURNING *`,
       [name, description, address, city, country, property_type, status,
-       district, state, zip_code, latitude, longitude,
-       short_description, full_description, display_name || null, id]
+       district, state, zip_code, latitude, longitude, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
@@ -11476,14 +11474,11 @@ app.put('/api/admin/units/:id', async (req, res) => {
       max_guests,
       max_adults, 
       max_children,
-      bed_configuration,
-      short_description,
-      full_description,
       display_name
     } = req.body;
     
-    // Update main fields first (no descriptions)
-    await pool.query(`
+    // Update main fields only - no descriptions to avoid JSON issues
+    const result = await pool.query(`
       UPDATE bookable_units 
       SET 
         quantity = COALESCE($1, quantity),
@@ -11495,20 +11490,9 @@ app.put('/api/admin/units/:id', async (req, res) => {
         display_name = $7,
         updated_at = NOW()
       WHERE id = $8
+      RETURNING *
     `, [quantity, status, room_type, max_guests, max_adults, max_children, display_name || null, id]);
     
-    // Update descriptions only if provided - as plain JSON strings
-    if (short_description) {
-      const shortJson = JSON.stringify({ en: short_description });
-      await pool.query(`UPDATE bookable_units SET short_description = $1 WHERE id = $2`, [shortJson, id]);
-    }
-    if (full_description) {
-      const fullJson = JSON.stringify({ en: full_description });
-      await pool.query(`UPDATE bookable_units SET full_description = $1 WHERE id = $2`, [fullJson, id]);
-    }
-    
-    // Fetch and return
-    const result = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [id]);
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Unit update error:', error.message);
