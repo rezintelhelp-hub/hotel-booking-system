@@ -3037,6 +3037,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT`);
+    await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS display_name VARCHAR(255)`);
     
     // Add pricing columns to room_availability
     await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS reference_price DECIMAL(10,2)`);
@@ -11477,30 +11478,61 @@ app.put('/api/admin/units/:id', async (req, res) => {
       max_children,
       bed_configuration,
       short_description,
-      full_description
+      full_description,
+      display_name
     } = req.body;
     
     // Update all fields (GAS-controlled and editable)
-    const result = await pool.query(`
-      UPDATE bookable_units 
-      SET 
-        quantity = COALESCE($1, quantity),
-        status = COALESCE($2, status),
-        unit_type = COALESCE($3, unit_type),
-        max_guests = COALESCE($4, max_guests),
-        max_adults = COALESCE($5, max_adults),
-        max_children = COALESCE($6, max_children),
-        bed_configuration = COALESCE($7, bed_configuration),
-        short_description = COALESCE($8, short_description),
-        full_description = COALESCE($9, full_description),
-        updated_at = NOW()
-      WHERE id = $10
-      RETURNING *
-    `, [quantity, status, room_type, max_guests, max_adults, max_children, 
-        bed_configuration ? JSON.stringify(bed_configuration) : null,
-        short_description, full_description, id]);
-    
-    res.json({ success: true, data: result.rows[0] });
+    // Try as JSONB first for descriptions, fall back to TEXT
+    try {
+      const result = await pool.query(`
+        UPDATE bookable_units 
+        SET 
+          quantity = COALESCE($1, quantity),
+          status = COALESCE($2, status),
+          unit_type = COALESCE($3, unit_type),
+          max_guests = COALESCE($4, max_guests),
+          max_adults = COALESCE($5, max_adults),
+          max_children = COALESCE($6, max_children),
+          bed_configuration = COALESCE($7, bed_configuration),
+          short_description = $8::jsonb,
+          full_description = $9::jsonb,
+          display_name = $10,
+          updated_at = NOW()
+        WHERE id = $11
+        RETURNING *
+      `, [quantity, status, room_type, max_guests, max_adults, max_children, 
+          bed_configuration ? JSON.stringify(bed_configuration) : null,
+          JSON.stringify({ en: short_description || '' }),
+          JSON.stringify({ en: full_description || '' }), 
+          display_name || null, id]);
+      
+      res.json({ success: true, data: result.rows[0] });
+    } catch (jsonErr) {
+      // If JSONB fails, try as TEXT
+      console.log('JSONB failed, trying TEXT:', jsonErr.message);
+      const result = await pool.query(`
+        UPDATE bookable_units 
+        SET 
+          quantity = COALESCE($1, quantity),
+          status = COALESCE($2, status),
+          unit_type = COALESCE($3, unit_type),
+          max_guests = COALESCE($4, max_guests),
+          max_adults = COALESCE($5, max_adults),
+          max_children = COALESCE($6, max_children),
+          bed_configuration = COALESCE($7, bed_configuration),
+          short_description = COALESCE($8, short_description),
+          full_description = COALESCE($9, full_description),
+          display_name = $10,
+          updated_at = NOW()
+        WHERE id = $11
+        RETURNING *
+      `, [quantity, status, room_type, max_guests, max_adults, max_children, 
+          bed_configuration ? JSON.stringify(bed_configuration) : null,
+          short_description, full_description, display_name || null, id]);
+      
+      res.json({ success: true, data: result.rows[0] });
+    }
   } catch (error) {
     console.error('Unit update error:', error.message);
     res.json({ success: false, error: error.message });
@@ -15753,8 +15785,6 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     const unit = await pool.query(`
       SELECT bu.*, 
              p.name as property_name, 
-             p.display_name as property_display_name,
-             COALESCE(p.display_name, p.name) as property_name_display,
              p.currency, 
              p.timezone
       FROM bookable_units bu
