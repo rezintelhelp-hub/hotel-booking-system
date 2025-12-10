@@ -6479,26 +6479,26 @@ app.get('/api/channel-connections', async (req, res) => {
       SELECT 
         cc.id,
         cc.status,
-        cc.account_id,
+        cc.gas_account_id as account_id,
         cc.created_at,
         cc.updated_at,
         cm.cm_code,
         cm.cm_name,
         a.name as account_name,
         (SELECT COUNT(*) FROM properties p WHERE 
-          (cm.cm_code = 'beds24' AND p.beds24_property_id IS NOT NULL AND p.account_id::text = cc.account_id::text) OR
-          (cm.cm_code = 'hostaway' AND p.hostaway_listing_id IS NOT NULL AND p.account_id::text = cc.account_id::text) OR
-          (cm.cm_code = 'smoobu' AND p.smoobu_id IS NOT NULL AND p.account_id::text = cc.account_id::text)
+          (cm.cm_code = 'beds24' AND p.beds24_property_id IS NOT NULL AND p.account_id = cc.gas_account_id) OR
+          (cm.cm_code = 'hostaway' AND p.hostaway_listing_id IS NOT NULL AND p.account_id = cc.gas_account_id) OR
+          (cm.cm_code = 'smoobu' AND p.smoobu_id IS NOT NULL AND p.account_id = cc.gas_account_id)
         ) as property_count
       FROM channel_connections cc
       JOIN channel_managers cm ON cc.cm_id = cm.id
-      LEFT JOIN accounts a ON a.id::text = cc.account_id::text
+      LEFT JOIN accounts a ON a.id = cc.gas_account_id
     `;
     
     const params = [];
     if (accountId) {
-      query += ' WHERE cc.account_id::text = $1';
-      params.push(String(accountId));
+      query += ' WHERE cc.gas_account_id = $1';
+      params.push(parseInt(accountId));
     }
     
     query += ' ORDER BY cc.created_at DESC';
@@ -6553,6 +6553,44 @@ app.get('/api/fix/channel-connections', async (req, res) => {
     });
   } catch (error) {
     res.json({ error: error.message });
+  }
+});
+
+// Fix: Link an account to Beds24 channel connection
+app.get('/api/fix/link-beds24/:accountId', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    // Ensure gas_account_id column exists
+    await pool.query(`ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS gas_account_id INTEGER`).catch(() => {});
+    
+    // Get Beds24 CM ID
+    const cmResult = await pool.query("SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1");
+    if (cmResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Beds24 not found in channel_managers' });
+    }
+    const cmId = cmResult.rows[0].id;
+    
+    // Check if connection already exists for this account
+    const existing = await pool.query(
+      'SELECT id FROM channel_connections WHERE gas_account_id = $1 AND cm_id = $2',
+      [parseInt(accountId), cmId]
+    );
+    
+    if (existing.rows.length > 0) {
+      return res.json({ success: true, message: 'Connection already exists', connectionId: existing.rows[0].id });
+    }
+    
+    // Create new connection
+    const result = await pool.query(`
+      INSERT INTO channel_connections (cm_id, user_id, gas_account_id, status, created_at, updated_at)
+      VALUES ($1, 1, $2, 'active', NOW(), NOW())
+      RETURNING id
+    `, [cmId, parseInt(accountId)]);
+    
+    res.json({ success: true, message: 'Created Beds24 connection for account ' + accountId, connectionId: result.rows[0].id });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
@@ -7467,6 +7505,35 @@ app.post('/api/beds24/import-property', async (req, res) => {
       }
     }
     console.log('   Created ' + roomsCreated + ' rooms (of ' + rooms.length + ' total)');
+    
+    // 6. Save/update channel connection for this account
+    const cmResult = await pool.query("SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1");
+    if (cmResult.rows.length > 0) {
+      const cmId = cmResult.rows[0].id;
+      
+      // Ensure gas_account_id column exists
+      await pool.query(`ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS gas_account_id INTEGER`).catch(() => {});
+      
+      // Check if connection exists for this account
+      const existingConn = await pool.query(
+        'SELECT id FROM channel_connections WHERE gas_account_id = $1 AND cm_id = $2',
+        [accountId, cmId]
+      );
+      
+      if (existingConn.rows.length === 0) {
+        await pool.query(`
+          INSERT INTO channel_connections (user_id, cm_id, gas_account_id, access_token, status, created_at, updated_at)
+          VALUES (1, $1, $2, $3, 'active', NOW(), NOW())
+        `, [cmId, accountId, token]);
+        console.log('   Created channel connection for account');
+      } else {
+        await pool.query(`
+          UPDATE channel_connections SET access_token = $1, status = 'active', updated_at = NOW()
+          WHERE id = $2
+        `, [token, existingConn.rows[0].id]);
+        console.log('   Updated channel connection');
+      }
+    }
     
     console.log('═══════════════════════════════════════════════════════');
     console.log('✅ IMPORT COMPLETE');
@@ -11131,7 +11198,7 @@ app.get('/api/admin/stats', async (req, res) => {
         JOIN properties p ON b.property_id = p.id
         WHERE p.account_id = $1
       `, [accountId]);
-      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE account_id = $1 AND status = $2', [accountId, 'active']);
+      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE gas_account_id = $1 AND status = $2', [accountId, 'active']);
     } else if (clientId) {
       // Client-specific stats (legacy)
       propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE client_id = $1', [clientId]);
@@ -11145,7 +11212,7 @@ app.get('/api/admin/stats', async (req, res) => {
         JOIN properties p ON b.property_id = p.id
         WHERE p.client_id = $1
       `, [clientId]);
-      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE account_id = $1 AND status = $2', [clientId, 'active']);
+      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE gas_account_id = $1 AND status = $2', [clientId, 'active']);
     } else {
       // All stats (admin view)
       propertiesCount = await pool.query('SELECT COUNT(*) FROM properties');
