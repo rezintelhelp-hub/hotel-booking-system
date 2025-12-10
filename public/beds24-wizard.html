@@ -587,6 +587,7 @@
     <script>
         let apiToken = '';
         let refreshToken = '';
+        let connectionId = null;
         let properties = [];
         let selectedProperties = [];
         
@@ -651,6 +652,7 @@
                 
                 apiToken = data.token;
                 refreshToken = data.refreshToken;
+                connectionId = data.connectionId;
                 
                 showSuccess(1, 'Connected to Beds24 successfully!');
                 
@@ -787,10 +789,10 @@
                 progressText.textContent = `Importing "${prop.name}"...`;
                 
                 try {
-                    const response = await fetch('/api/beds24/import-property', {
+                    const response = await fetch('/api/beds24/import-complete-property', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ token: apiToken, propId })
+                        body: JSON.stringify({ token: apiToken, propertyId: propId, connectionId: connectionId })
                     });
                     
                     const data = await response.json();
