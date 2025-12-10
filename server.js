@@ -6550,6 +6550,112 @@ app.get('/api/fix/channel-connections', async (req, res) => {
   }
 });
 
+// Add Hostaway connection manually
+app.get('/api/fix/add-hostaway/:token/:accountId', async (req, res) => {
+  try {
+    const { token, accountId } = req.params;
+    const gasAccountId = '3'; // Alpine CoHosts
+    
+    // Get Hostaway CM ID
+    const cmResult = await pool.query("SELECT id FROM channel_managers WHERE cm_code = 'hostaway'");
+    const cmId = cmResult.rows[0].id;
+    
+    // Check if connection already exists
+    const existing = await pool.query(
+      'SELECT id FROM channel_connections WHERE cm_id = $1 AND account_id = $2',
+      [cmId, gasAccountId]
+    );
+    
+    if (existing.rows.length > 0) {
+      // Update existing
+      await pool.query(
+        'UPDATE channel_connections SET access_token = $1, api_key = $2, status = $3 WHERE id = $4',
+        [token, accountId, 'active', existing.rows[0].id]
+      );
+      res.json({ success: true, message: 'Updated Hostaway connection', id: existing.rows[0].id });
+    } else {
+      // Create new
+      const result = await pool.query(`
+        INSERT INTO channel_connections (cm_id, user_id, account_id, access_token, api_key, status, created_at, updated_at)
+        VALUES ($1, 1, $2, $3, $4, 'active', NOW(), NOW())
+        RETURNING id
+      `, [cmId, gasAccountId, token, accountId]);
+      res.json({ success: true, message: 'Created Hostaway connection', id: result.rows[0].id });
+    }
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// Add Smoobu connection manually
+app.get('/api/fix/add-smoobu/:apiKey', async (req, res) => {
+  try {
+    const { apiKey } = req.params;
+    const gasAccountId = '2'; // Elevate Schweiz
+    
+    // Get Smoobu CM ID
+    const cmResult = await pool.query("SELECT id FROM channel_managers WHERE cm_code = 'smoobu'");
+    const cmId = cmResult.rows[0].id;
+    
+    // Check if connection already exists
+    const existing = await pool.query(
+      'SELECT id FROM channel_connections WHERE cm_id = $1 AND account_id = $2',
+      [cmId, gasAccountId]
+    );
+    
+    if (existing.rows.length > 0) {
+      // Update existing
+      await pool.query(
+        'UPDATE channel_connections SET api_key = $1, status = $2 WHERE id = $3',
+        [apiKey, 'active', existing.rows[0].id]
+      );
+      res.json({ success: true, message: 'Updated Smoobu connection', id: existing.rows[0].id });
+    } else {
+      // Create new
+      const result = await pool.query(`
+        INSERT INTO channel_connections (cm_id, user_id, account_id, api_key, status, created_at, updated_at)
+        VALUES ($1, 1, $2, $3, 'active', NOW(), NOW())
+        RETURNING id
+      `, [cmId, gasAccountId, apiKey]);
+      res.json({ success: true, message: 'Created Smoobu connection', id: result.rows[0].id });
+    }
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
+// Check for any stored credentials in database
+app.get('/api/debug/find-credentials', async (req, res) => {
+  try {
+    // Check all channel_connections for any tokens
+    const connections = await pool.query(`
+      SELECT id, cm_id, account_id, api_key, access_token, refresh_token 
+      FROM channel_connections
+    `);
+    
+    // Check if there's a settings or config table
+    const tables = await pool.query(`
+      SELECT table_name FROM information_schema.tables 
+      WHERE table_schema = 'public' AND table_name LIKE '%setting%' OR table_name LIKE '%config%' OR table_name LIKE '%credential%'
+    `);
+    
+    // Check properties for any stored connection info
+    const props = await pool.query(`
+      SELECT id, name, account_id, hostaway_listing_id, smoobu_id, channel_manager 
+      FROM properties 
+      WHERE hostaway_listing_id IS NOT NULL OR smoobu_id IS NOT NULL
+    `);
+    
+    res.json({
+      connections: connections.rows,
+      config_tables: tables.rows,
+      cm_properties: props.rows
+    });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // Get single channel connection details (with token for refresh)
 app.get('/api/channel-connection/:id', async (req, res) => {
   try {
