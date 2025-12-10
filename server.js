@@ -6478,6 +6478,7 @@ app.get('/api/channel-connections', async (req, res) => {
         cc.updated_at,
         cm.cm_code,
         cm.cm_name,
+        a.name as account_name,
         (SELECT COUNT(*) FROM properties p WHERE 
           (cm.cm_code = 'beds24' AND p.beds24_id IS NOT NULL AND p.account_id = cc.account_id) OR
           (cm.cm_code = 'hostaway' AND p.hostaway_listing_id IS NOT NULL AND p.account_id = cc.account_id) OR
@@ -6485,6 +6486,7 @@ app.get('/api/channel-connections', async (req, res) => {
         ) as property_count
       FROM channel_connections cc
       JOIN channel_managers cm ON cc.cm_id = cm.id
+      LEFT JOIN accounts a ON cc.account_id = a.id
     `;
     
     const params = [];
@@ -6495,12 +6497,28 @@ app.get('/api/channel-connections', async (req, res) => {
     
     query += ' ORDER BY cc.created_at DESC';
     
+    console.log('Channel connections query:', query, params);
     const result = await pool.query(query, params);
+    console.log('Channel connections found:', result.rows.length);
     
     res.json({ success: true, connections: result.rows });
   } catch (error) {
     console.error('Error fetching channel connections:', error);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Debug: Check channel_connections table
+app.get('/api/debug/channel-connections', async (req, res) => {
+  try {
+    const connections = await pool.query('SELECT * FROM channel_connections ORDER BY id');
+    const managers = await pool.query('SELECT * FROM channel_managers ORDER BY id');
+    res.json({ 
+      connections: connections.rows, 
+      managers: managers.rows 
+    });
+  } catch (error) {
+    res.json({ error: error.message });
   }
 });
 
