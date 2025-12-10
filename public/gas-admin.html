@@ -9825,24 +9825,9 @@ Local honey and preserves"></textarea>
                 <div style="margin-bottom: 1.5rem;">
                     <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">Basic Information</h4>
                     
-                    <!-- Original Name from Channel Manager (read-only) -->
                     <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label" style="color: var(--text-secondary);">📡 Original Name (from Channel Manager)</label>
-                        <input type="text" class="form-input" id="edit-property-name" readonly style="background: var(--bg-secondary); color: var(--text-secondary);">
-                    </div>
-                    
-                    <!-- Display Name for Website -->
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label class="form-label">✨ Display Name (shown on website)</label>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <input type="text" class="form-input" id="edit-property-display-name" placeholder="Leave blank to use original name" style="flex: 1;">
-                            <button type="button" class="btn" onclick="generateDisplayName()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
-                                🪄 Generate
-                            </button>
-                        </div>
-                        <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                            AI-generated marketing-friendly name for your booking website
-                        </div>
+                        <label class="form-label">Property Name *</label>
+                        <input type="text" class="form-input" id="edit-property-name" required>
                     </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
@@ -9960,37 +9945,6 @@ Local honey and preserves"></textarea>
                     <button type="button" class="btn btn-secondary" onclick="togglePropertyMap()" style="margin-top: 0.5rem; font-size: 0.85rem;" id="toggle-map-btn">
                         🗺️ Show Map
                     </button>
-                </div>
-                
-                <!-- AI Property Description Generator -->
-                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1rem; margin: 1.5rem 0; color: white;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                        <span style="font-size: 1.5rem;">✨</span>
-                        <h4 style="margin: 0; font-weight: 600;">AI Property Description Generator</h4>
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0.75rem;">
-                        <textarea id="edit-property-ai-prompt" rows="2" placeholder="Describe your property style, vibe, target guests... e.g. 'Romantic Victorian B&B, dog-friendly, known for amazing breakfasts'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                        <button type="button" onclick="generatePropertyDescription('short')" style="background: white; color: #667eea; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate Short</button>
-                        <button type="button" onclick="generatePropertyDescription('full')" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">📝 Generate Full</button>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Short Description <button type="button" onclick="copyToClipboard('edit-property-short-desc')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
-                    <textarea class="form-input" id="edit-property-short-desc" rows="3" placeholder="Brief, punchy description of the property (1-2 sentences)"></textarea>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                        Shown in listings and search results on website
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Full Description <button type="button" onclick="copyToClipboard('edit-property-full-desc')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
-                    <textarea class="form-input" id="edit-property-full-desc" rows="6" placeholder="Detailed description of the property, its features, atmosphere, location highlights..."></textarea>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                        Extended information shown on property/room detail pages
-                    </div>
                 </div>
                 
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
@@ -10133,29 +10087,23 @@ Local honey and preserves"></textarea>
                 <!-- CM Data (reference) -->
                 <div style="background: var(--bg-secondary); padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
                     <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">📡 From Channel Manager</div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Room Name</label>
-                            <input type="text" class="form-input" id="edit-room-name" readonly style="background: var(--bg-primary);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Room Type</label>
-                            <input type="text" class="form-input" id="edit-room-type" readonly style="background: var(--bg-primary);">
-                        </div>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label class="form-label">Original Room Name</label>
+                        <input type="text" class="form-input" id="edit-room-name" readonly style="background: var(--bg-primary);">
                     </div>
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Max Guests</label>
-                            <input type="text" class="form-input" id="edit-room-maxguests" readonly style="background: var(--bg-primary);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Max Adults</label>
-                            <input type="text" class="form-input" id="edit-room-maxadults" readonly style="background: var(--bg-primary);">
-                        </div>
-                        <div class="form-group" style="margin-bottom: 0;">
-                            <label class="form-label">Max Children</label>
-                            <input type="text" class="form-input" id="edit-room-maxchildren" readonly style="background: var(--bg-primary);">
-                        </div>
+                </div>
+                
+                <!-- Display Name for Website -->
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">✨ Display Name (shown on website)</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" class="form-input" id="edit-room-display-name" placeholder="Leave blank to use original name" style="flex: 1;">
+                        <button type="button" class="btn" onclick="generateRoomDisplayName()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                            🪄 Generate
+                        </button>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        AI-generated marketing-friendly name for your booking website
                     </div>
                 </div>
                 
@@ -10164,8 +10112,21 @@ Local honey and preserves"></textarea>
                 
                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                     <div class="form-group">
-                        <label class="form-label">Quantity of Room Type</label>
-                        <input type="number" class="form-input" id="edit-room-quantity" min="1">
+                        <label class="form-label">Room Type</label>
+                        <select class="form-input" id="edit-room-type">
+                            <option value="single">Single</option>
+                            <option value="double">Double</option>
+                            <option value="twin">Twin</option>
+                            <option value="triple">Triple</option>
+                            <option value="quad">Quad</option>
+                            <option value="suite">Suite</option>
+                            <option value="studio">Studio</option>
+                            <option value="apartment">Apartment</option>
+                            <option value="villa">Villa</option>
+                            <option value="cottage">Cottage</option>
+                            <option value="dormitory">Dormitory</option>
+                            <option value="family">Family Room</option>
+                        </select>
                     </div>
                     <div class="form-group">
                         <label class="form-label">Status</label>
@@ -10174,6 +10135,25 @@ Local honey and preserves"></textarea>
                             <option value="unavailable">❌ Unavailable</option>
                             <option value="maintenance">🔧 Maintenance</option>
                         </select>
+                    </div>
+                </div>
+                
+                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 1rem;">
+                    <div class="form-group">
+                        <label class="form-label">Max Guests</label>
+                        <input type="number" class="form-input" id="edit-room-maxguests" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Max Adults</label>
+                        <input type="number" class="form-input" id="edit-room-maxadults" min="1" max="20">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Max Children</label>
+                        <input type="number" class="form-input" id="edit-room-maxchildren" min="0" max="10">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Quantity</label>
+                        <input type="number" class="form-input" id="edit-room-quantity" min="1">
                     </div>
                 </div>
                 
@@ -20887,7 +20867,6 @@ Local honey and preserves"></textarea>
                     const prop = data.data;
                     document.getElementById('edit-property-id').value = prop.id;
                     document.getElementById('edit-property-name').value = prop.name || '';
-                    document.getElementById('edit-property-display-name').value = prop.display_name || '';
                     document.getElementById('edit-property-type').value = prop.property_type || 'hotel';
                     document.getElementById('edit-property-address').value = prop.address || '';
                     document.getElementById('edit-property-city').value = prop.city || '';
@@ -20898,11 +20877,6 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-property-latitude').value = prop.latitude || '';
                     document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
-                    
-                    // Load descriptions
-                    document.getElementById('edit-property-short-desc').value = prop.short_description || '';
-                    document.getElementById('edit-property-full-desc').value = prop.full_description || '';
-                    document.getElementById('edit-property-ai-prompt').value = '';
                     
                     // Reset map state
                     document.getElementById('property-map-preview').style.display = 'none';
@@ -20923,7 +20897,6 @@ Local honey and preserves"></textarea>
             const id = document.getElementById('edit-property-id').value;
             const data = {
                 name: document.getElementById('edit-property-name').value,
-                display_name: document.getElementById('edit-property-display-name').value || null,
                 property_type: document.getElementById('edit-property-type').value,
                 address: document.getElementById('edit-property-address').value,
                 city: document.getElementById('edit-property-city').value,
@@ -20933,9 +20906,7 @@ Local honey and preserves"></textarea>
                 country: document.getElementById('edit-property-country').value,
                 latitude: document.getElementById('edit-property-latitude').value ? parseFloat(document.getElementById('edit-property-latitude').value) : null,
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
-                status: document.getElementById('edit-property-status').value,
-                short_description: document.getElementById('edit-property-short-desc').value,
-                full_description: document.getElementById('edit-property-full-desc').value
+                status: document.getElementById('edit-property-status').value
             };
             
             try {
@@ -21131,18 +21102,34 @@ Local honey and preserves"></textarea>
                     
                     // CM Data (read-only display)
                     document.getElementById('edit-room-name').value = room.name || '';
-                    document.getElementById('edit-room-type').value = room.unit_type || '';
-                    document.getElementById('edit-room-maxguests').value = room.max_guests || '-';
-                    document.getElementById('edit-room-maxadults').value = room.max_adults || '-';
-                    document.getElementById('edit-room-maxchildren').value = room.max_children || '-';
+                    
+                    // Display name
+                    document.getElementById('edit-room-display-name').value = room.display_name || '';
+                    
+                    // Editable fields
+                    document.getElementById('edit-room-type').value = room.unit_type || 'double';
+                    document.getElementById('edit-room-maxguests').value = room.max_guests || 2;
+                    document.getElementById('edit-room-maxadults').value = room.max_adults || 2;
+                    document.getElementById('edit-room-maxchildren').value = room.max_children || 0;
                     
                     // GAS Controls
                     document.getElementById('edit-room-quantity').value = room.quantity || 1;
                     document.getElementById('edit-room-status').value = room.status || 'available';
                     
-                    // Load descriptions
-                    document.getElementById('edit-room-short-desc').value = room.short_description || '';
-                    document.getElementById('edit-room-full-desc').value = room.full_description || '';
+                    // Load descriptions - handle JSONB or string
+                    let shortDesc = room.short_description || '';
+                    let fullDesc = room.full_description || '';
+                    
+                    // If it's an object with 'en' key, extract it
+                    if (typeof shortDesc === 'object' && shortDesc !== null) {
+                        shortDesc = shortDesc.en || '';
+                    }
+                    if (typeof fullDesc === 'object' && fullDesc !== null) {
+                        fullDesc = fullDesc.en || '';
+                    }
+                    
+                    document.getElementById('edit-room-short-desc').value = shortDesc;
+                    document.getElementById('edit-room-full-desc').value = fullDesc;
                     document.getElementById('edit-room-ai-prompt').value = '';
                     
                     openModal('editRoomModal');
@@ -21167,8 +21154,13 @@ Local honey and preserves"></textarea>
             e.preventDefault();
             const id = document.getElementById('edit-room-id').value;
             
-            // Get GAS-controlled fields
+            // Get all editable fields
             const data = {
+                display_name: document.getElementById('edit-room-display-name').value || null,
+                room_type: document.getElementById('edit-room-type').value,
+                max_guests: parseInt(document.getElementById('edit-room-maxguests').value) || 2,
+                max_adults: parseInt(document.getElementById('edit-room-maxadults').value) || 2,
+                max_children: parseInt(document.getElementById('edit-room-maxchildren').value) || 0,
                 quantity: document.getElementById('edit-room-quantity').value || 1,
                 status: document.getElementById('edit-room-status').value,
                 short_description: document.getElementById('edit-room-short-desc').value,
@@ -21242,13 +21234,12 @@ Local honey and preserves"></textarea>
             }
         }
         
-        async function generateDisplayName() {
-            const propertyId = document.getElementById('edit-property-id').value;
-            const originalName = document.getElementById('edit-property-name').value;
-            const propertyType = document.getElementById('edit-property-type').value;
-            const city = document.getElementById('edit-property-city').value;
+        async function generateRoomDisplayName() {
+            const roomId = document.getElementById('edit-room-id').value;
+            const originalName = document.getElementById('edit-room-name').value;
+            const roomType = document.getElementById('edit-room-type').value;
             
-            if (!originalName) return alert('No property name to work with');
+            if (!originalName) return alert('No room name to work with');
             
             const btn = event.target;
             const originalText = btn.innerHTML;
@@ -21262,14 +21253,14 @@ Local honey and preserves"></textarea>
                     body: JSON.stringify({ 
                         type: 'display_name',
                         original_name: originalName,
-                        property_type: propertyType,
-                        city: city
+                        property_type: roomType,
+                        city: ''
                     })
                 });
                 
                 const result = await response.json();
                 if (result.success) {
-                    document.getElementById('edit-property-display-name').value = result.content;
+                    document.getElementById('edit-room-display-name').value = result.content;
                 } else {
                     alert('Error: ' + result.error);
                 }
