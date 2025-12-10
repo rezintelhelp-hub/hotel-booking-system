@@ -706,7 +706,7 @@
                         <div class="property-name">${prop.name}</div>
                         <div class="property-details">
                             ${prop.city || ''} ${prop.country || ''}
-                            · ${prop.roomCount || 0} room${prop.roomCount !== 1 ? 's' : ''}
+                            · ${(prop.rooms?.length || prop.roomTypes?.length || 0)} room${(prop.rooms?.length || prop.roomTypes?.length || 0) !== 1 ? 's' : ''}
                         </div>
                     </div>
                 </div>
