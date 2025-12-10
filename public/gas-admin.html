@@ -12977,6 +12977,11 @@ Local honey and preserves"></textarea>
                 const agenciesData = await agenciesRes.json();
                 const agencies = agenciesData.agencies || [];
                 
+                // Also fetch accounts for the dropdown
+                const accountsRes = await fetch('/api/admin/accounts', { headers: authHeaders() });
+                const accountsData = await accountsRes.json();
+                const allAccounts = accountsData.accounts || [];
+                
                 // Filter properties by account if filter is set
                 let properties = data.data || [];
                 if (selectedAccountId && properties.length > 0) {
@@ -12994,30 +12999,27 @@ Local honey and preserves"></textarea>
                                         <th>Property Name</th>
                                         <th>Type</th>
                                         <th>Location</th>
-                                        <th>Agency</th>
+                                        <th>Account</th>
                                         <th>Status</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     ${properties.map(prop => {
-                                        const currentAgency = agencies.find(a => a.id === prop.agency_id);
+                                        const currentAccount = allAccounts.find(a => a.id === prop.account_id);
                                         return `
                                         <tr>
                                             <td><strong>${prop.name || 'Unnamed Property'}</strong></td>
                                             <td>${prop.property_type || 'N/A'}</td>
                                             <td>${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
                                             <td>
-                                                <select onchange="assignPropertyToAgency(${prop.id}, this.value)" style="padding: 0.3rem; border-radius: 4px; border: 1px solid #e2e8f0; font-size: 0.8rem;">
-                                                    <option value="">-- None --</option>
-                                                    ${agencies.map(a => `<option value="${a.id}" ${prop.agency_id === a.id ? 'selected' : ''}>${a.name}</option>`).join('')}
-                                                </select>
+                                                ${currentAccount ? `<span style="color: #10b981; font-weight: 500;">${currentAccount.name}</span>` : '<span style="color: #94a3b8;">-- None --</span>'}
                                             </td>
                                             <td><span class="badge ${prop.status === 'active' ? 'badge-success' : prop.status === 'draft' ? 'badge-warning' : 'badge-secondary'}">${prop.status || 'active'}</span></td>
                                             <td>
                                                 <div style="display: flex; gap: 0.25rem;">
                                                     <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button>
-                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${prop.name.replace(/'/g, "\\'")}')" title="Payment Settings">💳</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings">💳</button>
                                                 </div>
                                             </td>
                                         </tr>
