@@ -21072,8 +21072,14 @@ Local honey and preserves"></textarea>
                     // CM Data (read-only display)
                     document.getElementById('edit-room-name').value = room.name || '';
                     
-                    // Display name
-                    document.getElementById('edit-room-display-name').value = room.display_name || '';
+                    // Display name - handle JSON format {en: "name"}
+                    let displayName = room.display_name || '';
+                    if (typeof displayName === 'object' && displayName !== null) {
+                        displayName = displayName.en || '';
+                    } else if (typeof displayName === 'string' && displayName.startsWith('{')) {
+                        try { displayName = JSON.parse(displayName).en || displayName; } catch(e) {}
+                    }
+                    document.getElementById('edit-room-display-name').value = displayName;
                     
                     // Editable fields
                     document.getElementById('edit-room-type').value = room.unit_type || 'double';
