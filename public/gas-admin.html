@@ -10157,37 +10157,6 @@ Local honey and preserves"></textarea>
                     </div>
                 </div>
                 
-                <!-- AI Room Description Generator -->
-                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; padding: 1rem; margin: 1.5rem 0; color: white;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
-                        <span style="font-size: 1.5rem;">✨</span>
-                        <h4 style="margin: 0; font-weight: 600;">AI Room Description Generator</h4>
-                    </div>
-                    <div class="form-group" style="margin-bottom: 0.75rem;">
-                        <textarea id="edit-room-ai-prompt" rows="2" placeholder="Describe this room's special features... e.g. 'Garden view, four-poster bed, ensuite with roll-top bath'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
-                    </div>
-                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                        <button type="button" onclick="generateRoomDescription('short')" style="background: white; color: #11998e; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate Short</button>
-                        <button type="button" onclick="generateRoomDescription('full')" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">📝 Generate Full</button>
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Short Description <button type="button" onclick="copyToClipboard('edit-room-short-desc')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
-                    <textarea class="form-input" id="edit-room-short-desc" rows="3" placeholder="Brief, punchy description of the room (1-2 sentences)"></textarea>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                        Shown in listings and search results on website
-                    </div>
-                </div>
-                
-                <div class="form-group">
-                    <label class="form-label">Full Description <button type="button" onclick="copyToClipboard('edit-room-full-desc')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
-                    <textarea class="form-input" id="edit-room-full-desc" rows="6" placeholder="Detailed description of the room, its features, views, atmosphere..."></textarea>
-                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                        Extended information shown on room detail page
-                    </div>
-                </div>
-                
                 <!-- Note about amenities -->
                 <div style="background: #e0f2fe; border: 1px solid #0ea5e9; padding: 1rem; border-radius: 8px; margin-top: 1rem;">
                     <p style="margin: 0; color: #0369a1;">
@@ -21116,27 +21085,6 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-room-quantity').value = room.quantity || 1;
                     document.getElementById('edit-room-status').value = room.status || 'available';
                     
-                    // Load descriptions - handle JSONB object, JSON string, or plain string
-                    let shortDesc = room.short_description || '';
-                    let fullDesc = room.full_description || '';
-                    
-                    // If it's an object with 'en' key, extract it
-                    if (typeof shortDesc === 'object' && shortDesc !== null) {
-                        shortDesc = shortDesc.en || '';
-                    } else if (typeof shortDesc === 'string' && shortDesc.startsWith('{')) {
-                        try { shortDesc = JSON.parse(shortDesc).en || shortDesc; } catch(e) {}
-                    }
-                    
-                    if (typeof fullDesc === 'object' && fullDesc !== null) {
-                        fullDesc = fullDesc.en || '';
-                    } else if (typeof fullDesc === 'string' && fullDesc.startsWith('{')) {
-                        try { fullDesc = JSON.parse(fullDesc).en || fullDesc; } catch(e) {}
-                    }
-                    
-                    document.getElementById('edit-room-short-desc').value = shortDesc;
-                    document.getElementById('edit-room-full-desc').value = fullDesc;
-                    document.getElementById('edit-room-ai-prompt').value = '';
-                    
                     openModal('editRoomModal');
                 }
             } catch (error) {
@@ -21159,7 +21107,7 @@ Local honey and preserves"></textarea>
             e.preventDefault();
             const id = document.getElementById('edit-room-id').value;
             
-            // Get all editable fields
+            // Get all editable fields (no descriptions - they cause JSON issues)
             const data = {
                 display_name: document.getElementById('edit-room-display-name').value || null,
                 room_type: document.getElementById('edit-room-type').value,
@@ -21167,9 +21115,7 @@ Local honey and preserves"></textarea>
                 max_adults: parseInt(document.getElementById('edit-room-maxadults').value) || 2,
                 max_children: parseInt(document.getElementById('edit-room-maxchildren').value) || 0,
                 quantity: document.getElementById('edit-room-quantity').value || 1,
-                status: document.getElementById('edit-room-status').value,
-                short_description: document.getElementById('edit-room-short-desc').value,
-                full_description: document.getElementById('edit-room-full-desc').value
+                status: document.getElementById('edit-room-status').value
             };
             
             try {
