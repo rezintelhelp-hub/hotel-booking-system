@@ -21243,6 +21243,7 @@ Local honey and preserves"></textarea>
             const roomId = document.getElementById('edit-room-id').value;
             const originalName = document.getElementById('edit-room-name').value;
             const roomType = document.getElementById('edit-room-type').value;
+            const maxGuests = document.getElementById('edit-room-maxguests').value;
             
             if (!originalName) return alert('No room name to work with');
             
@@ -21256,10 +21257,11 @@ Local honey and preserves"></textarea>
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        type: 'display_name',
+                        type: 'room_display_name',
+                        room_id: roomId,
                         original_name: originalName,
-                        property_type: roomType,
-                        city: ''
+                        room_type: roomType,
+                        max_guests: maxGuests
                     })
                 });
                 
