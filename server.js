@@ -6467,7 +6467,7 @@ app.post('/api/setup-auth', async (req, res) => {
 // Get all channel connections for an account
 app.get('/api/channel-connections', async (req, res) => {
   try {
-    const accountId = req.query.account;
+    const accountId = req.query.account || req.query.account_id;
     
     let query = `
       SELECT 
