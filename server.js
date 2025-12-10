@@ -6460,6 +6460,76 @@ app.post('/api/setup-auth', async (req, res) => {
   }
 });
 
+// =====================================================
+// CHANNEL CONNECTIONS - List and Details
+// =====================================================
+
+// Get all channel connections for an account
+app.get('/api/channel-connections', async (req, res) => {
+  try {
+    const accountId = req.query.account;
+    
+    let query = `
+      SELECT 
+        cc.id,
+        cc.status,
+        cc.account_id,
+        cc.created_at,
+        cc.updated_at,
+        cm.cm_code,
+        cm.cm_name,
+        (SELECT COUNT(*) FROM properties p WHERE 
+          (cm.cm_code = 'beds24' AND p.beds24_id IS NOT NULL AND p.account_id = cc.account_id) OR
+          (cm.cm_code = 'hostaway' AND p.hostaway_listing_id IS NOT NULL AND p.account_id = cc.account_id) OR
+          (cm.cm_code = 'smoobu' AND p.smoobu_id IS NOT NULL AND p.account_id = cc.account_id)
+        ) as property_count
+      FROM channel_connections cc
+      JOIN channel_managers cm ON cc.cm_id = cm.id
+    `;
+    
+    const params = [];
+    if (accountId) {
+      query += ' WHERE cc.account_id = $1';
+      params.push(accountId);
+    }
+    
+    query += ' ORDER BY cc.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    
+    res.json({ success: true, connections: result.rows });
+  } catch (error) {
+    console.error('Error fetching channel connections:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single channel connection details (with token for refresh)
+app.get('/api/channel-connection/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        cc.*,
+        cm.cm_code,
+        cm.cm_name
+      FROM channel_connections cc
+      JOIN channel_managers cm ON cc.cm_id = cm.id
+      WHERE cc.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    res.json({ success: true, connection: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching channel connection:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Save Beds24 tokens
 app.post('/api/beds24/save-token', async (req, res) => {
   const { refreshToken, token } = req.body;
@@ -7033,6 +7103,87 @@ app.post('/api/beds24/list-properties', async (req, res) => {
       success: false,
       error: error.message
     });
+  }
+});
+
+// =====================================================
+// BEDS24 REFRESH PROPERTIES - Compare CM with GAS
+// =====================================================
+app.post('/api/beds24/refresh-properties', async (req, res) => {
+  const { token, accountId } = req.body;
+  
+  try {
+    console.log('🔄 Refreshing Beds24 properties for account:', accountId);
+    
+    // 1. Fetch all properties from Beds24
+    const response = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: { 'token': token, 'accept': 'application/json' },
+      params: { includeTexts: 'all', includePictures: true, includeAllRooms: true }
+    });
+    
+    const cmProperties = response.data.data || [];
+    console.log('Found ' + cmProperties.length + ' properties in Beds24');
+    
+    // 2. Get existing properties in GAS for this account
+    const existingResult = await pool.query(
+      'SELECT id, name, beds24_id FROM properties WHERE account_id = $1 AND beds24_id IS NOT NULL',
+      [accountId]
+    );
+    const existingProperties = existingResult.rows;
+    const existingBeds24Ids = existingProperties.map(p => String(p.beds24_id));
+    
+    // 3. Compare
+    const existing = [];
+    const newProps = [];
+    const removed = [];
+    
+    // Check each CM property
+    for (const cmProp of cmProperties) {
+      const cmId = String(cmProp.propId);
+      const existingProp = existingProperties.find(p => String(p.beds24_id) === cmId);
+      
+      if (existingProp) {
+        existing.push({
+          gas_id: existingProp.id,
+          cm_id: cmId,
+          name: cmProp.name,
+          gas_name: existingProp.name
+        });
+      } else {
+        newProps.push({
+          cm_id: cmId,
+          name: cmProp.name,
+          city: cmProp.city || '',
+          rooms: cmProp.rooms?.length || 0
+        });
+      }
+    }
+    
+    // Check for removed (in GAS but not in CM)
+    const cmIds = cmProperties.map(p => String(p.propId));
+    for (const existingProp of existingProperties) {
+      if (!cmIds.includes(String(existingProp.beds24_id))) {
+        removed.push({
+          gas_id: existingProp.id,
+          cm_id: existingProp.beds24_id,
+          name: existingProp.name
+        });
+      }
+    }
+    
+    console.log(`Comparison: ${existing.length} existing, ${newProps.length} new, ${removed.length} removed`);
+    
+    res.json({
+      success: true,
+      existing,
+      new: newProps,
+      removed,
+      channel_manager: 'beds24'
+    });
+    
+  } catch (error) {
+    console.error('Error refreshing Beds24 properties:', error.message);
+    res.json({ success: false, error: error.message });
   }
 });
 
@@ -7761,6 +7912,90 @@ app.post('/api/hostaway/list-properties', async (req, res) => {
   }
 });
 
+// =====================================================
+// HOSTAWAY REFRESH PROPERTIES - Compare CM with GAS
+// =====================================================
+app.post('/api/hostaway/refresh-properties', async (req, res) => {
+  const { token, accountId } = req.body;
+  
+  try {
+    console.log('🔄 Refreshing Hostaway properties for account:', accountId);
+    
+    // 1. Fetch all listings from Hostaway
+    const response = await axios.get('https://api.hostaway.com/v1/listings', {
+      headers: { 'Authorization': `Bearer ${token}`, 'Cache-control': 'no-cache' },
+      params: { limit: 100 }
+    });
+    
+    if (response.data.status !== 'success') {
+      return res.json({ success: false, error: 'Failed to fetch Hostaway listings' });
+    }
+    
+    const cmProperties = response.data.result || [];
+    console.log('Found ' + cmProperties.length + ' listings in Hostaway');
+    
+    // 2. Get existing properties in GAS for this account
+    const existingResult = await pool.query(
+      'SELECT id, name, hostaway_listing_id FROM properties WHERE account_id = $1 AND hostaway_listing_id IS NOT NULL',
+      [accountId]
+    );
+    const existingProperties = existingResult.rows;
+    
+    // 3. Compare
+    const existing = [];
+    const newProps = [];
+    const removed = [];
+    
+    // Check each CM property
+    for (const cmProp of cmProperties) {
+      const cmId = String(cmProp.id);
+      const existingProp = existingProperties.find(p => String(p.hostaway_listing_id) === cmId);
+      
+      if (existingProp) {
+        existing.push({
+          gas_id: existingProp.id,
+          cm_id: cmId,
+          name: cmProp.name,
+          gas_name: existingProp.name
+        });
+      } else {
+        newProps.push({
+          cm_id: cmId,
+          name: cmProp.name,
+          city: cmProp.city || '',
+          rooms: 1 // Hostaway listings are typically single units
+        });
+      }
+    }
+    
+    // Check for removed (in GAS but not in CM)
+    const cmIds = cmProperties.map(p => String(p.id));
+    for (const existingProp of existingProperties) {
+      if (!cmIds.includes(String(existingProp.hostaway_listing_id))) {
+        removed.push({
+          gas_id: existingProp.id,
+          cm_id: existingProp.hostaway_listing_id,
+          name: existingProp.name
+        });
+      }
+    }
+    
+    console.log(`Comparison: ${existing.length} existing, ${newProps.length} new, ${removed.length} removed`);
+    
+    res.json({
+      success: true,
+      existing,
+      new: newProps,
+      removed,
+      channel_manager: 'hostaway'
+    });
+    
+  } catch (error) {
+    console.error('Error refreshing Hostaway properties:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Import Hostaway property (listing)
 app.post('/api/hostaway/import-property', async (req, res) => {
   const client = await pool.connect();
@@ -8339,6 +8574,85 @@ app.post('/api/smoobu/list-properties', async (req, res) => {
         console.error('Smoobu list properties error:', error.response?.data || error.message);
         res.status(500).json({ success: false, error: error.message });
     }
+});
+
+// =====================================================
+// SMOOBU REFRESH PROPERTIES - Compare CM with GAS
+// =====================================================
+app.post('/api/smoobu/refresh-properties', async (req, res) => {
+  const { apiKey, accountId } = req.body;
+  
+  try {
+    console.log('🔄 Refreshing Smoobu properties for account:', accountId);
+    
+    // 1. Fetch all apartments from Smoobu
+    const response = await axios.get(`${SMOOBU_API_URL}/apartments`, {
+      headers: { 'Api-Key': apiKey, 'Cache-Control': 'no-cache' }
+    });
+    
+    const cmProperties = response.data.apartments || [];
+    console.log('Found ' + cmProperties.length + ' apartments in Smoobu');
+    
+    // 2. Get existing properties in GAS for this account
+    const existingResult = await pool.query(
+      'SELECT id, name, smoobu_id FROM properties WHERE account_id = $1 AND smoobu_id IS NOT NULL',
+      [accountId]
+    );
+    const existingProperties = existingResult.rows;
+    
+    // 3. Compare
+    const existing = [];
+    const newProps = [];
+    const removed = [];
+    
+    // Check each CM property
+    for (const cmProp of cmProperties) {
+      const cmId = String(cmProp.id);
+      const existingProp = existingProperties.find(p => String(p.smoobu_id) === cmId);
+      
+      if (existingProp) {
+        existing.push({
+          gas_id: existingProp.id,
+          cm_id: cmId,
+          name: cmProp.name,
+          gas_name: existingProp.name
+        });
+      } else {
+        newProps.push({
+          cm_id: cmId,
+          name: cmProp.name,
+          city: cmProp.location?.city || '',
+          rooms: 1
+        });
+      }
+    }
+    
+    // Check for removed (in GAS but not in CM)
+    const cmIds = cmProperties.map(p => String(p.id));
+    for (const existingProp of existingProperties) {
+      if (!cmIds.includes(String(existingProp.smoobu_id))) {
+        removed.push({
+          gas_id: existingProp.id,
+          cm_id: existingProp.smoobu_id,
+          name: existingProp.name
+        });
+      }
+    }
+    
+    console.log(`Comparison: ${existing.length} existing, ${newProps.length} new, ${removed.length} removed`);
+    
+    res.json({
+      success: true,
+      existing,
+      new: newProps,
+      removed,
+      channel_manager: 'smoobu'
+    });
+    
+  } catch (error) {
+    console.error('Error refreshing Smoobu properties:', error.message);
+    res.json({ success: false, error: error.message });
+  }
 });
 
 // Import a single property from Smoobu
