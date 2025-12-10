@@ -6599,6 +6599,92 @@ app.get('/api/fix/link-beds24/:accountId', async (req, res) => {
   }
 });
 
+// Fix: Merge multiple accounts into one (for Beds24 multi-property imports)
+// Usage: /api/fix/merge-accounts/NewAccountName
+// This will merge all accounts created today with @gas.travel emails into one
+app.get('/api/fix/merge-accounts/:newName', async (req, res) => {
+  try {
+    const { newName } = req.params;
+    const decodedName = decodeURIComponent(newName);
+    
+    // Find all accounts with @gas.travel emails (auto-created ones)
+    const autoAccounts = await pool.query(`
+      SELECT id, name, email FROM accounts 
+      WHERE email LIKE '%@gas.travel' 
+      AND role = 'admin'
+      ORDER BY id
+    `);
+    
+    if (autoAccounts.rows.length === 0) {
+      return res.json({ success: false, error: 'No auto-created accounts found' });
+    }
+    
+    console.log('Found ' + autoAccounts.rows.length + ' auto-created accounts to merge');
+    
+    // Create new master account or find existing
+    let masterAccountId;
+    const existingMaster = await pool.query(
+      'SELECT id FROM accounts WHERE name = $1',
+      [decodedName]
+    );
+    
+    if (existingMaster.rows.length > 0) {
+      masterAccountId = existingMaster.rows[0].id;
+      console.log('Using existing account: ' + masterAccountId);
+    } else {
+      const newMaster = await pool.query(`
+        INSERT INTO accounts (name, email, role, business_name, status)
+        VALUES ($1, $2, 'admin', $1, 'active')
+        RETURNING id
+      `, [decodedName, decodedName.toLowerCase().replace(/[^a-z0-9]/g, '_') + '@client.gas.travel']);
+      masterAccountId = newMaster.rows[0].id;
+      console.log('Created new master account: ' + masterAccountId);
+    }
+    
+    // Move all properties to master account
+    const accountIds = autoAccounts.rows.map(a => a.id);
+    const moveResult = await pool.query(`
+      UPDATE properties SET account_id = $1 
+      WHERE account_id = ANY($2::int[])
+      RETURNING id, name
+    `, [masterAccountId, accountIds]);
+    
+    console.log('Moved ' + moveResult.rows.length + ' properties to account ' + masterAccountId);
+    
+    // Move bookable_units ownership (if any have account_id)
+    await pool.query(`
+      UPDATE bookable_units SET account_id = $1 
+      WHERE account_id = ANY($2::int[])
+    `, [masterAccountId, accountIds]).catch(() => {});
+    
+    // Update channel connections
+    await pool.query(`
+      UPDATE channel_connections SET gas_account_id = $1 
+      WHERE gas_account_id = ANY($2::int[])
+    `, [masterAccountId, accountIds]).catch(() => {});
+    
+    // Delete the old auto-created accounts (except master if it was one of them)
+    const deleteIds = accountIds.filter(id => id !== masterAccountId);
+    if (deleteIds.length > 0) {
+      await pool.query('DELETE FROM accounts WHERE id = ANY($1::int[])', [deleteIds]);
+      console.log('Deleted ' + deleteIds.length + ' old accounts');
+    }
+    
+    res.json({
+      success: true,
+      masterAccountId,
+      masterAccountName: decodedName,
+      propertiesMoved: moveResult.rows.length,
+      accountsDeleted: deleteIds.length,
+      properties: moveResult.rows
+    });
+    
+  } catch (error) {
+    console.error('Merge accounts error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Add Hostaway connection manually
 app.get('/api/fix/add-hostaway/:token/:accountId', async (req, res) => {
   try {
