@@ -6480,7 +6480,7 @@ app.get('/api/channel-connections', async (req, res) => {
         cm.cm_name,
         a.name as account_name,
         (SELECT COUNT(*) FROM properties p WHERE 
-          (cm.cm_code = 'beds24' AND p.beds24_id IS NOT NULL AND p.account_id::text = cc.account_id::text) OR
+          (cm.cm_code = 'beds24' AND p.beds24_property_id IS NOT NULL AND p.account_id::text = cc.account_id::text) OR
           (cm.cm_code = 'hostaway' AND p.hostaway_listing_id IS NOT NULL AND p.account_id::text = cc.account_id::text) OR
           (cm.cm_code = 'smoobu' AND p.smoobu_id IS NOT NULL AND p.account_id::text = cc.account_id::text)
         ) as property_count
@@ -6509,8 +6509,8 @@ app.get('/api/channel-connections', async (req, res) => {
 // Debug: Check channel_connections table
 app.get('/api/debug/channel-connections', async (req, res) => {
   try {
-    const connections = await pool.query('SELECT * FROM channel_connections ORDER BY id');
-    const managers = await pool.query('SELECT * FROM channel_managers ORDER BY id');
+    const connections = await pool.query('SELECT * FROM channel_connections');
+    const managers = await pool.query('SELECT * FROM channel_managers');
     res.json({ 
       connections: connections.rows, 
       managers: managers.rows 
@@ -7142,11 +7142,11 @@ app.post('/api/beds24/refresh-properties', async (req, res) => {
     
     // 2. Get existing properties in GAS for this account
     const existingResult = await pool.query(
-      'SELECT id, name, beds24_id FROM properties WHERE account_id = $1 AND beds24_id IS NOT NULL',
+      'SELECT id, name, beds24_property_id FROM properties WHERE account_id = $1 AND beds24_property_id IS NOT NULL',
       [accountId]
     );
     const existingProperties = existingResult.rows;
-    const existingBeds24Ids = existingProperties.map(p => String(p.beds24_id));
+    const existingBeds24Ids = existingProperties.map(p => String(p.beds24_property_id));
     
     // 3. Compare
     const existing = [];
@@ -7156,7 +7156,7 @@ app.post('/api/beds24/refresh-properties', async (req, res) => {
     // Check each CM property
     for (const cmProp of cmProperties) {
       const cmId = String(cmProp.propId);
-      const existingProp = existingProperties.find(p => String(p.beds24_id) === cmId);
+      const existingProp = existingProperties.find(p => String(p.beds24_property_id) === cmId);
       
       if (existingProp) {
         existing.push({
@@ -7178,10 +7178,10 @@ app.post('/api/beds24/refresh-properties', async (req, res) => {
     // Check for removed (in GAS but not in CM)
     const cmIds = cmProperties.map(p => String(p.propId));
     for (const existingProp of existingProperties) {
-      if (!cmIds.includes(String(existingProp.beds24_id))) {
+      if (!cmIds.includes(String(existingProp.beds24_property_id))) {
         removed.push({
           gas_id: existingProp.id,
-          cm_id: existingProp.beds24_id,
+          cm_id: existingProp.beds24_property_id,
           name: existingProp.name
         });
       }
