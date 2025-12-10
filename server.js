@@ -15001,6 +15001,44 @@ app.post('/api/ai/generate-content', async (req, res) => {
       case 'room_full':
         userPrompt = `Write a detailed room description (2-3 paragraphs). ${roomContext} ${propertyContext} ${prompt ? `Notes: ${prompt}` : ''}`;
         break;
+      case 'room_display_name':
+        // Get property context for the room
+        const { room_id: rId, original_name: roomOrigName, room_type: rType, max_guests: rGuests } = req.body;
+        let propContext = '';
+        
+        if (rId) {
+          const roomPropResult = await pool.query(`
+            SELECT p.name as property_name, p.property_type, p.city, p.description, p.address
+            FROM bookable_units bu
+            LEFT JOIN properties p ON bu.property_id = p.id
+            WHERE bu.id = $1
+          `, [rId]);
+          
+          if (roomPropResult.rows[0]) {
+            const rp = roomPropResult.rows[0];
+            propContext = `Property: ${rp.property_name}. Type: ${rp.property_type || 'accommodation'}. Location: ${rp.city || ''}.`;
+            if (rp.description) propContext += ` Description: ${rp.description.substring(0, 200)}`;
+          }
+        }
+        
+        userPrompt = `Create a marketing-friendly room name for a booking website.
+
+Original room name: "${roomOrigName}"
+Room type: ${rType || 'room'}
+Sleeps: ${rGuests || 2} guests
+${propContext}
+
+Rules:
+- Create an appealing, descriptive name that captures the room's character
+- Include the room type or bed type if relevant (e.g., "Suite", "King", "Double")
+- Can reference the property style if it adds value
+- Max 5-6 words
+- Don't use clichés like "Luxurious", "Stunning", "Paradise", "Oasis"
+- Keep it natural and memorable
+- Examples of good names: "The Garden View Suite", "Riverside King Room", "Cozy Attic Retreat", "Historic Corner Suite"
+
+Just return the new name, nothing else.`;
+        break;
       case 'display_name':
         const { original_name, property_type: propType, city: propCity } = req.body;
         userPrompt = `Create a marketing-friendly property name from this original name: "${original_name}". Property type: ${propType || 'accommodation'}. Location: ${propCity || 'unknown'}.
