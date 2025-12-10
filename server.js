@@ -2913,13 +2913,6 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS cm_name VARCHAR(100)`);
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS api_base_url VARCHAR(255)`);
     await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS auth_type VARCHAR(50) DEFAULT 'oauth2'`);
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS cm_website VARCHAR(255)`);
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS api_version VARCHAR(20)`);
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_availability_sync BOOLEAN DEFAULT false`);
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_rate_sync BOOLEAN DEFAULT false`);
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_property_import BOOLEAN DEFAULT false`);
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_booking_import BOOLEAN DEFAULT false`);
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`);
     
     // Create unique index if not exists
     await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_cm_code ON channel_managers(cm_code) WHERE cm_code IS NOT NULL`);
@@ -6677,53 +6670,6 @@ app.get('/api/debug/client-settings', async (req, res) => {
   }
 });
 
-// Debug: Show all properties with their account_id
-app.get('/api/debug/properties', async (req, res) => {
-  try {
-    const props = await pool.query(`
-      SELECT p.id, p.name, p.account_id, p.beds24_property_id, p.created_at,
-             a.name as account_name, a.public_id as account_public_id
-      FROM properties p
-      LEFT JOIN accounts a ON p.account_id = a.id
-      ORDER BY p.created_at DESC
-      LIMIT 20
-    `);
-    const accounts = await pool.query('SELECT id, name, public_id, role FROM accounts ORDER BY id');
-    res.json({
-      properties: props.rows,
-      accounts: accounts.rows
-    });
-  } catch (error) {
-    res.json({ error: error.message });
-  }
-});
-
-// Fix: Assign property to account
-app.get('/api/fix/property-account/:propertyId/:accountId', async (req, res) => {
-  try {
-    const { propertyId, accountId } = req.params;
-    await pool.query('UPDATE properties SET account_id = $1 WHERE id = $2', [accountId, propertyId]);
-    const updated = await pool.query('SELECT id, name, account_id FROM properties WHERE id = $1', [propertyId]);
-    res.json({ success: true, property: updated.rows[0] });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Fix: Assign all unassigned properties to an account
-app.get('/api/fix/assign-all-properties/:accountId', async (req, res) => {
-  try {
-    const { accountId } = req.params;
-    const result = await pool.query(
-      'UPDATE properties SET account_id = $1 WHERE account_id IS NULL RETURNING id, name',
-      [accountId]
-    );
-    res.json({ success: true, updated: result.rows });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // Get single channel connection details (with token for refresh)
 app.get('/api/channel-connection/:id', async (req, res) => {
   try {
@@ -7132,7 +7078,7 @@ app.get('/api/beds24/check-connection', async (req, res) => {
 
 // Step 1: Setup Beds24 Connection (Save to channel_connections table)
 app.post('/api/beds24/setup-connection', async (req, res) => {
-  const { inviteCode, accountId, clientPublicId } = req.body;
+  const { inviteCode, accountId } = req.body;
   
   if (!inviteCode) {
     return res.json({ success: false, error: 'Invite code required' });
@@ -7140,21 +7086,8 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
   
   try {
     console.log('🔗 Setting up Beds24 connection...');
-    
-    // Get GAS account_id from public_id if provided
-    let gasAccountId = null;
-    if (clientPublicId) {
-      const accountResult = await pool.query('SELECT id FROM accounts WHERE public_id = $1', [clientPublicId]);
-      if (accountResult.rows.length > 0) {
-        gasAccountId = accountResult.rows[0].id;
-        console.log('   GAS Account ID:', gasAccountId);
-      }
-    } else if (accountId) {
-      // Fallback to accountId if it's a number (GAS account ID)
-      if (!isNaN(parseInt(accountId))) {
-        gasAccountId = parseInt(accountId);
-        console.log('   Using provided Account ID:', gasAccountId);
-      }
+    if (accountId) {
+      console.log('   Account ID specified:', accountId);
     }
     
     // Ensure we have at least one user (create default if needed)
@@ -7188,46 +7121,12 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       console.log('✓ Using existing user ID: ' + userId);
     }
     
-    // Ensure channel_managers has all required columns
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS cm_website VARCHAR(255)`).catch(() => {});
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS api_version VARCHAR(20)`).catch(() => {});
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_availability_sync BOOLEAN DEFAULT false`).catch(() => {});
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_rate_sync BOOLEAN DEFAULT false`).catch(() => {});
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_property_import BOOLEAN DEFAULT false`).catch(() => {});
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS supports_booking_import BOOLEAN DEFAULT false`).catch(() => {});
-    await pool.query(`ALTER TABLE channel_managers ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT true`).catch(() => {});
-
-    // Ensure Beds24 exists in channel_managers table (check first, then insert if needed)
+    // Ensure Beds24 exists in channel_managers table (check first)
     const beds24Check = await pool.query(`SELECT id FROM channel_managers WHERE cm_code = 'beds24' OR LOWER(name) = 'beds24' LIMIT 1`);
     if (beds24Check.rows.length === 0) {
       await pool.query(`
-        INSERT INTO channel_managers (
-          name,
-          cm_name,
-          cm_code,
-          cm_website,
-          api_version,
-          api_base_url,
-          auth_type,
-          supports_availability_sync,
-          supports_rate_sync,
-          supports_property_import,
-          supports_booking_import,
-          is_active
-        ) VALUES (
-          'Beds24',
-          'Beds24',
-          'beds24',
-          'https://beds24.com',
-          'v2',
-          'https://api.beds24.com/v2',
-          'bearer_token',
-          true,
-          true,
-          true,
-          true,
-          true
-        )
+        INSERT INTO channel_managers (name, cm_name, cm_code, api_base_url, auth_type)
+        VALUES ('Beds24', 'Beds24', 'beds24', 'https://api.beds24.com/v2', 'bearer_token')
       `);
     }
     
@@ -7241,69 +7140,11 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
     
     const { token, refreshToken } = response.data;
     
-    // If no gasAccountId yet, fetch properties from Beds24 and create a new account
-    if (!gasAccountId) {
-      console.log('📋 No account linked - fetching Beds24 properties to create account...');
-      
-      try {
-        const propsResponse = await axios.get('https://beds24.com/api/v2/properties', {
-          headers: { 'token': token, 'accept': 'application/json' },
-          params: { includeTexts: 'all' }
-        });
-        
-        const properties = propsResponse.data.data || [];
-        
-        if (properties.length > 0) {
-          // Use first property name as account name
-          const firstProp = properties[0];
-          const accountName = firstProp.name || firstProp.propName || 'New Beds24 Account';
-          const accountEmail = firstProp.email || firstProp.propEmail || `beds24_${Date.now()}@gas.travel`;
-          
-          // Check if account with this name already exists
-          const existingAccount = await pool.query(
-            'SELECT id, name FROM accounts WHERE LOWER(name) = LOWER($1) OR email = $2',
-            [accountName, accountEmail]
-          );
-          
-          if (existingAccount.rows.length > 0) {
-            gasAccountId = existingAccount.rows[0].id;
-            console.log('   ✓ Using existing account ID: ' + gasAccountId + ' (' + existingAccount.rows[0].name + ')');
-          } else {
-            console.log('   Creating new account: ' + accountName);
-            
-            // Create new account
-            const newAccountResult = await pool.query(`
-              INSERT INTO accounts (
-                name,
-                email,
-                role,
-                business_name,
-                status
-              ) VALUES ($1, $2, 'admin', $3, 'active')
-              RETURNING id, public_id, name
-            `, [accountName, accountEmail, accountName]);
-            
-            gasAccountId = newAccountResult.rows[0].id;
-            console.log('   ✓ Created account ID: ' + gasAccountId + ' (' + accountName + ')');
-          }
-        }
-      } catch (propError) {
-        console.log('   ⚠ Could not fetch properties to create account: ' + propError.message);
-        // Continue without account - can be fixed later
-      }
-    }
-    
     // Ensure account_id column exists
     await pool.query(`
       ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS account_id VARCHAR(50)
     `).catch(() => {});
     
-    // Ensure gas_account_id column exists for linking to GAS accounts
-    await pool.query(`
-      ALTER TABLE channel_connections ADD COLUMN IF NOT EXISTS gas_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL
-    `).catch(() => {});
-    
-    // Save to channel_connections table (or update if exists)
     // Check if connection already exists
     const existingConn = await pool.query(
       'SELECT id FROM channel_connections WHERE user_id = $1 AND cm_id = (SELECT id FROM channel_managers WHERE cm_code = $2 LIMIT 1)',
@@ -7311,52 +7152,25 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
     );
     
     let connectionId;
-    
     if (existingConn.rows.length > 0) {
-      // UPDATE existing connection
       connectionId = existingConn.rows[0].id;
       await pool.query(`
         UPDATE channel_connections SET
-          api_key = $1,
-          refresh_token = $2,
-          access_token = $3,
-          account_id = $4,
-          gas_account_id = $5,
-          token_expires_at = NOW() + INTERVAL '30 days',
-          status = 'active',
-          updated_at = NOW()
-        WHERE id = $6
-      `, [inviteCode, refreshToken, token, accountId || null, gasAccountId, connectionId]);
+          api_key = $1, refresh_token = $2, access_token = $3,
+          token_expires_at = NOW() + INTERVAL '30 days', status = 'active', updated_at = NOW()
+        WHERE id = $4
+      `, [inviteCode, refreshToken, token, connectionId]);
     } else {
-      // INSERT new connection
       const result = await pool.query(`
         INSERT INTO channel_connections (
-          user_id,
-          cm_id,
-          api_key,
-          refresh_token,
-          access_token,
-          account_id,
-          gas_account_id,
-          token_expires_at,
-          status,
-          sync_enabled,
-          sync_interval_minutes
+          user_id, cm_id, api_key, refresh_token, access_token,
+          token_expires_at, status, sync_enabled, sync_interval_minutes
         ) VALUES (
-          $1,
-          (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
-          $2,
-          $3,
-          $4,
-          $5,
-          $6,
-          NOW() + INTERVAL '30 days',
-          'active',
-          true,
-          60
+          $1, (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
+          $2, $3, $4, NOW() + INTERVAL '30 days', 'active', true, 60
         )
         RETURNING id
-      `, [userId, inviteCode, refreshToken, token, accountId || null, gasAccountId]);
+      `, [userId, inviteCode, refreshToken, token]);
       connectionId = result.rows[0].id;
     }
     
@@ -7367,7 +7181,6 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       token,
       refreshToken,
       connectionId,
-      gasAccountId,
       message: 'Connected to Beds24 successfully'
     });
     
@@ -7515,6 +7328,144 @@ app.post('/api/beds24/refresh-properties', async (req, res) => {
 // Imports: Properties, Images, Amenities, Policies, Rooms, Room Images, Bed Config
 // Language: Default language only (AI translates on frontend)
 
+// Simple Beds24 import - creates account automatically (used by wizard)
+app.post('/api/beds24/import-property', async (req, res) => {
+  const { token, propId } = req.body;
+  
+  try {
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('🚀 BEDS24 IMPORT - Property ID: ' + propId);
+    console.log('═══════════════════════════════════════════════════════');
+    
+    // 1. Fetch property from Beds24
+    const propResponse = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: { 'token': token, 'accept': 'application/json' },
+      params: { id: propId, includeTexts: 'all', includeAllRooms: true }
+    });
+    
+    const prop = propResponse.data.data?.[0] || propResponse.data[0];
+    if (!prop) {
+      throw new Error('Property not found in Beds24');
+    }
+    
+    const propName = prop.name || prop.propName || 'Beds24 Property';
+    console.log('   Property: ' + propName);
+    
+    // 2. Check if account with this name exists, or create new one
+    let accountId;
+    const existingAccount = await pool.query(
+      'SELECT id FROM accounts WHERE LOWER(name) = LOWER($1)',
+      [propName]
+    );
+    
+    if (existingAccount.rows.length > 0) {
+      accountId = existingAccount.rows[0].id;
+      console.log('   Using existing account ID: ' + accountId);
+    } else {
+      const email = `${propName.toLowerCase().replace(/[^a-z0-9]/g, '_')}_${Date.now()}@gas.travel`;
+      const newAccount = await pool.query(`
+        INSERT INTO accounts (name, email, role, business_name, status)
+        VALUES ($1, $2, 'admin', $1, 'active')
+        RETURNING id
+      `, [propName, email]);
+      accountId = newAccount.rows[0].id;
+      console.log('   Created new account ID: ' + accountId + ' (' + propName + ')');
+    }
+    
+    // 3. Check if property already exists
+    const existingProp = await pool.query(
+      'SELECT id FROM properties WHERE beds24_property_id = $1',
+      [String(propId)]
+    );
+    
+    let gasPropertyId;
+    if (existingProp.rows.length > 0) {
+      gasPropertyId = existingProp.rows[0].id;
+      // Update account_id if needed
+      await pool.query('UPDATE properties SET account_id = $1 WHERE id = $2', [accountId, gasPropertyId]);
+      console.log('   Updated existing property ID: ' + gasPropertyId);
+    } else {
+      // 4. Create property
+      const propResult = await pool.query(`
+        INSERT INTO properties (
+          account_id, user_id, beds24_property_id, name, 
+          city, country, property_type, cm_source, status,
+          address, postcode, latitude, longitude,
+          check_in_from, check_out_by, currency
+        ) VALUES ($1, 1, $2, $3, $4, $5, $6, 'beds24', 'active', $7, $8, $9, $10, $11, $12, $13)
+        RETURNING id
+      `, [
+        accountId, 
+        String(propId), 
+        propName,
+        prop.city || '',
+        prop.country || '',
+        prop.propertyType || 'hotel',
+        prop.address || '',
+        prop.postcode || '',
+        prop.latitude || null,
+        prop.longitude || null,
+        prop.checkInStart || '15:00',
+        prop.checkOutEnd || '11:00',
+        prop.currency || 'EUR'
+      ]);
+      gasPropertyId = propResult.rows[0].id;
+      console.log('   Created property ID: ' + gasPropertyId);
+    }
+    
+    // 5. Import rooms
+    const rooms = prop.roomTypes || prop.rooms || [];
+    let roomsCreated = 0;
+    
+    for (const room of rooms) {
+      const roomId = room.id || room.roomId;
+      
+      // Check if room exists
+      const existingRoom = await pool.query(
+        'SELECT id FROM bookable_units WHERE property_id = $1 AND beds24_room_id = $2',
+        [gasPropertyId, roomId]
+      );
+      
+      if (existingRoom.rows.length === 0) {
+        await pool.query(`
+          INSERT INTO bookable_units (
+            property_id, beds24_room_id, cm_room_id, name, 
+            max_guests, max_adults, base_price, quantity, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, 'available')
+        `, [
+          gasPropertyId, 
+          roomId, 
+          String(roomId), 
+          room.name || room.roomName || 'Room',
+          room.maxPeople || room.maxGuests || 2,
+          room.maxAdult || room.maxAdults || 2,
+          room.rackRate || room.basePrice || 100,
+          room.qty || room.quantity || 1
+        ]);
+        roomsCreated++;
+      }
+    }
+    console.log('   Created ' + roomsCreated + ' rooms (of ' + rooms.length + ' total)');
+    
+    console.log('═══════════════════════════════════════════════════════');
+    console.log('✅ IMPORT COMPLETE');
+    console.log('═══════════════════════════════════════════════════════');
+    
+    res.json({
+      success: true,
+      accountId,
+      propertyId: gasPropertyId,
+      propertyName: propName,
+      roomsCreated,
+      totalRooms: rooms.length
+    });
+    
+  } catch (error) {
+    console.error('Beds24 import error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/beds24/import-complete-property', async (req, res) => {
   const { propertyId, connectionId, token } = req.body;
   
@@ -7527,13 +7478,12 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     console.log('🚀 ENHANCED BEDS24 IMPORT - Property ID: ' + propertyId);
     console.log('═══════════════════════════════════════════════════════');
     
-    // Get the user_id and gas_account_id from the connection
-    const connResult = await client.query('SELECT user_id, gas_account_id FROM channel_connections WHERE id = $1', [connectionId]);
+    // Get the user_id from the connection
+    const connResult = await client.query('SELECT user_id FROM channel_connections WHERE id = $1', [connectionId]);
     if (connResult.rows.length === 0) {
-      throw new Error('Connection not found - connectionId: ' + connectionId);
+      throw new Error('Connection not found');
     }
     const userId = connResult.rows[0].user_id;
-    const accountId = connResult.rows[0].gas_account_id;
     
     // =========================================================
     // 1. FETCH COMPLETE PROPERTY DATA FROM BEDS24
@@ -7653,7 +7603,6 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       const propertyResult = await client.query(`
         INSERT INTO properties (
           user_id,
-          account_id,
           beds24_property_id,
           cm_source,
           name,
@@ -7680,12 +7629,11 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
           contact_last_name,
           status
         ) VALUES (
-          $1, $2, $3, 'beds24', $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, 'active'
+          $1, $2, 'beds24', $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, 'active'
         )
         RETURNING id
       `, [
         userId,
-        accountId || null,
         propertyId,
         prop.name || prop.propName || 'Property',
         prop.propertyType || prop.propType || 'hotel',
@@ -8050,89 +7998,6 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     // =========================================================
     await client.query('COMMIT');
     
-    // =========================================================
-    // 8. AUTO-SYNC AVAILABILITY & PRICES FOR IMPORTED ROOMS
-    // =========================================================
-    console.log('\n📅 STEP 8: Syncing availability & prices from Beds24...');
-    
-    let availabilitySynced = 0;
-    let pricesSynced = 0;
-    
-    try {
-      // Get the rooms we just imported
-      const importedRooms = await pool.query(`
-        SELECT id, beds24_room_id, name 
-        FROM bookable_units 
-        WHERE property_id = $1 AND beds24_room_id IS NOT NULL
-      `, [gasPropertyId]);
-      
-      const today = new Date();
-      const startDate = today.toISOString().split('T')[0];
-      const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
-      
-      for (const room of importedRooms.rows) {
-        try {
-          // Sync availability
-          const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
-            headers: { 'token': token },
-            params: { 
-              roomId: room.beds24_room_id,
-              startDate,
-              endDate
-            }
-          });
-          
-          const availData = availResponse.data?.data?.[0];
-          if (availData && availData.availability) {
-            for (const [dateStr, isAvailable] of Object.entries(availData.availability)) {
-              await pool.query(`
-                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-                VALUES ($1, $2, $3, $4, 'beds24_sync')
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET is_available = $3, is_blocked = $4, source = 'beds24_sync', updated_at = NOW()
-              `, [room.id, dateStr, isAvailable !== false, isAvailable === false]);
-              availabilitySynced++;
-            }
-          }
-          
-          // Sync prices
-          const priceResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/prices', {
-            headers: { 'token': token },
-            params: { 
-              roomId: room.beds24_room_id,
-              startDate,
-              endDate
-            }
-          });
-          
-          const priceData = priceResponse.data?.data?.[0];
-          if (priceData && priceData.prices) {
-            for (const [dateStr, price] of Object.entries(priceData.prices)) {
-              if (price && price > 0) {
-                await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, source)
-                  VALUES ($1, $2, $3, 'beds24_sync')
-                  ON CONFLICT (room_id, date) 
-                  DO UPDATE SET cm_price = $3, source = 'beds24_sync', updated_at = NOW()
-                `, [room.id, dateStr, price]);
-                pricesSynced++;
-              }
-            }
-          }
-          
-          console.log('   ✓ Synced: ' + room.name);
-        } catch (roomSyncError) {
-          console.log('   ⚠ Could not sync ' + room.name + ': ' + roomSyncError.message);
-        }
-      }
-      
-      console.log('   📊 Availability: ' + availabilitySynced + ' dates synced');
-      console.log('   💰 Prices: ' + pricesSynced + ' prices synced');
-    } catch (syncError) {
-      console.log('   ⚠ Auto-sync warning: ' + syncError.message);
-      // Don't fail the whole import if sync fails
-    }
-    
     console.log('\n═══════════════════════════════════════════════════════');
     console.log('🎉 IMPORT COMPLETE!');
     console.log('═══════════════════════════════════════════════════════');
@@ -8144,8 +8009,6 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
       policies: policiesCount,
       roomsAdded: roomsAdded,
       roomsUpdated: roomsUpdated,
-      availabilitySynced: availabilitySynced,
-      pricesSynced: pricesSynced,
       isUpdate: isUpdate,
       note: 'Amenities not imported - users select from master list in GAS'
     };
@@ -8155,7 +8018,7 @@ app.post('/api/beds24/import-complete-property', async (req, res) => {
     res.json({
       success: true,
       stats: stats,
-      message: isUpdate ? 'Property, rooms, availability & prices updated.' : 'Property, rooms, availability & prices imported.'
+      message: isUpdate ? 'Property & rooms updated. Select amenities in GAS.' : 'Property & rooms imported. Select amenities in GAS.'
     });
     
   } catch (error) {
