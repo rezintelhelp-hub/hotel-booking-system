@@ -9945,6 +9945,37 @@ Local honey and preserves"></textarea>
                     </button>
                 </div>
                 
+                <!-- AI Property Description Generator -->
+                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 12px; padding: 1rem; margin: 1.5rem 0; color: white;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <span style="font-size: 1.5rem;">✨</span>
+                        <h4 style="margin: 0; font-weight: 600;">AI Property Description Generator</h4>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <textarea id="edit-property-ai-prompt" rows="2" placeholder="Describe your property style, vibe, target guests... e.g. 'Romantic Victorian B&B, dog-friendly, known for amazing breakfasts'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button type="button" onclick="generatePropertyDescription('short')" style="background: white; color: #667eea; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate Short</button>
+                        <button type="button" onclick="generatePropertyDescription('full')" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">📝 Generate Full</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Short Description <button type="button" onclick="copyToClipboard('edit-property-short-desc')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
+                    <textarea class="form-input" id="edit-property-short-desc" rows="3" placeholder="Brief, punchy description of the property (1-2 sentences)"></textarea>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Shown in listings and search results on website
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Full Description <button type="button" onclick="copyToClipboard('edit-property-full-desc')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
+                    <textarea class="form-input" id="edit-property-full-desc" rows="6" placeholder="Detailed description of the property, its features, atmosphere, location highlights..."></textarea>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Extended information shown on property/room detail pages
+                    </div>
+                </div>
+                
                 <div style="display: flex; gap: 1rem; justify-content: space-between; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
                     <button type="button" class="btn" style="background: var(--error); border-color: var(--error);" onclick="deleteProperty()">
                         🗑️ Delete Property
@@ -10126,6 +10157,37 @@ Local honey and preserves"></textarea>
                             <option value="unavailable">❌ Unavailable</option>
                             <option value="maintenance">🔧 Maintenance</option>
                         </select>
+                    </div>
+                </div>
+                
+                <!-- AI Room Description Generator -->
+                <div style="background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%); border-radius: 12px; padding: 1rem; margin: 1.5rem 0; color: white;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.75rem;">
+                        <span style="font-size: 1.5rem;">✨</span>
+                        <h4 style="margin: 0; font-weight: 600;">AI Room Description Generator</h4>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <textarea id="edit-room-ai-prompt" rows="2" placeholder="Describe this room's special features... e.g. 'Garden view, four-poster bed, ensuite with roll-top bath'" style="width: 100%; padding: 0.75rem; border-radius: 8px; border: none; font-size: 0.9rem;"></textarea>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                        <button type="button" onclick="generateRoomDescription('short')" style="background: white; color: #11998e; border: none; padding: 0.5rem 1rem; border-radius: 6px; font-weight: 600; cursor: pointer;">🪄 Generate Short</button>
+                        <button type="button" onclick="generateRoomDescription('full')" style="background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem; border-radius: 6px; cursor: pointer;">📝 Generate Full</button>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Short Description <button type="button" onclick="copyToClipboard('edit-room-short-desc')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
+                    <textarea class="form-input" id="edit-room-short-desc" rows="3" placeholder="Brief, punchy description of the room (1-2 sentences)"></textarea>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Shown in listings and search results on website
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label class="form-label">Full Description <button type="button" onclick="copyToClipboard('edit-room-full-desc')" style="background: none; border: none; cursor: pointer; font-size: 1rem;" title="Copy to clipboard">📋</button></label>
+                    <textarea class="form-input" id="edit-room-full-desc" rows="6" placeholder="Detailed description of the room, its features, views, atmosphere..."></textarea>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Extended information shown on room detail page
                     </div>
                 </div>
                 
@@ -20819,6 +20881,11 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
                     
+                    // Load descriptions
+                    document.getElementById('edit-property-short-desc').value = prop.short_description || '';
+                    document.getElementById('edit-property-full-desc').value = prop.full_description || '';
+                    document.getElementById('edit-property-ai-prompt').value = '';
+                    
                     // Reset map state
                     document.getElementById('property-map-preview').style.display = 'none';
                     document.getElementById('toggle-map-btn').textContent = '🗺️ Show Map';
@@ -20847,7 +20914,9 @@ Local honey and preserves"></textarea>
                 country: document.getElementById('edit-property-country').value,
                 latitude: document.getElementById('edit-property-latitude').value ? parseFloat(document.getElementById('edit-property-latitude').value) : null,
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
-                status: document.getElementById('edit-property-status').value
+                status: document.getElementById('edit-property-status').value,
+                short_description: document.getElementById('edit-property-short-desc').value,
+                full_description: document.getElementById('edit-property-full-desc').value
             };
             
             try {
@@ -21052,6 +21121,11 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-room-quantity').value = room.quantity || 1;
                     document.getElementById('edit-room-status').value = room.status || 'available';
                     
+                    // Load descriptions
+                    document.getElementById('edit-room-short-desc').value = room.short_description || '';
+                    document.getElementById('edit-room-full-desc').value = room.full_description || '';
+                    document.getElementById('edit-room-ai-prompt').value = '';
+                    
                     openModal('editRoomModal');
                 }
             } catch (error) {
@@ -21077,7 +21151,9 @@ Local honey and preserves"></textarea>
             // Get GAS-controlled fields
             const data = {
                 quantity: document.getElementById('edit-room-quantity').value || 1,
-                status: document.getElementById('edit-room-status').value
+                status: document.getElementById('edit-room-status').value,
+                short_description: document.getElementById('edit-room-short-desc').value,
+                full_description: document.getElementById('edit-room-full-desc').value
             };
             
             try {
@@ -21102,6 +21178,106 @@ Local honey and preserves"></textarea>
             }
             
             return false;
+        }
+        
+        async function generateRoomDescription(type) {
+            const roomId = document.getElementById('edit-room-id').value;
+            const roomName = document.getElementById('edit-room-name').value;
+            const prompt = document.getElementById('edit-room-ai-prompt').value;
+            
+            if (!roomId) return alert('No room selected');
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/ai/generate-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: type === 'short' ? 'room_short' : 'room_full',
+                        room_id: roomId,
+                        room_name: roomName,
+                        prompt 
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    if (type === 'short') {
+                        document.getElementById('edit-room-short-desc').value = result.content;
+                    } else {
+                        document.getElementById('edit-room-full-desc').value = result.content;
+                    }
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('AI generation error:', error);
+                alert('Error generating content');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function generatePropertyDescription(type) {
+            const propertyId = document.getElementById('edit-property-id').value;
+            const propertyName = document.getElementById('edit-property-name').value;
+            const prompt = document.getElementById('edit-property-ai-prompt').value;
+            
+            if (!propertyId) return alert('No property selected');
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/ai/generate-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        type: type === 'short' ? 'property_short' : 'property_description',
+                        property_id: propertyId,
+                        property_name: propertyName,
+                        prompt 
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    if (type === 'short') {
+                        document.getElementById('edit-property-short-desc').value = result.content;
+                    } else {
+                        document.getElementById('edit-property-full-desc').value = result.content;
+                    }
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('AI generation error:', error);
+                alert('Error generating content');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        function copyToClipboard(elementId) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.select();
+                document.execCommand('copy');
+                
+                // Show brief feedback
+                const btn = event.target;
+                const original = btn.innerHTML;
+                btn.innerHTML = '✓';
+                setTimeout(() => btn.innerHTML = original, 1000);
+            }
         }
 
         async function deleteRoom() {
