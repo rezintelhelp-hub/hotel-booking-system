@@ -21116,16 +21116,21 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-room-quantity').value = room.quantity || 1;
                     document.getElementById('edit-room-status').value = room.status || 'available';
                     
-                    // Load descriptions - handle JSONB or string
+                    // Load descriptions - handle JSONB object, JSON string, or plain string
                     let shortDesc = room.short_description || '';
                     let fullDesc = room.full_description || '';
                     
                     // If it's an object with 'en' key, extract it
                     if (typeof shortDesc === 'object' && shortDesc !== null) {
                         shortDesc = shortDesc.en || '';
+                    } else if (typeof shortDesc === 'string' && shortDesc.startsWith('{')) {
+                        try { shortDesc = JSON.parse(shortDesc).en || shortDesc; } catch(e) {}
                     }
+                    
                     if (typeof fullDesc === 'object' && fullDesc !== null) {
                         fullDesc = fullDesc.en || '';
+                    } else if (typeof fullDesc === 'string' && fullDesc.startsWith('{')) {
+                        try { fullDesc = JSON.parse(fullDesc).en || fullDesc; } catch(e) {}
                     }
                     
                     document.getElementById('edit-room-short-desc').value = shortDesc;
