@@ -2312,6 +2312,257 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
     }
 });
 
+// =====================================================
+// GROUP BOOKING ENDPOINT
+// Creates multiple bookings linked by a group_booking_id
+// =====================================================
+app.post('/api/public/create-group-booking', async (req, res) => {
+    const client = await pool.connect();
+    try {
+        const { 
+            rooms,  // Array of room booking data
+            checkin,
+            checkout,
+            guest_first_name,
+            guest_last_name,
+            guest_email,
+            guest_phone,
+            guest_address,
+            guest_city,
+            guest_country,
+            guest_postcode,
+            notes,
+            stripe_payment_intent_id,
+            deposit_amount,
+            total_amount
+        } = req.body;
+        
+        if (!rooms || !Array.isArray(rooms) || rooms.length === 0) {
+            return res.status(400).json({ success: false, error: 'No rooms provided' });
+        }
+        
+        if (!checkin || !checkout) {
+            return res.status(400).json({ success: false, error: 'Check-in and check-out dates required' });
+        }
+        
+        // Generate unique group booking ID
+        const groupBookingId = 'GRP-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase();
+        
+        await client.query('BEGIN');
+        
+        const createdBookings = [];
+        const cmResults = { beds24: [], hostaway: [], smoobu: [] };
+        
+        // Process each room
+        for (let i = 0; i < rooms.length; i++) {
+            const room = rooms[i];
+            const roomId = room.roomId;
+            const roomPrice = parseFloat(room.totalPrice) || 0;
+            const roomGuests = room.guests || 1;
+            
+            // Get room and property info
+            const roomInfo = await client.query(`
+                SELECT bu.*, p.id as property_id, p.owner_id as property_owner_id,
+                       bu.beds24_room_id, bu.hostaway_listing_id, bu.smoobu_room_id
+                FROM bookable_units bu
+                JOIN properties p ON bu.property_id = p.id
+                WHERE bu.id = $1
+            `, [roomId]);
+            
+            if (!roomInfo.rows[0]) {
+                throw new Error(`Room ${roomId} not found`);
+            }
+            
+            const roomData = roomInfo.rows[0];
+            
+            // Create booking in GAS database
+            const bookingResult = await client.query(`
+                INSERT INTO bookings (
+                    property_id, property_owner_id, bookable_unit_id,
+                    arrival_date, departure_date,
+                    num_adults, num_children,
+                    guest_first_name, guest_last_name, guest_email, guest_phone,
+                    accommodation_price, subtotal, grand_total,
+                    status, booking_source, currency,
+                    group_booking_id, notes
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', 'GBP', $13, $14)
+                RETURNING *
+            `, [
+                roomData.property_id,
+                roomData.property_owner_id,
+                roomId,
+                checkin,
+                checkout,
+                roomGuests,
+                0,
+                guest_first_name,
+                guest_last_name,
+                guest_email,
+                guest_phone || '',
+                roomPrice,
+                groupBookingId,
+                notes ? `${notes}\n[Group Booking: ${groupBookingId} - Room ${i + 1} of ${rooms.length}]` : `[Group Booking: ${groupBookingId} - Room ${i + 1} of ${rooms.length}]`
+            ]);
+            
+            const booking = bookingResult.rows[0];
+            createdBookings.push(booking);
+            
+            // Push to Channel Managers
+            
+            // Beds24
+            if (roomData.beds24_room_id) {
+                try {
+                    const accessToken = await getBeds24AccessToken(pool);
+                    
+                    const beds24Booking = [{
+                        roomId: roomData.beds24_room_id,
+                        status: 'confirmed',
+                        arrival: checkin,
+                        departure: checkout,
+                        numAdult: roomGuests,
+                        numChild: 0,
+                        firstName: guest_first_name,
+                        lastName: guest_last_name,
+                        email: guest_email,
+                        mobile: guest_phone || '',
+                        address: guest_address || '',
+                        city: guest_city || '',
+                        country: guest_country || '',
+                        postcode: guest_postcode || '',
+                        referer: 'GAS Direct Booking',
+                        notes: `GAS Booking ID: ${booking.id}\nGroup: ${groupBookingId} (Room ${i + 1}/${rooms.length})`,
+                        price: roomPrice,
+                        invoiceItems: [{
+                            description: 'Accommodation',
+                            qty: 1,
+                            amount: roomPrice,
+                            vatRate: 0
+                        }]
+                    }];
+                    
+                    const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
+                        headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+                    });
+                    
+                    if (beds24Response.data && beds24Response.data[0]?.success) {
+                        const beds24Id = beds24Response.data[0]?.new?.id;
+                        if (beds24Id) {
+                            await client.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [beds24Id, booking.id]);
+                            cmResults.beds24.push({ roomId, beds24Id });
+                        }
+                    }
+                } catch (beds24Error) {
+                    console.error('Beds24 error for room ' + roomId + ':', beds24Error.message);
+                }
+            }
+            
+            // Hostaway
+            if (roomData.hostaway_listing_id) {
+                try {
+                    const stored = await getStoredHostawayToken(pool);
+                    if (stored && stored.accessToken) {
+                        const hostawayBooking = {
+                            listingMapId: roomData.hostaway_listing_id,
+                            channelId: 2000,
+                            source: 'manual',
+                            arrivalDate: checkin,
+                            departureDate: checkout,
+                            guestName: `${guest_first_name} ${guest_last_name}`,
+                            guestEmail: guest_email,
+                            guestPhone: guest_phone || '',
+                            numberOfGuests: roomGuests,
+                            totalPrice: roomPrice,
+                            status: 'confirmed',
+                            comment: `GAS Group Booking: ${groupBookingId} (Room ${i + 1}/${rooms.length})`
+                        };
+                        
+                        const hostawayResponse = await axios.post(
+                            'https://api.hostaway.com/v1/reservations',
+                            hostawayBooking,
+                            { headers: { 'Authorization': `Bearer ${stored.accessToken}`, 'Content-Type': 'application/json' } }
+                        );
+                        
+                        if (hostawayResponse.data?.status === 'success') {
+                            const hostawayId = hostawayResponse.data?.result?.id;
+                            if (hostawayId) {
+                                await client.query('UPDATE bookings SET hostaway_reservation_id = $1 WHERE id = $2', [hostawayId, booking.id]);
+                                cmResults.hostaway.push({ roomId, hostawayId });
+                            }
+                        }
+                    }
+                } catch (hostawayError) {
+                    console.error('Hostaway error for room ' + roomId + ':', hostawayError.message);
+                }
+            }
+            
+            // Smoobu
+            if (roomData.smoobu_room_id) {
+                try {
+                    const smoobuCreds = await pool.query(`
+                        SELECT api_key FROM smoobu_connections WHERE is_active = true LIMIT 1
+                    `);
+                    
+                    if (smoobuCreds.rows[0]?.api_key) {
+                        const smoobuBooking = {
+                            arrivalDate: checkin,
+                            departureDate: checkout,
+                            apartmentId: roomData.smoobu_room_id,
+                            firstName: guest_first_name,
+                            lastName: guest_last_name,
+                            email: guest_email,
+                            phone: guest_phone || '',
+                            adults: roomGuests,
+                            children: 0,
+                            price: roomPrice,
+                            notice: `GAS Group Booking: ${groupBookingId} (Room ${i + 1}/${rooms.length})`
+                        };
+                        
+                        const smoobuResponse = await axios.post(
+                            'https://login.smoobu.com/api/reservations',
+                            smoobuBooking,
+                            { headers: { 'Api-Key': smoobuCreds.rows[0].api_key, 'Content-Type': 'application/json' } }
+                        );
+                        
+                        if (smoobuResponse.data?.id) {
+                            await client.query('UPDATE bookings SET smoobu_reservation_id = $1 WHERE id = $2', [smoobuResponse.data.id, booking.id]);
+                            cmResults.smoobu.push({ roomId, smoobuId: smoobuResponse.data.id });
+                        }
+                    }
+                } catch (smoobuError) {
+                    console.error('Smoobu error for room ' + roomId + ':', smoobuError.message);
+                }
+            }
+        }
+        
+        await client.query('COMMIT');
+        
+        console.log(`Group booking created: ${groupBookingId} with ${createdBookings.length} rooms`);
+        
+        res.json({
+            success: true,
+            group_booking_id: groupBookingId,
+            bookings: createdBookings.map(b => ({
+                id: b.id,
+                room_id: b.bookable_unit_id,
+                beds24_id: b.beds24_booking_id,
+                hostaway_id: b.hostaway_reservation_id,
+                smoobu_id: b.smoobu_reservation_id
+            })),
+            total_rooms: createdBookings.length,
+            total_amount: total_amount,
+            cm_results: cmResults
+        });
+        
+    } catch (error) {
+        await client.query('ROLLBACK');
+        console.error('Group booking error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    } finally {
+        client.release();
+    }
+});
+
 // Create payment intent for checkout (public endpoint)
 app.post('/api/public/create-payment-intent', async (req, res) => {
     try {
@@ -2981,6 +3232,9 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
+    
+    // Add group booking column
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS group_booking_id VARCHAR(50)`);
     
     // Add payment tracking columns to bookings
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS deposit_amount DECIMAL(10,2)`);
