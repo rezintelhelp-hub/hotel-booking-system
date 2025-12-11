@@ -16729,6 +16729,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       SELECT 
         bu.id,
         bu.name,
+        bu.display_name,
         bu.description,
         bu.base_price,
         bu.max_guests,
