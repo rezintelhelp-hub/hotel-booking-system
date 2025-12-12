@@ -1072,11 +1072,11 @@
             <div class="client-selector">
                 <label>👁️ Viewing As</label>
                 <select id="globalClientSelector" onchange="switchClient(this.value)">
-                    <option value="">🌐 All Accounts (Admin View)</option>
+                    <option value="">🌐 All (Admin View)</option>
                 </select>
                 <div class="client-indicator" id="clientIndicator">
                     <span class="dot"></span>
-                    <span id="clientIndicatorText">All accounts</span>
+                    <span id="clientIndicatorText">All</span>
                 </div>
             </div>
 
@@ -5494,74 +5494,110 @@ const promo = await fetch('/api/v1/offers/validate', {
         let currentClientPublicId = null; // Account ID or null for all accounts
         let clientIdMap = {}; // Maps account id -> internal id
         
-        // Get current account ID for API calls
+        // Get current selection info for API calls
         function getClientId() {
             if (!currentClientPublicId) return null;
-            return clientIdMap[currentClientPublicId] || currentClientPublicId || null;
+            const mapped = clientIdMap[currentClientPublicId];
+            if (mapped && mapped.type === 'client') {
+                return mapped.id;
+            }
+            return null;
         }
         
-        // Alias for clarity
         function getAccountId() {
-            return getClientId();
+            if (!currentClientPublicId) return null;
+            const mapped = clientIdMap[currentClientPublicId];
+            if (mapped && mapped.type === 'account') {
+                return mapped.id;
+            }
+            return null;
+        }
+        
+        // Build query params based on selection type
+        function getFilterParams() {
+            if (!currentClientPublicId) return '';
+            const mapped = clientIdMap[currentClientPublicId];
+            if (!mapped) return '';
+            if (mapped.type === 'account') {
+                return `account_id=${mapped.id}`;
+            } else if (mapped.type === 'client') {
+                return `client_id=${mapped.id}`;
+            }
+            return '';
         }
         
         // Get client ID param for API URLs (legacy)
         function getClientParam() {
-            const clientId = getClientId();
-            return clientId ? `client_id=${clientId}` : '';
+            return getFilterParams();
         }
         
         // Get account ID param for API URLs
         function getAccountParam() {
-            const accountId = getAccountId();
-            return accountId ? `account_id=${accountId}` : '';
+            return getFilterParams();
         }
         
-        // Load accounts into the selector dropdown
+        // Load accounts AND clients into the selector dropdown
         async function loadClientSelector() {
             try {
-                // First try accounts (new system)
+                const selector = document.getElementById('globalClientSelector');
+                if (!selector) {
+                    console.error('Selector not found!');
+                    return;
+                }
+                
+                selector.innerHTML = '<option value="">🌐 All (Admin View)</option>';
+                clientIdMap = {};
+                
+                // Load accounts first
                 const accountResponse = await fetch('/api/admin/accounts');
                 const accountData = await accountResponse.json();
                 
-                const selector = document.getElementById('globalClientSelector');
-                if (!selector) return;
-                
-                selector.innerHTML = '<option value="">🌐 All Accounts (Admin View)</option>';
-                clientIdMap = {}; // Reset map
-                
                 if (accountData.success && accountData.accounts && accountData.accounts.length > 0) {
+                    // Add a divider for accounts
+                    const accountGroup = document.createElement('optgroup');
+                    accountGroup.label = '📁 Accounts';
+                    
                     accountData.accounts.forEach(account => {
                         const option = document.createElement('option');
-                        option.value = account.id;
-                        option.textContent = `${account.business_name || account.email || 'Account'}`;
-                        selector.appendChild(option);
-                        clientIdMap[account.id] = account.id;
+                        option.value = `account:${account.id}`;
+                        const displayName = account.name || account.business_name || account.email || `Account ${account.id}`;
+                        option.textContent = displayName;
+                        accountGroup.appendChild(option);
+                        clientIdMap[`account:${account.id}`] = { type: 'account', id: account.id };
                     });
-                } else {
-                    // Fallback to clients (legacy system)
-                    const response = await fetch('/api/admin/clients');
-                    const data = await response.json();
-                    
-                    if (data.success && data.clients) {
-                        data.clients.forEach(client => {
-                            const option = document.createElement('option');
-                            const publicId = client.public_id || client.id;
-                            option.value = publicId;
-                            option.textContent = `${client.business_name || client.name || 'Client'}`;
-                            selector.appendChild(option);
-                            clientIdMap[publicId] = client.id;
-                        });
-                    }
+                    selector.appendChild(accountGroup);
                 }
+                
+                // Also load clients (legacy)
+                const clientResponse = await fetch('/api/admin/clients');
+                const clientData = await clientResponse.json();
+                
+                if (clientData.success && clientData.clients && clientData.clients.length > 0) {
+                    const clientGroup = document.createElement('optgroup');
+                    clientGroup.label = '👥 Clients';
+                    
+                    clientData.clients.forEach(client => {
+                        const option = document.createElement('option');
+                        option.value = `client:${client.id}`;
+                        const displayName = client.business_name || client.name || client.email || `Client ${client.id}`;
+                        option.textContent = displayName;
+                        clientGroup.appendChild(option);
+                        clientIdMap[`client:${client.id}`] = { type: 'client', id: client.id };
+                    });
+                    selector.appendChild(clientGroup);
+                }
+                
+                console.log('Selector populated with', Object.keys(clientIdMap).length, 'items');
             } catch (error) {
-                console.error('Error loading account selector:', error);
+                console.error('Error loading selector:', error);
             }
         }
         
         // Switch to a different account
         function switchClient(publicId) {
+            console.log('switchClient called with:', publicId, 'type:', typeof publicId);
             currentClientPublicId = publicId || null;
+            console.log('currentClientPublicId set to:', currentClientPublicId);
             
             // Update indicator
             const indicator = document.getElementById('clientIndicator');
@@ -5569,7 +5605,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             if (!currentClientPublicId) {
                 indicator.className = 'client-indicator all-clients';
-                indicatorText.textContent = 'Viewing all accounts';
+                indicatorText.textContent = 'Viewing all';
             } else {
                 indicator.className = 'client-indicator';
                 const selector = document.getElementById('globalClientSelector');
@@ -6225,9 +6261,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Data Loading
         async function loadDashboard() {
             try {
-                const accountId = getAccountId();
-                const accountParam = accountId ? `?account_id=${accountId}` : '';
-                const response = await fetch(`/api/admin/stats${accountParam}`);
+                const filterParams = getFilterParams();
+                const queryStr = filterParams ? `?${filterParams}` : '';
+                const response = await fetch(`/api/admin/stats${queryStr}`);
                 const stats = await response.json();
                 
                 if (stats.success) {
@@ -6244,9 +6280,11 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadProperties() {
             const container = document.getElementById('properties-list');
             try {
-                const accountId = getAccountId();
-                const accountParam = accountId ? `?account_id=${accountId}` : '';
-                const response = await fetch(`/api/db/properties${accountParam}`);
+                const filterParams = getFilterParams();
+                const queryStr = filterParams ? `?${filterParams}` : '';
+                console.log('Loading properties:', `/api/db/properties${queryStr}`);
+                
+                const response = await fetch(`/api/db/properties${queryStr}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
@@ -6296,9 +6334,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadRooms() {
             const container = document.getElementById('rooms-list');
             try {
-                const accountId = getAccountId();
-                const accountParam = accountId ? `?account_id=${accountId}` : '';
-                const response = await fetch(`/api/admin/units${accountParam}`);
+                const filterParams = getFilterParams();
+                const queryStr = filterParams ? `?${filterParams}` : '';
+                const response = await fetch(`/api/admin/units${queryStr}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
@@ -6357,9 +6395,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadBookings() {
             const container = document.getElementById('bookings-list');
             try {
-                const accountId = getAccountId();
-                const accountParam = accountId ? `?account_id=${accountId}` : '';
-                const response = await fetch(`/api/admin/bookings${accountParam}`);
+                const filterParams = getFilterParams();
+                const queryStr = filterParams ? `?${filterParams}` : '';
+                const response = await fetch(`/api/admin/bookings${queryStr}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
@@ -7804,9 +7842,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load properties for filter
             try {
-                const accountId = getAccountId();
-                const accountParam = accountId ? `?account_id=${accountId}` : '';
-                const propsResponse = await fetch(`/api/db/properties${accountParam}`);
+                const filterParams = getFilterParams();
+                const queryStr = filterParams ? `?${filterParams}` : '';
+                const propsResponse = await fetch(`/api/db/properties${queryStr}`);
                 const propsData = await propsResponse.json();
                 
                 const propFilter = document.getElementById('grid-property-filter');
@@ -8174,9 +8212,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadOffers() {
             // Load properties dropdown
             try {
-                const accountId = getAccountId();
-                const accountParam = accountId ? `?account_id=${accountId}` : '';
-                const propsResponse = await fetch(`/api/db/properties${accountParam}`);
+                const filterParams = getFilterParams();
+                const queryStr = filterParams ? `?${filterParams}` : '';
+                const propsResponse = await fetch(`/api/db/properties${queryStr}`);
                 const propsData = await propsResponse.json();
                 
                 const propSelect = document.getElementById('offers-property-select');
@@ -9806,9 +9844,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadVouchers() {
             try {
-                const accountId = getAccountId();
-                const accountParam = accountId ? `?account_id=${accountId}` : '';
-                const response = await fetch(`/api/admin/vouchers${accountParam}`);
+                const filterParams = getFilterParams();
+                const queryStr = filterParams ? `?${filterParams}` : '';
+                const response = await fetch(`/api/admin/vouchers${queryStr}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -10128,9 +10166,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadUpsells() {
             try {
-                const accountId = getAccountId();
-                const accountParam = accountId ? `?account_id=${accountId}` : '';
-                const response = await fetch(`/api/admin/upsells${accountParam}`);
+                const filterParams = getFilterParams();
+                const queryStr = filterParams ? `?${filterParams}` : '';
+                const response = await fetch(`/api/admin/upsells${queryStr}`);
                 const data = await response.json();
                 
                 if (data.success) {
