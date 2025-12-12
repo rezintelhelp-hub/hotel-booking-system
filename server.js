@@ -1724,9 +1724,7 @@ app.get('/api/admin/accounts', async (req, res) => {
         a.*,
         p.name as parent_name,
         (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-        (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
-        (SELECT COUNT(*) FROM bookable_units bu JOIN properties prop ON bu.property_id = prop.id WHERE prop.account_id = a.id) as room_count,
-        (SELECT COUNT(*) FROM channel_connections WHERE gas_account_id = a.id::text AND status = 'active') as connection_count
+        (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
       FROM accounts a
       LEFT JOIN accounts p ON a.parent_id = p.id
       ORDER BY 
@@ -2762,7 +2760,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             // HOSTAWAY SYNC
             if (cmData?.hostaway_listing_id) {
                 try {
-                    const stored = await getStoredHostawayToken(pool, cmData.account_id);
+                    const stored = await getStoredHostawayToken(pool);
                     
                     if (stored?.accessToken) {
                         const hostawayResponse = await axios.post('https://api.hostaway.com/v1/reservations', {
@@ -6910,15 +6908,11 @@ app.post('/api/db/book', async (req, res) => {
     
     // 2. Get CM IDs for this room
     const roomResult = await client.query(`
-      SELECT bu.beds24_room_id, bu.hostaway_listing_id, p.account_id
-      FROM bookable_units bu
-      LEFT JOIN properties p ON bu.property_id = p.id
-      WHERE bu.id = $1
+      SELECT beds24_room_id, hostaway_listing_id FROM bookable_units WHERE id = $1
     `, [room_id]);
     
     const beds24RoomId = roomResult.rows[0]?.beds24_room_id;
     const hostawayListingId = roomResult.rows[0]?.hostaway_listing_id;
-    const accountId = roomResult.rows[0]?.account_id;
     
     let beds24BookingId = null;
     let hostawayReservationId = null;
@@ -7000,7 +6994,7 @@ app.post('/api/db/book', async (req, res) => {
     // 3b. If room is linked to Hostaway, push the booking
     if (hostawayListingId) {
       try {
-        const stored = await getStoredHostawayToken(pool, accountId);
+        const stored = await getStoredHostawayToken(pool);
         
         if (stored && stored.accessToken) {
           const hostawayBooking = {
@@ -8943,27 +8937,7 @@ async function getHostawayAccessToken(accountId, clientSecret) {
 }
 
 // Helper to get stored Hostaway token from database
-async function getStoredHostawayToken(pool, accountId = null) {
-  // If accountId provided, look up token for that specific account
-  if (accountId) {
-    const result = await pool.query(`
-      SELECT access_token, account_id FROM channel_connections 
-      WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'hostaway') 
-      AND account_id::text = $1::text
-      AND status = 'active'
-      ORDER BY updated_at DESC LIMIT 1
-    `, [accountId]);
-    
-    if (result.rows.length > 0) {
-      console.log(`Using Hostaway token for account_id: ${accountId}`);
-      return {
-        accessToken: result.rows[0].access_token,
-        accountId: result.rows[0].account_id
-      };
-    }
-  }
-  
-  // Fallback: Get any active Hostaway token (legacy behavior)
+async function getStoredHostawayToken(pool) {
   const result = await pool.query(`
     SELECT access_token, account_id FROM channel_connections 
     WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'hostaway') 
@@ -8975,7 +8949,6 @@ async function getStoredHostawayToken(pool, accountId = null) {
     return null;
   }
   
-  console.log(`Using Hostaway fallback token, account_id: ${result.rows[0].account_id}`);
   return {
     accessToken: result.rows[0].access_token,
     accountId: result.rows[0].account_id
@@ -10448,41 +10421,13 @@ app.get('/api/webhooks/smoobu', (req, res) => {
 // Get all offers
 app.get('/api/admin/offers', async (req, res) => {
   try {
-    const accountId = req.query.account_id;
-    const propertyId = req.query.property_id;
-    let query, params = [];
-    
-    if (propertyId) {
-      query = `
-        SELECT o.*, p.name as property_name, bu.name as room_name
-        FROM offers o
-        LEFT JOIN properties p ON o.property_id = p.id
-        LEFT JOIN bookable_units bu ON o.room_id = bu.id
-        WHERE o.property_id = $1
-        ORDER BY o.priority DESC, o.created_at DESC
-      `;
-      params = [propertyId];
-    } else if (accountId) {
-      query = `
-        SELECT o.*, p.name as property_name, bu.name as room_name
-        FROM offers o
-        LEFT JOIN properties p ON o.property_id = p.id
-        LEFT JOIN bookable_units bu ON o.room_id = bu.id
-        WHERE p.account_id = $1
-        ORDER BY o.priority DESC, o.created_at DESC
-      `;
-      params = [accountId];
-    } else {
-      query = `
-        SELECT o.*, p.name as property_name, bu.name as room_name
-        FROM offers o
-        LEFT JOIN properties p ON o.property_id = p.id
-        LEFT JOIN bookable_units bu ON o.room_id = bu.id
-        ORDER BY o.priority DESC, o.created_at DESC
-      `;
-    }
-    
-    const result = await pool.query(query, params);
+    const result = await pool.query(`
+      SELECT o.*, p.name as property_name, bu.name as room_name
+      FROM offers o
+      LEFT JOIN properties p ON o.property_id = p.id
+      LEFT JOIN bookable_units bu ON o.room_id = bu.id
+      ORDER BY o.priority DESC, o.created_at DESC
+    `);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -10641,7 +10586,6 @@ app.delete('/api/admin/offers/:id', async (req, res) => {
 app.get('/api/admin/vouchers', async (req, res) => {
   try {
     const accountId = req.query.account_id;
-    const clientId = req.query.client_id;
     const propertyId = req.query.property_id;
     let result;
     
@@ -10660,14 +10604,6 @@ app.get('/api/admin/vouchers', async (req, res) => {
         WHERE p.account_id = $1
         ORDER BY v.created_at DESC
       `, [accountId]);
-    } else if (clientId) {
-      // Filter by client
-      result = await pool.query(`
-        SELECT v.* FROM vouchers v
-        LEFT JOIN properties p ON v.property_id = p.id
-        WHERE p.client_id = $1
-        ORDER BY v.created_at DESC
-      `, [clientId]);
     } else {
       result = await pool.query(`
         SELECT * FROM vouchers ORDER BY created_at DESC
@@ -10778,7 +10714,6 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
 app.get('/api/admin/upsells', async (req, res) => {
   try {
     const accountId = req.query.account_id;
-    const clientId = req.query.client_id;
     const propertyId = req.query.property_id;
     const roomId = req.query.room_id;
     let result;
@@ -10806,17 +10741,6 @@ app.get('/api/admin/upsells', async (req, res) => {
         WHERE p.account_id = $1 OR u.property_id IS NULL
         ORDER BY u.name
       `, [accountId]);
-    } else if (clientId) {
-      result = await pool.query(`
-        SELECT u.*, 
-               p.name as property_name,
-               r.name as room_name
-        FROM upsells u
-        LEFT JOIN properties p ON u.property_id = p.id
-        LEFT JOIN rooms r ON u.room_id = r.id
-        WHERE p.client_id = $1 OR u.property_id IS NULL
-        ORDER BY u.name
-      `, [clientId]);
     } else {
       result = await pool.query(`
         SELECT u.*, 
@@ -11071,7 +10995,7 @@ app.delete('/api/admin/taxes/:id', async (req, res) => {
 
 app.get('/api/admin/bookings', async (req, res) => {
   try {
-    const { account_id, client_id, property_id, room_id, status } = req.query;
+    const { account_id, property_id, room_id, status } = req.query;
     let query = `
       SELECT b.*, 
              bu.name as unit_name,
@@ -11091,10 +11015,6 @@ app.get('/api/admin/bookings', async (req, res) => {
     } else if (account_id) {
       query += ` AND p.account_id = $${paramIndex}`;
       params.push(account_id);
-      paramIndex++;
-    } else if (client_id) {
-      query += ` AND p.client_id = $${paramIndex}`;
-      params.push(client_id);
       paramIndex++;
     }
     
@@ -12135,7 +12055,6 @@ app.get('/api/admin/debug', async (req, res) => {
 app.get('/api/admin/units', async (req, res) => {
   try {
     const accountId = req.query.account_id;
-    const clientId = req.query.client_id;
     const propertyId = req.query.property_id;
     let result;
     
@@ -12160,16 +12079,6 @@ app.get('/api/admin/units', async (req, res) => {
         WHERE p.account_id = $1
         ORDER BY bu.created_at DESC
       `, [accountId]);
-    } else if (clientId) {
-      result = await pool.query(`
-        SELECT 
-          bu.*,
-          p.name as property_name
-        FROM bookable_units bu
-        LEFT JOIN properties p ON bu.property_id = p.id
-        WHERE p.client_id = $1
-        ORDER BY bu.created_at DESC
-      `, [clientId]);
     } else {
       result = await pool.query(`
         SELECT 
@@ -15356,49 +15265,6 @@ app.post('/api/admin/sync-beds24-bookings', async (req, res) => {
         processedBookings++;
       }
       
-      // ========== DETECT DELETED/ORPHAN BOOKINGS ==========
-      // Find GAS bookings with beds24_booking_id that no longer exist in Beds24
-      const beds24BookingIds = bookings.map(b => b.id?.toString()).filter(Boolean);
-      
-      if (beds24BookingIds.length >= 1) {  // Only check if we got at least 1 booking from Beds24
-        // Get GAS bookings that should exist in Beds24 but don't appear in the sync
-        const orphanResult = await client.query(`
-          SELECT b.id, b.beds24_booking_id, b.bookable_unit_id, b.arrival_date, b.departure_date
-          FROM bookings b
-          WHERE b.beds24_booking_id IS NOT NULL
-            AND b.status != 'cancelled'
-            AND b.arrival_date >= $1
-            AND b.arrival_date <= $2
-            AND NOT (b.beds24_booking_id::text = ANY($3))
-        `, [fromDate.toISOString().split('T')[0], toDate.toISOString().split('T')[0], beds24BookingIds]);
-        
-        for (const orphan of orphanResult.rows) {
-          console.log(`Cancelling orphan booking ${orphan.id} (Beds24 ID ${orphan.beds24_booking_id} not found)`);
-          
-          // Cancel the booking
-          await client.query(`
-            UPDATE bookings SET status = 'cancelled', updated_at = NOW()
-            WHERE id = $1
-          `, [orphan.id]);
-          gasBookingsCancelled++;
-          
-          // Unblock the dates
-          const orphanStart = new Date(orphan.arrival_date);
-          const orphanEnd = new Date(orphan.departure_date);
-          
-          for (let d = new Date(orphanStart); d < orphanEnd; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            const result = await client.query(`
-              UPDATE room_availability 
-              SET is_available = true, is_blocked = false, source = 'beds24_deleted', updated_at = NOW()
-              WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking', 'direct')
-            `, [orphan.bookable_unit_id, dateStr]);
-            if (result.rowCount > 0) unblockedDates++;
-          }
-        }
-      }
-      // ========== END ORPHAN DETECTION ==========
-      
       await client.query('COMMIT');
     } finally {
       client.release();
@@ -17318,7 +17184,7 @@ app.post('/api/public/book', async (req, res) => {
     // HOSTAWAY SYNC
     if (cmData?.hostaway_listing_id) {
       try {
-        const stored = await getStoredHostawayToken(pool, cmData.account_id);
+        const stored = await getStoredHostawayToken(pool);
         
         if (stored?.accessToken) {
           const hostawayResponse = await axios.post('https://api.hostaway.com/v1/reservations', {
@@ -20633,49 +20499,6 @@ async function runBeds24BookingsSync() {
           }
         }
       }
-      
-      // ========== DETECT DELETED/ORPHAN BOOKINGS ==========
-      // Find GAS bookings with beds24_booking_id that no longer exist in Beds24
-      const beds24BookingIds = bookings.map(b => b.id?.toString()).filter(Boolean);
-      
-      if (beds24BookingIds.length >= 1) {  // Only check if we got at least 1 booking from Beds24
-        // Get GAS bookings that should exist in Beds24 but don't appear in the sync
-        const orphanResult = await client.query(`
-          SELECT b.id, b.beds24_booking_id, b.bookable_unit_id, b.arrival_date, b.departure_date
-          FROM bookings b
-          WHERE b.beds24_booking_id IS NOT NULL
-            AND b.status != 'cancelled'
-            AND b.arrival_date >= $1
-            AND b.arrival_date <= $2
-            AND NOT (b.beds24_booking_id::text = ANY($3))
-        `, [fromDate.toISOString().split('T')[0], toDate.toISOString().split('T')[0], beds24BookingIds]);
-        
-        for (const orphan of orphanResult.rows) {
-          console.log(`⏰ [Scheduled] Cancelling orphan booking ${orphan.id} (Beds24 ID ${orphan.beds24_booking_id} not found)`);
-          
-          // Cancel the booking
-          await client.query(`
-            UPDATE bookings SET status = 'cancelled', updated_at = NOW()
-            WHERE id = $1
-          `, [orphan.id]);
-          gasBookingsCancelled++;
-          
-          // Unblock the dates
-          const startDate = new Date(orphan.arrival_date);
-          const endDate = new Date(orphan.departure_date);
-          
-          for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
-            const result = await client.query(`
-              UPDATE room_availability 
-              SET is_available = true, is_blocked = false, source = 'beds24_deleted', updated_at = NOW()
-              WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking', 'direct')
-            `, [orphan.bookable_unit_id, dateStr]);
-            if (result.rowCount > 0) unblockedDates++;
-          }
-        }
-      }
-      // ========== END ORPHAN DETECTION ==========
       
       await client.query('COMMIT');
     } finally {
