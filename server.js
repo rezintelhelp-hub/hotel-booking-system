@@ -2445,7 +2445,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                     const accessToken = await getBeds24AccessToken(pool);
                     
                     const beds24Booking = [{
-                        roomId: cmData.beds24_room_id,
+                        roomId: parseInt(cmData.beds24_room_id),
                         status: 'confirmed',
                         arrival: checkin,
                         departure: checkout,
@@ -6609,7 +6609,7 @@ app.post('/api/db/book', async (req, res) => {
         }
         
         const beds24Booking = [{
-          roomId: beds24RoomId,
+          roomId: parseInt(beds24RoomId),
           status: 'confirmed',
           arrival: check_in,
           departure: check_out,
@@ -10777,7 +10777,7 @@ app.post('/api/admin/bookings', async (req, res) => {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                roomId: beds24RoomId,
+                roomId: parseInt(beds24RoomId),
                 firstNight: check_in,
                 lastNight: new Date(new Date(check_out).getTime() - 24*60*60*1000).toISOString().split('T')[0],
                 numAdult: num_adults || 1,
@@ -16761,7 +16761,7 @@ app.post('/api/public/book', async (req, res) => {
         }
         
         const beds24Booking = [{
-          roomId: cmData.beds24_room_id,
+          roomId: parseInt(cmData.beds24_room_id),
           status: 'confirmed',
           arrival: check_in,
           departure: check_out,
