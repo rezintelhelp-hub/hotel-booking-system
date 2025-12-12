@@ -2378,19 +2378,16 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             // Create booking in GAS database
             const bookingResult = await client.query(`
                 INSERT INTO bookings (
-                    property_id, property_owner_id, bookable_unit_id,
-                    arrival_date, departure_date,
+                    property_id, bookable_unit_id,
+                    check_in, check_out,
                     num_adults, num_children,
                     guest_first_name, guest_last_name, guest_email, guest_phone,
-                    accommodation_price, subtotal, grand_total,
-                    status, booking_source, currency,
-                    group_booking_id, notes
+                    total_price, status, group_booking_id
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $12, $12, 'confirmed', 'direct', 'GBP', $13, $14)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'confirmed', $12)
                 RETURNING *
             `, [
                 roomData.property_id,
-                roomData.property_owner_id,
                 roomId,
                 checkin,
                 checkout,
@@ -2401,8 +2398,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
                 guest_email,
                 guest_phone || '',
                 roomPrice,
-                groupBookingId,
-                notes ? `${notes}\n[Group Booking: ${groupBookingId} - Room ${i + 1} of ${rooms.length}]` : `[Group Booking: ${groupBookingId} - Room ${i + 1} of ${rooms.length}]`
+                groupBookingId
             ]);
             
             const booking = bookingResult.rows[0];
@@ -2556,7 +2552,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         
     } catch (error) {
         await client.query('ROLLBACK');
-        console.error('Group booking error:', error);
+        console.error('Group booking error:', error.message);
+        console.error('Group booking error stack:', error.stack);
         res.status(500).json({ success: false, error: error.message });
     } finally {
         client.release();
