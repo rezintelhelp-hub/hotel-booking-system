@@ -2319,6 +2319,9 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
 app.post('/api/public/create-group-booking', async (req, res) => {
     const client = await pool.connect();
     try {
+        // Ensure group_booking_id column exists
+        await client.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS group_booking_id VARCHAR(50)`);
+        
         const { 
             rooms,  // Array of room booking data
             checkin,
