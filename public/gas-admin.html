@@ -404,6 +404,11 @@
             color: var(--warning);
         }
 
+        .badge-error {
+            background: var(--error-light);
+            color: var(--error);
+        }
+
         .badge-info {
             background: var(--accent-light);
             color: var(--accent);
@@ -995,7 +1000,8 @@
         
         /* Client Selector Styles */
         .client-selector {
-            background: rgba(255,255,255,0.1);
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 0.75rem;
             margin: 0 1rem 1rem;
@@ -1006,7 +1012,7 @@
             font-size: 0.7rem;
             text-transform: uppercase;
             letter-spacing: 0.05em;
-            color: rgba(255,255,255,0.6);
+            color: var(--text-muted);
             margin-bottom: 0.5rem;
         }
         
@@ -1014,16 +1020,22 @@
             width: 100%;
             padding: 0.5rem;
             border-radius: 6px;
-            border: 1px solid rgba(255,255,255,0.2);
-            background: rgba(255,255,255,0.1);
-            color: white;
-            font-size: 0.9rem;
+            border: 1px solid var(--border);
+            background: var(--bg-card);
+            color: var(--text-primary);
+            font-size: 0.85rem;
             cursor: pointer;
         }
         
+        .client-selector select:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+        
         .client-selector select option {
-            background: #1e293b;
-            color: white;
+            background: var(--bg-card);
+            color: var(--text-primary);
         }
         
         .client-indicator {
@@ -1032,6 +1044,7 @@
             gap: 0.5rem;
             margin-top: 0.5rem;
             font-size: 0.8rem;
+            color: var(--text-secondary);
         }
         
         .client-indicator .dot {
@@ -1055,15 +1068,15 @@
                 <p>Property Management System</p>
             </div>
             
-            <!-- Client Selector -->
+            <!-- Account Selector -->
             <div class="client-selector">
-                <label>👁️ Viewing Client</label>
+                <label>👁️ Viewing As</label>
                 <select id="globalClientSelector" onchange="switchClient(this.value)">
-                    <option value="">🌐 All Clients (Admin View)</option>
+                    <option value="">🌐 All Accounts (Admin View)</option>
                 </select>
                 <div class="client-indicator" id="clientIndicator">
                     <span class="dot"></span>
-                    <span id="clientIndicatorText">All clients</span>
+                    <span id="clientIndicatorText">All accounts</span>
                 </div>
             </div>
 
@@ -1078,9 +1091,9 @@
 
                 <div class="nav-section">
                     <div class="nav-label">Accounts</div>
-                    <a class="nav-item" data-view="clients" href="#" onclick="navClick(this, 'clients'); return false;">
+                    <a class="nav-item" data-view="accounts" href="#" onclick="navClick(this, 'accounts'); return false;">
                         <span class="nav-icon">👥</span>
-                        <span>Clients</span>
+                        <span>All Accounts</span>
                     </a>
                 </div>
 
@@ -1347,16 +1360,16 @@
             </div>
 
             <!-- Clients View -->
-            <div id="clients" class="view">
+            <div id="accounts" class="view">
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>Clients</h2>
+                            <h2>All Accounts</h2>
                             <p>Manage client accounts and API access</p>
                         </div>
-                        <button class="btn" onclick="openAddClientModal()">
+                        <button class="btn" onclick="openAddAccountModal()">
                             <span>+</span>
-                            <span>Add Client</span>
+                            <span>Add Account</span>
                         </button>
                     </div>
                 </div>
@@ -1364,32 +1377,43 @@
                 <!-- Stats -->
                 <div class="stats-grid" style="margin-bottom: 1.5rem;">
                     <div class="stat-card">
-                        <div class="stat-value" id="stat-total-clients">-</div>
-                        <div class="stat-label">Total Clients</div>
+                        <div class="stat-value" id="stat-total-accounts">-</div>
+                        <div class="stat-label">Total Accounts</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="stat-active-clients">-</div>
-                        <div class="stat-label">Active</div>
+                        <div class="stat-value" id="stat-agency-admins">-</div>
+                        <div class="stat-label">Agency Admins</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="stat-paid-clients">-</div>
-                        <div class="stat-label">Paid Plans</div>
+                        <div class="stat-value" id="stat-sub-masters">-</div>
+                        <div class="stat-label">Sub Masters</div>
                     </div>
                     <div class="stat-card">
-                        <div class="stat-value" id="stat-unassigned-props">-</div>
-                        <div class="stat-label">Unassigned Properties</div>
+                        <div class="stat-value" id="stat-admins">-</div>
+                        <div class="stat-label">Admins</div>
                     </div>
                 </div>
 
+                <!-- Filter tabs -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                    <button class="filter-tab active" data-filter="all" onclick="filterAccounts('all')">All</button>
+                    <button class="filter-tab" data-filter="agency_admin" onclick="filterAccounts('agency_admin')">🏢 Agency Admins</button>
+                    <button class="filter-tab" data-filter="submaster_admin" onclick="filterAccounts('submaster_admin')">📁 Sub Masters</button>
+                    <button class="filter-tab" data-filter="admin" onclick="filterAccounts('admin')">👤 Admins</button>
+                </div>
+
                 <div class="card">
-                    <div id="clients-list">
+                    <div id="accounts-list">
                         <div class="loading">
                             <div class="spinner"></div>
-                            <p style="margin-top: 1rem;">Loading clients...</p>
+                            <p style="margin-top: 1rem;">Loading accounts...</p>
                         </div>
                     </div>
                 </div>
             </div>
+
+            <!-- Keep old clients view for backwards compatibility -->
+            <div id="clients" class="view" style="display: none;"></div>
 
             <!-- Properties View -->
             <div id="properties" class="view">
@@ -5466,52 +5490,76 @@ const promo = await fetch('/api/v1/offers/validate', {
     </div>
 
     <script>
-        // Global client tracking - uses public_id (UUID) for security
-        let currentClientPublicId = null; // UUID or null for all clients
-        let clientIdMap = {}; // Maps public_id -> internal id
+        // Global account tracking
+        let currentClientPublicId = null; // Account ID or null for all accounts
+        let clientIdMap = {}; // Maps account id -> internal id
         
-        // Get current client internal ID for API calls
+        // Get current account ID for API calls
         function getClientId() {
             if (!currentClientPublicId) return null;
-            return clientIdMap[currentClientPublicId] || null;
+            return clientIdMap[currentClientPublicId] || currentClientPublicId || null;
         }
         
-        // Get client ID param for API URLs
+        // Alias for clarity
+        function getAccountId() {
+            return getClientId();
+        }
+        
+        // Get client ID param for API URLs (legacy)
         function getClientParam() {
             const clientId = getClientId();
             return clientId ? `client_id=${clientId}` : '';
         }
         
-        // Load clients into the selector dropdown
+        // Get account ID param for API URLs
+        function getAccountParam() {
+            const accountId = getAccountId();
+            return accountId ? `account_id=${accountId}` : '';
+        }
+        
+        // Load accounts into the selector dropdown
         async function loadClientSelector() {
             try {
-                const response = await fetch('/api/admin/clients');
-                const data = await response.json();
+                // First try accounts (new system)
+                const accountResponse = await fetch('/api/admin/accounts');
+                const accountData = await accountResponse.json();
                 
                 const selector = document.getElementById('globalClientSelector');
                 if (!selector) return;
                 
-                selector.innerHTML = '<option value="">🌐 All Clients (Admin View)</option>';
+                selector.innerHTML = '<option value="">🌐 All Accounts (Admin View)</option>';
                 clientIdMap = {}; // Reset map
                 
-                if (data.success && data.clients) {
-                    data.clients.forEach(client => {
+                if (accountData.success && accountData.accounts && accountData.accounts.length > 0) {
+                    accountData.accounts.forEach(account => {
                         const option = document.createElement('option');
-                        const publicId = client.public_id || client.id; // Fallback to id if no public_id
-                        option.value = publicId;
-                        option.textContent = `${client.business_name || client.name || 'Client'}`;
+                        option.value = account.id;
+                        option.textContent = `${account.business_name || account.email || 'Account'}`;
                         selector.appendChild(option);
-                        
-                        // Store mapping
-                        clientIdMap[publicId] = client.id;
+                        clientIdMap[account.id] = account.id;
                     });
+                } else {
+                    // Fallback to clients (legacy system)
+                    const response = await fetch('/api/admin/clients');
+                    const data = await response.json();
+                    
+                    if (data.success && data.clients) {
+                        data.clients.forEach(client => {
+                            const option = document.createElement('option');
+                            const publicId = client.public_id || client.id;
+                            option.value = publicId;
+                            option.textContent = `${client.business_name || client.name || 'Client'}`;
+                            selector.appendChild(option);
+                            clientIdMap[publicId] = client.id;
+                        });
+                    }
                 }
             } catch (error) {
-                console.error('Error loading clients:', error);
+                console.error('Error loading account selector:', error);
             }
         }
         
-        // Switch to a different client
+        // Switch to a different account
         function switchClient(publicId) {
             currentClientPublicId = publicId || null;
             
@@ -5521,7 +5569,7 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             if (!currentClientPublicId) {
                 indicator.className = 'client-indicator all-clients';
-                indicatorText.textContent = 'Viewing all clients';
+                indicatorText.textContent = 'Viewing all accounts';
             } else {
                 indicator.className = 'client-indicator';
                 const selector = document.getElementById('globalClientSelector');
@@ -5529,7 +5577,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 indicatorText.textContent = selectedOption.textContent;
             }
             
-            // Reload current view with new client context
+            // Reload current view with new account context
             const activeNav = document.querySelector('.nav-item.active');
             if (activeNav) {
                 const viewName = activeNav.dataset.view;
@@ -5562,9 +5610,11 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load data for specific views
             if (viewName === 'dashboard') loadDashboard();
+            if (viewName === 'accounts') loadAccounts();
             if (viewName === 'clients') loadClients();
             if (viewName === 'properties') loadProperties();
             if (viewName === 'rooms') loadRooms();
+            if (viewName === 'bookings') loadBookings();
             if (viewName === 'images') loadImages();
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'content') loadContentView();
@@ -5585,6 +5635,200 @@ const promo = await fetch('/api/v1/offers/validate', {
                 const urlInput = document.getElementById('api-docs-base-url');
                 if (urlInput) urlInput.value = window.location.origin;
                 loadApiKeys();
+            }
+        }
+
+        // =========================================================
+        // ACCOUNT MANAGEMENT FUNCTIONS
+        // =========================================================
+
+        let allAccountsData = [];
+
+        async function loadAccounts() {
+            const container = document.getElementById('accounts-list');
+            try {
+                const response = await fetch('/api/admin/accounts');
+                const data = await response.json();
+                
+                if (data.success && data.accounts) {
+                    allAccountsData = data.accounts;
+                    
+                    // Update stats
+                    document.getElementById('stat-total-accounts').textContent = data.accounts.length;
+                    document.getElementById('stat-agency-admins').textContent = data.accounts.filter(a => a.role === 'agency_admin').length;
+                    document.getElementById('stat-sub-masters').textContent = data.accounts.filter(a => a.role === 'submaster_admin').length;
+                    document.getElementById('stat-admins').textContent = data.accounts.filter(a => a.role === 'admin').length;
+                    
+                    renderAccounts(data.accounts);
+                } else {
+                    container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No accounts found.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading accounts:', error);
+                container.innerHTML = `<p style="color: var(--error); text-align: center; padding: 2rem;">Error loading accounts: ${error.message}</p>`;
+            }
+        }
+
+        function filterAccounts(role) {
+            // Update filter tabs
+            document.querySelectorAll('#accounts .filter-tab').forEach(tab => {
+                tab.classList.toggle('active', tab.dataset.filter === role);
+            });
+            
+            // Filter and render
+            if (role === 'all') {
+                renderAccounts(allAccountsData);
+            } else {
+                renderAccounts(allAccountsData.filter(a => a.role === role));
+            }
+        }
+
+        function renderAccounts(accounts) {
+            const container = document.getElementById('accounts-list');
+            
+            if (accounts.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">No accounts match this filter.</p>';
+                return;
+            }
+            
+            const getRoleBadge = (role) => {
+                const badges = {
+                    'master_admin': '<span class="badge" style="background: #fef3c7; color: #d97706;">👑 Master Admin</span>',
+                    'agency_admin': '<span class="badge" style="background: #dbeafe; color: #1d4ed8;">🏢 Agency Admin</span>',
+                    'submaster_admin': '<span class="badge" style="background: #e0e7ff; color: #4f46e5;">📁 Sub Master</span>',
+                    'admin': '<span class="badge" style="background: #d1fae5; color: #059669;">👤 Admin</span>'
+                };
+                return badges[role] || `<span class="badge">${role}</span>`;
+            };
+            
+            const getPlanBadge = (plan) => {
+                if (!plan || plan === 'free' || plan === 'No Plan') {
+                    return '<span class="badge badge-secondary">No Plan</span>';
+                }
+                return `<span class="badge badge-success">${plan}</span>`;
+            };
+            
+            const getStripeBadge = (account) => {
+                if (account.stripe_account_id) {
+                    return `
+                        <span class="badge badge-success">✓ Connected</span>
+                        <button class="btn btn-secondary btn-small" style="margin-left: 0.25rem; padding: 0.2rem 0.4rem; font-size: 0.7rem; color: var(--error);" onclick="disconnectStripe(${account.id})">Disconnect</button>
+                    `;
+                }
+                return `<a href="/api/stripe/connect/${account.id}" class="btn btn-secondary btn-small" style="padding: 0.2rem 0.5rem; font-size: 0.75rem;">Connect</a>`;
+            };
+            
+            const html = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Code</th>
+                                <th>Role</th>
+                                <th>Stripe</th>
+                                <th>Plan</th>
+                                <th>Properties</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${accounts.map(account => `
+                                <tr>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                            <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                                ${(account.business_name || account.name || account.email || 'A').charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <strong>${account.business_name || account.name || 'Unnamed'}</strong>
+                                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${account.email || ''}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        ${account.account_code ? `<code style="font-size: 0.75rem; background: var(--bg-primary); padding: 0.2rem 0.4rem; border-radius: 3px;">${account.account_code}</code>` : `<button class="btn btn-secondary btn-small" style="padding: 0.2rem 0.5rem; font-size: 0.7rem;" onclick="generateAccountCode(${account.id})">+ Add</button>`}
+                                    </td>
+                                    <td>${getRoleBadge(account.role)}</td>
+                                    <td>${getStripeBadge(account)}</td>
+                                    <td>${getPlanBadge(account.subscription_plan || account.plan)}</td>
+                                    <td><span class="badge">${account.property_count || 0}</span></td>
+                                    <td><span class="badge badge-success">${account.status || 'active'}</span></td>
+                                    <td style="white-space: nowrap;">
+                                        <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
+                                        <button class="btn btn-secondary btn-small" onclick="editAccount(${account.id})">Edit</button>
+                                        <button class="btn btn-secondary btn-small" onclick="changeAccountRole(${account.id}, '${account.role}')">Role</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+            container.innerHTML = html;
+        }
+
+        function viewAccount(id) {
+            alert('View account ' + id + '\n\nFull account detail view coming soon!');
+        }
+
+        function editAccount(id) {
+            alert('Edit account ' + id + '\n\nAccount edit modal coming soon!');
+        }
+
+        function changeAccountRole(id, currentRole) {
+            const roles = ['admin', 'submaster_admin', 'agency_admin'];
+            const newRole = prompt('Change role to:\\n- admin\\n- submaster_admin\\n- agency_admin\\n\\nCurrent: ' + currentRole, currentRole);
+            if (newRole && roles.includes(newRole) && newRole !== currentRole) {
+                fetch(`/api/admin/accounts/${id}/update-role`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ role: newRole })
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        loadAccounts();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        function openAddAccountModal() {
+            alert('Add account modal coming soon!\\n\\nFor now, use the onboarding wizard at /onboarding.html');
+        }
+
+        function generateAccountCode(id) {
+            const code = prompt('Enter account code (e.g., LH001):');
+            if (code) {
+                fetch(`/api/accounts/${id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ account_code: code })
+                }).then(r => r.json()).then(data => {
+                    if (data.success) {
+                        loadAccounts();
+                    } else {
+                        alert('Error: ' + data.error);
+                    }
+                });
+            }
+        }
+
+        async function disconnectStripe(accountId) {
+            if (!confirm('Are you sure you want to disconnect Stripe for this account?')) return;
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/stripe-disconnect`, { method: 'POST' });
+                const data = await response.json();
+                if (data.success) {
+                    loadAccounts();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error disconnecting Stripe: ' + error.message);
             }
         }
 
@@ -5981,9 +6225,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Data Loading
         async function loadDashboard() {
             try {
-                const clientId = getClientId();
-                const clientParam = clientId ? `?client_id=${clientId}` : '';
-                const response = await fetch(`/api/admin/stats${clientParam}`);
+                const accountId = getAccountId();
+                const accountParam = accountId ? `?account_id=${accountId}` : '';
+                const response = await fetch(`/api/admin/stats${accountParam}`);
                 const stats = await response.json();
                 
                 if (stats.success) {
@@ -6000,9 +6244,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadProperties() {
             const container = document.getElementById('properties-list');
             try {
-                const clientId = getClientId();
-                const clientParam = clientId ? `?client_id=${clientId}` : '';
-                const response = await fetch(`/api/db/properties${clientParam}`);
+                const accountId = getAccountId();
+                const accountParam = accountId ? `?account_id=${accountId}` : '';
+                const response = await fetch(`/api/db/properties${accountParam}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
@@ -6052,7 +6296,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadRooms() {
             const container = document.getElementById('rooms-list');
             try {
-                const response = await fetch('/api/admin/units');
+                const accountId = getAccountId();
+                const accountParam = accountId ? `?account_id=${accountId}` : '';
+                const response = await fetch(`/api/admin/units${accountParam}`);
                 const data = await response.json();
                 
                 if (data.success && data.data && data.data.length > 0) {
@@ -6105,6 +6351,72 @@ const promo = await fetch('/api/v1/offers/validate', {
             } catch (error) {
                 console.error('Error loading rooms:', error);
                 container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading rooms</p>';
+            }
+        }
+
+        async function loadBookings() {
+            const container = document.getElementById('bookings-list');
+            try {
+                const accountId = getAccountId();
+                const accountParam = accountId ? `?account_id=${accountId}` : '';
+                const response = await fetch(`/api/admin/bookings${accountParam}`);
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    const html = `
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Guest</th>
+                                        <th>Property</th>
+                                        <th>Room</th>
+                                        <th>Check-in</th>
+                                        <th>Check-out</th>
+                                        <th>Total</th>
+                                        <th>Status</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.data.map(b => `
+                                        <tr>
+                                            <td>
+                                                <strong>${b.guest_first_name || ''} ${b.guest_last_name || ''}</strong>
+                                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${b.guest_email || ''}</div>
+                                            </td>
+                                            <td style="font-size: 0.85rem;">${b.property_name || 'N/A'}</td>
+                                            <td style="font-size: 0.85rem;">${b.unit_name || 'N/A'}</td>
+                                            <td>${b.arrival_date ? new Date(b.arrival_date).toLocaleDateString() : 'N/A'}</td>
+                                            <td>${b.departure_date ? new Date(b.departure_date).toLocaleDateString() : 'N/A'}</td>
+                                            <td><strong>${b.currency || '£'}${(b.grand_total || b.total_price || 0).toFixed(2)}</strong></td>
+                                            <td>
+                                                <span class="badge ${b.status === 'confirmed' ? 'badge-success' : b.status === 'cancelled' ? 'badge-error' : 'badge-warning'}">
+                                                    ${b.status || 'pending'}
+                                                </span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-secondary btn-small" onclick="viewBooking(${b.id})">View</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = `
+                        <div class="empty-state">
+                            <div class="empty-icon">📅</div>
+                            <h3>No Bookings Yet</h3>
+                            <p>Bookings will appear here when guests make reservations</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading bookings:', error);
+                container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading bookings</p>';
             }
         }
 
@@ -7492,7 +7804,9 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load properties for filter
             try {
-                const propsResponse = await fetch('/api/db/properties');
+                const accountId = getAccountId();
+                const accountParam = accountId ? `?account_id=${accountId}` : '';
+                const propsResponse = await fetch(`/api/db/properties${accountParam}`);
                 const propsData = await propsResponse.json();
                 
                 const propFilter = document.getElementById('grid-property-filter');
@@ -7860,7 +8174,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         async function loadOffers() {
             // Load properties dropdown
             try {
-                const propsResponse = await fetch('/api/db/properties');
+                const accountId = getAccountId();
+                const accountParam = accountId ? `?account_id=${accountId}` : '';
+                const propsResponse = await fetch(`/api/db/properties${accountParam}`);
                 const propsData = await propsResponse.json();
                 
                 const propSelect = document.getElementById('offers-property-select');
@@ -9490,7 +9806,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadVouchers() {
             try {
-                const response = await fetch('/api/admin/vouchers');
+                const accountId = getAccountId();
+                const accountParam = accountId ? `?account_id=${accountId}` : '';
+                const response = await fetch(`/api/admin/vouchers${accountParam}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -9810,7 +10128,9 @@ const promo = await fetch('/api/v1/offers/validate', {
         
         async function loadUpsells() {
             try {
-                const response = await fetch('/api/admin/upsells');
+                const accountId = getAccountId();
+                const accountParam = accountId ? `?account_id=${accountId}` : '';
+                const response = await fetch(`/api/admin/upsells${accountParam}`);
                 const data = await response.json();
                 
                 if (data.success) {
@@ -10572,6 +10892,11 @@ const promo = await fetch('/api/v1/offers/validate', {
         // Property map instance
         let propertyMap = null;
         let propertyMarker = null;
+
+        function viewBooking(id) {
+            alert(`Booking details for ID: ${id}\n\nFull booking detail view coming soon!`);
+            // TODO: Open booking detail modal
+        }
 
         async function editProperty(id) {
             try {
