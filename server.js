@@ -2564,7 +2564,9 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         // Generate unique group booking ID
         const groupBookingId = 'GRP-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase();
         
+        console.log(`DEBUG: Starting transaction for group ${groupBookingId}`);
         await client.query('BEGIN');
+        console.log(`DEBUG: Transaction BEGIN completed`);
         
         const createdBookings = [];
         const cmResults = { beds24: [], hostaway: [], smoobu: [] };
@@ -2619,6 +2621,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             const booking = bookingResult.rows[0];
             console.log(`DEBUG: Inserted booking ID ${booking.id} for room ${roomId}, group ${groupBookingId}`);
+            console.log(`DEBUG: Full booking row: id=${booking.id}, property_id=${booking.property_id}, group_booking_id=${booking.group_booking_id}`);
             createdBookings.push(booking);
             
             // Block availability for these dates (copied from working endpoint)
@@ -2816,22 +2819,38 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         console.log(`DEBUG: About to COMMIT transaction with ${createdBookings.length} bookings`);
         console.log(`DEBUG: Booking IDs to commit: ${createdBookings.map(b => b.id).join(', ')}`);
         
+        // DEBUG: Verify data exists in transaction BEFORE commit
+        const preCommitCheck = await client.query(
+            `SELECT id, group_booking_id FROM bookings WHERE group_booking_id = $1`,
+            [groupBookingId]
+        );
+        console.log(`DEBUG: PRE-COMMIT check found ${preCommitCheck.rows.length} bookings in transaction`);
+        
         await client.query('COMMIT');
         
         console.log(`DEBUG: COMMIT completed successfully`);
+        
+        // DEBUG: Verify bookings exist on SAME connection before releasing
+        const verifyBeforeRelease = await client.query(
+            `SELECT id, group_booking_id FROM bookings WHERE group_booking_id = $1`,
+            [groupBookingId]
+        );
+        console.log(`DEBUG: Same-connection verify found ${verifyBeforeRelease.rows.length} bookings`);
+        console.log(`DEBUG: IDs on same connection: ${verifyBeforeRelease.rows.map(r => r.id).join(', ')}`);
+        
         console.log(`Group booking created: ${groupBookingId} with ${createdBookings.length} rooms`);
         console.log(`Created booking IDs: ${createdBookings.map(b => b.id).join(', ')}`);
         
-        // DEBUG: Verify bookings exist after commit
+        // DEBUG: Verify bookings exist after commit on DIFFERENT connection
         try {
             const verifyResult = await pool.query(
                 `SELECT id, group_booking_id FROM bookings WHERE group_booking_id = $1`,
                 [groupBookingId]
             );
-            console.log(`DEBUG: Verification query found ${verifyResult.rows.length} bookings for ${groupBookingId}`);
-            console.log(`DEBUG: Found IDs: ${verifyResult.rows.map(r => r.id).join(', ')}`);
+            console.log(`DEBUG: Pool verify found ${verifyResult.rows.length} bookings for ${groupBookingId}`);
+            console.log(`DEBUG: Pool IDs: ${verifyResult.rows.map(r => r.id).join(', ')}`);
         } catch (verifyError) {
-            console.log(`DEBUG: Verification query failed: ${verifyError.message}`);
+            console.log(`DEBUG: Pool verification query failed: ${verifyError.message}`);
         }
         
         // ========== SEND EMAIL ==========
