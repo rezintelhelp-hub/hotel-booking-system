@@ -1123,12 +1123,16 @@
                 <p>Property Management System</p>
             </div>
             
-            <!-- Account Selector -->
-            <div class="client-selector">
-                <label>👁️ Viewing As</label>
+            <!-- Client Selector - Hidden for now -->
+            <div class="client-selector" style="display: none;">
+                <label>👁️ Viewing Client</label>
                 <select id="globalClientSelector" onchange="switchClient(this.value)">
-                    <option value="">🌐 All (Admin View)</option>
+                    <option value="">🌐 All Clients (Admin View)</option>
                 </select>
+                <div class="client-indicator" id="clientIndicator">
+                    <span class="dot"></span>
+                    <span id="clientIndicatorText">All clients</span>
+                </div>
             </div>
             
             <!-- Agency Filter Banner - Clean Design -->
@@ -10684,17 +10688,9 @@ Local honey and preserves"></textarea>
         function clearAgencyFilter() {
             selectedAgencyId = null;
             selectedAgencyName = null;
-            selectedAccountId = null;
-            selectedAccountName = null;
             
             // Hide banner
             document.getElementById('agencyFilterBanner').style.display = 'none';
-            
-            // Reset dropdown
-            const selector = document.getElementById('globalClientSelector');
-            if (selector) {
-                selector.value = '';
-            }
             
             // Reload current view without filter
             const activeView = document.querySelector('.nav-item.active');
@@ -10719,75 +10715,92 @@ Local honey and preserves"></textarea>
         // Load clients into the selector dropdown
         async function loadClientSelector() {
             try {
-                // Load accounts (unified system)
-                const accountsRes = await fetch('/api/admin/accounts');
-                const accountsData = await accountsRes.json();
+                const [clientsRes, agenciesRes] = await Promise.all([
+                    fetch('/api/admin/clients'),
+                    fetch('/api/admin/agencies')
+                ]);
+                const clientsData = await clientsRes.json();
+                const agenciesData = await agenciesRes.json();
                 
                 const selector = document.getElementById('globalClientSelector');
                 if (!selector) return;
                 
-                selector.innerHTML = '<option value="">🌐 All (Admin View)</option>';
+                selector.innerHTML = '<option value="">🌐 All Clients (Admin View)</option>';
+                clientIdMap = {}; // Reset map
                 
-                const accounts = accountsData.accounts || [];
+                const agencies = agenciesData.agencies || [];
+                const clients = clientsData.clients || [];
                 
-                if (accounts.length > 0) {
-                    accounts.forEach(account => {
-                        // Skip master_admin from selector
-                        if (account.role === 'master_admin') return;
-                        
+                // Add agencies first
+                if (agencies.length > 0) {
+                    const agencyGroup = document.createElement('optgroup');
+                    agencyGroup.label = '🏢 Agencies';
+                    agencies.forEach(agency => {
                         const option = document.createElement('option');
-                        option.value = account.id;
-                        option.textContent = account.name || account.business_name || account.email || `Account ${account.id}`;
-                        selector.appendChild(option);
+                        option.value = `agency_${agency.id}`;
+                        option.textContent = agency.name;
+                        agencyGroup.appendChild(option);
                     });
+                    selector.appendChild(agencyGroup);
+                }
+                
+                // Add direct clients (API already filters out agencies)
+                if (clients.length > 0) {
+                    const clientGroup = document.createElement('optgroup');
+                    clientGroup.label = '👤 Direct Clients';
+                    clients.forEach(client => {
+                        const option = document.createElement('option');
+                        const publicId = client.public_id || client.id;
+                        option.value = publicId;
+                        option.textContent = client.business_name || client.name || 'Client';
+                        clientGroup.appendChild(option);
+                        clientIdMap[publicId] = client.id;
+                    });
+                    selector.appendChild(clientGroup);
+                }
+                
+                // Check URL for client parameter and select it
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlClientId = urlParams.get('client');
+                if (urlClientId && clientIdMap[urlClientId]) {
+                    selector.value = urlClientId;
+                    switchClient(urlClientId, false);
                 }
             } catch (error) {
-                console.error('Error loading accounts for selector:', error);
+                console.error('Error loading clients:', error);
             }
         }
         
-        // Switch to a different account via dropdown
-        function switchClient(accountId, updateUrl = true) {
-            if (accountId) {
-                // Set the account filter
-                selectedAccountId = parseInt(accountId);
-                selectedAccountName = null;
-                
-                // Find account name from selector
-                const selector = document.getElementById('globalClientSelector');
-                if (selector) {
-                    const selectedOption = selector.options[selector.selectedIndex];
-                    if (selectedOption) {
-                        selectedAccountName = selectedOption.textContent;
-                    }
+        // Switch to a different client
+        function switchClient(publicId, updateUrl = true) {
+            currentClientPublicId = publicId || null;
+            
+            // Update URL so it's bookmarkable/shareable
+            if (updateUrl) {
+                const url = new URL(window.location);
+                if (publicId) {
+                    url.searchParams.set('client', publicId);
+                } else {
+                    url.searchParams.delete('client');
                 }
-                
-                // Show the filter banner
-                const banner = document.getElementById('agencyFilterBanner');
-                const nameEl = document.getElementById('agencyFilterName');
-                if (banner && nameEl) {
-                    banner.style.display = 'flex';
-                    nameEl.textContent = selectedAccountName || `Account ${accountId}`;
-                }
+                window.history.pushState({}, '', url);
+            }
+            
+            // Update indicator
+            const indicator = document.getElementById('clientIndicator');
+            const indicatorText = document.getElementById('clientIndicatorText');
+            
+            if (!currentClientPublicId) {
+                indicator.className = 'client-indicator all-clients';
+                indicatorText.textContent = 'Viewing all clients';
             } else {
-                // Clear filter
-                selectedAccountId = null;
-                selectedAccountName = null;
-                
-                // Hide banner
-                const banner = document.getElementById('agencyFilterBanner');
-                if (banner) {
-                    banner.style.display = 'none';
-                }
+                indicator.className = 'client-indicator';
+                const selector = document.getElementById('globalClientSelector');
+                const selectedOption = selector.options[selector.selectedIndex];
+                indicatorText.textContent = '✓ ' + selectedOption.textContent;
             }
             
-            // Sync dropdown with selectedAccountId
-            const selector = document.getElementById('globalClientSelector');
-            if (selector) {
-                selector.value = accountId || '';
-            }
-            
-            // Reload current view with new filter
+            // Reload current view with new client context
             const activeNav = document.querySelector('.nav-item.active');
             if (activeNav) {
                 const viewName = activeNav.dataset.view;
@@ -11647,12 +11660,6 @@ Local honey and preserves"></textarea>
             if (banner && nameEl) {
                 banner.style.display = 'flex';
                 nameEl.textContent = account.name;
-            }
-            
-            // Sync dropdown
-            const selector = document.getElementById('globalClientSelector');
-            if (selector) {
-                selector.value = accountId;
             }
             
             // Reload entitlements for selected account
