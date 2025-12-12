@@ -2374,16 +2374,17 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             const roomData = roomInfo.rows[0];
             
-            // Create booking in GAS database
+            // Create booking in GAS database (matching working endpoint structure)
             const bookingResult = await client.query(`
                 INSERT INTO bookings (
-                    property_id, bookable_unit_id,
-                    check_in, check_out,
+                    property_id, property_owner_id, bookable_unit_id,
+                    arrival_date, departure_date,
                     num_adults, num_children,
                     guest_first_name, guest_last_name, guest_email, guest_phone,
-                    total_price, status, group_booking_id
+                    accommodation_price, subtotal, grand_total,
+                    status, booking_source, currency, group_booking_id
                 )
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, 'confirmed', $12)
+                VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $11, $11, 'confirmed', 'direct', 'USD', $12)
                 RETURNING *
             `, [
                 roomData.property_id,
@@ -2403,131 +2404,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             const booking = bookingResult.rows[0];
             createdBookings.push(booking);
             
-            // Push to Channel Managers
-            
-            // Beds24
-            if (roomData.beds24_room_id) {
-                try {
-                    const accessToken = await getBeds24AccessToken(pool);
-                    
-                    const beds24Booking = [{
-                        roomId: roomData.beds24_room_id,
-                        status: 'confirmed',
-                        arrival: checkin,
-                        departure: checkout,
-                        numAdult: roomGuests,
-                        numChild: 0,
-                        firstName: guest_first_name,
-                        lastName: guest_last_name,
-                        email: guest_email,
-                        mobile: guest_phone || '',
-                        address: guest_address || '',
-                        city: guest_city || '',
-                        country: guest_country || '',
-                        postcode: guest_postcode || '',
-                        referer: 'GAS Direct Booking',
-                        notes: `GAS Booking ID: ${booking.id}\nGroup: ${groupBookingId} (Room ${i + 1}/${rooms.length})`,
-                        price: roomPrice,
-                        invoiceItems: [{
-                            description: 'Accommodation',
-                            qty: 1,
-                            amount: roomPrice,
-                            vatRate: 0
-                        }]
-                    }];
-                    
-                    const beds24Response = await axios.post('https://beds24.com/api/v2/bookings', beds24Booking, {
-                        headers: { 'token': accessToken, 'Content-Type': 'application/json' }
-                    });
-                    
-                    if (beds24Response.data && beds24Response.data[0]?.success) {
-                        const beds24Id = beds24Response.data[0]?.new?.id;
-                        if (beds24Id) {
-                            await client.query('UPDATE bookings SET beds24_booking_id = $1 WHERE id = $2', [beds24Id, booking.id]);
-                            cmResults.beds24.push({ roomId, beds24Id });
-                        }
-                    }
-                } catch (beds24Error) {
-                    console.error('Beds24 error for room ' + roomId + ':', beds24Error.message);
-                }
-            }
-            
-            // Hostaway
-            if (roomData.hostaway_listing_id) {
-                try {
-                    const stored = await getStoredHostawayToken(pool);
-                    if (stored && stored.accessToken) {
-                        const hostawayBooking = {
-                            listingMapId: roomData.hostaway_listing_id,
-                            channelId: 2000,
-                            source: 'manual',
-                            arrivalDate: checkin,
-                            departureDate: checkout,
-                            guestName: `${guest_first_name} ${guest_last_name}`,
-                            guestEmail: guest_email,
-                            guestPhone: guest_phone || '',
-                            numberOfGuests: roomGuests,
-                            totalPrice: roomPrice,
-                            status: 'confirmed',
-                            comment: `GAS Group Booking: ${groupBookingId} (Room ${i + 1}/${rooms.length})`
-                        };
-                        
-                        const hostawayResponse = await axios.post(
-                            'https://api.hostaway.com/v1/reservations',
-                            hostawayBooking,
-                            { headers: { 'Authorization': `Bearer ${stored.accessToken}`, 'Content-Type': 'application/json' } }
-                        );
-                        
-                        if (hostawayResponse.data?.status === 'success') {
-                            const hostawayId = hostawayResponse.data?.result?.id;
-                            if (hostawayId) {
-                                await client.query('UPDATE bookings SET hostaway_reservation_id = $1 WHERE id = $2', [hostawayId, booking.id]);
-                                cmResults.hostaway.push({ roomId, hostawayId });
-                            }
-                        }
-                    }
-                } catch (hostawayError) {
-                    console.error('Hostaway error for room ' + roomId + ':', hostawayError.message);
-                }
-            }
-            
-            // Smoobu
-            if (roomData.smoobu_room_id) {
-                try {
-                    const smoobuCreds = await pool.query(`
-                        SELECT api_key FROM smoobu_connections WHERE is_active = true LIMIT 1
-                    `);
-                    
-                    if (smoobuCreds.rows[0]?.api_key) {
-                        const smoobuBooking = {
-                            arrivalDate: checkin,
-                            departureDate: checkout,
-                            apartmentId: roomData.smoobu_room_id,
-                            firstName: guest_first_name,
-                            lastName: guest_last_name,
-                            email: guest_email,
-                            phone: guest_phone || '',
-                            adults: roomGuests,
-                            children: 0,
-                            price: roomPrice,
-                            notice: `GAS Group Booking: ${groupBookingId} (Room ${i + 1}/${rooms.length})`
-                        };
-                        
-                        const smoobuResponse = await axios.post(
-                            'https://login.smoobu.com/api/reservations',
-                            smoobuBooking,
-                            { headers: { 'Api-Key': smoobuCreds.rows[0].api_key, 'Content-Type': 'application/json' } }
-                        );
-                        
-                        if (smoobuResponse.data?.id) {
-                            await client.query('UPDATE bookings SET smoobu_reservation_id = $1 WHERE id = $2', [smoobuResponse.data.id, booking.id]);
-                            cmResults.smoobu.push({ roomId, smoobuId: smoobuResponse.data.id });
-                        }
-                    }
-                } catch (smoobuError) {
-                    console.error('Smoobu error for room ' + roomId + ':', smoobuError.message);
-                }
-            }
+            // TODO: Push to Channel Managers (disabled for now - need to query CM IDs separately)
+            // Will add CM sync after basic group booking is working
         }
         
         await client.query('COMMIT');
@@ -2539,14 +2417,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             group_booking_id: groupBookingId,
             bookings: createdBookings.map(b => ({
                 id: b.id,
-                room_id: b.bookable_unit_id,
-                beds24_id: b.beds24_booking_id,
-                hostaway_id: b.hostaway_reservation_id,
-                smoobu_id: b.smoobu_reservation_id
+                room_id: b.bookable_unit_id
             })),
             total_rooms: createdBookings.length,
-            total_amount: total_amount,
-            cm_results: cmResults
+            total_amount: total_amount
         });
         
     } catch (error) {
