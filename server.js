@@ -1530,6 +1530,116 @@ app.get('/api/admin/accounts', async (req, res) => {
   }
 });
 
+// Get single account details (for admin impersonation/management)
+app.get('/api/admin/accounts/:id/details', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        a.id,
+        a.name,
+        a.email,
+        a.role,
+        a.created_at,
+        a.parent_id,
+        (SELECT json_agg(json_build_object(
+          'id', p.id,
+          'name', p.name,
+          'beds24_property_id', p.beds24_property_id
+        )) FROM properties p WHERE p.account_id = a.id) as properties,
+        (SELECT json_agg(json_build_object(
+          'cm_code', cm.cm_code,
+          'status', cc.status,
+          'has_token', cc.refresh_token IS NOT NULL
+        )) FROM channel_connections cc 
+        JOIN channel_managers cm ON cc.cm_id = cm.id
+        WHERE cc.account_id = a.id) as channel_connections
+      FROM accounts a
+      WHERE a.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ success: true, account: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Admin impersonate - generate a temporary login token for a client account
+app.post('/api/admin/accounts/:id/impersonate', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const account = await pool.query('SELECT id, name, email, role FROM accounts WHERE id = $1', [id]);
+    if (account.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    // Generate a simple impersonation token (in production, use JWT)
+    const token = require('crypto').randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    
+    // Store token
+    await pool.query(`
+      INSERT INTO impersonation_tokens (token, account_id, expires_at, created_at)
+      VALUES ($1, $2, $3, NOW())
+    `, [token, id, expiresAt]).catch(async () => {
+      // Create table if doesn't exist
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS impersonation_tokens (
+          id SERIAL PRIMARY KEY,
+          token VARCHAR(255) UNIQUE NOT NULL,
+          account_id INTEGER NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`
+        INSERT INTO impersonation_tokens (token, account_id, expires_at, created_at)
+        VALUES ($1, $2, $3, NOW())
+      `, [token, id, expiresAt]);
+    });
+    
+    res.json({ 
+      success: true, 
+      account: account.rows[0],
+      impersonation_url: `/login?impersonate=${token}`,
+      expires_at: expiresAt,
+      note: 'Use this URL to log in as this account (valid for 1 hour)'
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Validate impersonation token and return account
+app.get('/api/auth/impersonate/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const result = await pool.query(`
+      SELECT a.* FROM impersonation_tokens it
+      JOIN accounts a ON a.id = it.account_id
+      WHERE it.token = $1 AND it.expires_at > NOW()
+    `, [token]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired token' });
+    }
+    
+    // Delete used token
+    await pool.query('DELETE FROM impersonation_tokens WHERE token = $1', [token]);
+    
+    res.json({ success: true, account: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Update account role
 app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
   try {
