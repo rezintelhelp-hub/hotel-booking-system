@@ -7731,20 +7731,21 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       await pool.query(`
         UPDATE channel_connections SET
           api_key = $1, refresh_token = $2, access_token = $3,
+          account_id = $5,
           token_expires_at = NOW() + INTERVAL '30 days', status = 'active', updated_at = NOW()
         WHERE id = $4
-      `, [inviteCode, refreshToken, token, connectionId]);
+      `, [inviteCode, refreshToken, token, connectionId, accountId || null]);
     } else {
       const result = await pool.query(`
         INSERT INTO channel_connections (
           user_id, cm_id, api_key, refresh_token, access_token,
-          token_expires_at, status, sync_enabled, sync_interval_minutes
+          account_id, token_expires_at, status, sync_enabled, sync_interval_minutes
         ) VALUES (
           $1, (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
-          $2, $3, $4, NOW() + INTERVAL '30 days', 'active', true, 60
+          $2, $3, $4, $5, NOW() + INTERVAL '30 days', 'active', true, 60
         )
         RETURNING id
-      `, [userId, inviteCode, refreshToken, token]);
+      `, [userId, inviteCode, refreshToken, token, accountId || null]);
       connectionId = result.rows[0].id;
     }
     
