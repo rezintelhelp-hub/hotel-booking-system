@@ -2801,18 +2801,29 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         // Record Stripe payment transaction if deposit was paid (once for whole group)
         if (stripe_payment_intent_id && deposit_amount && createdBookings.length > 0) {
             try {
+                // Use SAVEPOINT to prevent failed INSERT from aborting entire transaction
+                await client.query('SAVEPOINT payment_tx');
                 await client.query(`
                     INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
                     VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, NOW())
                 `, [createdBookings[0].id, deposit_amount, stripe_payment_intent_id]);
-                
-                // Update payment status on first booking
+                await client.query('RELEASE SAVEPOINT payment_tx');
+            } catch (txError) {
+                await client.query('ROLLBACK TO SAVEPOINT payment_tx');
+                console.log('Could not record payment transaction:', txError.message);
+            }
+            
+            // Update payment status on first booking (separate try/catch with savepoint)
+            try {
+                await client.query('SAVEPOINT payment_status');
                 await client.query(`
                     UPDATE bookings SET payment_status = 'deposit_paid', stripe_payment_intent_id = $1, deposit_amount = $2
                     WHERE id = $3
                 `, [stripe_payment_intent_id, deposit_amount, createdBookings[0].id]);
-            } catch (txError) {
-                console.log('Could not record payment transaction:', txError.message);
+                await client.query('RELEASE SAVEPOINT payment_status');
+            } catch (statusError) {
+                await client.query('ROLLBACK TO SAVEPOINT payment_status');
+                console.log('Could not update payment status:', statusError.message);
             }
         }
         
