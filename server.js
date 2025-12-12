@@ -1554,7 +1554,7 @@ app.get('/api/admin/accounts/:id/details', async (req, res) => {
           'has_token', cc.refresh_token IS NOT NULL
         )) FROM channel_connections cc 
         JOIN channel_managers cm ON cc.cm_id = cm.id
-        WHERE cc.account_id = a.id) as channel_connections
+        WHERE cc.account_id::text = a.id::text) as channel_connections
       FROM accounts a
       WHERE a.id = $1
     `, [id]);
@@ -7382,7 +7382,7 @@ async function getBeds24AccessToken(pool, accountId = null) {
     const tokenResult = await pool.query(
       `SELECT refresh_token, account_id FROM channel_connections 
        WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') 
-       AND account_id = $1 
+       AND account_id::text = $1::text 
        ORDER BY updated_at DESC LIMIT 1`,
       [accountId]
     );
