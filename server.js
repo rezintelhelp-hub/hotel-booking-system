@@ -10641,6 +10641,7 @@ app.delete('/api/admin/offers/:id', async (req, res) => {
 app.get('/api/admin/vouchers', async (req, res) => {
   try {
     const accountId = req.query.account_id;
+    const clientId = req.query.client_id;
     const propertyId = req.query.property_id;
     let result;
     
@@ -10659,6 +10660,14 @@ app.get('/api/admin/vouchers', async (req, res) => {
         WHERE p.account_id = $1
         ORDER BY v.created_at DESC
       `, [accountId]);
+    } else if (clientId) {
+      // Filter by client
+      result = await pool.query(`
+        SELECT v.* FROM vouchers v
+        LEFT JOIN properties p ON v.property_id = p.id
+        WHERE p.client_id = $1
+        ORDER BY v.created_at DESC
+      `, [clientId]);
     } else {
       result = await pool.query(`
         SELECT * FROM vouchers ORDER BY created_at DESC
@@ -10769,6 +10778,7 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
 app.get('/api/admin/upsells', async (req, res) => {
   try {
     const accountId = req.query.account_id;
+    const clientId = req.query.client_id;
     const propertyId = req.query.property_id;
     const roomId = req.query.room_id;
     let result;
@@ -10796,6 +10806,17 @@ app.get('/api/admin/upsells', async (req, res) => {
         WHERE p.account_id = $1 OR u.property_id IS NULL
         ORDER BY u.name
       `, [accountId]);
+    } else if (clientId) {
+      result = await pool.query(`
+        SELECT u.*, 
+               p.name as property_name,
+               r.name as room_name
+        FROM upsells u
+        LEFT JOIN properties p ON u.property_id = p.id
+        LEFT JOIN rooms r ON u.room_id = r.id
+        WHERE p.client_id = $1 OR u.property_id IS NULL
+        ORDER BY u.name
+      `, [clientId]);
     } else {
       result = await pool.query(`
         SELECT u.*, 
@@ -11050,7 +11071,7 @@ app.delete('/api/admin/taxes/:id', async (req, res) => {
 
 app.get('/api/admin/bookings', async (req, res) => {
   try {
-    const { account_id, property_id, room_id, status } = req.query;
+    const { account_id, client_id, property_id, room_id, status } = req.query;
     let query = `
       SELECT b.*, 
              bu.name as unit_name,
@@ -11070,6 +11091,10 @@ app.get('/api/admin/bookings', async (req, res) => {
     } else if (account_id) {
       query += ` AND p.account_id = $${paramIndex}`;
       params.push(account_id);
+      paramIndex++;
+    } else if (client_id) {
+      query += ` AND p.client_id = $${paramIndex}`;
+      params.push(client_id);
       paramIndex++;
     }
     
@@ -12110,6 +12135,7 @@ app.get('/api/admin/debug', async (req, res) => {
 app.get('/api/admin/units', async (req, res) => {
   try {
     const accountId = req.query.account_id;
+    const clientId = req.query.client_id;
     const propertyId = req.query.property_id;
     let result;
     
@@ -12134,6 +12160,16 @@ app.get('/api/admin/units', async (req, res) => {
         WHERE p.account_id = $1
         ORDER BY bu.created_at DESC
       `, [accountId]);
+    } else if (clientId) {
+      result = await pool.query(`
+        SELECT 
+          bu.*,
+          p.name as property_name
+        FROM bookable_units bu
+        LEFT JOIN properties p ON bu.property_id = p.id
+        WHERE p.client_id = $1
+        ORDER BY bu.created_at DESC
+      `, [clientId]);
     } else {
       result = await pool.query(`
         SELECT 
