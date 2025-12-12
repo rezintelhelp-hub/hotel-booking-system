@@ -199,6 +199,219 @@ function generateBookingConfirmationEmail(booking, property, room) {
   `;
 }
 
+// Generate group booking confirmation email
+function generateGroupBookingConfirmationEmail(groupBookingId, bookings, rooms, property, guestInfo, totals) {
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  };
+  
+  const depositPaid = totals.depositAmount && parseFloat(totals.depositAmount) > 0;
+  const balanceDue = totals.balanceAmount && parseFloat(totals.balanceAmount) > 0;
+  const currency = totals.currency || '$';
+  
+  // Build rooms HTML
+  let roomsHtml = '';
+  rooms.forEach((room, index) => {
+    const booking = bookings[index];
+    const roomPrice = booking?.accommodation_price || room.price || 0;
+    roomsHtml += `
+      <tr>
+        <td style="padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <strong style="font-size: 14px; color: #1e293b;">${room.name || 'Room'}</strong>
+                <div style="font-size: 13px; color: #64748b;">${room.guests || 1} guest${(room.guests || 1) > 1 ? 's' : ''}</div>
+              </td>
+              <td style="text-align: right;">
+                <strong style="font-size: 14px; color: #047857;">${currency}${parseFloat(roomPrice).toFixed(2)}</strong>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr><td style="height: 8px;"></td></tr>
+    `;
+  });
+  
+  // Build extras HTML if any
+  let extrasHtml = '';
+  if (totals.upsells && totals.upsells.length > 0) {
+    extrasHtml = `
+      <tr>
+        <td style="padding: 16px 0 8px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: center;">Extras</td>
+      </tr>
+    `;
+    totals.upsells.forEach(upsell => {
+      extrasHtml += `
+        <tr>
+          <td style="padding: 10px 16px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-size: 14px; color: #92400e;">${upsell.name}</td>
+                <td style="text-align: right; font-size: 14px; font-weight: 600; color: #b45309;">${currency}${parseFloat(upsell.price).toFixed(2)}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="height: 8px;"></td></tr>
+      `;
+    });
+  }
+  
+  const totalGuests = rooms.reduce((sum, r) => sum + (parseInt(r.guests) || 1), 0);
+  
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Group Booking Confirmation</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
+              <div style="width: 60px; height: 60px; background: white; border-radius: 50%; margin: 0 auto 16px; line-height: 60px; font-size: 30px;">✓</div>
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed!</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">Thank you for your reservation</p>
+            </td>
+          </tr>
+          
+          <!-- Booking Reference -->
+          <tr>
+            <td style="padding: 32px 40px 0;">
+              <table width="100%" style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 12px; padding: 20px; text-align: center;">
+                <tr>
+                  <td>
+                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #059669;">Booking Reference</span>
+                    <div style="font-size: 18px; font-weight: 700; color: #047857; margin-top: 4px; word-break: break-all;">${groupBookingId}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Property Details -->
+          <tr>
+            <td style="padding: 32px 40px 0; text-align: center;">
+              <h2 style="margin: 0 0 8px; font-size: 20px; color: #1e293b;">Group Booking - ${rooms.length} room${rooms.length > 1 ? 's' : ''}</h2>
+              <p style="margin: 0; color: #64748b; font-size: 14px;">${property?.name || 'Property'}</p>
+            </td>
+          </tr>
+          
+          <!-- Rooms List -->
+          <tr>
+            <td style="padding: 24px 40px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${roomsHtml}
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Extras if any -->
+          ${extrasHtml ? `
+          <tr>
+            <td style="padding: 0 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${extrasHtml}
+              </table>
+            </td>
+          </tr>
+          ` : ''}
+          
+          <!-- Dates -->
+          <tr>
+            <td style="padding: 24px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-in</span>
+                    <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(totals.checkin)}</strong>
+                    <span style="font-size: 12px; color: #64748b;">From 3:00 PM</span>
+                  </td>
+                  <td width="10%" style="text-align: center; color: #cbd5e1; font-size: 20px;">→</td>
+                  <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-out</span>
+                    <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(totals.checkout)}</strong>
+                    <span style="font-size: 12px; color: #64748b;">By 11:00 AM</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Guest Info -->
+          <tr>
+            <td style="padding: 0 40px 24px; text-align: center;">
+              <span style="font-size: 14px; color: #475569;">👤 ${totalGuests} ${totalGuests === 1 ? 'Guest' : 'Guests'}</span>
+            </td>
+          </tr>
+          
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 40px;">
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 0;">
+            </td>
+          </tr>
+          
+          <!-- Pricing -->
+          <tr>
+            <td style="padding: 24px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding: 8px 0; font-size: 16px; font-weight: 600; color: #1e293b;">Total</td>
+                  <td style="padding: 8px 0; font-size: 16px; font-weight: 600; color: #1e293b; text-align: right;">${currency}${parseFloat(totals.total || 0).toFixed(2)}</td>
+                </tr>
+                ${depositPaid ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Deposit Paid</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #10b981; text-align: right; font-weight: 500;">✓ ${currency}${parseFloat(totals.depositAmount).toFixed(2)}</td>
+                </tr>
+                ` : ''}
+                ${balanceDue ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Balance Due at Check-in</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #f59e0b; text-align: right; font-weight: 500;">${currency}${parseFloat(totals.balanceAmount).toFixed(2)}</td>
+                </tr>
+                ` : ''}
+                ${!depositPaid ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Payment</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569; text-align: right;">Pay at Property</td>
+                </tr>
+                ` : ''}
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Questions about your booking?</p>
+              <p style="margin: 0; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${property?.email || EMAIL_FROM}" style="color: #10b981;">${property?.email || EMAIL_FROM}</a></p>
+            </td>
+          </tr>
+        </table>
+        
+        <!-- Unsubscribe -->
+        <p style="text-align: center; margin-top: 24px; font-size: 12px; color: #94a3b8;">
+          This is a transactional email regarding your booking.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -1530,116 +1743,6 @@ app.get('/api/admin/accounts', async (req, res) => {
   }
 });
 
-// Get single account details (for admin impersonation/management)
-app.get('/api/admin/accounts/:id/details', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      SELECT 
-        a.id,
-        a.name,
-        a.email,
-        a.role,
-        a.created_at,
-        a.parent_id,
-        (SELECT json_agg(json_build_object(
-          'id', p.id,
-          'name', p.name,
-          'beds24_property_id', p.beds24_property_id
-        )) FROM properties p WHERE p.account_id = a.id) as properties,
-        (SELECT json_agg(json_build_object(
-          'cm_code', cm.cm_code,
-          'status', cc.status,
-          'has_token', cc.refresh_token IS NOT NULL
-        )) FROM channel_connections cc 
-        JOIN channel_managers cm ON cc.cm_id = cm.id
-        WHERE cc.account_id::text = a.id::text) as channel_connections
-      FROM accounts a
-      WHERE a.id = $1
-    `, [id]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Account not found' });
-    }
-    
-    res.json({ success: true, account: result.rows[0] });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Admin impersonate - generate a temporary login token for a client account
-app.post('/api/admin/accounts/:id/impersonate', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const account = await pool.query('SELECT id, name, email, role FROM accounts WHERE id = $1', [id]);
-    if (account.rows.length === 0) {
-      return res.json({ success: false, error: 'Account not found' });
-    }
-    
-    // Generate a simple impersonation token (in production, use JWT)
-    const token = require('crypto').randomBytes(32).toString('hex');
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-    
-    // Store token
-    await pool.query(`
-      INSERT INTO impersonation_tokens (token, account_id, expires_at, created_at)
-      VALUES ($1, $2, $3, NOW())
-    `, [token, id, expiresAt]).catch(async () => {
-      // Create table if doesn't exist
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS impersonation_tokens (
-          id SERIAL PRIMARY KEY,
-          token VARCHAR(255) UNIQUE NOT NULL,
-          account_id INTEGER NOT NULL,
-          expires_at TIMESTAMP NOT NULL,
-          created_at TIMESTAMP DEFAULT NOW()
-        )
-      `);
-      await pool.query(`
-        INSERT INTO impersonation_tokens (token, account_id, expires_at, created_at)
-        VALUES ($1, $2, $3, NOW())
-      `, [token, id, expiresAt]);
-    });
-    
-    res.json({ 
-      success: true, 
-      account: account.rows[0],
-      impersonation_url: `/login?impersonate=${token}`,
-      expires_at: expiresAt,
-      note: 'Use this URL to log in as this account (valid for 1 hour)'
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Validate impersonation token and return account
-app.get('/api/auth/impersonate/:token', async (req, res) => {
-  try {
-    const { token } = req.params;
-    
-    const result = await pool.query(`
-      SELECT a.* FROM impersonation_tokens it
-      JOIN accounts a ON a.id = it.account_id
-      WHERE it.token = $1 AND it.expires_at > NOW()
-    `, [token]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Invalid or expired token' });
-    }
-    
-    // Delete used token
-    await pool.query('DELETE FROM impersonation_tokens WHERE token = $1', [token]);
-    
-    res.json({ success: true, account: result.rows[0] });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // Update account role
 app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
   try {
@@ -2304,15 +2407,14 @@ app.post('/api/payments/confirm', async (req, res) => {
         // Sync payment to Beds24 if booking is linked
         try {
           const beds24Check = await pool.query(`
-            SELECT b.beds24_booking_id, bu.beds24_room_id, p.account_id
+            SELECT b.beds24_booking_id, bu.beds24_room_id
             FROM bookings b
             LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
-            LEFT JOIN properties p ON bu.property_id = p.id
             WHERE b.id = $1 AND b.beds24_booking_id IS NOT NULL
           `, [booking_id]);
           
           if (beds24Check.rows[0]?.beds24_booking_id) {
-            const accessToken = await getBeds24AccessToken(pool, beds24Check.rows[0].account_id);
+            const accessToken = await getBeds24AccessToken(pool);
             const paymentDesc = paymentType === 'balance' ? 'Balance payment via Stripe' : 
                                paymentType === 'full' ? 'Full payment via Stripe' : 'Deposit via Stripe';
             
@@ -2553,10 +2655,10 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             // BEDS24 SYNC
             if (cmData?.beds24_room_id) {
                 try {
-                    const accessToken = await getBeds24AccessToken(pool, cmData.account_id);
+                    const accessToken = await getBeds24AccessToken(pool);
                     
                     const beds24Booking = [{
-                        roomId: parseInt(cmData.beds24_room_id),
+                        roomId: cmData.beds24_room_id,
                         status: 'confirmed',
                         arrival: checkin,
                         departure: checkout,
@@ -2693,37 +2795,101 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         }
         
         // Record Stripe payment transaction if deposit was paid (once for whole group)
-        // Record Stripe payment - use SAVEPOINT so failures don't break the whole transaction
         if (stripe_payment_intent_id && deposit_amount && createdBookings.length > 0) {
             try {
-                await client.query('SAVEPOINT payment_record');
                 await client.query(`
                     INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
                     VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, NOW())
                 `, [createdBookings[0].id, deposit_amount, stripe_payment_intent_id]);
-                await client.query('RELEASE SAVEPOINT payment_record');
-            } catch (txError) {
-                await client.query('ROLLBACK TO SAVEPOINT payment_record');
-                console.log('Could not record payment transaction:', txError.message);
-            }
-            
-            // Update payment status on booking (separate savepoint)
-            try {
-                await client.query('SAVEPOINT payment_status');
+                
+                // Update payment status on first booking
                 await client.query(`
                     UPDATE bookings SET payment_status = 'deposit_paid', stripe_payment_intent_id = $1, deposit_amount = $2
                     WHERE id = $3
                 `, [stripe_payment_intent_id, deposit_amount, createdBookings[0].id]);
-                await client.query('RELEASE SAVEPOINT payment_status');
-            } catch (statusError) {
-                await client.query('ROLLBACK TO SAVEPOINT payment_status');
-                console.log('Could not update payment status:', statusError.message);
+            } catch (txError) {
+                console.log('Could not record payment transaction:', txError.message);
             }
         }
         
         await client.query('COMMIT');
         
         console.log(`Group booking created: ${groupBookingId} with ${createdBookings.length} rooms`);
+        
+        // ========== SEND EMAIL ==========
+        try {
+            // Get property info for email
+            const propertyResult = await pool.query(`
+                SELECT p.id, p.name, p.email, a.email as account_email
+                FROM properties p
+                LEFT JOIN accounts a ON p.account_id = a.id
+                WHERE p.id = $1
+            `, [createdBookings[0]?.property_id]);
+            
+            const property = propertyResult.rows[0];
+            
+            // Build room info for email
+            const roomsForEmail = rooms.map((room, index) => ({
+                name: room.name || `Room ${index + 1}`,
+                guests: room.guests || 1,
+                price: room.totalPrice || 0
+            }));
+            
+            // Calculate balance
+            const depositPaid = deposit_amount && parseFloat(deposit_amount) > 0 ? parseFloat(deposit_amount) : 0;
+            const balanceAmount = depositPaid > 0 ? parseFloat(total_amount) - depositPaid : 0;
+            
+            // Get upsells from request if present
+            const upsells = req.body.upsells || [];
+            
+            const totals = {
+                total: total_amount,
+                depositAmount: depositPaid,
+                balanceAmount: balanceAmount,
+                currency: rooms[0]?.currency || '$',
+                checkin: checkin,
+                checkout: checkout,
+                upsells: upsells
+            };
+            
+            const guestInfo = {
+                firstName: guest_first_name,
+                lastName: guest_last_name,
+                email: guest_email,
+                phone: guest_phone
+            };
+            
+            const emailHtml = generateGroupBookingConfirmationEmail(
+                groupBookingId,
+                createdBookings,
+                roomsForEmail,
+                property,
+                guestInfo,
+                totals
+            );
+            
+            // Send to guest
+            await sendEmail({
+                to: guest_email,
+                subject: `Group Booking Confirmed - ${property?.name || 'Your Reservation'} (Ref: ${groupBookingId})`,
+                html: emailHtml
+            });
+            
+            // Also send to property owner if different email
+            if (property?.account_email && property.account_email !== guest_email) {
+                await sendEmail({
+                    to: property.account_email,
+                    subject: `New Group Booking - ${guest_first_name} ${guest_last_name} (Ref: ${groupBookingId})`,
+                    html: emailHtml
+                });
+            }
+            
+            console.log(`Group booking confirmation email sent to ${guest_email}`);
+        } catch (emailError) {
+            console.error('Group booking email error:', emailError.message);
+            // Don't fail the booking if email fails
+        }
+        // ========== END EMAIL ==========
         
         res.json({
             success: true,
@@ -6694,15 +6860,11 @@ app.post('/api/db/book', async (req, res) => {
     
     // 2. Get CM IDs for this room
     const roomResult = await client.query(`
-      SELECT bu.beds24_room_id, bu.hostaway_listing_id, p.account_id 
-      FROM bookable_units bu
-      LEFT JOIN properties p ON bu.property_id = p.id
-      WHERE bu.id = $1
+      SELECT beds24_room_id, hostaway_listing_id FROM bookable_units WHERE id = $1
     `, [room_id]);
     
     const beds24RoomId = roomResult.rows[0]?.beds24_room_id;
     const hostawayListingId = roomResult.rows[0]?.hostaway_listing_id;
-    const accountId = roomResult.rows[0]?.account_id;
     
     let beds24BookingId = null;
     let hostawayReservationId = null;
@@ -6710,7 +6872,7 @@ app.post('/api/db/book', async (req, res) => {
     // 3a. If room is linked to Beds24, push the booking
     if (beds24RoomId) {
       try {
-        const accessToken = await getBeds24AccessToken(pool, accountId);
+        const accessToken = await getBeds24AccessToken(pool);
         
         // Build payments array if deposit was paid
         const payments = [];
@@ -6724,7 +6886,7 @@ app.post('/api/db/book', async (req, res) => {
         }
         
         const beds24Booking = [{
-          roomId: parseInt(beds24RoomId),
+          roomId: beds24RoomId,
           status: 'confirmed',
           arrival: check_in,
           departure: check_out,
@@ -6876,44 +7038,6 @@ app.get('/api/db/bookings', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM bookings ORDER BY created_at DESC LIMIT 100');
     res.json({ success: true, data: result.rows });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Debug: List all accounts with their properties and Beds24 connections
-app.get('/api/db/accounts-lookup', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT 
-        a.id as account_id,
-        a.name as account_name,
-        a.email as account_email,
-        a.role,
-        json_agg(json_build_object(
-          'property_id', p.id,
-          'property_name', p.name,
-          'beds24_property_id', p.beds24_property_id
-        )) FILTER (WHERE p.id IS NOT NULL) as properties
-      FROM accounts a
-      LEFT JOIN properties p ON p.account_id = a.id
-      GROUP BY a.id, a.name, a.email, a.role
-      ORDER BY a.name
-    `);
-    
-    // Also get Beds24 connections
-    const connections = await pool.query(`
-      SELECT cc.account_id, cc.refresh_token IS NOT NULL as has_token, cc.updated_at
-      FROM channel_connections cc
-      JOIN channel_managers cm ON cc.cm_id = cm.id
-      WHERE cm.cm_code = 'beds24'
-    `);
-    
-    res.json({ 
-      success: true, 
-      accounts: result.rows,
-      beds24_connections: connections.rows
-    });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -7373,45 +7497,24 @@ app.post('/api/beds24/save-token', async (req, res) => {
 });
 
 // Helper function to get Beds24 access token from refresh token
-async function getBeds24AccessToken(pool, accountId = null) {
+async function getBeds24AccessToken(pool) {
   let refreshToken = null;
-  let foundAccountId = null;
   
-  // If accountId provided, look up token for that specific account
-  if (accountId) {
-    const tokenResult = await pool.query(
-      `SELECT refresh_token, account_id FROM channel_connections 
-       WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') 
-       AND account_id::text = $1::text 
-       ORDER BY updated_at DESC LIMIT 1`,
-      [accountId]
-    );
-    
-    if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
-      refreshToken = tokenResult.rows[0].refresh_token;
-      foundAccountId = tokenResult.rows[0].account_id;
-      console.log('Using Beds24 refresh token for account_id:', foundAccountId);
-    }
+  // Try database FIRST (this is set per-user via wizard)
+  const tokenResult = await pool.query(
+    "SELECT refresh_token, account_id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') ORDER BY updated_at DESC LIMIT 1"
+  );
+  
+  if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
+    refreshToken = tokenResult.rows[0].refresh_token;
+    console.log('Using refresh token from database, account_id:', tokenResult.rows[0].account_id);
   }
   
-  // Fallback: Try to find ANY Beds24 token (legacy behavior)
-  if (!refreshToken) {
-    const tokenResult = await pool.query(
-      "SELECT refresh_token, account_id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') ORDER BY updated_at DESC LIMIT 1"
-    );
-    
-    if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
-      refreshToken = tokenResult.rows[0].refresh_token;
-      foundAccountId = tokenResult.rows[0].account_id;
-      console.log('Using fallback Beds24 refresh token, account_id:', foundAccountId);
-    }
-  }
-  
-  // Final fallback to environment variable
+  // Fallback to environment variable
   if (!refreshToken) {
     refreshToken = process.env.BEDS24_REFRESH_TOKEN;
     if (refreshToken) {
-      console.log('Using Beds24 refresh token from environment variable');
+      console.log('Using refresh token from environment variable');
     }
   }
   
@@ -7431,7 +7534,7 @@ async function getBeds24AccessToken(pool, accountId = null) {
     throw new Error('Failed to get access token from Beds24');
   }
   
-  console.log('Got Beds24 access token for account:', foundAccountId);
+  console.log('Got Beds24 access token');
   return tokenResponse.data.token;
 }
 
@@ -7841,21 +7944,20 @@ app.post('/api/beds24/setup-connection', async (req, res) => {
       await pool.query(`
         UPDATE channel_connections SET
           api_key = $1, refresh_token = $2, access_token = $3,
-          account_id = $5,
           token_expires_at = NOW() + INTERVAL '30 days', status = 'active', updated_at = NOW()
         WHERE id = $4
-      `, [inviteCode, refreshToken, token, connectionId, accountId || null]);
+      `, [inviteCode, refreshToken, token, connectionId]);
     } else {
       const result = await pool.query(`
         INSERT INTO channel_connections (
           user_id, cm_id, api_key, refresh_token, access_token,
-          account_id, token_expires_at, status, sync_enabled, sync_interval_minutes
+          token_expires_at, status, sync_enabled, sync_interval_minutes
         ) VALUES (
           $1, (SELECT id FROM channel_managers WHERE cm_code = 'beds24' LIMIT 1),
-          $2, $3, $4, $5, NOW() + INTERVAL '30 days', 'active', true, 60
+          $2, $3, $4, NOW() + INTERVAL '30 days', 'active', true, 60
         )
         RETURNING id
-      `, [userId, inviteCode, refreshToken, token, accountId || null]);
+      `, [userId, inviteCode, refreshToken, token]);
       connectionId = result.rows[0].id;
     }
     
@@ -10952,7 +11054,7 @@ app.post('/api/admin/bookings', async (req, res) => {
                 'Content-Type': 'application/json'
               },
               body: JSON.stringify({
-                roomId: parseInt(beds24RoomId),
+                roomId: beds24RoomId,
                 firstNight: check_in,
                 lastNight: new Date(new Date(check_out).getTime() - 24*60*60*1000).toISOString().split('T')[0],
                 numAdult: num_adults || 1,
@@ -16919,7 +17021,7 @@ app.post('/api/public/book', async (req, res) => {
     // BEDS24 SYNC
     if (cmData?.beds24_room_id) {
       try {
-        const accessToken = await getBeds24AccessToken(pool, cmData.account_id);
+        const accessToken = await getBeds24AccessToken(pool);
         
         // Build payment array if deposit was taken
         const payments = [];
@@ -16936,7 +17038,7 @@ app.post('/api/public/book', async (req, res) => {
         }
         
         const beds24Booking = [{
-          roomId: parseInt(cmData.beds24_room_id),
+          roomId: cmData.beds24_room_id,
           status: 'confirmed',
           arrival: check_in,
           departure: check_out,
@@ -20268,44 +20370,25 @@ async function runBeds24BookingsSync() {
   try {
     console.log('⏰ [Scheduled] Starting Beds24 bookings sync...');
     
-    // Get ALL Beds24 connections (multiple accounts)
-    const connectionsResult = await pool.query(`
-      SELECT DISTINCT cc.account_id, cc.refresh_token
-      FROM channel_connections cc
-      JOIN channel_managers cm ON cc.cm_id = cm.id
-      WHERE cm.cm_code = 'beds24' AND cc.refresh_token IS NOT NULL
-    `);
+    const accessToken = await getBeds24AccessToken(pool);
+    const today = new Date();
+    const fromDate = new Date(today);
+    fromDate.setDate(fromDate.getDate() - 7);
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + 365);
     
-    let totalUpdated = 0;
-    let totalUnblocked = 0;
-    let totalCancelled = 0;
+    const response = await axios.get('https://beds24.com/api/v2/bookings', {
+      headers: { 'token': accessToken },
+      params: {
+        arrivalFrom: fromDate.toISOString().split('T')[0],
+        arrivalTo: toDate.toISOString().split('T')[0]
+      }
+    });
     
-    // If no connections in DB, fall back to single token
-    const connections = connectionsResult.rows.length > 0 
-      ? connectionsResult.rows 
-      : [{ account_id: null }];
-    
-    for (const connection of connections) {
-      try {
-        const accessToken = await getBeds24AccessToken(pool, connection.account_id);
-        const today = new Date();
-        const fromDate = new Date(today);
-        fromDate.setDate(fromDate.getDate() - 7);
-        const toDate = new Date(today);
-        toDate.setDate(toDate.getDate() + 365);
-        
-        const response = await axios.get('https://beds24.com/api/v2/bookings', {
-          headers: { 'token': accessToken },
-          params: {
-            arrivalFrom: fromDate.toISOString().split('T')[0],
-            arrivalTo: toDate.toISOString().split('T')[0]
-          }
-        });
-        
-        const bookings = Array.isArray(response.data) ? response.data : (response.data.data || []);
-        let updatedDates = 0;
-        let unblockedDates = 0;
-        let gasBookingsCancelled = 0;
+    const bookings = Array.isArray(response.data) ? response.data : (response.data.data || []);
+    let updatedDates = 0;
+    let unblockedDates = 0;
+    let gasBookingsCancelled = 0;
     
     const client = await pool.connect();
     try {
@@ -20374,16 +20457,7 @@ async function runBeds24BookingsSync() {
       client.release();
     }
     
-    totalUpdated += updatedDates;
-    totalUnblocked += unblockedDates;
-    totalCancelled += gasBookingsCancelled;
-    console.log(`⏰ [Scheduled] Beds24 account ${connection.account_id || 'default'}: ${bookings.length} bookings, ${updatedDates} blocked, ${unblockedDates} unblocked`);
-      } catch (accountError) {
-        console.error(`⏰ [Scheduled] Beds24 sync error for account ${connection.account_id}:`, accountError.message);
-      }
-    }
-    
-    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${totalUpdated} blocked, ${totalUnblocked} unblocked, ${totalCancelled} GAS cancelled`);
+    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${bookings.length} bookings, ${updatedDates} blocked, ${unblockedDates} unblocked, ${gasBookingsCancelled} GAS cancelled`);
   } catch (error) {
     console.error('⏰ [Scheduled] Beds24 bookings sync error:', error.message);
   }
@@ -20392,56 +20466,41 @@ async function runBeds24InventorySync() {
   try {
     console.log('⏰ [Scheduled] Starting Beds24 full inventory sync...');
     
+    const accessToken = await getBeds24AccessToken(pool);
     const today = new Date();
-    const startDate = today.toISOString().split('T')[0];
-    const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
     
-    // Get rooms grouped by account
     const roomsResult = await pool.query(`
-      SELECT bu.id, bu.beds24_room_id, bu.name, p.account_id
+      SELECT bu.id, bu.beds24_room_id, bu.name 
       FROM bookable_units bu 
-      LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.beds24_room_id IS NOT NULL
     `);
     
     const rooms = roomsResult.rows;
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
     
-    // Group rooms by account_id
-    const roomsByAccount = {};
+    let inventoryBlocksFound = 0;
+    let datesUnblocked = 0;
+    
     for (const room of rooms) {
-      const accountId = room.account_id || 'default';
-      if (!roomsByAccount[accountId]) {
-        roomsByAccount[accountId] = [];
-      }
-      roomsByAccount[accountId].push(room);
-    }
-    
-    let totalInventoryBlocks = 0;
-    let totalDatesUnblocked = 0;
-    
-    for (const [accountId, accountRooms] of Object.entries(roomsByAccount)) {
       try {
-        const accessToken = await getBeds24AccessToken(pool, accountId === 'default' ? null : accountId);
+        const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+          headers: { 'token': accessToken },
+          params: { roomId: room.beds24_room_id, startDate, endDate }
+        });
         
-        for (const room of accountRooms) {
-          try {
-            const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
-              headers: { 'token': accessToken },
-              params: { roomId: room.beds24_room_id, startDate, endDate }
-            });
-            
-            const data = availResponse.data?.data?.[0];
-            if (data && data.availability) {
-              for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
-                if (isAvailable === false) {
-                  totalInventoryBlocks++;
-                  await pool.query(`
-                    INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-                    VALUES ($1, $2, false, true, 'beds24_inventory')
-                    ON CONFLICT (room_id, date) 
-                    DO UPDATE SET is_available = false, is_blocked = true, 
-                      source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
-                      updated_at = NOW()
+        const data = availResponse.data?.data?.[0];
+        if (data && data.availability) {
+          for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
+            if (isAvailable === false) {
+              inventoryBlocksFound++;
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                VALUES ($1, $2, false, true, 'beds24_inventory')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET is_available = false, is_blocked = true, 
+                  source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
+                  updated_at = NOW()
               `, [room.id, dateStr]);
             } else {
               // Unblock if it was blocked by beds24
@@ -20450,7 +20509,7 @@ async function runBeds24InventorySync() {
                 SET is_available = true, is_blocked = false, source = 'beds24_unblocked', updated_at = NOW()
                 WHERE room_id = $1 AND date = $2 AND source IN ('beds24_inventory', 'beds24_sync', 'beds24_webhook')
               `, [room.id, dateStr]);
-              if (result.rowCount > 0) totalDatesUnblocked++;
+              if (result.rowCount > 0) datesUnblocked++;
             }
           }
         }
@@ -20458,12 +20517,8 @@ async function runBeds24InventorySync() {
         // Silently skip errors for individual rooms
       }
     }
-      } catch (accountError) {
-        console.error(`⏰ [Scheduled] Beds24 inventory sync error for account ${accountId}:`, accountError.message);
-      }
-    }
     
-    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${totalInventoryBlocks} blocked, ${totalDatesUnblocked} unblocked from ${rooms.length} rooms`);
+    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${inventoryBlocksFound} blocked, ${datesUnblocked} unblocked from ${rooms.length} rooms`);
   } catch (error) {
     console.error('⏰ [Scheduled] Beds24 inventory sync error:', error.message);
   }
