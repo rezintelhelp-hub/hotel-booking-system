@@ -2194,14 +2194,15 @@ app.post('/api/payments/confirm', async (req, res) => {
         // Sync payment to Beds24 if booking is linked
         try {
           const beds24Check = await pool.query(`
-            SELECT b.beds24_booking_id, bu.beds24_room_id
+            SELECT b.beds24_booking_id, bu.beds24_room_id, p.account_id
             FROM bookings b
             LEFT JOIN bookable_units bu ON b.bookable_unit_id = bu.id
+            LEFT JOIN properties p ON bu.property_id = p.id
             WHERE b.id = $1 AND b.beds24_booking_id IS NOT NULL
           `, [booking_id]);
           
           if (beds24Check.rows[0]?.beds24_booking_id) {
-            const accessToken = await getBeds24AccessToken(pool);
+            const accessToken = await getBeds24AccessToken(pool, beds24Check.rows[0].account_id);
             const paymentDesc = paymentType === 'balance' ? 'Balance payment via Stripe' : 
                                paymentType === 'full' ? 'Full payment via Stripe' : 'Deposit via Stripe';
             
@@ -2442,7 +2443,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             // BEDS24 SYNC
             if (cmData?.beds24_room_id) {
                 try {
-                    const accessToken = await getBeds24AccessToken(pool);
+                    const accessToken = await getBeds24AccessToken(pool, cmData.account_id);
                     
                     const beds24Booking = [{
                         roomId: parseInt(cmData.beds24_room_id),
@@ -6583,11 +6584,15 @@ app.post('/api/db/book', async (req, res) => {
     
     // 2. Get CM IDs for this room
     const roomResult = await client.query(`
-      SELECT beds24_room_id, hostaway_listing_id FROM bookable_units WHERE id = $1
+      SELECT bu.beds24_room_id, bu.hostaway_listing_id, p.account_id 
+      FROM bookable_units bu
+      LEFT JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
     `, [room_id]);
     
     const beds24RoomId = roomResult.rows[0]?.beds24_room_id;
     const hostawayListingId = roomResult.rows[0]?.hostaway_listing_id;
+    const accountId = roomResult.rows[0]?.account_id;
     
     let beds24BookingId = null;
     let hostawayReservationId = null;
@@ -6595,7 +6600,7 @@ app.post('/api/db/book', async (req, res) => {
     // 3a. If room is linked to Beds24, push the booking
     if (beds24RoomId) {
       try {
-        const accessToken = await getBeds24AccessToken(pool);
+        const accessToken = await getBeds24AccessToken(pool, accountId);
         
         // Build payments array if deposit was paid
         const payments = [];
@@ -6761,6 +6766,44 @@ app.get('/api/db/bookings', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM bookings ORDER BY created_at DESC LIMIT 100');
     res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Debug: List all accounts with their properties and Beds24 connections
+app.get('/api/db/accounts-lookup', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT 
+        a.id as account_id,
+        a.name as account_name,
+        a.email as account_email,
+        a.role,
+        json_agg(json_build_object(
+          'property_id', p.id,
+          'property_name', p.name,
+          'beds24_property_id', p.beds24_property_id
+        )) FILTER (WHERE p.id IS NOT NULL) as properties
+      FROM accounts a
+      LEFT JOIN properties p ON p.account_id = a.id
+      GROUP BY a.id, a.name, a.email, a.role
+      ORDER BY a.name
+    `);
+    
+    // Also get Beds24 connections
+    const connections = await pool.query(`
+      SELECT cc.account_id, cc.refresh_token IS NOT NULL as has_token, cc.updated_at
+      FROM channel_connections cc
+      JOIN channel_managers cm ON cc.cm_id = cm.id
+      WHERE cm.cm_code = 'beds24'
+    `);
+    
+    res.json({ 
+      success: true, 
+      accounts: result.rows,
+      beds24_connections: connections.rows
+    });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -7220,24 +7263,45 @@ app.post('/api/beds24/save-token', async (req, res) => {
 });
 
 // Helper function to get Beds24 access token from refresh token
-async function getBeds24AccessToken(pool) {
+async function getBeds24AccessToken(pool, accountId = null) {
   let refreshToken = null;
+  let foundAccountId = null;
   
-  // Try database FIRST (this is set per-user via wizard)
-  const tokenResult = await pool.query(
-    "SELECT refresh_token, account_id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') ORDER BY updated_at DESC LIMIT 1"
-  );
-  
-  if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
-    refreshToken = tokenResult.rows[0].refresh_token;
-    console.log('Using refresh token from database, account_id:', tokenResult.rows[0].account_id);
+  // If accountId provided, look up token for that specific account
+  if (accountId) {
+    const tokenResult = await pool.query(
+      `SELECT refresh_token, account_id FROM channel_connections 
+       WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') 
+       AND account_id = $1 
+       ORDER BY updated_at DESC LIMIT 1`,
+      [accountId]
+    );
+    
+    if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
+      refreshToken = tokenResult.rows[0].refresh_token;
+      foundAccountId = tokenResult.rows[0].account_id;
+      console.log('Using Beds24 refresh token for account_id:', foundAccountId);
+    }
   }
   
-  // Fallback to environment variable
+  // Fallback: Try to find ANY Beds24 token (legacy behavior)
+  if (!refreshToken) {
+    const tokenResult = await pool.query(
+      "SELECT refresh_token, account_id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') ORDER BY updated_at DESC LIMIT 1"
+    );
+    
+    if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
+      refreshToken = tokenResult.rows[0].refresh_token;
+      foundAccountId = tokenResult.rows[0].account_id;
+      console.log('Using fallback Beds24 refresh token, account_id:', foundAccountId);
+    }
+  }
+  
+  // Final fallback to environment variable
   if (!refreshToken) {
     refreshToken = process.env.BEDS24_REFRESH_TOKEN;
     if (refreshToken) {
-      console.log('Using refresh token from environment variable');
+      console.log('Using Beds24 refresh token from environment variable');
     }
   }
   
@@ -7257,7 +7321,7 @@ async function getBeds24AccessToken(pool) {
     throw new Error('Failed to get access token from Beds24');
   }
   
-  console.log('Got Beds24 access token');
+  console.log('Got Beds24 access token for account:', foundAccountId);
   return tokenResponse.data.token;
 }
 
@@ -16744,7 +16808,7 @@ app.post('/api/public/book', async (req, res) => {
     // BEDS24 SYNC
     if (cmData?.beds24_room_id) {
       try {
-        const accessToken = await getBeds24AccessToken(pool);
+        const accessToken = await getBeds24AccessToken(pool, cmData.account_id);
         
         // Build payment array if deposit was taken
         const payments = [];
@@ -20093,25 +20157,44 @@ async function runBeds24BookingsSync() {
   try {
     console.log('⏰ [Scheduled] Starting Beds24 bookings sync...');
     
-    const accessToken = await getBeds24AccessToken(pool);
-    const today = new Date();
-    const fromDate = new Date(today);
-    fromDate.setDate(fromDate.getDate() - 7);
-    const toDate = new Date(today);
-    toDate.setDate(toDate.getDate() + 365);
+    // Get ALL Beds24 connections (multiple accounts)
+    const connectionsResult = await pool.query(`
+      SELECT DISTINCT cc.account_id, cc.refresh_token
+      FROM channel_connections cc
+      JOIN channel_managers cm ON cc.cm_id = cm.id
+      WHERE cm.cm_code = 'beds24' AND cc.refresh_token IS NOT NULL
+    `);
     
-    const response = await axios.get('https://beds24.com/api/v2/bookings', {
-      headers: { 'token': accessToken },
-      params: {
-        arrivalFrom: fromDate.toISOString().split('T')[0],
-        arrivalTo: toDate.toISOString().split('T')[0]
-      }
-    });
+    let totalUpdated = 0;
+    let totalUnblocked = 0;
+    let totalCancelled = 0;
     
-    const bookings = Array.isArray(response.data) ? response.data : (response.data.data || []);
-    let updatedDates = 0;
-    let unblockedDates = 0;
-    let gasBookingsCancelled = 0;
+    // If no connections in DB, fall back to single token
+    const connections = connectionsResult.rows.length > 0 
+      ? connectionsResult.rows 
+      : [{ account_id: null }];
+    
+    for (const connection of connections) {
+      try {
+        const accessToken = await getBeds24AccessToken(pool, connection.account_id);
+        const today = new Date();
+        const fromDate = new Date(today);
+        fromDate.setDate(fromDate.getDate() - 7);
+        const toDate = new Date(today);
+        toDate.setDate(toDate.getDate() + 365);
+        
+        const response = await axios.get('https://beds24.com/api/v2/bookings', {
+          headers: { 'token': accessToken },
+          params: {
+            arrivalFrom: fromDate.toISOString().split('T')[0],
+            arrivalTo: toDate.toISOString().split('T')[0]
+          }
+        });
+        
+        const bookings = Array.isArray(response.data) ? response.data : (response.data.data || []);
+        let updatedDates = 0;
+        let unblockedDates = 0;
+        let gasBookingsCancelled = 0;
     
     const client = await pool.connect();
     try {
@@ -20180,7 +20263,16 @@ async function runBeds24BookingsSync() {
       client.release();
     }
     
-    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${bookings.length} bookings, ${updatedDates} blocked, ${unblockedDates} unblocked, ${gasBookingsCancelled} GAS cancelled`);
+    totalUpdated += updatedDates;
+    totalUnblocked += unblockedDates;
+    totalCancelled += gasBookingsCancelled;
+    console.log(`⏰ [Scheduled] Beds24 account ${connection.account_id || 'default'}: ${bookings.length} bookings, ${updatedDates} blocked, ${unblockedDates} unblocked`);
+      } catch (accountError) {
+        console.error(`⏰ [Scheduled] Beds24 sync error for account ${connection.account_id}:`, accountError.message);
+      }
+    }
+    
+    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${totalUpdated} blocked, ${totalUnblocked} unblocked, ${totalCancelled} GAS cancelled`);
   } catch (error) {
     console.error('⏰ [Scheduled] Beds24 bookings sync error:', error.message);
   }
@@ -20189,41 +20281,56 @@ async function runBeds24InventorySync() {
   try {
     console.log('⏰ [Scheduled] Starting Beds24 full inventory sync...');
     
-    const accessToken = await getBeds24AccessToken(pool);
     const today = new Date();
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
     
+    // Get rooms grouped by account
     const roomsResult = await pool.query(`
-      SELECT bu.id, bu.beds24_room_id, bu.name 
+      SELECT bu.id, bu.beds24_room_id, bu.name, p.account_id
       FROM bookable_units bu 
+      LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.beds24_room_id IS NOT NULL
     `);
     
     const rooms = roomsResult.rows;
-    const startDate = today.toISOString().split('T')[0];
-    const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
     
-    let inventoryBlocksFound = 0;
-    let datesUnblocked = 0;
-    
+    // Group rooms by account_id
+    const roomsByAccount = {};
     for (const room of rooms) {
+      const accountId = room.account_id || 'default';
+      if (!roomsByAccount[accountId]) {
+        roomsByAccount[accountId] = [];
+      }
+      roomsByAccount[accountId].push(room);
+    }
+    
+    let totalInventoryBlocks = 0;
+    let totalDatesUnblocked = 0;
+    
+    for (const [accountId, accountRooms] of Object.entries(roomsByAccount)) {
       try {
-        const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
-          headers: { 'token': accessToken },
-          params: { roomId: room.beds24_room_id, startDate, endDate }
-        });
+        const accessToken = await getBeds24AccessToken(pool, accountId === 'default' ? null : accountId);
         
-        const data = availResponse.data?.data?.[0];
-        if (data && data.availability) {
-          for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
-            if (isAvailable === false) {
-              inventoryBlocksFound++;
-              await pool.query(`
-                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-                VALUES ($1, $2, false, true, 'beds24_inventory')
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET is_available = false, is_blocked = true, 
-                  source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
-                  updated_at = NOW()
+        for (const room of accountRooms) {
+          try {
+            const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+              headers: { 'token': accessToken },
+              params: { roomId: room.beds24_room_id, startDate, endDate }
+            });
+            
+            const data = availResponse.data?.data?.[0];
+            if (data && data.availability) {
+              for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
+                if (isAvailable === false) {
+                  totalInventoryBlocks++;
+                  await pool.query(`
+                    INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                    VALUES ($1, $2, false, true, 'beds24_inventory')
+                    ON CONFLICT (room_id, date) 
+                    DO UPDATE SET is_available = false, is_blocked = true, 
+                      source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
+                      updated_at = NOW()
               `, [room.id, dateStr]);
             } else {
               // Unblock if it was blocked by beds24
@@ -20232,7 +20339,7 @@ async function runBeds24InventorySync() {
                 SET is_available = true, is_blocked = false, source = 'beds24_unblocked', updated_at = NOW()
                 WHERE room_id = $1 AND date = $2 AND source IN ('beds24_inventory', 'beds24_sync', 'beds24_webhook')
               `, [room.id, dateStr]);
-              if (result.rowCount > 0) datesUnblocked++;
+              if (result.rowCount > 0) totalDatesUnblocked++;
             }
           }
         }
@@ -20240,8 +20347,12 @@ async function runBeds24InventorySync() {
         // Silently skip errors for individual rooms
       }
     }
+      } catch (accountError) {
+        console.error(`⏰ [Scheduled] Beds24 inventory sync error for account ${accountId}:`, accountError.message);
+      }
+    }
     
-    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${inventoryBlocksFound} blocked, ${datesUnblocked} unblocked from ${rooms.length} rooms`);
+    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${totalInventoryBlocks} blocked, ${totalDatesUnblocked} unblocked from ${rooms.length} rooms`);
   } catch (error) {
     console.error('⏰ [Scheduled] Beds24 inventory sync error:', error.message);
   }
