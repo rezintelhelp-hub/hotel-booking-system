@@ -2362,8 +2362,7 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             
             // Get room and property info
             const roomInfo = await client.query(`
-                SELECT bu.*, p.id as property_id,
-                       bu.beds24_room_id, bu.hostaway_listing_id, bu.smoobu_room_id
+                SELECT bu.id, bu.name, bu.property_id, p.id as prop_id
                 FROM bookable_units bu
                 JOIN properties p ON bu.property_id = p.id
                 WHERE bu.id = $1
