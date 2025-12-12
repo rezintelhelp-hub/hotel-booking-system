@@ -1724,7 +1724,9 @@ app.get('/api/admin/accounts', async (req, res) => {
         a.*,
         p.name as parent_name,
         (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-        (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+        (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+        (SELECT COUNT(*) FROM bookable_units bu JOIN properties prop ON bu.property_id = prop.id WHERE prop.account_id = a.id) as room_count,
+        (SELECT COUNT(*) FROM channel_connections WHERE gas_account_id = a.id::text AND status = 'active') as connection_count
       FROM accounts a
       LEFT JOIN accounts p ON a.parent_id = p.id
       ORDER BY 
