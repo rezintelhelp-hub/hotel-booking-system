@@ -1350,6 +1350,60 @@ app.post('/api/accounts/forgot-password', async (req, res) => {
   }
 });
 
+// Change password for logged-in user
+app.post('/api/accounts/change-password', async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    
+    if (!current_password || !new_password) {
+      return res.json({ success: false, error: 'Current password and new password required' });
+    }
+    
+    if (new_password.length < 8) {
+      return res.json({ success: false, error: 'New password must be at least 8 characters' });
+    }
+    
+    // Get account from session token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Not authenticated' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT account_id FROM account_sessions 
+      WHERE token = $1 AND expires_at > NOW()
+    `, [token]);
+    
+    if (session.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired session' });
+    }
+    
+    const accountId = session.rows[0].account_id;
+    
+    // Verify current password
+    const currentPasswordHash = crypto.createHash('sha256').update(current_password).digest('hex');
+    const account = await pool.query('SELECT password_hash FROM accounts WHERE id = $1', [accountId]);
+    
+    if (account.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    if (account.rows[0].password_hash !== currentPasswordHash) {
+      return res.json({ success: false, error: 'Current password is incorrect' });
+    }
+    
+    // Update password
+    const newPasswordHash = crypto.createHash('sha256').update(new_password).digest('hex');
+    await pool.query('UPDATE accounts SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newPasswordHash, accountId]);
+    
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // ONBOARDING ENDPOINTS
 // =====================================================
@@ -1739,6 +1793,63 @@ app.get('/api/admin/accounts', async (req, res) => {
     
     res.json({ success: true, accounts: result.rows });
   } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create master admin (only master admins can do this)
+app.post('/api/admin/create-master-admin', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.json({ success: false, error: 'Name, email and password are required' });
+    }
+    
+    if (password.length < 8) {
+      return res.json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    
+    // Verify the requester is a master admin
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Not authenticated' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT s.account_id, a.role 
+      FROM account_sessions s
+      JOIN accounts a ON s.account_id = a.id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+      return res.json({ success: false, error: 'Only master admins can create other master admins' });
+    }
+    
+    // Check if email already exists
+    const existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [email.toLowerCase().trim()]);
+    if (existing.rows.length > 0) {
+      return res.json({ success: false, error: 'An account with this email already exists' });
+    }
+    
+    // Hash password
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    
+    // Generate API key
+    const apiKey = 'gas_' + crypto.randomBytes(24).toString('hex');
+    
+    // Create master admin account
+    const result = await pool.query(`
+      INSERT INTO accounts (name, email, password_hash, role, api_key, api_key_created_at, status)
+      VALUES ($1, $2, $3, 'master_admin', $4, NOW(), 'active')
+      RETURNING id, name, email, role
+    `, [name, email.toLowerCase().trim(), passwordHash, apiKey]);
+    
+    res.json({ success: true, account: result.rows[0] });
+  } catch (error) {
+    console.error('Create master admin error:', error);
     res.json({ success: false, error: error.message });
   }
 });
