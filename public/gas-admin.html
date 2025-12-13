@@ -12495,6 +12495,8 @@ Local honey and preserves"></textarea>
                 const response = await fetch(`/api/admin/accounts${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
                 
+                console.log('loadAccounts response:', data);
+                
                 if (data.success && data.accounts) {
                     allAccounts = data.accounts;
                     
@@ -12511,7 +12513,8 @@ Local honey and preserves"></textarea>
                     
                     renderAccountsTable(data.accounts);
                 } else {
-                    container.innerHTML = `<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading accounts</p>`;
+                    console.error('Accounts API error:', data.error);
+                    container.innerHTML = `<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading accounts: ${data.error || 'Unknown error'}</p>`;
                 }
             } catch (error) {
                 console.error('Error loading accounts:', error);
