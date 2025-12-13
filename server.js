@@ -1303,8 +1303,8 @@ app.get('/api/accounts/me', async (req, res) => {
     
     // Get account details
     const account = await pool.query(`
-      SELECT id, public_id, name, email, role, business_name, logo_url,
-             primary_color, secondary_color, status, currency, timezone
+      SELECT id, public_id, account_code, name, email, role, business_name, logo_url,
+             primary_color, secondary_color, status, currency, timezone, managed_by_id
       FROM accounts WHERE id = $1
     `, [session.rows[0].account_id]);
     
@@ -2147,8 +2147,8 @@ app.post('/api/management-requests/:id/respond', async (req, res) => {
     const { id } = req.params;
     const { status, response_message } = req.body;
     
-    if (!['approved', 'rejected'].includes(status)) {
-      return res.json({ success: false, error: 'Status must be approved or rejected' });
+    if (!['approved', 'rejected', 'cancelled'].includes(status)) {
+      return res.json({ success: false, error: 'Invalid status' });
     }
     
     // Get the request
