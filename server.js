@@ -4256,7 +4256,7 @@ app.get('/api/setup-billing', async (req, res) => {
     try {
       // Check if websites table exists
       const websitesCheck = await pool.query(`
-        SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'websites')
+        SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'websites')
       `);
       
       if (websitesCheck.rows[0].exists) {
