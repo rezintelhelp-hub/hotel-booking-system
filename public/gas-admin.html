@@ -9991,23 +9991,50 @@ Local honey and preserves"></textarea>
 
     <!-- Account Modal -->
     <div id="accountModal" class="modal">
-        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 650px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
-                <h3 id="account-modal-title" class="modal-title" style="margin: 0;">Add Account</h3>
+                <div>
+                    <h3 id="account-modal-title" class="modal-title" style="margin: 0;">Edit Account</h3>
+                    <div id="account-modal-subtitle" style="font-size: 0.85rem; opacity: 0.9; margin-top: 0.25rem;"></div>
+                </div>
                 <button class="modal-close" onclick="closeModal('accountModal')" style="color: white;">&times;</button>
             </div>
-            <div class="modal-body" style="padding: 1.5rem;">
+            <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
                 <form id="account-form" onsubmit="saveAccount(event)">
                     <input type="hidden" id="edit-account-id">
+                    <input type="hidden" id="account-code">
+                    <input type="hidden" id="account-role">
+                    <input type="hidden" id="account-status">
+                    
+                    <!-- Account Info (Read Only) -->
+                    <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">
+                            <div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Account Code</div>
+                                <div id="account-code-display" style="font-weight: 600; font-family: monospace;">—</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Role</div>
+                                <div id="account-role-display" style="font-weight: 600;">—</div>
+                            </div>
+                            <div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Status</div>
+                                <div id="account-status-display" style="font-weight: 600;">—</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Business Details -->
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">📋 Business Details</h4>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="form-group">
-                            <label>Account Name *</label>
+                            <label>Business Name *</label>
                             <input type="text" id="account-name" class="form-input" required placeholder="e.g., Elevate Stays">
                         </div>
                         <div class="form-group">
-                            <label>Account Code</label>
-                            <input type="text" id="account-code" class="form-input" placeholder="e.g., ELEVATE">
+                            <label>Contact Name</label>
+                            <input type="text" id="account-contact-name" class="form-input" placeholder="e.g., John Smith">
                         </div>
                     </div>
                     
@@ -10022,28 +10049,65 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                     
-                    <div id="account-role-status-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <!-- Business Address -->
+                    <h4 style="margin: 1.5rem 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">📍 Business Address</h4>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Address Line 1</label>
+                        <input type="text" id="account-address1" class="form-input" placeholder="Street address">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label>Address Line 2</label>
+                        <input type="text" id="account-address2" class="form-input" placeholder="Apartment, suite, etc.">
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                         <div class="form-group">
-                            <label>Role</label>
-                            <select id="account-role" class="form-input">
-                                <option value="agency_admin">Agency Admin</option>
-                                <option value="submaster_admin">Sub Master</option>
-                                <option value="admin">Admin</option>
-                            </select>
+                            <label>City</label>
+                            <input type="text" id="account-city" class="form-input" placeholder="City">
                         </div>
                         <div class="form-group">
-                            <label>Status</label>
-                            <select id="account-status" class="form-input">
-                                <option value="active">Active</option>
-                                <option value="pending">Pending</option>
-                                <option value="inactive">Inactive</option>
-                            </select>
+                            <label>Region/State</label>
+                            <input type="text" id="account-region" class="form-input" placeholder="Region">
+                        </div>
+                        <div class="form-group">
+                            <label>Postcode</label>
+                            <input type="text" id="account-postcode" class="form-input" placeholder="Postcode">
                         </div>
                     </div>
                     
-                    <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label>Country</label>
+                        <input type="text" id="account-country" class="form-input" placeholder="Country">
+                    </div>
+                    
+                    <!-- Security Section -->
+                    <h4 style="margin: 1.5rem 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">🔐 Security</h4>
+                    
+                    <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                        <div>
+                            <div style="font-weight: 600; color: #92400e;">Password Reset</div>
+                            <div style="font-size: 0.85rem; color: #a16207;">Clear password so user can set a new one</div>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="resetPasswordFromModal()" style="white-space: nowrap;">
+                            🔑 Reset Password
+                        </button>
+                    </div>
+                    
+                    <!-- Agency Management Section (only for admin/submaster) -->
+                    <div id="account-agency-section" style="display: none;">
+                        <h4 style="margin: 1.5rem 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">🏢 Agency Management</h4>
+                        
+                        <div id="account-agency-status" style="background: var(--bg-primary); padding: 1rem; border-radius: 8px;">
+                            <!-- Filled dynamically -->
+                        </div>
+                    </div>
+                    
+                    <!-- Form Actions -->
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('accountModal')">Cancel</button>
-                        <button type="submit" class="btn">Save Account</button>
+                        <button type="submit" class="btn">Save Changes</button>
                     </div>
                 </form>
             </div>
@@ -12681,7 +12745,6 @@ Local honey and preserves"></textarea>
                                             <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
                                             ${currentAccount && currentAccount.role === 'master_admin' ? `
                                                 <button class="btn btn-secondary btn-small" onclick="editAccount(${account.id})">Edit</button>
-                                                <button class="btn btn-secondary btn-small" onclick="resetAccountPassword(${account.id}, '${account.email}')" title="Reset password">🔑</button>
                                             ` : ''}
                                         </div>
                                     </td>
@@ -13238,22 +13301,75 @@ Local honey and preserves"></textarea>
                 
                 if (data.success && data.account) {
                     const account = data.account;
-                    document.getElementById('account-modal-title').textContent = 'Edit Account';
+                    
+                    // Header
+                    document.getElementById('account-modal-title').textContent = account.name || 'Edit Account';
+                    document.getElementById('account-modal-subtitle').textContent = account.email || '';
+                    
+                    // Hidden fields
                     document.getElementById('edit-account-id').value = account.id;
-                    document.getElementById('account-name').value = account.name || '';
-                    document.getElementById('account-email').value = account.email || '';
-                    document.getElementById('account-phone').value = account.phone || '';
                     document.getElementById('account-code').value = account.account_code || '';
                     document.getElementById('account-role').value = account.role || 'admin';
                     document.getElementById('account-status').value = account.status || 'active';
                     
-                    // Only master admins can change role/status
-                    const roleStatusRow = document.getElementById('account-role-status-row');
-                    if (currentAccount && currentAccount.role === 'master_admin') {
-                        roleStatusRow.style.display = 'grid';
+                    // Display fields (read-only)
+                    document.getElementById('account-code-display').textContent = account.account_code || '—';
+                    document.getElementById('account-role-display').textContent = formatRole(account.role);
+                    document.getElementById('account-status-display').textContent = (account.status || 'active').charAt(0).toUpperCase() + (account.status || 'active').slice(1);
+                    
+                    // Editable fields
+                    document.getElementById('account-name').value = account.name || '';
+                    document.getElementById('account-contact-name').value = account.contact_name || '';
+                    document.getElementById('account-email').value = account.email || '';
+                    document.getElementById('account-phone').value = account.phone || '';
+                    document.getElementById('account-address1').value = account.address_line1 || '';
+                    document.getElementById('account-address2').value = account.address_line2 || '';
+                    document.getElementById('account-city').value = account.city || '';
+                    document.getElementById('account-region').value = account.region || '';
+                    document.getElementById('account-postcode').value = account.postcode || '';
+                    document.getElementById('account-country').value = account.country || '';
+                    
+                    // Agency Management section (only for admin/submaster)
+                    const agencySection = document.getElementById('account-agency-section');
+                    const agencyStatus = document.getElementById('account-agency-status');
+                    
+                    if (account.role === 'admin' || account.role === 'submaster_admin') {
+                        agencySection.style.display = 'block';
+                        
+                        if (account.managed_by_id) {
+                            // Currently managed by an agency
+                            agencyStatus.innerHTML = `
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div style="font-weight: 600; color: #1e40af;">🏢 Managed by Agency</div>
+                                        <div style="font-size: 0.85rem; color: var(--text-secondary);">${account.managed_by_name || 'Agency ID: ' + account.managed_by_id}</div>
+                                    </div>
+                                    <button type="button" class="btn btn-secondary" onclick="removeAgencyFromModal(${account.id})">
+                                        ✕ Remove Agency
+                                    </button>
+                                </div>
+                            `;
+                        } else {
+                            // Self-managed
+                            agencyStatus.innerHTML = `
+                                <div style="display: flex; justify-content: space-between; align-items: center;">
+                                    <div>
+                                        <div style="font-weight: 600;">👤 Self-Managed</div>
+                                        <div style="font-size: 0.85rem; color: var(--text-secondary);">No agency assigned</div>
+                                    </div>
+                                    <button type="button" class="btn" onclick="assignAgencyFromModal(${account.id}, '${(account.name || '').replace(/'/g, '')}')">
+                                        + Assign Agency
+                                    </button>
+                                </div>
+                            `;
+                        }
                     } else {
-                        roleStatusRow.style.display = 'none';
+                        agencySection.style.display = 'none';
                     }
+                    
+                    // Store account ID for password reset
+                    document.getElementById('accountModal').dataset.accountId = account.id;
+                    document.getElementById('accountModal').dataset.accountEmail = account.email;
                     
                     openModal('accountModal');
                 } else {
@@ -13265,29 +13381,65 @@ Local honey and preserves"></textarea>
             }
         }
         
+        function resetPasswordFromModal() {
+            const modal = document.getElementById('accountModal');
+            const accountId = modal.dataset.accountId;
+            const email = modal.dataset.accountEmail;
+            
+            if (confirm(`Reset password for ${email}?\n\nThis will clear their password and they'll need to use "Set Password" to create a new one.`)) {
+                resetAccountPassword(accountId, email);
+            }
+        }
+        
+        function assignAgencyFromModal(accountId, accountName) {
+            closeModal('accountModal');
+            openAssignAgencyModal(accountId, accountName);
+        }
+        
+        async function removeAgencyFromModal(accountId) {
+            if (!confirm('Remove agency management? The account will become self-managed.')) return;
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/remove-management`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Agency removed', 'success');
+                    closeModal('accountModal');
+                    loadAccounts();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error removing agency');
+            }
+        }
+        
         async function saveAccount(event) {
             event.preventDefault();
             
             const accountId = document.getElementById('edit-account-id').value;
             const accountData = {
                 name: document.getElementById('account-name').value,
+                contact_name: document.getElementById('account-contact-name').value,
                 email: document.getElementById('account-email').value,
                 phone: document.getElementById('account-phone').value,
-                account_code: document.getElementById('account-code').value
+                address_line1: document.getElementById('account-address1').value,
+                address_line2: document.getElementById('account-address2').value,
+                city: document.getElementById('account-city').value,
+                region: document.getElementById('account-region').value,
+                postcode: document.getElementById('account-postcode').value,
+                country: document.getElementById('account-country').value
             };
             
-            // Only master admins can change role/status
-            if (currentAccount && currentAccount.role === 'master_admin') {
-                accountData.role = document.getElementById('account-role').value;
-                accountData.status = document.getElementById('account-status').value;
-            }
-            
             try {
-                const url = accountId ? `/api/accounts/${accountId}` : '/api/accounts';
-                const method = accountId ? 'PUT' : 'POST';
+                const url = `/api/accounts/${accountId}`;
                 
                 const response = await fetch(url, {
-                    method: method,
+                    method: 'PUT',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(accountData)
                 });
