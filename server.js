@@ -1862,6 +1862,9 @@ app.post('/api/migrate-to-accounts', async (req, res) => {
 // Get all accounts (for admin view)
 app.get('/api/admin/accounts', async (req, res) => {
   try {
+    // Ensure managed_by_id column exists (for backwards compatibility)
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS managed_by_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`).catch(() => {});
+    
     // Check if filtering by a specific account (when viewing as that account)
     const viewingAccountId = req.query.account_id;
     
