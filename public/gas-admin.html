@@ -1275,6 +1275,10 @@
                         <span class="nav-icon">👥</span>
                         <span>All Accounts</span>
                     </a>
+                    <a class="nav-item agency-only" data-view="management-requests" href="#" onclick="navClick(this, 'management-requests'); return false;" style="display: none;">
+                        <span class="nav-icon">📋</span>
+                        <span>Management Requests</span>
+                    </a>
                     </div>
                 </div>
 
@@ -1811,6 +1815,57 @@
             <!-- Keep old views hidden for backward compatibility -->
             <div id="agencies" class="view" style="display:none;"></div>
             <div id="clients" class="view" style="display:none;"></div>
+
+            <!-- Management Requests View (Agency Admin) -->
+            <div id="management-requests" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📋 Management Requests</h2>
+                            <p>Review and manage requests from property owners</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div class="stats-grid" style="margin-bottom: 1.5rem;">
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-pending-requests">-</div>
+                        <div class="stat-label">Pending Requests</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-managed-accounts">-</div>
+                        <div class="stat-label">Managed Accounts</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" id="stat-managed-properties">-</div>
+                        <div class="stat-label">Properties Under Management</div>
+                    </div>
+                </div>
+
+                <!-- Filter Tabs -->
+                <div style="display: flex; gap: 0.5rem; margin-bottom: 1.5rem;">
+                    <button class="btn request-filter active" data-status="pending" onclick="filterManagementRequests('pending')" style="background: var(--accent);">
+                        ⏳ Pending
+                    </button>
+                    <button class="btn btn-secondary request-filter" data-status="approved" onclick="filterManagementRequests('approved')">
+                        ✅ Approved
+                    </button>
+                    <button class="btn btn-secondary request-filter" data-status="rejected" onclick="filterManagementRequests('rejected')">
+                        ❌ Rejected
+                    </button>
+                    <button class="btn btn-secondary request-filter" data-status="all" onclick="filterManagementRequests('all')">
+                        All
+                    </button>
+                </div>
+
+                <!-- Requests List -->
+                <div class="card">
+                    <div id="managementRequestsList">
+                        <p style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading requests...</p>
+                    </div>
+                </div>
+            </div>
 
             <!-- Properties View -->
             <div id="properties" class="view">
@@ -5403,6 +5458,70 @@
                         <h4 style="margin-bottom: 1rem;">Existing Master Admins</h4>
                         <div id="masterAdminsList">
                             <p style="color: var(--text-secondary);">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Agency Management (for Admin/SubMaster) -->
+                <div id="agencyManagementSection" class="card" style="display: none; margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">🏢 Agency Management</h3>
+                    </div>
+                    
+                    <!-- Current Status -->
+                    <div id="currentManagementStatus" style="padding: 1rem; background: var(--bg-primary); border-radius: 8px; margin-bottom: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div id="managementStatusIcon" style="width: 48px; height: 48px; border-radius: 50%; background: #e5e7eb; display: flex; align-items: center; justify-content: center; font-size: 1.5rem;">👤</div>
+                            <div>
+                                <div style="font-weight: 600;" id="managementStatusTitle">Self-Managed</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);" id="managementStatusDesc">You are managing your own account</div>
+                            </div>
+                            <button id="removeManagementBtn" class="btn btn-secondary" style="display: none; margin-left: auto;" onclick="removeAgencyManagement()">
+                                ✕ Remove Agency
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Pending Request Banner -->
+                    <div id="pendingRequestBanner" style="display: none; padding: 1rem; background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; margin-bottom: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span style="font-size: 1.25rem;">⏳</span>
+                            <div>
+                                <div style="font-weight: 600; color: #92400e;">Request Pending</div>
+                                <div style="font-size: 0.85rem; color: #a16207;" id="pendingRequestAgency">Awaiting response from agency</div>
+                            </div>
+                            <button class="btn btn-secondary btn-small" style="margin-left: auto;" onclick="cancelManagementRequest()">Cancel Request</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Select Agency Form (only show if self-managed and no pending) -->
+                    <div id="selectAgencyForm">
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                            Select an agency to manage your properties and bookings. They will be able to view and manage your account on your behalf.
+                        </p>
+                        
+                        <div style="display: flex; gap: 1rem; align-items: end;">
+                            <div style="flex: 1;">
+                                <label class="form-label">Select Agency</label>
+                                <select id="agencySelect" class="form-input">
+                                    <option value="">Choose an agency...</option>
+                                </select>
+                            </div>
+                            <button class="btn" onclick="requestAgencyManagement()">
+                                📤 Send Request
+                            </button>
+                        </div>
+                        
+                        <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
+                            ℹ️ The agency will receive your request and can approve or decline. You'll be notified of their response.
+                        </div>
+                    </div>
+                    
+                    <!-- My Requests History -->
+                    <div style="margin-top: 1.5rem;">
+                        <h4 style="margin-bottom: 1rem;">Request History</h4>
+                        <div id="myManagementRequests">
+                            <p style="color: var(--text-secondary); font-size: 0.9rem;">No previous requests</p>
                         </div>
                     </div>
                 </div>
@@ -10835,7 +10954,18 @@ Local honey and preserves"></textarea>
             
             // Master admin sees everything
             if (currentAccount.role === 'master_admin') {
+                // Master admin sees everything including agency management requests
+                document.querySelectorAll('.agency-only').forEach(el => {
+                    el.style.display = 'flex';
+                });
                 return;
+            }
+            
+            // Agency Admin: show management requests
+            if (currentAccount.role === 'agency_admin') {
+                document.querySelectorAll('.agency-only').forEach(el => {
+                    el.style.display = 'flex';
+                });
             }
             
             // Non-master admins: auto-filter to their own account
@@ -11200,6 +11330,7 @@ Local honey and preserves"></textarea>
             // Load data for specific views
             if (viewName === 'dashboard') loadDashboard();
             if (viewName === 'my-account') loadMyAccount();
+            if (viewName === 'management-requests') loadManagementRequests();
             if (viewName === 'accounts') loadAccounts();
             if (viewName === 'agencies') loadAgencies();
             if (viewName === 'clients') loadClients();
@@ -11768,10 +11899,222 @@ Local honey and preserves"></textarea>
                     } else {
                         document.getElementById('createMasterAdminSection').style.display = 'none';
                     }
+                    
+                    // Show agency management section for Admin and SubMaster
+                    if (account.role === 'admin' || account.role === 'submaster_admin') {
+                        document.getElementById('agencyManagementSection').style.display = 'block';
+                        loadAgencyManagementStatus(account);
+                    } else {
+                        document.getElementById('agencyManagementSection').style.display = 'none';
+                    }
                 }
             } catch (error) {
                 console.error('Error loading my account:', error);
                 showNotification('Error loading account details', 'error');
+            }
+        }
+        
+        // Load agency management status and available agencies
+        async function loadAgencyManagementStatus(account) {
+            try {
+                // Load available agencies for the dropdown
+                const agenciesRes = await fetch('/api/agencies/available', { headers: authHeaders() });
+                const agenciesData = await agenciesRes.json();
+                
+                const agencySelect = document.getElementById('agencySelect');
+                agencySelect.innerHTML = '<option value="">Choose an agency...</option>';
+                
+                if (agenciesData.success && agenciesData.agencies) {
+                    agenciesData.agencies.forEach(agency => {
+                        const option = document.createElement('option');
+                        option.value = agency.id;
+                        option.textContent = agency.business_name || agency.name;
+                        agencySelect.appendChild(option);
+                    });
+                }
+                
+                // Check current management status
+                if (account.managed_by_id) {
+                    // Currently managed by an agency
+                    const managingAgency = agenciesData.agencies?.find(a => a.id === account.managed_by_id);
+                    document.getElementById('managementStatusIcon').textContent = '🏢';
+                    document.getElementById('managementStatusIcon').style.background = '#dbeafe';
+                    document.getElementById('managementStatusTitle').textContent = 'Managed by Agency';
+                    document.getElementById('managementStatusDesc').textContent = `Your account is managed by ${managingAgency?.business_name || managingAgency?.name || 'an agency'}`;
+                    document.getElementById('removeManagementBtn').style.display = 'block';
+                    document.getElementById('selectAgencyForm').style.display = 'none';
+                    document.getElementById('pendingRequestBanner').style.display = 'none';
+                } else {
+                    // Self-managed - check for pending requests
+                    const requestsRes = await fetch(`/api/management-requests?account_id=${account.id}&role=requester`, { headers: authHeaders() });
+                    const requestsData = await requestsRes.json();
+                    
+                    const pendingRequest = requestsData.requests?.find(r => r.status === 'pending');
+                    
+                    if (pendingRequest) {
+                        document.getElementById('pendingRequestBanner').style.display = 'block';
+                        document.getElementById('pendingRequestAgency').textContent = `Awaiting response from ${pendingRequest.agency_business || pendingRequest.agency_name}`;
+                        document.getElementById('selectAgencyForm').style.display = 'none';
+                        
+                        // Store pending request ID for cancellation
+                        document.getElementById('pendingRequestBanner').dataset.requestId = pendingRequest.id;
+                    } else {
+                        document.getElementById('pendingRequestBanner').style.display = 'none';
+                        document.getElementById('selectAgencyForm').style.display = 'block';
+                    }
+                    
+                    document.getElementById('managementStatusIcon').textContent = '👤';
+                    document.getElementById('managementStatusIcon').style.background = '#e5e7eb';
+                    document.getElementById('managementStatusTitle').textContent = 'Self-Managed';
+                    document.getElementById('managementStatusDesc').textContent = 'You are managing your own account';
+                    document.getElementById('removeManagementBtn').style.display = 'none';
+                    
+                    // Show request history
+                    renderMyManagementRequests(requestsData.requests || []);
+                }
+            } catch (error) {
+                console.error('Error loading agency management status:', error);
+            }
+        }
+        
+        function renderMyManagementRequests(requests) {
+            const container = document.getElementById('myManagementRequests');
+            
+            if (!requests || requests.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary); font-size: 0.9rem;">No previous requests</p>';
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Agency</th>
+                                <th>Status</th>
+                                <th>Requested</th>
+                                <th>Response</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${requests.map(req => `
+                                <tr>
+                                    <td><strong>${req.agency_business || req.agency_name}</strong></td>
+                                    <td>${getRequestStatusBadge(req.status)}</td>
+                                    <td>${new Date(req.requested_at).toLocaleDateString()}</td>
+                                    <td>${req.response_message || '-'}</td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function getRequestStatusBadge(status) {
+            const badges = {
+                'pending': '<span class="badge" style="background: #fef3c7; color: #92400e;">⏳ Pending</span>',
+                'approved': '<span class="badge badge-success">✅ Approved</span>',
+                'rejected': '<span class="badge" style="background: #fee2e2; color: #dc2626;">❌ Rejected</span>',
+                'cancelled': '<span class="badge badge-secondary">Cancelled</span>'
+            };
+            return badges[status] || status;
+        }
+        
+        async function requestAgencyManagement() {
+            const agencyId = document.getElementById('agencySelect').value;
+            
+            if (!agencyId) {
+                showNotification('Please select an agency', 'error');
+                return;
+            }
+            
+            try {
+                // Get current account ID
+                const meRes = await fetch('/api/accounts/me', { headers: authHeaders() });
+                const meData = await meRes.json();
+                
+                if (!meData.success) {
+                    showNotification('Could not verify account', 'error');
+                    return;
+                }
+                
+                const response = await fetch('/api/management-requests', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        requesting_account_id: meData.account.id,
+                        agency_id: parseInt(agencyId),
+                        message: 'Request to manage my account'
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Request sent successfully', 'success');
+                    loadMyAccount(); // Refresh the view
+                } else {
+                    showNotification(data.error || 'Error sending request', 'error');
+                }
+            } catch (error) {
+                console.error('Error requesting management:', error);
+                showNotification('Error sending request', 'error');
+            }
+        }
+        
+        async function cancelManagementRequest() {
+            const requestId = document.getElementById('pendingRequestBanner').dataset.requestId;
+            
+            if (!requestId) {
+                showNotification('No pending request found', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/management-requests/${requestId}/respond`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status: 'cancelled' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Request cancelled', 'success');
+                    loadMyAccount();
+                } else {
+                    showNotification(data.error || 'Error cancelling request', 'error');
+                }
+            } catch (error) {
+                showNotification('Error cancelling request', 'error');
+            }
+        }
+        
+        async function removeAgencyManagement() {
+            if (!confirm('Are you sure you want to remove agency management? You will manage your own account again.')) {
+                return;
+            }
+            
+            try {
+                const meRes = await fetch('/api/accounts/me', { headers: authHeaders() });
+                const meData = await meRes.json();
+                
+                const response = await fetch(`/api/accounts/${meData.account.id}/remove-management`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Now self-managed', 'success');
+                    loadMyAccount();
+                } else {
+                    showNotification(data.error || 'Error removing management', 'error');
+                }
+            } catch (error) {
+                showNotification('Error removing management', 'error');
             }
         }
         
@@ -11780,7 +12123,8 @@ Local honey and preserves"></textarea>
                 'master_admin': '👑 Master Admin',
                 'agency_admin': '🏢 Agency Admin',
                 'submaster_admin': '📁 Sub Master',
-                'admin': '👤 Admin'
+                'admin': '👤 Admin',
+                'travel_agent': '✈️ Travel Agent'
             };
             return roles[role] || role;
         }
@@ -11966,6 +12310,172 @@ Local honey and preserves"></textarea>
         }
         
         // =====================================================
+        // MANAGEMENT REQUESTS FUNCTIONS (Agency View)
+        // =====================================================
+        
+        let allManagementRequests = [];
+        let currentRequestFilter = 'pending';
+        
+        async function loadManagementRequests() {
+            try {
+                // Get current account
+                const meRes = await fetch('/api/accounts/me', { headers: authHeaders() });
+                const meData = await meRes.json();
+                
+                if (!meData.success || meData.account.role !== 'agency_admin') {
+                    document.getElementById('managementRequestsList').innerHTML = 
+                        '<p style="text-align: center; padding: 2rem; color: var(--text-secondary);">Only Agency Admins can view management requests</p>';
+                    return;
+                }
+                
+                // Load requests for this agency
+                const response = await fetch(`/api/management-requests?account_id=${meData.account.id}&role=agency`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    allManagementRequests = data.requests || [];
+                    
+                    // Update stats
+                    const pending = allManagementRequests.filter(r => r.status === 'pending');
+                    const approved = allManagementRequests.filter(r => r.status === 'approved');
+                    
+                    document.getElementById('stat-pending-requests').textContent = pending.length;
+                    document.getElementById('stat-managed-accounts').textContent = approved.length;
+                    
+                    // Calculate properties under management
+                    const totalProperties = approved.reduce((sum, r) => sum + (r.property_count || 0), 0);
+                    document.getElementById('stat-managed-properties').textContent = totalProperties;
+                    
+                    // Render filtered list
+                    filterManagementRequests(currentRequestFilter);
+                }
+            } catch (error) {
+                console.error('Error loading management requests:', error);
+                document.getElementById('managementRequestsList').innerHTML = 
+                    '<p style="text-align: center; padding: 2rem; color: var(--error);">Error loading requests</p>';
+            }
+        }
+        
+        function filterManagementRequests(status) {
+            currentRequestFilter = status;
+            
+            // Update button states
+            document.querySelectorAll('.request-filter').forEach(btn => {
+                if (btn.dataset.status === status) {
+                    btn.classList.remove('btn-secondary');
+                    btn.style.background = 'var(--accent)';
+                } else {
+                    btn.classList.add('btn-secondary');
+                    btn.style.background = '';
+                }
+            });
+            
+            // Filter requests
+            const filtered = status === 'all' 
+                ? allManagementRequests 
+                : allManagementRequests.filter(r => r.status === status);
+            
+            renderManagementRequests(filtered);
+        }
+        
+        function renderManagementRequests(requests) {
+            const container = document.getElementById('managementRequestsList');
+            
+            if (!requests || requests.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📭</div>
+                        <p>No ${currentRequestFilter === 'all' ? '' : currentRequestFilter} requests</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Account</th>
+                                <th>Properties</th>
+                                <th>Status</th>
+                                <th>Requested</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${requests.map(req => `
+                                <tr>
+                                    <td>
+                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                            <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                                ${(req.requester_name || 'U').charAt(0).toUpperCase()}
+                                            </div>
+                                            <div>
+                                                <div style="font-weight: 600;">${req.requester_business || req.requester_name}</div>
+                                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${req.requester_email}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <span style="font-weight: 600; font-size: 1.1rem;">${req.property_count || 0}</span>
+                                        <span style="color: var(--text-secondary); font-size: 0.85rem;"> properties</span>
+                                    </td>
+                                    <td>${getRequestStatusBadge(req.status)}</td>
+                                    <td>${new Date(req.requested_at).toLocaleDateString()}</td>
+                                    <td>
+                                        ${req.status === 'pending' ? `
+                                            <div style="display: flex; gap: 0.5rem;">
+                                                <button class="btn btn-small" onclick="respondToRequest(${req.id}, 'approved')" style="background: #10b981;">
+                                                    ✓ Approve
+                                                </button>
+                                                <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')">
+                                                    ✕ Decline
+                                                </button>
+                                            </div>
+                                        ` : `
+                                            <span style="color: var(--text-secondary); font-size: 0.85rem;">
+                                                ${req.responded_at ? new Date(req.responded_at).toLocaleDateString() : '-'}
+                                            </span>
+                                        `}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        async function respondToRequest(requestId, status) {
+            const action = status === 'approved' ? 'approve' : 'decline';
+            
+            if (!confirm(`Are you sure you want to ${action} this request?`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/management-requests/${requestId}/respond`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Request ${status}`, 'success');
+                    loadManagementRequests(); // Refresh
+                } else {
+                    showNotification(data.error || 'Error responding to request', 'error');
+                }
+            } catch (error) {
+                console.error('Error responding to request:', error);
+                showNotification('Error responding to request', 'error');
+            }
+        }
+        
+        // =====================================================
         // ACCOUNTS MANAGEMENT FUNCTIONS
         // =====================================================
         
@@ -11975,7 +12485,14 @@ Local honey and preserves"></textarea>
         async function loadAccounts() {
             const container = document.getElementById('accounts-list');
             try {
-                const response = await fetch('/api/admin/accounts');
+                // Build query params based on current filter
+                let queryParams = [];
+                if (selectedAccountId) {
+                    queryParams.push(`account_id=${selectedAccountId}`);
+                }
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+                
+                const response = await fetch(`/api/admin/accounts${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success && data.accounts) {
@@ -12063,6 +12580,7 @@ Local honey and preserves"></textarea>
                                 <th>Account</th>
                                 <th>Code</th>
                                 <th>Role</th>
+                                <th>Managed By</th>
                                 <th>Stripe</th>
                                 <th>Plan</th>
                                 <th>Properties</th>
@@ -12092,6 +12610,17 @@ Local honey and preserves"></textarea>
                                     </td>
                                     <td>${getRoleBadge(account.role)}</td>
                                     <td>
+                                        ${account.role === 'admin' || account.role === 'submaster_admin' 
+                                            ? (account.managed_by_name 
+                                                ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <span class="badge" style="background: #dbeafe; color: #1e40af;">🏢 ${account.managed_by_name}</span>
+                                                    <button class="btn btn-secondary btn-small" onclick="removeAccountManagement(${account.id}, '${account.name}')" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; color: #dc2626;" title="Remove agency">✕</button>
+                                                   </div>`
+                                                : `<button class="btn btn-secondary btn-small" onclick="openAssignAgencyModal(${account.id}, \`${account.name.replace(/\`/g, "'")}\`)" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">+ Assign</button>`)
+                                            : `<span style="color: var(--text-muted); font-size: 0.8rem;">—</span>`
+                                        }
+                                    </td>
+                                    <td>
                                         ${account.stripe_account_id 
                                             ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
                                                 <span class="badge badge-success">✓ Connected</span>
@@ -12118,6 +12647,7 @@ Local honey and preserves"></textarea>
                                             ${account.role !== 'master_admin' ? `
                                                 <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', \`${account.name.replace(/`/g, "'")}\`)">Role</button>
                                             ` : ''}
+                                            <button class="btn btn-secondary btn-small" onclick="resetAccountPassword(${account.id}, '${account.email}')" title="Reset password">🔑</button>
                                         </div>
                                     </td>
                                 </tr>
@@ -12479,6 +13009,124 @@ Local honey and preserves"></textarea>
                 if (result.success) {
                     closeModal('changeRoleModal');
                     loadAccounts();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        // =====================================================
+        // AGENCY ASSIGNMENT (Master Admin)
+        // =====================================================
+        
+        async function openAssignAgencyModal(accountId, accountName) {
+            // Load available agencies
+            const response = await fetch('/api/agencies/available', { headers: authHeaders() });
+            const data = await response.json();
+            
+            if (!data.success || !data.agencies || data.agencies.length === 0) {
+                alert('No agencies available. Create an Agency Admin account first.');
+                return;
+            }
+            
+            const options = data.agencies.map(a => 
+                `<option value="${a.id}">${a.business_name || a.name}</option>`
+            ).join('');
+            
+            const modalHtml = `
+                <div class="modal-overlay" id="assignAgencyModal" style="display: flex;">
+                    <div class="modal" style="max-width: 450px;">
+                        <div class="modal-header">
+                            <h3>🏢 Assign Agency</h3>
+                            <button class="modal-close" onclick="closeModal('assignAgencyModal')">&times;</button>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <p style="margin-bottom: 1rem;">Assign an agency to manage <strong>${accountName}</strong>:</p>
+                            <select id="agencySelectModal" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
+                                <option value="">Select agency...</option>
+                                ${options}
+                            </select>
+                            <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
+                                ℹ️ The agency will be able to view and manage this account's properties and bookings.
+                            </div>
+                            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                                <button class="btn btn-secondary" onclick="closeModal('assignAgencyModal')" style="flex: 1;">Cancel</button>
+                                <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">Assign</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        async function saveAgencyAssignment(accountId) {
+            const agencyId = document.getElementById('agencySelectModal').value;
+            
+            if (!agencyId) {
+                alert('Please select an agency');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/accounts/${accountId}/assign-agency`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ agency_id: parseInt(agencyId) })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    closeModal('assignAgencyModal');
+                    showNotification('Agency assigned successfully', 'success');
+                    loadAccounts();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        async function removeAccountManagement(accountId, accountName) {
+            if (!confirm(`Remove agency management from "${accountName}"?\n\nThey will become self-managed.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/remove-management`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Management removed', 'success');
+                    loadAccounts();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+            }
+        }
+        
+        async function resetAccountPassword(accountId, email) {
+            if (!confirm(`Reset password for ${email}?\n\nThis will clear their password and they'll need to use "Set Password" to create a new one.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/reset-password/${encodeURIComponent(email)}`, {
+                    headers: authHeaders()
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Password reset. User can now set a new password.', 'success');
                 } else {
                     alert('Error: ' + result.error);
                 }
