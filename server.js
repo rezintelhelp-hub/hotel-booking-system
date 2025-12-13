@@ -1895,10 +1895,12 @@ app.get('/api/admin/accounts', async (req, res) => {
         SELECT 
           a.*,
           p.name as parent_name,
+          m.name as managed_by_name,
           (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
           (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
         FROM accounts a
         LEFT JOIN accounts p ON a.parent_id = p.id
+        LEFT JOIN accounts m ON a.managed_by_id = m.id
         ORDER BY 
           CASE a.role 
             WHEN 'master_admin' THEN 1 
@@ -1923,10 +1925,12 @@ app.get('/api/admin/accounts', async (req, res) => {
           SELECT 
             a.*,
             p.name as parent_name,
+            m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
             (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
+          LEFT JOIN accounts m ON a.managed_by_id = m.id
           ORDER BY a.name
         `);
       } else if (viewerRole === 'agency_admin' || viewerRole === 'submaster_admin') {
@@ -1941,10 +1945,12 @@ app.get('/api/admin/accounts', async (req, res) => {
           SELECT 
             a.*,
             p.name as parent_name,
+            m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
             (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
+          LEFT JOIN accounts m ON a.managed_by_id = m.id
           WHERE a.id IN (SELECT id FROM account_tree)
           ORDER BY 
             CASE a.role 
@@ -1961,10 +1967,12 @@ app.get('/api/admin/accounts', async (req, res) => {
           SELECT 
             a.*,
             p.name as parent_name,
+            m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
             (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
+          LEFT JOIN accounts m ON a.managed_by_id = m.id
           WHERE a.id = $1
         `, [filterAccountId]);
       }
@@ -1974,10 +1982,12 @@ app.get('/api/admin/accounts', async (req, res) => {
         SELECT 
           a.*,
           p.name as parent_name,
+          m.name as managed_by_name,
           (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
           (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
         FROM accounts a
         LEFT JOIN accounts p ON a.parent_id = p.id
+        LEFT JOIN accounts m ON a.managed_by_id = m.id
         ORDER BY a.name
       `);
     }
@@ -2208,6 +2218,33 @@ app.post('/api/accounts/:id/remove-management', async (req, res) => {
     `, [id]);
     
     res.json({ success: true, message: 'Now self-managed' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Assign agency to an account (Master Admin)
+app.post('/api/admin/accounts/:id/assign-agency', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { agency_id } = req.body;
+    
+    if (!agency_id) {
+      return res.json({ success: false, error: 'agency_id required' });
+    }
+    
+    // Verify agency exists and has agency_admin role
+    const agency = await pool.query('SELECT id, role FROM accounts WHERE id = $1', [agency_id]);
+    if (agency.rows.length === 0 || agency.rows[0].role !== 'agency_admin') {
+      return res.json({ success: false, error: 'Invalid agency' });
+    }
+    
+    await pool.query(`
+      UPDATE accounts SET managed_by_id = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [agency_id, id]);
+    
+    res.json({ success: true, message: 'Agency assigned' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
