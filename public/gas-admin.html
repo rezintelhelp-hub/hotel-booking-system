@@ -11801,11 +11801,17 @@ Local honey and preserves"></textarea>
                     return;
                 }
                 
-                // Determine owner type
-                let ownerType = 'account';
-                if (currentAccount?.role === 'agency_admin') ownerType = 'agency';
+                // For master_admin, show all websites if no account selected
+                let apiUrl;
+                if (currentAccount?.role === 'master_admin' && !selectedAccountId) {
+                    apiUrl = `/api/websites?all=true`;
+                } else {
+                    let ownerType = 'account';
+                    if (currentAccount?.role === 'agency_admin') ownerType = 'agency';
+                    apiUrl = `/api/websites?owner_type=${ownerType}&owner_id=${accountId}`;
+                }
                 
-                const response = await fetch(`/api/websites?owner_type=${ownerType}&owner_id=${accountId}`, {
+                const response = await fetch(apiUrl, {
                     headers: authHeaders()
                 });
                 const data = await response.json();
@@ -11849,6 +11855,7 @@ Local honey and preserves"></textarea>
                             </div>
                             <div>
                                 <div style="font-weight: 600; font-size: 1.1rem;">${website.name}</div>
+                                ${website.account_name ? `<div style="font-size: 0.8rem; color: var(--accent);">👤 ${website.account_name}</div>` : ''}
                                 <div style="font-size: 0.85rem; color: var(--text-secondary);">
                                     ${website.site_url ? `<a href="${website.site_url}" target="_blank" style="color: var(--accent);">${website.site_url}</a>` : '<span style="color: #f59e0b;">Not deployed</span>'}
                                 </div>
