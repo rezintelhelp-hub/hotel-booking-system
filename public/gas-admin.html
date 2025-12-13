@@ -16844,8 +16844,10 @@ Local honey and preserves"></textarea>
         function closeModal(modalId) {
             const modal = document.getElementById(modalId);
             if (modal) {
-                // For dynamically created modals, remove them
-                if (modal.classList.contains('active')) {
+                // List of dynamically created modals that should be removed
+                const dynamicModals = ['assignAgencyModal', 'changeRoleModal'];
+                
+                if (dynamicModals.includes(modalId)) {
                     modal.remove();
                 } else {
                     modal.classList.remove('active');
