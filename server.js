@@ -1080,12 +1080,21 @@ app.get('/api/setup-accounts', async (req, res) => {
         response_message TEXT,
         requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         responded_at TIMESTAMP,
-        CONSTRAINT valid_mgmt_status CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled'))
+        CONSTRAINT valid_mgmt_status CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+        CONSTRAINT unique_mgmt_request UNIQUE (requesting_account_id, agency_id)
       )
     `);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_requester ON management_requests(requesting_account_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_agency ON management_requests(agency_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_status ON management_requests(status)`);
+    // Add unique constraint if not exists (for existing databases)
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE management_requests ADD CONSTRAINT unique_mgmt_request UNIQUE (requesting_account_id, agency_id);
+      EXCEPTION WHEN duplicate_table THEN
+        NULL;
+      END $$
+    `).catch(() => {});
     
     // Distribution access table (Property ↔ Travel Agent relationship)
     await pool.query(`
@@ -2341,8 +2350,9 @@ app.post('/api/admin/accounts/:id/assign-agency', async (req, res) => {
     await pool.query(`
       INSERT INTO management_requests (requesting_account_id, agency_id, status, message, responded_at)
       VALUES ($1, $2, 'approved', 'Assigned by Master Admin', NOW())
-      ON CONFLICT DO NOTHING
-    `, [id, agency_id]).catch(() => {}); // Ignore if table doesn't exist yet
+      ON CONFLICT (requesting_account_id, agency_id) 
+      DO UPDATE SET status = 'approved', message = 'Assigned by Master Admin', responded_at = NOW()
+    `, [id, agency_id]).catch(e => console.log('Management request insert:', e.message));
     
     res.json({ success: true, message: 'Agency assigned' });
   } catch (error) {
@@ -7403,7 +7413,22 @@ app.get('/api/db/properties', async (req, res) => {
     let result;
     
     if (accountId) {
-      result = await pool.query('SELECT * FROM properties WHERE account_id = $1 ORDER BY created_at DESC', [accountId]);
+      // Check if this account is an agency_admin
+      const accountCheck = await pool.query('SELECT role FROM accounts WHERE id = $1', [accountId]);
+      const isAgency = accountCheck.rows.length > 0 && accountCheck.rows[0].role === 'agency_admin';
+      
+      if (isAgency) {
+        // For agencies, get properties from accounts they manage
+        result = await pool.query(`
+          SELECT p.* FROM properties p
+          JOIN accounts a ON p.account_id = a.id
+          WHERE a.managed_by_id = $1
+          ORDER BY p.created_at DESC
+        `, [accountId]);
+      } else {
+        // For regular accounts, get their own properties
+        result = await pool.query('SELECT * FROM properties WHERE account_id = $1 ORDER BY created_at DESC', [accountId]);
+      }
     } else if (clientId) {
       result = await pool.query('SELECT * FROM properties WHERE client_id = $1 ORDER BY created_at DESC', [clientId]);
     } else {
