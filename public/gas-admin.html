@@ -12986,14 +12986,18 @@ Local honey and preserves"></textarea>
                 `<option value="${r}" ${r === currentRole ? 'selected' : ''}>${roleLabels[r]}</option>`
             ).join('');
             
+            // Remove existing modal if any
+            const existingModal = document.getElementById('changeRoleModal');
+            if (existingModal) existingModal.remove();
+            
             const modalHtml = `
-                <div class="modal-overlay" id="changeRoleModal" style="display: flex;">
-                    <div class="modal" style="max-width: 400px;">
+                <div class="modal active" id="changeRoleModal">
+                    <div class="modal-content" style="max-width: 400px;">
                         <div class="modal-header">
-                            <h3>Change Role</h3>
+                            <h3 class="modal-title">Change Role</h3>
                             <button class="modal-close" onclick="closeModal('changeRoleModal')">&times;</button>
                         </div>
-                        <div style="padding: 1.5rem;">
+                        <div style="padding: 0.5rem 0;">
                             <p style="margin-bottom: 1rem;">Change role for <strong>${accountName}</strong>:</p>
                             <select id="newRoleSelect" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
                                 ${options}
@@ -13045,7 +13049,12 @@ Local honey and preserves"></textarea>
                 
                 console.log('Available agencies:', data);
                 
-                if (!data.success || !data.agencies || data.agencies.length === 0) {
+                if (!data.success) {
+                    alert('Error loading agencies: ' + data.error);
+                    return;
+                }
+                
+                if (!data.agencies || data.agencies.length === 0) {
                     alert('No agencies available. Create an Agency Admin account first.');
                     return;
                 }
@@ -13054,14 +13063,18 @@ Local honey and preserves"></textarea>
                     `<option value="${a.id}">${a.business_name || a.name}</option>`
                 ).join('');
                 
+                // Remove existing modal if any
+                const existingModal = document.getElementById('assignAgencyModal');
+                if (existingModal) existingModal.remove();
+                
                 const modalHtml = `
-                    <div class="modal-overlay" id="assignAgencyModal" style="display: flex;">
-                        <div class="modal" style="max-width: 450px;">
+                    <div class="modal active" id="assignAgencyModal">
+                        <div class="modal-content" style="max-width: 450px;">
                             <div class="modal-header">
-                                <h3>🏢 Assign Agency</h3>
+                                <h3 class="modal-title">🏢 Assign Agency</h3>
                                 <button class="modal-close" onclick="closeModal('assignAgencyModal')">&times;</button>
                             </div>
-                            <div style="padding: 1.5rem;">
+                            <div style="padding: 0.5rem 0;">
                                 <p style="margin-bottom: 1rem;">Assign an agency to manage <strong>${accountName}</strong>:</p>
                                 <select id="agencySelectModal" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
                                     <option value="">Select agency...</option>
@@ -16762,7 +16775,15 @@ Local honey and preserves"></textarea>
         }
 
         function closeModal(modalId) {
-            document.getElementById(modalId).classList.remove('active');
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                // For dynamically created modals, remove them
+                if (modal.classList.contains('active')) {
+                    modal.remove();
+                } else {
+                    modal.classList.remove('active');
+                }
+            }
         }
 
         let allAmenitiesData = [];
