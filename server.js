@@ -1405,6 +1405,41 @@ app.get('/api/admin/reset-password/:email', async (req, res) => {
   }
 });
 
+// Set password for account (Master Admin only)
+app.post('/api/admin/set-password', async (req, res) => {
+  try {
+    const { account_id, password } = req.body;
+    
+    if (!account_id || !password) {
+      return res.json({ success: false, error: 'Account ID and password required' });
+    }
+    
+    if (password.length < 8) {
+      return res.json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    
+    // Hash password
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    
+    const result = await pool.query(
+      'UPDATE accounts SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, email',
+      [passwordHash, account_id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Password set for ${result.rows[0].name}`,
+      account: result.rows[0]
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Set password for account (for accounts without password)
 app.post('/api/accounts/set-password', async (req, res) => {
   try {
