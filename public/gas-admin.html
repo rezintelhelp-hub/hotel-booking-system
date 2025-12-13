@@ -12444,9 +12444,10 @@ Local honey and preserves"></textarea>
         
         async function loadManagementRequests() {
             try {
-                // Use selectedAccountId if viewing as another account, otherwise use logged-in user
+                // Determine the viewing context
                 let accountId = selectedAccountId;
                 let accountRole = null;
+                let viewMode = 'agency'; // 'agency' = requests TO this account, 'requester' = requests FROM this account
                 
                 if (selectedAccountId) {
                     // Get the selected account's role
@@ -12465,15 +12466,23 @@ Local honey and preserves"></textarea>
                     }
                 }
                 
-                // Master admin can also view this page
-                if (accountRole !== 'agency_admin' && accountRole !== 'master_admin') {
-                    document.getElementById('managementRequestsList').innerHTML = 
-                        '<p style="text-align: center; padding: 2rem; color: var(--text-secondary);">Only Agency Admins can view management requests</p>';
-                    return;
+                // Determine view mode based on role
+                if (accountRole === 'agency_admin') {
+                    viewMode = 'agency'; // Agency sees requests TO them
+                } else if (accountRole === 'admin' || accountRole === 'submaster_admin') {
+                    viewMode = 'requester'; // Admin sees their own requests TO agencies
+                } else if (accountRole === 'master_admin' && !selectedAccountId) {
+                    viewMode = 'all'; // Master admin with no filter sees ALL requests
                 }
                 
-                // Load requests for this agency
-                const response = await fetch(`/api/management-requests?account_id=${accountId}&role=agency`, { headers: authHeaders() });
+                // Load requests based on view mode
+                let response;
+                if (viewMode === 'all') {
+                    response = await fetch(`/api/management-requests?all=true`, { headers: authHeaders() });
+                } else {
+                    response = await fetch(`/api/management-requests?account_id=${accountId}&role=${viewMode}`, { headers: authHeaders() });
+                }
+                
                 const data = await response.json();
                 
                 if (data.success) {
@@ -12489,6 +12498,9 @@ Local honey and preserves"></textarea>
                     // Calculate properties under management
                     const totalProperties = approved.reduce((sum, r) => sum + (r.property_count || 0), 0);
                     document.getElementById('stat-managed-properties').textContent = totalProperties;
+                    
+                    // Store view mode for rendering
+                    window.managementRequestsViewMode = viewMode;
                     
                     // Render filtered list
                     filterManagementRequests(currentRequestFilter);
@@ -12524,6 +12536,7 @@ Local honey and preserves"></textarea>
         
         function renderManagementRequests(requests) {
             const container = document.getElementById('managementRequestsList');
+            const viewMode = window.managementRequestsViewMode || 'agency';
             
             if (!requests || requests.length === 0) {
                 container.innerHTML = `
@@ -12535,56 +12548,118 @@ Local honey and preserves"></textarea>
                 return;
             }
             
+            // Build table headers based on view mode
+            let headers = '';
+            if (viewMode === 'all') {
+                headers = '<th>Account</th><th>Agency</th><th>Properties</th><th>Status</th><th>Requested</th><th>Actions</th>';
+            } else if (viewMode === 'requester') {
+                headers = '<th>Agency</th><th>Status</th><th>Requested</th><th>Response</th>';
+            } else {
+                headers = '<th>Account</th><th>Properties</th><th>Status</th><th>Requested</th><th>Actions</th>';
+            }
+            
             container.innerHTML = `
                 <div class="table-container">
                     <table>
                         <thead>
-                            <tr>
-                                <th>Account</th>
-                                <th>Properties</th>
-                                <th>Status</th>
-                                <th>Requested</th>
-                                <th>Actions</th>
-                            </tr>
+                            <tr>${headers}</tr>
                         </thead>
                         <tbody>
-                            ${requests.map(req => `
-                                <tr>
-                                    <td>
-                                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                            <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600;">
-                                                ${(req.requester_name || 'U').charAt(0).toUpperCase()}
-                                            </div>
-                                            <div>
-                                                <div style="font-weight: 600;">${req.requester_business || req.requester_name}</div>
-                                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${req.requester_email}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <span style="font-weight: 600; font-size: 1.1rem;">${req.property_count || 0}</span>
-                                        <span style="color: var(--text-secondary); font-size: 0.85rem;"> properties</span>
-                                    </td>
-                                    <td>${getRequestStatusBadge(req.status)}</td>
-                                    <td>${new Date(req.requested_at).toLocaleDateString()}</td>
-                                    <td>
-                                        ${req.status === 'pending' ? `
-                                            <div style="display: flex; gap: 0.5rem;">
-                                                <button class="btn btn-small" onclick="respondToRequest(${req.id}, 'approved')" style="background: #10b981;">
-                                                    ✓ Approve
-                                                </button>
-                                                <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')">
-                                                    ✕ Decline
-                                                </button>
-                                            </div>
-                                        ` : `
-                                            <span style="color: var(--text-secondary); font-size: 0.85rem;">
-                                                ${req.responded_at ? new Date(req.responded_at).toLocaleDateString() : '-'}
-                                            </span>
-                                        `}
-                                    </td>
-                                </tr>
-                            `).join('')}
+                            ${requests.map(req => {
+                                if (viewMode === 'all') {
+                                    // Master admin sees both account and agency
+                                    return `
+                                        <tr>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                                    <div style="width: 36px; height: 36px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem;">
+                                                        ${(req.requester_name || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <div style="font-weight: 600;">${req.requester_business || req.requester_name}</div>
+                                                        <div style="font-size: 0.75rem; color: var(--text-secondary);">${req.requester_email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <div style="font-weight: 500; color: #6366f1;">${req.agency_business || req.agency_name}</div>
+                                            </td>
+                                            <td><span style="font-weight: 600;">${req.property_count || 0}</span></td>
+                                            <td>${getRequestStatusBadge(req.status)}</td>
+                                            <td>${new Date(req.requested_at).toLocaleDateString()}</td>
+                                            <td>
+                                                ${req.status === 'pending' ? `
+                                                    <div style="display: flex; gap: 0.5rem;">
+                                                        <button class="btn btn-small" onclick="respondToRequest(${req.id}, 'approved')" style="background: #10b981;">✓</button>
+                                                        <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')">✕</button>
+                                                    </div>
+                                                ` : '-'}
+                                            </td>
+                                        </tr>
+                                    `;
+                                } else if (viewMode === 'requester') {
+                                    // Admin sees their requests TO agencies
+                                    return `
+                                        <tr>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                                    <div style="width: 36px; height: 36px; border-radius: 50%; background: #6366f1; color: white; display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem;">
+                                                        🏢
+                                                    </div>
+                                                    <div>
+                                                        <div style="font-weight: 600;">${req.agency_business || req.agency_name}</div>
+                                                        <div style="font-size: 0.75rem; color: var(--text-secondary);">${req.agency_email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>${getRequestStatusBadge(req.status)}</td>
+                                            <td>${new Date(req.requested_at).toLocaleDateString()}</td>
+                                            <td style="color: var(--text-secondary); font-size: 0.85rem;">
+                                                ${req.response_message || '-'}
+                                            </td>
+                                        </tr>
+                                    `;
+                                } else {
+                                    // Agency sees requests FROM accounts
+                                    return `
+                                        <tr>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                                    <div style="width: 40px; height: 40px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600;">
+                                                        ${(req.requester_name || 'U').charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <div>
+                                                        <div style="font-weight: 600;">${req.requester_business || req.requester_name}</div>
+                                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">${req.requester_email}</div>
+                                                    </div>
+                                                </div>
+                                            </td>
+                                            <td>
+                                                <span style="font-weight: 600; font-size: 1.1rem;">${req.property_count || 0}</span>
+                                                <span style="color: var(--text-secondary); font-size: 0.85rem;"> properties</span>
+                                            </td>
+                                            <td>${getRequestStatusBadge(req.status)}</td>
+                                            <td>${new Date(req.requested_at).toLocaleDateString()}</td>
+                                            <td>
+                                                ${req.status === 'pending' ? `
+                                                    <div style="display: flex; gap: 0.5rem;">
+                                                        <button class="btn btn-small" onclick="respondToRequest(${req.id}, 'approved')" style="background: #10b981;">
+                                                            ✓ Approve
+                                                        </button>
+                                                        <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')">
+                                                            ✕ Decline
+                                                        </button>
+                                                    </div>
+                                                ` : `
+                                                    <span style="color: var(--text-secondary); font-size: 0.85rem;">
+                                                        ${req.responded_at ? new Date(req.responded_at).toLocaleDateString() : '-'}
+                                                    </span>
+                                                `}
+                                            </td>
+                                        </tr>
+                                    `;
+                                }
+                            }).join('')}
                         </tbody>
                     </table>
                 </div>
