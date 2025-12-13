@@ -1096,6 +1096,18 @@ app.get('/api/setup-accounts', async (req, res) => {
       END $$
     `).catch(() => {});
     
+    // Fix orphaned approved requests - if account is self-managed, cancel any approved requests
+    await pool.query(`
+      UPDATE management_requests mr
+      SET status = 'cancelled', response_message = 'Management removed (data cleanup)', responded_at = NOW()
+      WHERE mr.status = 'approved' 
+        AND NOT EXISTS (
+          SELECT 1 FROM accounts a 
+          WHERE a.id = mr.requesting_account_id 
+            AND a.managed_by_id = mr.agency_id
+        )
+    `).catch(() => {});
+    
     // Distribution access table (Property ↔ Travel Agent relationship)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS distribution_access (
@@ -2249,14 +2261,26 @@ app.post('/api/management-requests', async (req, res) => {
       return res.json({ success: false, error: 'Invalid agency' });
     }
     
-    // Check if already has pending request or is already managed
+    // Check if already has pending request
     const existing = await pool.query(`
-      SELECT id FROM management_requests 
-      WHERE requesting_account_id = $1 AND agency_id = $2 AND status = 'pending'
+      SELECT id, status FROM management_requests 
+      WHERE requesting_account_id = $1 AND agency_id = $2
     `, [requesting_account_id, agency_id]);
     
     if (existing.rows.length > 0) {
-      return res.json({ success: false, error: 'A pending request already exists' });
+      const existingRequest = existing.rows[0];
+      if (existingRequest.status === 'pending') {
+        return res.json({ success: false, error: 'A pending request already exists' });
+      }
+      // Reset the existing request to pending (re-request)
+      const result = await pool.query(`
+        UPDATE management_requests 
+        SET status = 'pending', message = $1, response_message = NULL, 
+            requested_at = NOW(), responded_at = NULL
+        WHERE id = $2
+        RETURNING *
+      `, [message, existingRequest.id]);
+      return res.json({ success: true, request: result.rows[0] });
     }
     
     const result = await pool.query(`
@@ -2313,13 +2337,30 @@ app.post('/api/accounts/:id/remove-management', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Get current agency before removing
+    const current = await pool.query('SELECT managed_by_id FROM accounts WHERE id = $1', [id]);
+    const agencyId = current.rows[0]?.managed_by_id;
+    
+    console.log(`Removing management for account ${id}, current agency: ${agencyId}`);
+    
+    // Remove management
     await pool.query(`
       UPDATE accounts SET managed_by_id = NULL, updated_at = NOW()
       WHERE id = $1
     `, [id]);
     
+    // Mark ALL approved/pending requests from this account as cancelled
+    const updateResult = await pool.query(`
+      UPDATE management_requests 
+      SET status = 'cancelled', response_message = 'Management removed', responded_at = NOW()
+      WHERE requesting_account_id = $1 AND status IN ('approved', 'pending')
+    `, [id]);
+    
+    console.log(`Cancelled ${updateResult.rowCount} management requests`);
+    
     res.json({ success: true, message: 'Now self-managed' });
   } catch (error) {
+    console.error('Remove management error:', error);
     res.json({ success: false, error: error.message });
   }
 });
