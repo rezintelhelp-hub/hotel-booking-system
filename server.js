@@ -1041,6 +1041,78 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_api_key ON accounts(api_key)`);
     console.log('✅ Created accounts indexes');
 
+    // =========================================================
+    // MULTI-TENANT STRUCTURE - Agency Management & Distribution
+    // =========================================================
+    
+    // Update role constraint to include travel_agent
+    await pool.query(`
+      ALTER TABLE accounts DROP CONSTRAINT IF EXISTS valid_role;
+      ALTER TABLE accounts ADD CONSTRAINT valid_role 
+        CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin', 'travel_agent'));
+    `).catch(e => console.log('Role constraint update:', e.message));
+    
+    // Add managed_by_id to accounts (which agency manages this account)
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS managed_by_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_managed_by ON accounts(managed_by_id)`);
+    
+    // Add distribution settings to properties
+    // distribution_mode: 'open', 'request', 'private'
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS distribution_mode VARCHAR(20) DEFAULT 'private'`);
+    // owner_price: Base price owner wants per night
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_price DECIMAL(10,2)`);
+    // owner_account_id: Actual owner (vs manager)
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
+    
+    // Management requests table (Admin/SubMaster requesting Agency management)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS management_requests (
+        id SERIAL PRIMARY KEY,
+        requesting_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        agency_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        message TEXT,
+        response_message TEXT,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        responded_at TIMESTAMP,
+        CONSTRAINT valid_mgmt_status CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled'))
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_requester ON management_requests(requesting_account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_agency ON management_requests(agency_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_status ON management_requests(status)`);
+    
+    // Distribution access table (Property ↔ Travel Agent relationship)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS distribution_access (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        travel_agent_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        commission_percent DECIMAL(5,2) DEFAULT 0,
+        message TEXT,
+        response_message TEXT,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        approved_at TIMESTAMP,
+        CONSTRAINT valid_dist_status CHECK (status IN ('pending', 'approved', 'rejected', 'revoked')),
+        UNIQUE(property_id, travel_agent_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_property ON distribution_access(property_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_agent ON distribution_access(travel_agent_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_status ON distribution_access(status)`);
+    
+    // Add booking tracking for who sold it and revenue split
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sold_by_account_id INTEGER REFERENCES accounts(id)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS owner_amount DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS agent_amount DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(10,2)`);
+    
+    console.log('✅ Created multi-tenant structure (management_requests, distribution_access)');
+    // =========================================================
+    // END MULTI-TENANT STRUCTURE
+    // =========================================================
+
     // Add account_id to properties if not exists
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_properties_account ON properties(account_id)`);
@@ -1773,26 +1845,127 @@ app.get('/api/admin/accounts', async (req, res) => {
     // Ensure account_code column exists
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
     
-    const result = await pool.query(`
-      SELECT 
-        a.*,
-        p.name as parent_name,
-        (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-        (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
-      FROM accounts a
-      LEFT JOIN accounts p ON a.parent_id = p.id
-      ORDER BY 
-        CASE a.role 
-          WHEN 'master_admin' THEN 1 
-          WHEN 'agency_admin' THEN 2 
-          WHEN 'submaster_admin' THEN 3 
-          WHEN 'admin' THEN 4 
-        END,
-        a.name
-    `);
+    // Check if filtering by a specific account (when viewing as that account)
+    const viewingAccountId = req.query.account_id;
+    
+    // Also check who is making the request
+    let requestingAccount = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const session = await pool.query(`
+        SELECT a.id, a.role, a.parent_id
+        FROM account_sessions s
+        JOIN accounts a ON s.account_id = a.id
+        WHERE s.token = $1 AND s.expires_at > NOW()
+      `, [token]);
+      if (session.rows.length > 0) {
+        requestingAccount = session.rows[0];
+      }
+    }
+    
+    let result;
+    
+    // Determine which accounts to show based on context
+    const filterAccountId = viewingAccountId || (requestingAccount ? requestingAccount.id : null);
+    const filterRole = requestingAccount ? requestingAccount.role : null;
+    
+    if (filterRole === 'master_admin' && !viewingAccountId) {
+      // Master admin viewing all - show everything
+      result = await pool.query(`
+        SELECT 
+          a.*,
+          p.name as parent_name,
+          (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+        FROM accounts a
+        LEFT JOIN accounts p ON a.parent_id = p.id
+        ORDER BY 
+          CASE a.role 
+            WHEN 'master_admin' THEN 1 
+            WHEN 'agency_admin' THEN 2 
+            WHEN 'submaster_admin' THEN 3 
+            WHEN 'admin' THEN 4 
+          END,
+          a.name
+      `);
+    } else if (filterAccountId) {
+      // Get the viewing account's role
+      const viewingAccount = await pool.query('SELECT id, role FROM accounts WHERE id = $1', [filterAccountId]);
+      if (viewingAccount.rows.length === 0) {
+        return res.json({ success: true, accounts: [] });
+      }
+      
+      const viewerRole = viewingAccount.rows[0].role;
+      
+      if (viewerRole === 'master_admin') {
+        // Master admin can see all
+        result = await pool.query(`
+          SELECT 
+            a.*,
+            p.name as parent_name,
+            (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          FROM accounts a
+          LEFT JOIN accounts p ON a.parent_id = p.id
+          ORDER BY a.name
+        `);
+      } else if (viewerRole === 'agency_admin' || viewerRole === 'submaster_admin') {
+        // Show self + direct children + grandchildren (recursive)
+        result = await pool.query(`
+          WITH RECURSIVE account_tree AS (
+            SELECT id FROM accounts WHERE id = $1
+            UNION ALL
+            SELECT a.id FROM accounts a
+            JOIN account_tree t ON a.parent_id = t.id
+          )
+          SELECT 
+            a.*,
+            p.name as parent_name,
+            (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          FROM accounts a
+          LEFT JOIN accounts p ON a.parent_id = p.id
+          WHERE a.id IN (SELECT id FROM account_tree)
+          ORDER BY 
+            CASE a.role 
+              WHEN 'master_admin' THEN 1 
+              WHEN 'agency_admin' THEN 2 
+              WHEN 'submaster_admin' THEN 3 
+              WHEN 'admin' THEN 4 
+            END,
+            a.name
+        `, [filterAccountId]);
+      } else {
+        // Admin - only show themselves
+        result = await pool.query(`
+          SELECT 
+            a.*,
+            p.name as parent_name,
+            (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          FROM accounts a
+          LEFT JOIN accounts p ON a.parent_id = p.id
+          WHERE a.id = $1
+        `, [filterAccountId]);
+      }
+    } else {
+      // Fallback - return all (shouldn't normally reach here)
+      result = await pool.query(`
+        SELECT 
+          a.*,
+          p.name as parent_name,
+          (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+        FROM accounts a
+        LEFT JOIN accounts p ON a.parent_id = p.id
+        ORDER BY a.name
+      `);
+    }
     
     res.json({ success: true, accounts: result.rows });
   } catch (error) {
+    console.error('Accounts error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -1860,13 +2033,355 @@ app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
     const { id } = req.params;
     const { role } = req.body;
     
-    if (!['agency_admin', 'submaster_admin', 'admin'].includes(role)) {
+    if (!['agency_admin', 'submaster_admin', 'admin', 'travel_agent'].includes(role)) {
       return res.json({ success: false, error: 'Invalid role' });
     }
     
     await pool.query(`UPDATE accounts SET role = $1, updated_at = NOW() WHERE id = $2`, [role, id]);
     
     res.json({ success: true, message: 'Role updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// AGENCY MANAGEMENT REQUESTS
+// =====================================================
+
+// Get list of available agencies (for Admin/SubMaster to request management)
+app.get('/api/agencies/available', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, business_name, email, logo_url
+      FROM accounts 
+      WHERE role = 'agency_admin' AND status = 'active'
+      ORDER BY name
+    `);
+    res.json({ success: true, agencies: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get management requests for an account (as requester or agency)
+app.get('/api/management-requests', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    const role = req.query.role; // 'requester' or 'agency'
+    
+    if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    let query;
+    if (role === 'agency') {
+      // Agency viewing requests made TO them
+      query = await pool.query(`
+        SELECT mr.*, 
+               ra.name as requester_name, ra.email as requester_email, ra.business_name as requester_business,
+               (SELECT COUNT(*) FROM properties WHERE account_id = mr.requesting_account_id) as property_count
+        FROM management_requests mr
+        JOIN accounts ra ON mr.requesting_account_id = ra.id
+        WHERE mr.agency_id = $1
+        ORDER BY mr.requested_at DESC
+      `, [accountId]);
+    } else {
+      // Account viewing their own requests
+      query = await pool.query(`
+        SELECT mr.*, 
+               a.name as agency_name, a.email as agency_email, a.business_name as agency_business
+        FROM management_requests mr
+        JOIN accounts a ON mr.agency_id = a.id
+        WHERE mr.requesting_account_id = $1
+        ORDER BY mr.requested_at DESC
+      `, [accountId]);
+    }
+    
+    res.json({ success: true, requests: query.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create a management request (Admin/SubMaster requesting Agency management)
+app.post('/api/management-requests', async (req, res) => {
+  try {
+    const { requesting_account_id, agency_id, message } = req.body;
+    
+    if (!requesting_account_id || !agency_id) {
+      return res.json({ success: false, error: 'requesting_account_id and agency_id required' });
+    }
+    
+    // Check if agency exists and has agency_admin role
+    const agency = await pool.query('SELECT id, role FROM accounts WHERE id = $1', [agency_id]);
+    if (agency.rows.length === 0 || agency.rows[0].role !== 'agency_admin') {
+      return res.json({ success: false, error: 'Invalid agency' });
+    }
+    
+    // Check if already has pending request or is already managed
+    const existing = await pool.query(`
+      SELECT id FROM management_requests 
+      WHERE requesting_account_id = $1 AND agency_id = $2 AND status = 'pending'
+    `, [requesting_account_id, agency_id]);
+    
+    if (existing.rows.length > 0) {
+      return res.json({ success: false, error: 'A pending request already exists' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO management_requests (requesting_account_id, agency_id, message)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `, [requesting_account_id, agency_id, message]);
+    
+    res.json({ success: true, request: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Respond to a management request (Agency approves/rejects)
+app.post('/api/management-requests/:id/respond', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, response_message } = req.body;
+    
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.json({ success: false, error: 'Status must be approved or rejected' });
+    }
+    
+    // Get the request
+    const request = await pool.query('SELECT * FROM management_requests WHERE id = $1', [id]);
+    if (request.rows.length === 0) {
+      return res.json({ success: false, error: 'Request not found' });
+    }
+    
+    // Update request status
+    await pool.query(`
+      UPDATE management_requests 
+      SET status = $1, response_message = $2, responded_at = NOW()
+      WHERE id = $3
+    `, [status, response_message, id]);
+    
+    // If approved, update the account's managed_by_id
+    if (status === 'approved') {
+      await pool.query(`
+        UPDATE accounts SET managed_by_id = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [request.rows[0].agency_id, request.rows[0].requesting_account_id]);
+    }
+    
+    res.json({ success: true, message: `Request ${status}` });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Remove agency management (go back to self-managed)
+app.post('/api/accounts/:id/remove-management', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await pool.query(`
+      UPDATE accounts SET managed_by_id = NULL, updated_at = NOW()
+      WHERE id = $1
+    `, [id]);
+    
+    res.json({ success: true, message: 'Now self-managed' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// TRAVEL AGENT DISTRIBUTION ACCESS
+// =====================================================
+
+// Search properties available for distribution (for Travel Agents)
+app.get('/api/distribution/properties', async (req, res) => {
+  try {
+    const { amenity, city, country, property_type } = req.query;
+    
+    let query = `
+      SELECT p.id, p.name, p.city, p.country, p.property_type, p.hero_image_url,
+             p.distribution_mode, p.owner_price,
+             a.name as owner_name, a.business_name as owner_business
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE p.distribution_mode IN ('open', 'request') AND p.active = true
+    `;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (city) {
+      query += ` AND LOWER(p.city) LIKE LOWER($${paramIndex++})`;
+      params.push(`%${city}%`);
+    }
+    if (country) {
+      query += ` AND LOWER(p.country) LIKE LOWER($${paramIndex++})`;
+      params.push(`%${country}%`);
+    }
+    if (property_type) {
+      query += ` AND p.property_type = $${paramIndex++}`;
+      params.push(property_type);
+    }
+    
+    query += ` ORDER BY p.name`;
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get distribution access for a travel agent
+app.get('/api/distribution/access', async (req, res) => {
+  try {
+    const { travel_agent_id, property_id, status } = req.query;
+    
+    let query = `
+      SELECT da.*, 
+             p.name as property_name, p.city, p.country, p.hero_image_url, p.owner_price,
+             a.name as owner_name
+      FROM distribution_access da
+      JOIN properties p ON da.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (travel_agent_id) {
+      query += ` AND da.travel_agent_id = $${paramIndex++}`;
+      params.push(travel_agent_id);
+    }
+    if (property_id) {
+      query += ` AND da.property_id = $${paramIndex++}`;
+      params.push(property_id);
+    }
+    if (status) {
+      query += ` AND da.status = $${paramIndex++}`;
+      params.push(status);
+    }
+    
+    query += ` ORDER BY da.requested_at DESC`;
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, access: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Request distribution access (Travel Agent requesting access to property)
+app.post('/api/distribution/request', async (req, res) => {
+  try {
+    const { travel_agent_id, property_id, message } = req.body;
+    
+    if (!travel_agent_id || !property_id) {
+      return res.json({ success: false, error: 'travel_agent_id and property_id required' });
+    }
+    
+    // Check property exists and is available for distribution
+    const property = await pool.query('SELECT distribution_mode FROM properties WHERE id = $1', [property_id]);
+    if (property.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    if (property.rows[0].distribution_mode === 'private') {
+      return res.json({ success: false, error: 'Property not available for distribution' });
+    }
+    
+    // Check if already has access or pending request
+    const existing = await pool.query(`
+      SELECT id, status FROM distribution_access 
+      WHERE property_id = $1 AND travel_agent_id = $2
+    `, [property_id, travel_agent_id]);
+    
+    if (existing.rows.length > 0) {
+      const status = existing.rows[0].status;
+      if (status === 'approved') {
+        return res.json({ success: false, error: 'Already have access to this property' });
+      }
+      if (status === 'pending') {
+        return res.json({ success: false, error: 'Request already pending' });
+      }
+    }
+    
+    // If distribution_mode is 'open', auto-approve
+    const autoApprove = property.rows[0].distribution_mode === 'open';
+    
+    const result = await pool.query(`
+      INSERT INTO distribution_access (property_id, travel_agent_id, message, status, approved_at)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (property_id, travel_agent_id) 
+      DO UPDATE SET status = $4, message = $3, requested_at = NOW(), approved_at = $5
+      RETURNING *
+    `, [property_id, travel_agent_id, message, autoApprove ? 'approved' : 'pending', autoApprove ? new Date() : null]);
+    
+    res.json({ success: true, access: result.rows[0], auto_approved: autoApprove });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Respond to distribution request (Property owner approves/rejects)
+app.post('/api/distribution/access/:id/respond', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, response_message } = req.body;
+    
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.json({ success: false, error: 'Status must be approved or rejected' });
+    }
+    
+    await pool.query(`
+      UPDATE distribution_access 
+      SET status = $1, response_message = $2, approved_at = $3
+      WHERE id = $4
+    `, [status, response_message, status === 'approved' ? new Date() : null, id]);
+    
+    res.json({ success: true, message: `Request ${status}` });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Revoke distribution access
+app.post('/api/distribution/access/:id/revoke', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await pool.query(`UPDATE distribution_access SET status = 'revoked' WHERE id = $1`, [id]);
+    
+    res.json({ success: true, message: 'Access revoked' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get pending distribution requests for a property owner
+app.get('/api/distribution/requests/pending', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT da.*, 
+             p.name as property_name,
+             ta.name as agent_name, ta.business_name as agent_business, ta.email as agent_email
+      FROM distribution_access da
+      JOIN properties p ON da.property_id = p.id
+      JOIN accounts ta ON da.travel_agent_id = ta.id
+      WHERE p.account_id = $1 AND da.status = 'pending'
+      ORDER BY da.requested_at DESC
+    `, [account_id]);
+    
+    res.json({ success: true, requests: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
