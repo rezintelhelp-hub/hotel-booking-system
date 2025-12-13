@@ -997,6 +997,7 @@ app.get('/api/setup-accounts', async (req, res) => {
         public_id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
         account_code VARCHAR(20) UNIQUE,
         parent_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        managed_by_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'admin',
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) NOT NULL UNIQUE,
@@ -1024,7 +1025,7 @@ app.get('/api/setup-accounts', async (req, res) => {
         last_login_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT valid_role CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin'))
+        CONSTRAINT valid_role CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin', 'travel_agent'))
       )
     `);
     
@@ -1861,9 +1862,6 @@ app.post('/api/migrate-to-accounts', async (req, res) => {
 // Get all accounts (for admin view)
 app.get('/api/admin/accounts', async (req, res) => {
   try {
-    // Ensure account_code column exists
-    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
-    
     // Check if filtering by a specific account (when viewing as that account)
     const viewingAccountId = req.query.account_id;
     
