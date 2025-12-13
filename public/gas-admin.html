@@ -10006,20 +10006,34 @@ Local honey and preserves"></textarea>
                     <input type="hidden" id="account-role">
                     <input type="hidden" id="account-status">
                     
-                    <!-- Account Info Banner (Read Only) -->
+                    <!-- Account Info Banner -->
                     <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #bae6fd;">
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">
-                            <div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem;">
+                            <!-- Code (Read-Only) -->
+                            <div style="text-align: center;">
                                 <div style="font-size: 0.7rem; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Code</div>
                                 <div id="account-code-display" style="font-weight: 700; font-family: monospace; color: #0c4a6e; font-size: 1.1rem;">—</div>
                             </div>
+                            <!-- Role (Editable for Master Admin) -->
                             <div>
-                                <div style="font-size: 0.7rem; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Role</div>
-                                <div id="account-role-display" style="font-weight: 600; color: #0c4a6e;">—</div>
+                                <div style="font-size: 0.7rem; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem; text-align: center;">Role</div>
+                                <div id="account-role-display-container" style="text-align: center; font-weight: 600; color: #0c4a6e;">—</div>
+                                <select id="account-role-select" class="form-input" style="display: none; padding: 0.4rem; font-size: 0.85rem;">
+                                    <option value="admin">👤 Admin</option>
+                                    <option value="submaster_admin">📁 Sub Master</option>
+                                    <option value="agency_admin">🏢 Agency Admin</option>
+                                    <option value="master_admin">👑 Master Admin</option>
+                                </select>
                             </div>
+                            <!-- Status (Editable for Master Admin) -->
                             <div>
-                                <div style="font-size: 0.7rem; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Status</div>
-                                <div id="account-status-display" style="font-weight: 600; color: #0c4a6e;">—</div>
+                                <div style="font-size: 0.7rem; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem; text-align: center;">Status</div>
+                                <div id="account-status-display-container" style="text-align: center; font-weight: 600; color: #0c4a6e;">—</div>
+                                <select id="account-status-select" class="form-input" style="display: none; padding: 0.4rem; font-size: 0.85rem;">
+                                    <option value="active">✅ Active</option>
+                                    <option value="inactive">⛔ Inactive</option>
+                                    <option value="pending">⏳ Pending</option>
+                                </select>
                             </div>
                         </div>
                     </div>
@@ -10110,11 +10124,22 @@ Local honey and preserves"></textarea>
                     </div>
                     
                     <!-- Travel Agent Access Section (placeholder for future) -->
-                    <div id="account-travel-agent-section" style="display: none;">
-                        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #6ee7b7;">
-                            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #047857; font-weight: 600;">🧳 Travel Agent Access</h4>
-                            <div id="account-travel-agent-status">
-                                <!-- Filled dynamically -->
+                    <!-- Travel Agent Access Section -->
+                    <div id="account-travel-agent-section">
+                        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #6ee7b7; opacity: 0.7;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                <h4 style="margin: 0; font-size: 0.85rem; color: #047857; font-weight: 600;">🧳 Travel Agent Access</h4>
+                                <span style="background: #d1fae5; color: #047857; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">COMING SOON</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.8rem; color: #065f46; margin-bottom: 0.5rem;">Assign travel agents who can book on behalf of this property</div>
+                                    <select class="form-input" style="padding: 0.4rem; font-size: 0.85rem; width: 100%;" disabled>
+                                        <option value="">Select travel agent...</option>
+                                        <option value="1">Travel Agent 1</option>
+                                        <option value="2">Travel Agent 2</option>
+                                    </select>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -13364,8 +13389,32 @@ Local honey and preserves"></textarea>
                     
                     // Display fields (read-only)
                     document.getElementById('account-code-display').textContent = account.account_code || '—';
-                    document.getElementById('account-role-display').textContent = formatRole(account.role);
-                    document.getElementById('account-status-display').textContent = (account.status || 'active').charAt(0).toUpperCase() + (account.status || 'active').slice(1);
+                    
+                    // Role and Status - show dropdowns for Master Admin, text for others
+                    const roleDisplayContainer = document.getElementById('account-role-display-container');
+                    const roleSelect = document.getElementById('account-role-select');
+                    const statusDisplayContainer = document.getElementById('account-status-display-container');
+                    const statusSelect = document.getElementById('account-status-select');
+                    
+                    if (currentAccount && currentAccount.role === 'master_admin') {
+                        // Master Admin can edit role and status
+                        roleDisplayContainer.style.display = 'none';
+                        roleSelect.style.display = 'block';
+                        roleSelect.value = account.role || 'admin';
+                        
+                        statusDisplayContainer.style.display = 'none';
+                        statusSelect.style.display = 'block';
+                        statusSelect.value = account.status || 'active';
+                    } else {
+                        // Others see read-only text
+                        roleDisplayContainer.style.display = 'block';
+                        roleDisplayContainer.textContent = formatRole(account.role);
+                        roleSelect.style.display = 'none';
+                        
+                        statusDisplayContainer.style.display = 'block';
+                        statusDisplayContainer.textContent = (account.status || 'active').charAt(0).toUpperCase() + (account.status || 'active').slice(1);
+                        statusSelect.style.display = 'none';
+                    }
                     
                     // Editable fields
                     document.getElementById('account-name').value = account.name || '';
@@ -13484,6 +13533,18 @@ Local honey and preserves"></textarea>
                 postcode: document.getElementById('account-postcode').value,
                 country: document.getElementById('account-country').value
             };
+            
+            // Master Admin can also update role and status
+            if (currentAccount && currentAccount.role === 'master_admin') {
+                const roleSelect = document.getElementById('account-role-select');
+                const statusSelect = document.getElementById('account-status-select');
+                if (roleSelect && roleSelect.style.display !== 'none') {
+                    accountData.role = roleSelect.value;
+                }
+                if (statusSelect && statusSelect.style.display !== 'none') {
+                    accountData.status = statusSelect.value;
+                }
+            }
             
             try {
                 const url = `/api/accounts/${accountId}`;
