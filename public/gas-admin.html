@@ -12617,9 +12617,9 @@ Local honey and preserves"></textarea>
                                             ? (account.managed_by_name 
                                                 ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
                                                     <span class="badge" style="background: #dbeafe; color: #1e40af;">🏢 ${account.managed_by_name}</span>
-                                                    <button class="btn btn-secondary btn-small" onclick="removeAccountManagement(${account.id}, '${account.name}')" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; color: #dc2626;" title="Remove agency">✕</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="removeAccountManagement(${account.id}, '${(account.name || '').replace(/'/g, '')}')" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; color: #dc2626;" title="Remove agency">✕</button>
                                                    </div>`
-                                                : `<button class="btn btn-secondary btn-small" onclick="openAssignAgencyModal(${account.id}, \`${account.name.replace(/\`/g, "'")}\`)" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">+ Assign</button>`)
+                                                : `<button class="btn btn-secondary btn-small" onclick="openAssignAgencyModal(${account.id}, '${(account.name || '').replace(/'/g, '')}')" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">+ Assign</button>`)
                                             : `<span style="color: var(--text-muted); font-size: 0.8rem;">—</span>`
                                         }
                                     </td>
@@ -13025,45 +13025,53 @@ Local honey and preserves"></textarea>
         // =====================================================
         
         async function openAssignAgencyModal(accountId, accountName) {
-            // Load available agencies
-            const response = await fetch('/api/agencies/available', { headers: authHeaders() });
-            const data = await response.json();
-            
-            if (!data.success || !data.agencies || data.agencies.length === 0) {
-                alert('No agencies available. Create an Agency Admin account first.');
-                return;
-            }
-            
-            const options = data.agencies.map(a => 
-                `<option value="${a.id}">${a.business_name || a.name}</option>`
-            ).join('');
-            
-            const modalHtml = `
-                <div class="modal-overlay" id="assignAgencyModal" style="display: flex;">
-                    <div class="modal" style="max-width: 450px;">
-                        <div class="modal-header">
-                            <h3>🏢 Assign Agency</h3>
-                            <button class="modal-close" onclick="closeModal('assignAgencyModal')">&times;</button>
-                        </div>
-                        <div style="padding: 1.5rem;">
-                            <p style="margin-bottom: 1rem;">Assign an agency to manage <strong>${accountName}</strong>:</p>
-                            <select id="agencySelectModal" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
-                                <option value="">Select agency...</option>
-                                ${options}
-                            </select>
-                            <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
-                                ℹ️ The agency will be able to view and manage this account's properties and bookings.
+            console.log('openAssignAgencyModal called:', accountId, accountName);
+            try {
+                // Load available agencies
+                const response = await fetch('/api/agencies/available', { headers: authHeaders() });
+                const data = await response.json();
+                
+                console.log('Available agencies:', data);
+                
+                if (!data.success || !data.agencies || data.agencies.length === 0) {
+                    alert('No agencies available. Create an Agency Admin account first.');
+                    return;
+                }
+                
+                const options = data.agencies.map(a => 
+                    `<option value="${a.id}">${a.business_name || a.name}</option>`
+                ).join('');
+                
+                const modalHtml = `
+                    <div class="modal-overlay" id="assignAgencyModal" style="display: flex;">
+                        <div class="modal" style="max-width: 450px;">
+                            <div class="modal-header">
+                                <h3>🏢 Assign Agency</h3>
+                                <button class="modal-close" onclick="closeModal('assignAgencyModal')">&times;</button>
                             </div>
-                            <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                                <button class="btn btn-secondary" onclick="closeModal('assignAgencyModal')" style="flex: 1;">Cancel</button>
-                                <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">Assign</button>
+                            <div style="padding: 1.5rem;">
+                                <p style="margin-bottom: 1rem;">Assign an agency to manage <strong>${accountName}</strong>:</p>
+                                <select id="agencySelectModal" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
+                                    <option value="">Select agency...</option>
+                                    ${options}
+                                </select>
+                                <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
+                                    ℹ️ The agency will be able to view and manage this account's properties and bookings.
+                                </div>
+                                <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                                    <button class="btn btn-secondary" onclick="closeModal('assignAgencyModal')" style="flex: 1;">Cancel</button>
+                                    <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">Assign</button>
+                                </div>
                             </div>
                         </div>
                     </div>
-                </div>
-            `;
-            
-            document.body.insertAdjacentHTML('beforeend', modalHtml);
+                `;
+                
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+            } catch (error) {
+                console.error('Error in openAssignAgencyModal:', error);
+                alert('Error loading agencies: ' + error.message);
+            }
         }
         
         async function saveAgencyAssignment(accountId) {
