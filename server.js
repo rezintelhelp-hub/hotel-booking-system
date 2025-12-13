@@ -2240,10 +2240,18 @@ app.post('/api/admin/accounts/:id/assign-agency', async (req, res) => {
       return res.json({ success: false, error: 'Invalid agency' });
     }
     
+    // Update account's managed_by_id
     await pool.query(`
       UPDATE accounts SET managed_by_id = $1, updated_at = NOW()
       WHERE id = $2
     `, [agency_id, id]);
+    
+    // Also create an approved management request record for tracking
+    await pool.query(`
+      INSERT INTO management_requests (requesting_account_id, agency_id, status, message, responded_at)
+      VALUES ($1, $2, 'approved', 'Assigned by Master Admin', NOW())
+      ON CONFLICT DO NOTHING
+    `, [id, agency_id]).catch(() => {}); // Ignore if table doesn't exist yet
     
     res.json({ success: true, message: 'Agency assigned' });
   } catch (error) {
