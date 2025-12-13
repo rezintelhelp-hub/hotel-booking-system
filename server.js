@@ -6051,6 +6051,23 @@ app.get('/api/deploy/property/:id', async (req, res) => {
   }
 });
 
+// Add existing deployed site (for legacy sites not deployed through GAS)
+app.post('/api/admin/deployed-sites/add-existing', async (req, res) => {
+  try {
+    const { account_id, property_id, site_name, site_url, admin_url, status } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO deployed_sites (account_id, property_id, site_name, site_url, admin_url, status, deployed_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      RETURNING *
+    `, [account_id, property_id, site_name, site_url, admin_url, status || 'deployed']);
+    
+    res.json({ success: true, site: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get all deployed sites
 app.get('/api/admin/deployed-sites', async (req, res) => {
   try {
