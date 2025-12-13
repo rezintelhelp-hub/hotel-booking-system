@@ -1355,10 +1355,13 @@
                 <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Website Builder</div>
                     <div class="nav-section-items">
-                    <a class="nav-item" data-view="deploy-sites" href="#" onclick="navClick(this, 'deploy-sites'); return false;" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 8px; margin-bottom: 0.5rem;">
-                        <span class="nav-icon">🚀</span>
-                        <span>Deploy Sites</span>
+                    <a class="nav-item" data-view="my-websites" href="#" onclick="navClick(this, 'my-websites'); return false;" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 8px; margin-bottom: 0.5rem;">
+                        <span class="nav-icon">🌐</span>
+                        <span>My Websites</span>
                     </a>
+                    
+                    <!-- Website Builder Sections (shown after selecting a website) -->
+                    <div id="website-builder-nav" style="display: none;">
                     <a class="nav-item" data-view="wb-header" href="#" onclick="navClick(this, 'wb-header'); return false;">
                         <span class="nav-icon">📌</span>
                         <span>Header & Logo</span>
@@ -1467,6 +1470,7 @@
                         <span class="nav-icon">🎨</span>
                         <span>Styles & Colors</span>
                     </a>
+                    </div><!-- end website-builder-nav -->
                     </div>
                 </div>
 
@@ -4736,6 +4740,76 @@
             </div>
 
             <!-- Deploy Sites -->
+            <!-- My Websites View -->
+            <div id="my-websites" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🌐 My Websites</h2>
+                            <p class="subtitle">Create and manage multiple websites for your properties</p>
+                        </div>
+                        <button class="btn" onclick="openCreateWebsiteModal()" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                            + New Website
+                        </button>
+                    </div>
+                </div>
+
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="card" style="text-align: center; padding: 1.25rem;">
+                        <div style="font-size: 2rem; font-weight: bold; color: var(--primary);" id="websites-stat-total">-</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Total Websites</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.25rem;">
+                        <div style="font-size: 2rem; font-weight: bold; color: #10b981;" id="websites-stat-active">-</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Active</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.25rem;">
+                        <div style="font-size: 2rem; font-weight: bold; color: #f59e0b;" id="websites-stat-draft">-</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Draft</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.25rem;">
+                        <div style="font-size: 2rem; font-weight: bold; color: #6366f1;" id="websites-stat-units">-</div>
+                        <div style="color: var(--text-secondary); font-size: 0.85rem;">Total Units Listed</div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div id="websites-list" style="padding: 0;">
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 1rem;">Loading websites...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Website Selected Banner (shown at top of builder sections) -->
+            <div id="website-selected-banner" style="display: none; margin-bottom: 1rem; padding: 0.75rem 1rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-radius: 8px; color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.2rem;">🌐</span>
+                        <div>
+                            <strong id="selected-website-name">Website Name</strong>
+                            <div style="font-size: 0.8rem; opacity: 0.9;">
+                                <span id="selected-website-units">0 units</span> • 
+                                <span id="selected-website-status">Draft</span>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button onclick="openManageUnitsModal()" class="btn btn-small" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);">
+                            📦 Units
+                        </button>
+                        <a id="selected-website-preview-link" href="#" target="_blank" class="btn btn-small" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); text-decoration: none; display: none;">
+                            👁️ Preview
+                        </a>
+                        <button onclick="navClick(null, 'my-websites')" class="btn btn-small" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3);">
+                            ← Back
+                        </button>
+                    </div>
+                </div>
+            </div>
+
             <div id="deploy-sites" class="view">
                 <div class="header">
                     <div class="header-top">
@@ -5956,7 +6030,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <div style="font-size: 4rem; margin-bottom: 1rem;">🌐</div>
                             <h3 style="margin: 0 0 0.5rem 0;">No Website Yet</h3>
                             <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Create a WordPress website for this account with our booking system pre-installed.</p>
-                            <button class="btn" onclick="openCreateWebsiteModal()" style="font-size: 1rem; padding: 0.75rem 2rem;">
+                            <button class="btn" onclick="openLegacyCreateWebsiteModal()" style="font-size: 1rem; padding: 0.75rem 2rem;">
                                 🚀 Create Website
                             </button>
                         </div>
@@ -8314,6 +8388,157 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Website Modal (New System) -->
+    <div id="newWebsiteModal" class="modal">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">🌐 Create New Website</h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; opacity: 0.9;">Add a new website to showcase your units</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('newWebsiteModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">Website Name <span style="color: #ef4444;">*</span></label>
+                    <input type="text" id="new-website-name" class="form-input" placeholder="e.g., Hostvana Beach Collection">
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">Website Type</label>
+                    <select id="new-website-type" class="form-input">
+                        <option value="portfolio">Portfolio (Multiple Units)</option>
+                        <option value="single_property">Single Property</option>
+                        <option value="microsite">Microsite (1-2 Units)</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">Template</label>
+                    <div id="template-selector" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 0.75rem;">
+                        <div class="template-option selected" data-template="starter" style="border: 2px solid var(--accent); border-radius: 8px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
+                            <div style="font-weight: 600;">Starter</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Clean & simple</div>
+                        </div>
+                        <div class="template-option" data-template="boutique-hotel" style="border: 2px solid var(--border); border-radius: 8px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
+                            <div style="font-weight: 600;">Boutique Hotel</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Elegant & luxurious</div>
+                        </div>
+                        <div class="template-option" data-template="beach-villa" style="border: 2px solid var(--border); border-radius: 8px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
+                            <div style="font-weight: 600;">Beach Villa</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Relaxed & tropical</div>
+                        </div>
+                        <div class="template-option" data-template="city-apartment" style="border: 2px solid var(--border); border-radius: 8px; padding: 1rem; cursor: pointer; transition: all 0.2s;">
+                            <div style="font-weight: 600;">City Apartment</div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">Modern & urban</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                    <p style="margin: 0; color: #166534; font-size: 0.9rem;">
+                        <strong>💡 Tip:</strong> After creating your website, you can add specific units to it and customize each section in the Website Builder.
+                    </p>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('newWebsiteModal')">Cancel</button>
+                    <button type="button" class="btn" onclick="createNewWebsite()" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                        🌐 Create Website
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Manage Units Modal -->
+    <div id="manageUnitsModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">📦 Manage Units</h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; opacity: 0.9;" id="manage-units-website-name">Select which units appear on this website</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('manageUnitsModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0; max-height: 70vh; overflow-y: auto;">
+                <!-- Units on this website -->
+                <div style="padding: 1rem 1.5rem; border-bottom: 1px solid var(--border);">
+                    <h4 style="margin: 0 0 0.75rem 0; display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="background: #10b981; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">ON SITE</span>
+                        <span id="units-on-site-count">0 units</span>
+                    </h4>
+                    <div id="units-on-website" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <div style="text-align: center; padding: 1rem; color: var(--text-secondary);">Loading...</div>
+                    </div>
+                </div>
+                
+                <!-- Available units to add -->
+                <div style="padding: 1rem 1.5rem;">
+                    <h4 style="margin: 0 0 0.75rem 0; display: flex; align-items: center; gap: 0.5rem;">
+                        <span style="background: #6366f1; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">AVAILABLE</span>
+                        <span id="units-available-count">0 units</span>
+                    </h4>
+                    <div id="units-available" style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <div style="text-align: center; padding: 1rem; color: var(--text-secondary);">Loading...</div>
+                    </div>
+                </div>
+            </div>
+            <div style="padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end;">
+                <button class="btn" onclick="closeModal('manageUnitsModal')">Done</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Website Modal -->
+    <div id="editWebsiteModal" class="modal">
+        <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">✏️ Edit Website</h3>
+                </div>
+                <button class="modal-close" onclick="closeModal('editWebsiteModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="edit-website-id">
+                
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">Website Name</label>
+                    <input type="text" id="edit-website-name" class="form-input">
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">Custom Domain</label>
+                    <input type="text" id="edit-website-domain" class="form-input" placeholder="www.yourdomain.com">
+                    <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Point your domain's DNS to our servers to use a custom domain
+                    </p>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label">Status</label>
+                    <select id="edit-website-status" class="form-input">
+                        <option value="draft">Draft</option>
+                        <option value="active">Active</option>
+                        <option value="paused">Paused</option>
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: space-between; padding-top: 1rem; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn" onclick="deleteWebsite()" style="background: #ef4444;">
+                        🗑️ Delete
+                    </button>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('editWebsiteModal')">Cancel</button>
+                        <button type="button" class="btn" onclick="saveWebsiteEdit()" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                            💾 Save
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -11466,6 +11691,12 @@ Local honey and preserves"></textarea>
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'availability') loadAvailabilityView();
             if (viewName === 'tasks') loadTasks();
+            if (viewName === 'my-websites') {
+                loadMyWebsites();
+                // Hide website builder nav and banner when viewing list
+                document.getElementById('website-builder-nav').style.display = 'none';
+                document.getElementById('website-selected-banner').style.display = 'none';
+            }
             if (viewName === 'deploy-sites') {
                 checkVpsStatus();
                 loadDeployedSites();
@@ -11480,6 +11711,12 @@ Local honey and preserves"></textarea>
             if (viewName === 'deposit-rules') initDepositRulesView();
             if (viewName === 'bookings') loadBookings();
             if (viewName === 'marketing') loadMarketingProperties();
+            
+            // Website Builder views - show banner if a website is selected
+            if (viewName.startsWith('wb-') && selectedWebsiteId) {
+                document.getElementById('website-selected-banner').style.display = 'block';
+            }
+            
             if (viewName === 'wb-header') loadWebsiteSection('header');
             if (viewName === 'wb-hero') loadWebsiteSection('hero');
             if (viewName === 'wb-intro') loadWebsiteSection('intro');
@@ -11546,6 +11783,428 @@ Local honey and preserves"></textarea>
         }
 
         // =========================================================
+        // WEBSITE MANAGEMENT FUNCTIONS (Multi-site System)
+        // =========================================================
+        
+        let selectedWebsiteId = null;
+        let selectedWebsiteData = null;
+        let allWebsites = [];
+        
+        async function loadMyWebsites() {
+            const container = document.getElementById('websites-list');
+            
+            try {
+                // Get owner info
+                const accountId = selectedAccountId || currentAccount?.id;
+                if (!accountId) {
+                    container.innerHTML = '<p style="text-align: center; padding: 2rem; color: var(--text-secondary);">Please select an account first</p>';
+                    return;
+                }
+                
+                // Determine owner type
+                let ownerType = 'account';
+                if (currentAccount?.role === 'agency_admin') ownerType = 'agency';
+                
+                const response = await fetch(`/api/websites?owner_type=${ownerType}&owner_id=${accountId}`, {
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error);
+                }
+                
+                allWebsites = data.websites || [];
+                
+                // Update stats
+                const active = allWebsites.filter(w => w.status === 'active').length;
+                const draft = allWebsites.filter(w => w.status === 'draft').length;
+                const totalUnits = allWebsites.reduce((sum, w) => sum + (parseInt(w.unit_count) || 0), 0);
+                
+                document.getElementById('websites-stat-total').textContent = allWebsites.length;
+                document.getElementById('websites-stat-active').textContent = active;
+                document.getElementById('websites-stat-draft').textContent = draft;
+                document.getElementById('websites-stat-units').textContent = totalUnits;
+                
+                // Render websites
+                if (allWebsites.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem;">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">🌐</div>
+                            <h3 style="margin: 0 0 0.5rem 0;">No Websites Yet</h3>
+                            <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Create your first website to showcase your properties</p>
+                            <button class="btn" onclick="openCreateWebsiteModal()" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);">
+                                + Create Website
+                            </button>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                container.innerHTML = allWebsites.map(website => `
+                    <div class="website-card" style="display: flex; justify-content: space-between; align-items: center; padding: 1.25rem; border-bottom: 1px solid var(--border);">
+                        <div style="display: flex; align-items: center; gap: 1rem;">
+                            <div style="width: 50px; height: 50px; border-radius: 10px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.5rem;">
+                                ${website.website_type === 'microsite' ? '📄' : website.website_type === 'single_property' ? '🏠' : '🌐'}
+                            </div>
+                            <div>
+                                <div style="font-weight: 600; font-size: 1.1rem;">${website.name}</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                    ${website.site_url ? `<a href="${website.site_url}" target="_blank" style="color: var(--accent);">${website.site_url}</a>` : '<span style="color: #f59e0b;">Not deployed</span>'}
+                                </div>
+                                <div style="display: flex; gap: 1rem; margin-top: 0.25rem; font-size: 0.8rem; color: var(--text-secondary);">
+                                    <span>📦 ${website.unit_count || 0} units</span>
+                                    <span>🎨 ${website.template_name || 'Starter'}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <span class="badge ${website.status === 'active' ? 'badge-success' : website.status === 'paused' ? 'badge-warning' : 'badge-secondary'}">
+                                ${website.status}
+                            </span>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-secondary btn-small" onclick="openManageUnitsModal(${website.id})" title="Manage Units">📦</button>
+                                <button class="btn btn-small" onclick="selectWebsiteForBuilder(${website.id})" style="background: var(--accent);" title="Edit in Builder">✏️ Edit</button>
+                                <button class="btn btn-secondary btn-small" onclick="openEditWebsiteModal(${website.id})" title="Settings">⚙️</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading websites:', error);
+                container.innerHTML = `<p style="text-align: center; padding: 2rem; color: var(--error);">Error loading websites: ${error.message}</p>`;
+            }
+        }
+        
+        function openCreateWebsiteModal() {
+            document.getElementById('new-website-name').value = '';
+            document.getElementById('new-website-type').value = 'portfolio';
+            
+            // Reset template selection
+            document.querySelectorAll('.template-option').forEach(opt => {
+                opt.style.borderColor = 'var(--border)';
+                opt.classList.remove('selected');
+            });
+            const starterOpt = document.querySelector('.template-option[data-template="starter"]');
+            if (starterOpt) {
+                starterOpt.style.borderColor = 'var(--accent)';
+                starterOpt.classList.add('selected');
+            }
+            
+            openModal('newWebsiteModal');
+        }
+        
+        // Template selection click handler
+        document.addEventListener('click', function(e) {
+            const templateOpt = e.target.closest('.template-option');
+            if (templateOpt) {
+                document.querySelectorAll('.template-option').forEach(opt => {
+                    opt.style.borderColor = 'var(--border)';
+                    opt.classList.remove('selected');
+                });
+                templateOpt.style.borderColor = 'var(--accent)';
+                templateOpt.classList.add('selected');
+            }
+        });
+        
+        async function createNewWebsite() {
+            const name = document.getElementById('new-website-name').value.trim();
+            const websiteType = document.getElementById('new-website-type').value;
+            const selectedTemplate = document.querySelector('.template-option.selected');
+            const templateCode = selectedTemplate?.dataset.template || 'starter';
+            
+            if (!name) {
+                alert('Please enter a website name');
+                return;
+            }
+            
+            const accountId = selectedAccountId || currentAccount?.id;
+            if (!accountId) {
+                alert('No account selected');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/websites', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        owner_type: 'account',
+                        owner_id: accountId,
+                        name,
+                        website_type: websiteType,
+                        template_code: templateCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error);
+                }
+                
+                closeModal('newWebsiteModal');
+                showNotification('Website created successfully!', 'success');
+                loadMyWebsites();
+                
+                // Ask if they want to add units now
+                if (confirm('Website created! Would you like to add units to it now?')) {
+                    openManageUnitsModal(data.website.id);
+                }
+                
+            } catch (error) {
+                console.error('Error creating website:', error);
+                alert('Error creating website: ' + error.message);
+            }
+        }
+        
+        async function selectWebsiteForBuilder(websiteId) {
+            try {
+                const response = await fetch(`/api/websites/${websiteId}`, {
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error);
+                }
+                
+                selectedWebsiteId = websiteId;
+                selectedWebsiteData = data.website;
+                
+                // Update banner
+                document.getElementById('selected-website-name').textContent = data.website.name;
+                document.getElementById('selected-website-units').textContent = `${data.units?.length || 0} units`;
+                document.getElementById('selected-website-status').textContent = data.website.status;
+                
+                const previewLink = document.getElementById('selected-website-preview-link');
+                if (data.website.site_url) {
+                    previewLink.href = data.website.site_url;
+                    previewLink.style.display = 'inline-flex';
+                } else {
+                    previewLink.style.display = 'none';
+                }
+                
+                // Show builder nav and banner
+                document.getElementById('website-builder-nav').style.display = 'block';
+                document.getElementById('website-selected-banner').style.display = 'block';
+                
+                // Navigate to header section
+                navClick(null, 'wb-header');
+                
+            } catch (error) {
+                console.error('Error loading website:', error);
+                alert('Error loading website: ' + error.message);
+            }
+        }
+        
+        async function openManageUnitsModal(websiteId = null) {
+            const id = websiteId || selectedWebsiteId;
+            if (!id) {
+                alert('No website selected');
+                return;
+            }
+            
+            document.getElementById('manage-units-website-name').textContent = 'Loading...';
+            document.getElementById('units-on-website').innerHTML = '<div style="text-align: center; padding: 1rem;"><div class="spinner"></div></div>';
+            document.getElementById('units-available').innerHTML = '<div style="text-align: center; padding: 1rem;"><div class="spinner"></div></div>';
+            
+            openModal('manageUnitsModal');
+            
+            try {
+                // Get website details and units
+                const [websiteRes, unitsRes, availableRes] = await Promise.all([
+                    fetch(`/api/websites/${id}`, { headers: authHeaders() }),
+                    fetch(`/api/websites/${id}/units`, { headers: authHeaders() }),
+                    fetch(`/api/websites/${id}/available-units`, { headers: authHeaders() })
+                ]);
+                
+                const websiteData = await websiteRes.json();
+                const unitsData = await unitsRes.json();
+                const availableData = await availableRes.json();
+                
+                document.getElementById('manage-units-website-name').textContent = websiteData.website?.name || 'Website';
+                
+                // Render units on website
+                const unitsOnSite = unitsData.units || [];
+                document.getElementById('units-on-site-count').textContent = `${unitsOnSite.length} units`;
+                
+                if (unitsOnSite.length === 0) {
+                    document.getElementById('units-on-website').innerHTML = `
+                        <div style="text-align: center; padding: 1rem; color: var(--text-secondary); background: #f8fafc; border-radius: 8px;">
+                            No units on this website yet. Add some from below!
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('units-on-website').innerHTML = unitsOnSite.map(unit => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f0fdf4; border-radius: 8px; border: 1px solid #86efac;">
+                            <div>
+                                <div style="font-weight: 500;">${unit.display_name || unit.unit_name}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${unit.property_name} • ${unit.city || 'N/A'}</div>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                ${unit.is_featured ? '<span style="background: #fef3c7; color: #92400e; padding: 0.15rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">⭐ Featured</span>' : ''}
+                                <button class="btn btn-secondary btn-small" onclick="toggleUnitFeatured(${id}, ${unit.unit_id}, ${!unit.is_featured})" title="${unit.is_featured ? 'Remove featured' : 'Make featured'}">
+                                    ${unit.is_featured ? '☆' : '⭐'}
+                                </button>
+                                <button class="btn btn-small" onclick="removeUnitFromWebsite(${id}, ${unit.unit_id})" style="background: #ef4444;">✕</button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+                
+                // Render available units
+                const availableUnits = availableData.units || [];
+                document.getElementById('units-available-count').textContent = `${availableUnits.length} units`;
+                
+                if (availableUnits.length === 0) {
+                    document.getElementById('units-available').innerHTML = `
+                        <div style="text-align: center; padding: 1rem; color: var(--text-secondary); background: #f8fafc; border-radius: 8px;">
+                            All your units are already on this website
+                        </div>
+                    `;
+                } else {
+                    document.getElementById('units-available').innerHTML = availableUnits.map(unit => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; background: #f8fafc; border-radius: 8px; border: 1px solid var(--border);">
+                            <div>
+                                <div style="font-weight: 500;">${unit.display_name || unit.name}</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">${unit.property_name} • ${unit.city || 'N/A'}</div>
+                            </div>
+                            <button class="btn btn-small" onclick="addUnitToWebsite(${id}, ${unit.id})" style="background: #10b981;">+ Add</button>
+                        </div>
+                    `).join('');
+                }
+                
+            } catch (error) {
+                console.error('Error loading units:', error);
+                document.getElementById('units-on-website').innerHTML = `<div style="color: var(--error); padding: 1rem;">Error loading units</div>`;
+            }
+        }
+        
+        async function addUnitToWebsite(websiteId, unitId) {
+            try {
+                const response = await fetch(`/api/websites/${websiteId}/units`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ unit_ids: [unitId] })
+                });
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error);
+                
+                openManageUnitsModal(websiteId);
+            } catch (error) {
+                alert('Error adding unit: ' + error.message);
+            }
+        }
+        
+        async function removeUnitFromWebsite(websiteId, unitId) {
+            if (!confirm('Remove this unit from the website?')) return;
+            
+            try {
+                const response = await fetch(`/api/websites/${websiteId}/units/${unitId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error);
+                
+                openManageUnitsModal(websiteId);
+            } catch (error) {
+                alert('Error removing unit: ' + error.message);
+            }
+        }
+        
+        async function toggleUnitFeatured(websiteId, unitId, isFeatured) {
+            try {
+                const response = await fetch(`/api/websites/${websiteId}/units/${unitId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ is_featured: isFeatured })
+                });
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error);
+                
+                openManageUnitsModal(websiteId);
+            } catch (error) {
+                alert('Error updating unit: ' + error.message);
+            }
+        }
+        
+        function openEditWebsiteModal(websiteId) {
+            const website = allWebsites.find(w => w.id === websiteId);
+            if (!website) {
+                alert('Website not found');
+                return;
+            }
+            
+            document.getElementById('edit-website-id').value = websiteId;
+            document.getElementById('edit-website-name').value = website.name;
+            document.getElementById('edit-website-domain').value = website.custom_domain || '';
+            document.getElementById('edit-website-status').value = website.status;
+            
+            openModal('editWebsiteModal');
+        }
+        
+        async function saveWebsiteEdit() {
+            const websiteId = document.getElementById('edit-website-id').value;
+            const name = document.getElementById('edit-website-name').value.trim();
+            const customDomain = document.getElementById('edit-website-domain').value.trim();
+            const status = document.getElementById('edit-website-status').value;
+            
+            if (!name) {
+                alert('Please enter a website name');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/websites/${websiteId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ name, custom_domain: customDomain || null, status })
+                });
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error);
+                
+                closeModal('editWebsiteModal');
+                showNotification('Website updated!', 'success');
+                loadMyWebsites();
+                
+            } catch (error) {
+                alert('Error updating website: ' + error.message);
+            }
+        }
+        
+        async function deleteWebsite() {
+            const websiteId = document.getElementById('edit-website-id').value;
+            
+            if (!confirm('Are you sure you want to delete this website? This cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/websites/${websiteId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                
+                const data = await response.json();
+                if (!data.success) throw new Error(data.error);
+                
+                closeModal('editWebsiteModal');
+                showNotification('Website deleted', 'success');
+                loadMyWebsites();
+                
+            } catch (error) {
+                alert('Error deleting website: ' + error.message);
+            }
+        }
+
+        // =========================================================
         // WEBSITE BUILDER FUNCTIONS
         // =========================================================
         
@@ -11587,10 +12246,19 @@ Local honey and preserves"></textarea>
         
         async function saveWebsiteSection(section) {
             try {
-                const accountId = selectedAccountId;
-                if (!accountId) {
-                    alert('Please select an account first');
-                    return;
+                // Check if we have a website selected (new system) or fall back to account_id (legacy)
+                let apiUrl;
+                let requestBody;
+                
+                if (selectedWebsiteId) {
+                    apiUrl = `/api/websites/${selectedWebsiteId}/builder/${section}`;
+                } else {
+                    const accountId = selectedAccountId;
+                    if (!accountId) {
+                        alert('Please select an account or website first');
+                        return;
+                    }
+                    apiUrl = `/api/admin/website-builder/${section}`;
                 }
                 
                 // Collect all form values for this section
@@ -11614,10 +12282,17 @@ Local honey and preserves"></textarea>
                 
                 console.log('Saving settings:', section, JSON.stringify(settings, null, 2)); // Debug
                 
-                const response = await fetch(`/api/admin/website-builder/${section}`, {
+                // Build request body based on which API we're using
+                if (selectedWebsiteId) {
+                    requestBody = { settings };
+                } else {
+                    requestBody = { account_id: selectedAccountId, settings };
+                }
+                
+                const response = await fetch(apiUrl, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ account_id: accountId, settings })
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(requestBody)
                 });
                 
                 const data = await response.json();
@@ -11625,7 +12300,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     // Also push to WordPress if site exists
                     await pushToWordPress(section, settings);
-                    alert('✅ Saved and synced to website!');
+                    showNotification('✅ Saved and synced to website!', 'success');
                 } else {
                     alert('Error: ' + (data.error || 'Failed to save'));
                 }
@@ -11636,14 +12311,20 @@ Local honey and preserves"></textarea>
         }
         
         async function loadWebsiteSection(section) {
-            const accountId = selectedAccountId;
-            if (!accountId) return;
-            
-            // Load site info first
-            await loadSiteBanner();
+            // Use website_id if a website is selected, otherwise fall back to account_id (legacy)
+            let apiUrl;
+            if (selectedWebsiteId) {
+                apiUrl = `/api/websites/${selectedWebsiteId}/builder/${section}`;
+            } else {
+                const accountId = selectedAccountId;
+                if (!accountId) return;
+                apiUrl = `/api/admin/website-builder/${section}?account_id=${accountId}`;
+                // Load site info for legacy mode
+                await loadSiteBanner();
+            }
             
             try {
-                const response = await fetch(`/api/admin/website-builder/${section}?account_id=${accountId}`);
+                const response = await fetch(apiUrl, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success && data.settings) {
@@ -24933,7 +25614,7 @@ Local honey and preserves"></textarea>
             }
         }
         
-        function openCreateWebsiteModal() {
+        function openLegacyCreateWebsiteModal() {
             const user = currentAccount || JSON.parse(localStorage.getItem('gas_account') || '{}');
             const accountId = selectedAccountId || user.id;
             const accountName = selectedAccountName || user.name;
