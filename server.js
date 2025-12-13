@@ -7418,11 +7418,14 @@ app.get('/api/db/properties', async (req, res) => {
       const isAgency = accountCheck.rows.length > 0 && accountCheck.rows[0].role === 'agency_admin';
       
       if (isAgency) {
-        // For agencies, get properties from accounts they manage
+        // For agencies, get BOTH:
+        // 1. Their own properties
+        // 2. Properties from accounts they manage
         result = await pool.query(`
-          SELECT p.* FROM properties p
-          JOIN accounts a ON p.account_id = a.id
-          WHERE a.managed_by_id = $1
+          SELECT p.*, a.name as owner_account_name FROM properties p
+          LEFT JOIN accounts a ON p.account_id = a.id
+          WHERE p.account_id = $1 
+             OR a.managed_by_id = $1
           ORDER BY p.created_at DESC
         `, [accountId]);
       } else {
