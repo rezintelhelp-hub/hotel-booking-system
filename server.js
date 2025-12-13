@@ -2105,6 +2105,28 @@ app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
   }
 });
 
+// Generate account codes for all accounts missing one
+app.post('/api/admin/generate-account-codes', async (req, res) => {
+  try {
+    // Get all accounts without codes
+    const accounts = await pool.query(`
+      SELECT id, name FROM accounts WHERE account_code IS NULL OR account_code = ''
+    `);
+    
+    let count = 0;
+    for (const account of accounts.rows) {
+      const code = await generateAccountCode(pool, account.name);
+      await pool.query(`UPDATE accounts SET account_code = $1 WHERE id = $2`, [code, account.id]);
+      count++;
+    }
+    
+    res.json({ success: true, count, message: `Generated ${count} account codes` });
+  } catch (error) {
+    console.error('Generate codes error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // AGENCY MANAGEMENT REQUESTS
 // =====================================================
