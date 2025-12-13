@@ -5169,6 +5169,87 @@ app.post('/api/kb/import', async (req, res) => {
 // =====================================================
 
 // Setup billing tables
+// Setup just the websites tables (separate from billing to avoid errors)
+app.get('/api/setup-websites', async (req, res) => {
+  try {
+    console.log('🌐 Setting up website tables...');
+    
+    // Add code column to website_templates if needed
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
+    await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
+    
+    // Websites table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS websites (
+        id SERIAL PRIMARY KEY,
+        public_id VARCHAR(20) UNIQUE NOT NULL,
+        owner_type VARCHAR(20) NOT NULL DEFAULT 'account',
+        owner_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100),
+        template_code VARCHAR(50),
+        site_url VARCHAR(500),
+        admin_url VARCHAR(500),
+        custom_domain VARCHAR(255),
+        instawp_site_id VARCHAR(255),
+        instawp_data JSONB DEFAULT '{}',
+        website_type VARCHAR(30) DEFAULT 'portfolio',
+        status VARCHAR(20) DEFAULT 'draft',
+        default_currency VARCHAR(3) DEFAULT 'GBP',
+        timezone VARCHAR(50) DEFAULT 'Europe/London',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_owner ON websites(owner_type, owner_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_status ON websites(status)`);
+    
+    // Website Units junction table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_units (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        is_featured BOOLEAN DEFAULT FALSE,
+        custom_name VARCHAR(255),
+        custom_description TEXT,
+        custom_price_modifier DECIMAL(5,2),
+        is_active BOOLEAN DEFAULT TRUE,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(website_id, unit_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_website ON website_units(website_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_unit ON website_units(unit_id)`);
+    
+    // Website Pages
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_pages (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        page_type VARCHAR(50) NOT NULL,
+        slug VARCHAR(100),
+        title VARCHAR(255),
+        content JSONB DEFAULT '{}',
+        is_published BOOLEAN DEFAULT FALSE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Migration tracking column
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
+    
+    console.log('✅ Website tables created successfully');
+    res.json({ success: true, message: 'Website tables created' });
+  } catch (error) {
+    console.error('Setup websites error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/setup-billing', async (req, res) => {
   try {
     // Subscription plans (editable by admin)
