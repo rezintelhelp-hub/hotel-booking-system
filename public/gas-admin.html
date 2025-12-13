@@ -12662,13 +12662,15 @@ Local honey and preserves"></textarea>
                                         </span>
                                     </td>
                                     <td>
-                                        <div style="display: flex; gap: 0.5rem;">
+                                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                             <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
-                                            <button class="btn btn-secondary btn-small" onclick="editAccount(${account.id})">Edit</button>
-                                            ${account.role !== 'master_admin' ? `
-                                                <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', \`${account.name.replace(/`/g, "'")}\`)">Role</button>
+                                            ${currentAccount && currentAccount.role === 'master_admin' ? `
+                                                <button class="btn btn-secondary btn-small" onclick="editAccount(${account.id})">Edit</button>
+                                                ${account.role !== 'master_admin' ? `
+                                                    <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', '${(account.name || '').replace(/'/g, '')}')">Role</button>
+                                                ` : ''}
+                                                <button class="btn btn-secondary btn-small" onclick="resetAccountPassword(${account.id}, '${account.email}')" title="Reset password">🔑</button>
                                             ` : ''}
-                                            <button class="btn btn-secondary btn-small" onclick="resetAccountPassword(${account.id}, '${account.email}')" title="Reset password">🔑</button>
                                         </div>
                                     </td>
                                 </tr>
