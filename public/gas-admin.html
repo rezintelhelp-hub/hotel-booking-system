@@ -12318,18 +12318,36 @@ Local honey and preserves"></textarea>
         
         async function loadManagementRequests() {
             try {
-                // Get current account
-                const meRes = await fetch('/api/accounts/me', { headers: authHeaders() });
-                const meData = await meRes.json();
+                // Use selectedAccountId if viewing as another account, otherwise use logged-in user
+                let accountId = selectedAccountId;
+                let accountRole = null;
                 
-                if (!meData.success || meData.account.role !== 'agency_admin') {
+                if (selectedAccountId) {
+                    // Get the selected account's role
+                    const accountRes = await fetch(`/api/admin/accounts?account_id=${selectedAccountId}`, { headers: authHeaders() });
+                    const accountData = await accountRes.json();
+                    if (accountData.success && accountData.accounts && accountData.accounts.length > 0) {
+                        accountRole = accountData.accounts[0].role;
+                    }
+                } else {
+                    // Use logged-in user
+                    const meRes = await fetch('/api/accounts/me', { headers: authHeaders() });
+                    const meData = await meRes.json();
+                    if (meData.success) {
+                        accountId = meData.account.id;
+                        accountRole = meData.account.role;
+                    }
+                }
+                
+                // Master admin can also view this page
+                if (accountRole !== 'agency_admin' && accountRole !== 'master_admin') {
                     document.getElementById('managementRequestsList').innerHTML = 
                         '<p style="text-align: center; padding: 2rem; color: var(--text-secondary);">Only Agency Admins can view management requests</p>';
                     return;
                 }
                 
                 // Load requests for this agency
-                const response = await fetch(`/api/management-requests?account_id=${meData.account.id}&role=agency`, { headers: authHeaders() });
+                const response = await fetch(`/api/management-requests?account_id=${accountId}&role=agency`, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
