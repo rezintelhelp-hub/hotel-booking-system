@@ -1581,12 +1581,13 @@
                 
                 <!-- User Profile Section -->
                 <div class="user-profile-section" id="userProfileSection">
-                    <div class="user-profile-info">
+                    <div class="user-profile-info" onclick="showView('my-account')" style="cursor: pointer;" title="Edit Profile">
                         <div class="user-avatar" id="userAvatar">?</div>
                         <div class="user-details">
                             <div class="user-name" id="userName">Loading...</div>
                             <div class="user-role" id="userRole">-</div>
                         </div>
+                        <span style="margin-left: auto; color: var(--text-muted); font-size: 0.8rem;">✏️</span>
                     </div>
                     <button class="logout-btn" onclick="handleLogout()">
                         <span>🚪</span> Sign Out
@@ -5308,6 +5309,139 @@
                                 <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Other</div>
                                 <div style="color: var(--text-secondary); font-size: 0.85rem;">Not listed here</div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- My Account View -->
+            <div id="my-account" class="view">
+                <div class="header">
+                    <h2>👤 My Account</h2>
+                    <p>Manage your profile and account settings</p>
+                </div>
+
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
+                    <!-- Profile Information -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Profile Information</h3>
+                        </div>
+                        <div style="padding: 1rem 0;">
+                            <div style="display: flex; align-items: center; gap: 1.5rem; margin-bottom: 1.5rem;">
+                                <div id="myAccountAvatar" style="width: 80px; height: 80px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-size: 2rem; font-weight: 600;">?</div>
+                                <div>
+                                    <div id="myAccountName" style="font-size: 1.25rem; font-weight: 600;"></div>
+                                    <div id="myAccountRole" style="color: var(--text-secondary);"></div>
+                                </div>
+                            </div>
+                            
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                <div>
+                                    <label class="form-label">Full Name</label>
+                                    <input type="text" id="myAccountNameInput" class="form-input" placeholder="Your name">
+                                </div>
+                                <div>
+                                    <label class="form-label">Email Address</label>
+                                    <input type="email" id="myAccountEmail" class="form-input" placeholder="your@email.com">
+                                </div>
+                                <div>
+                                    <label class="form-label">Phone Number</label>
+                                    <input type="tel" id="myAccountPhone" class="form-input" placeholder="+44 7700 000000">
+                                </div>
+                                <div>
+                                    <label class="form-label">Business Name</label>
+                                    <input type="text" id="myAccountBusiness" class="form-input" placeholder="Your business name">
+                                </div>
+                                <button class="btn" onclick="saveMyProfile()" style="margin-top: 0.5rem;">
+                                    💾 Save Profile
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Change Password -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h3 class="card-title">Change Password</h3>
+                        </div>
+                        <div style="padding: 1rem 0;">
+                            <div style="display: flex; flex-direction: column; gap: 1rem;">
+                                <div>
+                                    <label class="form-label">Current Password</label>
+                                    <input type="password" id="currentPassword" class="form-input" placeholder="Enter current password">
+                                </div>
+                                <div>
+                                    <label class="form-label">New Password</label>
+                                    <input type="password" id="newPassword" class="form-input" placeholder="Enter new password">
+                                </div>
+                                <div>
+                                    <label class="form-label">Confirm New Password</label>
+                                    <input type="password" id="confirmNewPassword" class="form-input" placeholder="Confirm new password">
+                                </div>
+                                <button class="btn" onclick="changeMyPassword()" style="margin-top: 0.5rem;">
+                                    🔐 Change Password
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Master Admin Only: Create Master Admin -->
+                <div id="createMasterAdminSection" class="card" style="display: none; margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">👑 Create Master Admin Account</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); margin: 0.5rem 0 1rem;">Only visible to Master Admins. Create additional master admin accounts with full system access.</p>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 1rem; align-items: end;">
+                        <div>
+                            <label class="form-label">Name</label>
+                            <input type="text" id="newMasterName" class="form-input" placeholder="Full name">
+                        </div>
+                        <div>
+                            <label class="form-label">Email</label>
+                            <input type="email" id="newMasterEmail" class="form-input" placeholder="email@example.com">
+                        </div>
+                        <div>
+                            <label class="form-label">Temporary Password</label>
+                            <input type="password" id="newMasterPassword" class="form-input" placeholder="Min 8 characters">
+                        </div>
+                        <button class="btn" onclick="createMasterAdmin()">
+                            👑 Create Master Admin
+                        </button>
+                    </div>
+                    
+                    <!-- Existing Master Admins -->
+                    <div style="margin-top: 1.5rem;">
+                        <h4 style="margin-bottom: 1rem;">Existing Master Admins</h4>
+                        <div id="masterAdminsList">
+                            <p style="color: var(--text-secondary);">Loading...</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Account Info Card -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">Account Information</h3>
+                    </div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; padding: 1rem 0;">
+                        <div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Account ID</div>
+                            <div id="myAccountId" style="font-family: monospace; font-size: 0.9rem;">-</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Account Code</div>
+                            <div id="myAccountCode" style="font-family: monospace; font-size: 0.9rem;">-</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Role</div>
+                            <div id="myAccountRoleInfo" style="font-size: 0.9rem;">-</div>
+                        </div>
+                        <div>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Status</div>
+                            <div id="myAccountStatus" style="font-size: 0.9rem;">-</div>
                         </div>
                     </div>
                 </div>
@@ -11079,6 +11213,7 @@ Local honey and preserves"></textarea>
             
             // Load data for specific views
             if (viewName === 'dashboard') loadDashboard();
+            if (viewName === 'my-account') loadMyAccount();
             if (viewName === 'accounts') loadAccounts();
             if (viewName === 'agencies') loadAgencies();
             if (viewName === 'clients') loadClients();
@@ -11610,6 +11745,242 @@ Local honey and preserves"></textarea>
 
         // =====================================================
         // ACCOUNTS MANAGEMENT (New unified system)
+        // =====================================================
+        // MY ACCOUNT FUNCTIONS
+        // =====================================================
+        
+        async function loadMyAccount() {
+            try {
+                const response = await fetch('/api/accounts/me', { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.account) {
+                    const account = data.account;
+                    
+                    // Update avatar and name display
+                    const initial = (account.name || 'U').charAt(0).toUpperCase();
+                    document.getElementById('myAccountAvatar').textContent = initial;
+                    document.getElementById('myAccountName').textContent = account.name || 'Unknown';
+                    document.getElementById('myAccountRole').textContent = formatRole(account.role);
+                    
+                    // Fill form fields
+                    document.getElementById('myAccountNameInput').value = account.name || '';
+                    document.getElementById('myAccountEmail').value = account.email || '';
+                    document.getElementById('myAccountPhone').value = account.phone || '';
+                    document.getElementById('myAccountBusiness').value = account.business_name || '';
+                    
+                    // Account info
+                    document.getElementById('myAccountId').textContent = account.id;
+                    document.getElementById('myAccountCode').textContent = account.account_code || 'Not set';
+                    document.getElementById('myAccountRoleInfo').textContent = formatRole(account.role);
+                    document.getElementById('myAccountStatus').textContent = account.status || 'active';
+                    
+                    // Show master admin section if applicable
+                    if (account.role === 'master_admin') {
+                        document.getElementById('createMasterAdminSection').style.display = 'block';
+                        loadMasterAdmins();
+                    } else {
+                        document.getElementById('createMasterAdminSection').style.display = 'none';
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading my account:', error);
+                showNotification('Error loading account details', 'error');
+            }
+        }
+        
+        function formatRole(role) {
+            const roles = {
+                'master_admin': '👑 Master Admin',
+                'agency_admin': '🏢 Agency Admin',
+                'submaster_admin': '📁 Sub Master',
+                'admin': '👤 Admin'
+            };
+            return roles[role] || role;
+        }
+        
+        async function saveMyProfile() {
+            const name = document.getElementById('myAccountNameInput').value.trim();
+            const email = document.getElementById('myAccountEmail').value.trim();
+            const phone = document.getElementById('myAccountPhone').value.trim();
+            const business_name = document.getElementById('myAccountBusiness').value.trim();
+            
+            if (!name || !email) {
+                showNotification('Name and email are required', 'error');
+                return;
+            }
+            
+            try {
+                // Get current account ID
+                const meResponse = await fetch('/api/accounts/me', { headers: authHeaders() });
+                const meData = await meResponse.json();
+                
+                if (!meData.success) {
+                    showNotification('Could not verify account', 'error');
+                    return;
+                }
+                
+                const response = await fetch(`/api/accounts/${meData.account.id}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ name, email, phone, business_name })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Profile updated successfully', 'success');
+                    // Update sidebar display
+                    document.getElementById('userName').textContent = name;
+                    document.getElementById('userAvatar').textContent = name.charAt(0).toUpperCase();
+                    document.getElementById('myAccountAvatar').textContent = name.charAt(0).toUpperCase();
+                    document.getElementById('myAccountName').textContent = name;
+                } else {
+                    showNotification(data.error || 'Error updating profile', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving profile:', error);
+                showNotification('Error saving profile', 'error');
+            }
+        }
+        
+        async function changeMyPassword() {
+            const currentPassword = document.getElementById('currentPassword').value;
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmNewPassword = document.getElementById('confirmNewPassword').value;
+            
+            if (!currentPassword || !newPassword || !confirmNewPassword) {
+                showNotification('All password fields are required', 'error');
+                return;
+            }
+            
+            if (newPassword !== confirmNewPassword) {
+                showNotification('New passwords do not match', 'error');
+                return;
+            }
+            
+            if (newPassword.length < 8) {
+                showNotification('New password must be at least 8 characters', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/accounts/change-password', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Password changed successfully', 'success');
+                    // Clear password fields
+                    document.getElementById('currentPassword').value = '';
+                    document.getElementById('newPassword').value = '';
+                    document.getElementById('confirmNewPassword').value = '';
+                } else {
+                    showNotification(data.error || 'Error changing password', 'error');
+                }
+            } catch (error) {
+                console.error('Error changing password:', error);
+                showNotification('Error changing password', 'error');
+            }
+        }
+        
+        async function createMasterAdmin() {
+            const name = document.getElementById('newMasterName').value.trim();
+            const email = document.getElementById('newMasterEmail').value.trim();
+            const password = document.getElementById('newMasterPassword').value;
+            
+            if (!name || !email || !password) {
+                showNotification('All fields are required', 'error');
+                return;
+            }
+            
+            if (password.length < 8) {
+                showNotification('Password must be at least 8 characters', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/create-master-admin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ name, email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Master Admin created successfully', 'success');
+                    // Clear form
+                    document.getElementById('newMasterName').value = '';
+                    document.getElementById('newMasterEmail').value = '';
+                    document.getElementById('newMasterPassword').value = '';
+                    // Reload list
+                    loadMasterAdmins();
+                } else {
+                    showNotification(data.error || 'Error creating master admin', 'error');
+                }
+            } catch (error) {
+                console.error('Error creating master admin:', error);
+                showNotification('Error creating master admin', 'error');
+            }
+        }
+        
+        async function loadMasterAdmins() {
+            const container = document.getElementById('masterAdminsList');
+            try {
+                const response = await fetch('/api/admin/accounts', { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.accounts) {
+                    const masterAdmins = data.accounts.filter(a => a.role === 'master_admin');
+                    
+                    if (masterAdmins.length === 0) {
+                        container.innerHTML = '<p style="color: var(--text-secondary);">No master admins found</p>';
+                        return;
+                    }
+                    
+                    container.innerHTML = `
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Name</th>
+                                        <th>Email</th>
+                                        <th>Status</th>
+                                        <th>Last Login</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${masterAdmins.map(admin => `
+                                        <tr>
+                                            <td>
+                                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <div style="width: 32px; height: 32px; border-radius: 50%; background: var(--accent); color: white; display: flex; align-items: center; justify-content: center; font-weight: 600;">${(admin.name || 'M').charAt(0).toUpperCase()}</div>
+                                                    <strong>${admin.name || 'Unnamed'}</strong>
+                                                </div>
+                                            </td>
+                                            <td>${admin.email}</td>
+                                            <td><span class="badge badge-success">${admin.status || 'active'}</span></td>
+                                            <td>${admin.last_login_at ? new Date(admin.last_login_at).toLocaleDateString() : 'Never'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading master admins:', error);
+                container.innerHTML = '<p style="color: var(--error);">Error loading master admins</p>';
+            }
+        }
+        
+        // =====================================================
+        // ACCOUNTS MANAGEMENT FUNCTIONS
         // =====================================================
         
         let allAccounts = [];
