@@ -2211,13 +2211,25 @@ app.get('/api/management-requests', async (req, res) => {
   try {
     const accountId = req.query.account_id;
     const role = req.query.role; // 'requester' or 'agency'
-    
-    if (!accountId) {
-      return res.json({ success: false, error: 'account_id required' });
-    }
+    const showAll = req.query.all === 'true';
     
     let query;
-    if (role === 'agency') {
+    
+    if (showAll) {
+      // Master admin viewing ALL requests
+      query = await pool.query(`
+        SELECT mr.*, 
+               ra.name as requester_name, ra.email as requester_email, ra.business_name as requester_business,
+               aa.name as agency_name, aa.email as agency_email, aa.business_name as agency_business,
+               (SELECT COUNT(*) FROM properties WHERE account_id = mr.requesting_account_id) as property_count
+        FROM management_requests mr
+        JOIN accounts ra ON mr.requesting_account_id = ra.id
+        JOIN accounts aa ON mr.agency_id = aa.id
+        ORDER BY mr.requested_at DESC
+      `);
+    } else if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
+    } else if (role === 'agency') {
       // Agency viewing requests made TO them
       query = await pool.query(`
         SELECT mr.*, 
@@ -2229,7 +2241,7 @@ app.get('/api/management-requests', async (req, res) => {
         ORDER BY mr.requested_at DESC
       `, [accountId]);
     } else {
-      // Account viewing their own requests
+      // Account viewing their own requests (requester mode)
       query = await pool.query(`
         SELECT mr.*, 
                a.name as agency_name, a.email as agency_email, a.business_name as agency_business
