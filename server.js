@@ -12098,7 +12098,11 @@ app.get('/api/admin/stats', async (req, res) => {
         JOIN properties p ON b.property_id = p.id
         WHERE p.account_id = $1
       `, [accountId]);
-      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE gas_account_id = $1 AND status = $2', [accountId, 'active']);
+      // Check both gas_account_id (INTEGER) and account_id (VARCHAR) columns
+      connectionsCount = await pool.query(`
+        SELECT COUNT(*) FROM channel_connections 
+        WHERE (gas_account_id = $1 OR account_id = $2) AND status = 'active'
+      `, [accountId, String(accountId)]);
     } else if (clientId) {
       // Client-specific stats (legacy)
       propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE client_id = $1', [clientId]);
@@ -12112,7 +12116,10 @@ app.get('/api/admin/stats', async (req, res) => {
         JOIN properties p ON b.property_id = p.id
         WHERE p.client_id = $1
       `, [clientId]);
-      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE gas_account_id = $1 AND status = $2', [clientId, 'active']);
+      connectionsCount = await pool.query(`
+        SELECT COUNT(*) FROM channel_connections 
+        WHERE (gas_account_id = $1 OR account_id = $2) AND status = 'active'
+      `, [clientId, String(clientId)]);
     } else {
       // All stats (admin view)
       propertiesCount = await pool.query('SELECT COUNT(*) FROM properties');
