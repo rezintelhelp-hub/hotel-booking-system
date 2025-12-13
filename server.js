@@ -19776,24 +19776,41 @@ function generateWebsitePublicId() {
 // List websites for current owner
 app.get('/api/websites', async (req, res) => {
   try {
-    const { owner_type, owner_id } = req.query;
+    const { owner_type, owner_id, all } = req.query;
     
-    if (!owner_id) {
-      return res.json({ success: false, error: 'owner_id required' });
+    let result;
+    
+    // If all=true, return all websites (for master_admin)
+    if (all === 'true') {
+      result = await pool.query(`
+        SELECT w.*, 
+               wt.name as template_name,
+               wt.category as template_category,
+               a.name as account_name,
+               (SELECT COUNT(*) FROM website_units wu WHERE wu.website_id = w.id AND wu.is_active = true) as unit_count
+        FROM websites w
+        LEFT JOIN website_templates wt ON w.template_code = wt.code
+        LEFT JOIN accounts a ON w.owner_id = a.id AND w.owner_type = 'account'
+        ORDER BY w.created_at DESC
+      `);
+    } else {
+      if (!owner_id) {
+        return res.json({ success: false, error: 'owner_id required' });
+      }
+      
+      const ownerType = owner_type || 'account';
+      
+      result = await pool.query(`
+        SELECT w.*, 
+               wt.name as template_name,
+               wt.category as template_category,
+               (SELECT COUNT(*) FROM website_units wu WHERE wu.website_id = w.id AND wu.is_active = true) as unit_count
+        FROM websites w
+        LEFT JOIN website_templates wt ON w.template_code = wt.code
+        WHERE w.owner_type = $1 AND w.owner_id = $2
+        ORDER BY w.created_at DESC
+      `, [ownerType, owner_id]);
     }
-    
-    const ownerType = owner_type || 'account';
-    
-    const result = await pool.query(`
-      SELECT w.*, 
-             wt.name as template_name,
-             wt.category as template_category,
-             (SELECT COUNT(*) FROM website_units wu WHERE wu.website_id = w.id AND wu.is_active = true) as unit_count
-      FROM websites w
-      LEFT JOIN website_templates wt ON w.template_code = wt.code
-      WHERE w.owner_type = $1 AND w.owner_id = $2
-      ORDER BY w.created_at DESC
-    `, [ownerType, owner_id]);
     
     res.json({ success: true, websites: result.rows });
   } catch (error) {
