@@ -4252,28 +4252,9 @@ app.get('/api/setup-billing', async (req, res) => {
     
     // Clean up any existing websites table with broken FK
     try {
-      // Check if websites table exists
-      const websitesCheck = await pool.query(`
-        SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'websites')
-      `);
-      
-      if (websitesCheck.rows[0].exists) {
-        // Check if it has any data
-        const countCheck = await pool.query('SELECT COUNT(*) FROM websites');
-        if (parseInt(countCheck.rows[0].count) === 0) {
-          // Empty table - safe to drop and recreate
-          await pool.query('DROP TABLE IF EXISTS website_pages CASCADE');
-          await pool.query('DROP TABLE IF EXISTS website_units CASCADE');
-          await pool.query('DROP TABLE IF EXISTS websites CASCADE');
-          console.log('✅ Dropped empty websites tables for recreation');
-        } else {
-          // Has data - try to drop just the FK constraint
-          await pool.query(`
-            ALTER TABLE websites DROP CONSTRAINT IF EXISTS websites_template_code_fkey
-          `);
-          console.log('✅ Removed FK constraint from existing websites table');
-        }
-      }
+      // Try to drop the FK constraint if it exists
+      await pool.query(`ALTER TABLE websites DROP CONSTRAINT IF EXISTS websites_template_code_fkey`);
+      console.log('✅ Removed FK constraint from websites table (if existed)');
     } catch (cleanupErr) {
       console.log('Note: websites cleanup:', cleanupErr.message);
     }
@@ -4790,6 +4771,93 @@ app.get('/api/admin/billing/subscriptions', async (req, res) => {
 
 const VPS_DEPLOY_URL = 'https://sites.gas.travel/gas-deploy.php';
 const VPS_DEPLOY_API_KEY = process.env.VPS_DEPLOY_API_KEY || 'gas-deploy-2024-secure-key';
+
+// Simple setup for websites tables only
+app.get('/api/setup-websites', async (req, res) => {
+  try {
+    // Add migrated_to_website_id column to account_websites
+    await pool.query(`ALTER TABLE account_websites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
+    console.log('✅ Added migrated_to_website_id column');
+    
+    // Add code column to website_templates if it doesn't exist
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
+    await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
+    console.log('✅ Added code column to website_templates');
+    
+    // Create websites table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS websites (
+        id SERIAL PRIMARY KEY,
+        public_id VARCHAR(20) UNIQUE NOT NULL,
+        owner_type VARCHAR(20) NOT NULL DEFAULT 'account',
+        owner_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100),
+        template_code VARCHAR(50),
+        site_url VARCHAR(500),
+        admin_url VARCHAR(500),
+        custom_domain VARCHAR(255),
+        instawp_site_id VARCHAR(255),
+        instawp_data JSONB DEFAULT '{}',
+        website_type VARCHAR(30) DEFAULT 'portfolio',
+        status VARCHAR(20) DEFAULT 'draft',
+        default_currency VARCHAR(3) DEFAULT 'GBP',
+        timezone VARCHAR(50) DEFAULT 'Europe/London',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_owner ON websites(owner_type, owner_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_status ON websites(status)`);
+    console.log('✅ Created websites table');
+    
+    // Create website_units table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_units (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        is_featured BOOLEAN DEFAULT FALSE,
+        custom_name VARCHAR(255),
+        custom_description TEXT,
+        custom_price_modifier DECIMAL(5,2),
+        is_active BOOLEAN DEFAULT TRUE,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(website_id, unit_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_website ON website_units(website_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_unit ON website_units(unit_id)`);
+    console.log('✅ Created website_units table');
+    
+    // Create website_pages table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_pages (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        page_type VARCHAR(50) NOT NULL,
+        slug VARCHAR(100),
+        title VARCHAR(255),
+        content JSONB DEFAULT '{}',
+        is_published BOOLEAN DEFAULT FALSE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('✅ Created website_pages table');
+    
+    // Add website_id to website_settings if needed
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER`);
+    console.log('✅ Added website_id to website_settings');
+    
+    res.json({ success: true, message: 'Websites tables created successfully!' });
+  } catch (error) {
+    console.error('Setup websites error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
 
 // Create deployed_sites table
 app.get('/api/setup-deploy', async (req, res) => {
@@ -20300,6 +20368,12 @@ app.post('/api/public/websites/:publicId/search', async (req, res) => {
 // Migrate old account_websites to new websites table
 app.post('/api/websites/migrate', async (req, res) => {
   try {
+    // Ensure the migration column exists
+    await pool.query(`ALTER TABLE account_websites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
+    
+    // Ensure website_settings has website_id column
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER`);
+    
     // Find account_websites that haven't been migrated
     const oldSites = await pool.query(`
       SELECT aw.*, a.name as account_name 
