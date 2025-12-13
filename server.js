@@ -5432,6 +5432,80 @@ app.get('/api/setup-billing', async (req, res) => {
       )
     `);
     
+    // ============================================================
+    // MULTI-WEBSITE ARCHITECTURE
+    // ============================================================
+    
+    // Add code column to website_templates if it doesn't exist
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
+    await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '{}'`);
+    
+    // Websites (independent entities - many per account)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS websites (
+        id SERIAL PRIMARY KEY,
+        public_id VARCHAR(20) UNIQUE NOT NULL,
+        owner_type VARCHAR(20) NOT NULL DEFAULT 'account',
+        owner_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100),
+        template_code VARCHAR(50),
+        site_url VARCHAR(500),
+        admin_url VARCHAR(500),
+        custom_domain VARCHAR(255),
+        instawp_site_id VARCHAR(255),
+        instawp_data JSONB DEFAULT '{}',
+        website_type VARCHAR(30) DEFAULT 'portfolio',
+        status VARCHAR(20) DEFAULT 'draft',
+        default_currency VARCHAR(3) DEFAULT 'GBP',
+        timezone VARCHAR(50) DEFAULT 'Europe/London',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_owner ON websites(owner_type, owner_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_status ON websites(status)`);
+    
+    // Website Units (which units are on which website - many-to-many)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_units (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        is_featured BOOLEAN DEFAULT FALSE,
+        custom_name VARCHAR(255),
+        custom_description TEXT,
+        custom_price_modifier DECIMAL(5,2),
+        is_active BOOLEAN DEFAULT TRUE,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(website_id, unit_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_website ON website_units(website_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_unit ON website_units(unit_id)`);
+    
+    // Website Pages (custom pages per website)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_pages (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        page_type VARCHAR(50) NOT NULL,
+        slug VARCHAR(100),
+        title VARCHAR(255),
+        content JSONB DEFAULT '{}',
+        is_published BOOLEAN DEFAULT FALSE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Add migrated_to_website_id column to deployed_sites for migration tracking
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
+    
     // Property payment settings
     await pool.query(`
       CREATE TABLE IF NOT EXISTS property_payment_settings (
@@ -6061,6 +6135,29 @@ app.post('/api/admin/deployed-sites/add-existing', async (req, res) => {
       VALUES ($1, $2, $3, $4, $5, $6, NOW())
       RETURNING *
     `, [account_id, property_id, site_name, site_url, admin_url, status || 'deployed']);
+    
+    res.json({ success: true, site: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update deployed site status
+app.put('/api/admin/deployed-sites/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, site_name, site_url, admin_url } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE deployed_sites SET
+        status = COALESCE($2, status),
+        site_name = COALESCE($3, site_name),
+        site_url = COALESCE($4, site_url),
+        admin_url = COALESCE($5, admin_url),
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [id, status, site_name, site_url, admin_url]);
     
     res.json({ success: true, site: result.rows[0] });
   } catch (error) {
@@ -21510,6 +21607,326 @@ setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
 
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
+
+// =====================================================
+// MULTI-WEBSITE API ENDPOINTS
+// =====================================================
+
+// Helper function to generate public ID
+function generateWebsitePublicId() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let id = 'WEB-';
+  for (let i = 0; i < 6; i++) {
+    id += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return id;
+}
+
+// Get all websites (with optional all=true for master_admin)
+app.get('/api/websites', async (req, res) => {
+  try {
+    const { owner_type, owner_id, all } = req.query;
+    
+    let result;
+    
+    if (all === 'true') {
+      result = await pool.query(`
+        SELECT w.*, 
+               wt.name as template_name,
+               a.name as account_name,
+               (SELECT COUNT(*) FROM website_units wu WHERE wu.website_id = w.id AND wu.is_active = true) as unit_count
+        FROM websites w
+        LEFT JOIN website_templates wt ON w.template_code = wt.code
+        LEFT JOIN accounts a ON w.owner_id = a.id AND w.owner_type = 'account'
+        ORDER BY w.created_at DESC
+      `);
+    } else {
+      if (!owner_id) {
+        return res.json({ success: false, error: 'owner_id required' });
+      }
+      
+      const ownerType = owner_type || 'account';
+      
+      result = await pool.query(`
+        SELECT w.*, 
+               wt.name as template_name,
+               (SELECT COUNT(*) FROM website_units wu WHERE wu.website_id = w.id AND wu.is_active = true) as unit_count
+        FROM websites w
+        LEFT JOIN website_templates wt ON w.template_code = wt.code
+        WHERE w.owner_type = $1 AND w.owner_id = $2
+        ORDER BY w.created_at DESC
+      `, [ownerType, owner_id]);
+    }
+    
+    res.json({ success: true, websites: result.rows });
+  } catch (error) {
+    console.error('Get websites error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single website with units
+app.get('/api/websites/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const websiteResult = await pool.query(`
+      SELECT w.*, wt.name as template_name
+      FROM websites w
+      LEFT JOIN website_templates wt ON w.template_code = wt.code
+      WHERE w.id = $1
+    `, [id]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const unitsResult = await pool.query(`
+      SELECT wu.*, bu.name as unit_name, bu.display_name, p.name as property_name, p.city
+      FROM website_units wu
+      JOIN bookable_units bu ON wu.unit_id = bu.id
+      JOIN properties p ON bu.property_id = p.id
+      WHERE wu.website_id = $1
+      ORDER BY wu.display_order, bu.name
+    `, [id]);
+    
+    res.json({ 
+      success: true, 
+      website: websiteResult.rows[0],
+      units: unitsResult.rows 
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create new website
+app.post('/api/websites', async (req, res) => {
+  try {
+    const { owner_type, owner_id, name, slug, template_code, website_type, site_url, admin_url, status } = req.body;
+    
+    if (!owner_id || !name) {
+      return res.json({ success: false, error: 'owner_id and name required' });
+    }
+    
+    const publicId = generateWebsitePublicId();
+    
+    const result = await pool.query(`
+      INSERT INTO websites (public_id, owner_type, owner_id, name, slug, template_code, website_type, site_url, admin_url, status)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `, [publicId, owner_type || 'account', owner_id, name, slug, template_code || 'starter', website_type || 'portfolio', site_url, admin_url, status || 'draft']);
+    
+    res.json({ success: true, website: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update website
+app.put('/api/websites/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, slug, custom_domain, status, template_code, website_type, site_url, admin_url } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE websites SET
+        name = COALESCE($2, name),
+        slug = COALESCE($3, slug),
+        custom_domain = COALESCE($4, custom_domain),
+        status = COALESCE($5, status),
+        template_code = COALESCE($6, template_code),
+        website_type = COALESCE($7, website_type),
+        site_url = COALESCE($8, site_url),
+        admin_url = COALESCE($9, admin_url),
+        updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [id, name, slug, custom_domain, status, template_code, website_type, site_url, admin_url]);
+    
+    res.json({ success: true, website: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete website
+app.delete('/api/websites/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM websites WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get units on a website
+app.get('/api/websites/:id/units', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT wu.*, bu.name as unit_name, bu.display_name, p.name as property_name, p.city
+      FROM website_units wu
+      JOIN bookable_units bu ON wu.unit_id = bu.id
+      JOIN properties p ON bu.property_id = p.id
+      WHERE wu.website_id = $1
+      ORDER BY wu.display_order, bu.name
+    `, [id]);
+    
+    res.json({ success: true, units: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get available units for a website (units owned by this account not already on website)
+app.get('/api/websites/:id/available-units', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const websiteResult = await pool.query('SELECT * FROM websites WHERE id = $1', [id]);
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    const result = await pool.query(`
+      SELECT bu.*, p.name as property_name, p.city
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1
+      AND bu.id NOT IN (SELECT unit_id FROM website_units WHERE website_id = $2)
+      ORDER BY p.name, bu.name
+    `, [website.owner_id, id]);
+    
+    res.json({ success: true, units: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Add units to website
+app.post('/api/websites/:id/units', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { unit_ids } = req.body;
+    
+    if (!unit_ids || !Array.isArray(unit_ids) || unit_ids.length === 0) {
+      return res.json({ success: false, error: 'unit_ids array required' });
+    }
+    
+    for (const unitId of unit_ids) {
+      await pool.query(`
+        INSERT INTO website_units (website_id, unit_id)
+        VALUES ($1, $2)
+        ON CONFLICT (website_id, unit_id) DO NOTHING
+      `, [id, unitId]);
+    }
+    
+    res.json({ success: true, added: unit_ids.length });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update unit on website (featured, order, etc)
+app.put('/api/websites/:id/units/:unitId', async (req, res) => {
+  try {
+    const { id, unitId } = req.params;
+    const { is_featured, display_order, custom_name } = req.body;
+    
+    await pool.query(`
+      UPDATE website_units SET
+        is_featured = COALESCE($3, is_featured),
+        display_order = COALESCE($4, display_order),
+        custom_name = COALESCE($5, custom_name)
+      WHERE website_id = $1 AND unit_id = $2
+    `, [id, unitId, is_featured, display_order, custom_name]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Remove unit from website
+app.delete('/api/websites/:id/units/:unitId', async (req, res) => {
+  try {
+    const { id, unitId } = req.params;
+    await pool.query('DELETE FROM website_units WHERE website_id = $1 AND unit_id = $2', [id, unitId]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Migrate deployed_sites to new websites table
+app.post('/api/websites/migrate', async (req, res) => {
+  try {
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
+    
+    const oldSites = await pool.query(`
+      SELECT ds.*, a.name as account_name 
+      FROM deployed_sites ds
+      LEFT JOIN accounts a ON ds.account_id = a.id
+      WHERE ds.migrated_to_website_id IS NULL AND ds.status != 'deleted'
+    `);
+    
+    const migrated = [];
+    
+    for (const old of oldSites.rows) {
+      const publicId = generateWebsitePublicId();
+      
+      const newSite = await pool.query(`
+        INSERT INTO websites (
+          public_id, owner_type, owner_id, name, template_code,
+          site_url, admin_url, status
+        ) VALUES ($1, 'account', $2, $3, $4, $5, $6, $7)
+        RETURNING *
+      `, [
+        publicId,
+        old.account_id,
+        old.site_name || old.account_name || 'My Website',
+        'starter',
+        old.site_url,
+        old.admin_url,
+        old.status === 'deployed' ? 'active' : (old.status || 'active')
+      ]);
+      
+      const websiteId = newSite.rows[0].id;
+      
+      // Add all units from this account to the website
+      await pool.query(`
+        INSERT INTO website_units (website_id, unit_id, display_order)
+        SELECT $1, bu.id, ROW_NUMBER() OVER (ORDER BY p.name, bu.name)
+        FROM bookable_units bu
+        JOIN properties p ON bu.property_id = p.id
+        WHERE p.account_id = $2
+        ON CONFLICT DO NOTHING
+      `, [websiteId, old.account_id]);
+      
+      // Mark old site as migrated
+      await pool.query(
+        'UPDATE deployed_sites SET migrated_to_website_id = $1 WHERE id = $2',
+        [websiteId, old.id]
+      );
+      
+      migrated.push({ old_id: old.id, new_id: websiteId, public_id: publicId, name: old.site_name || old.account_name });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Migrated ${migrated.length} websites`,
+      migrated 
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
 
 // Run initial Beds24 sync 60 seconds after startup
 setTimeout(() => {
