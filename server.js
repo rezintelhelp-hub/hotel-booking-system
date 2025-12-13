@@ -20368,18 +20368,18 @@ app.post('/api/public/websites/:publicId/search', async (req, res) => {
 // Migrate old account_websites to new websites table
 app.post('/api/websites/migrate', async (req, res) => {
   try {
-    // Ensure the migration column exists
-    await pool.query(`ALTER TABLE account_websites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
+    // Ensure the migration column exists on deployed_sites
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
     
     // Ensure website_settings has website_id column
     await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER`);
     
-    // Find account_websites that haven't been migrated
+    // Find deployed_sites that haven't been migrated
     const oldSites = await pool.query(`
-      SELECT aw.*, a.name as account_name 
-      FROM account_websites aw
-      LEFT JOIN accounts a ON aw.account_id = a.id
-      WHERE aw.migrated_to_website_id IS NULL
+      SELECT ds.*, a.name as account_name 
+      FROM deployed_sites ds
+      LEFT JOIN accounts a ON ds.account_id = a.id
+      WHERE ds.migrated_to_website_id IS NULL AND ds.status != 'deleted'
     `);
     
     const migrated = [];
@@ -20392,20 +20392,18 @@ app.post('/api/websites/migrate', async (req, res) => {
       const newSite = await pool.query(`
         INSERT INTO websites (
           public_id, owner_type, owner_id, name, template_code,
-          site_url, admin_url, custom_domain, instawp_site_id, instawp_data, status
-        ) VALUES ($1, 'account', $2, $3, $4, $5, $6, $7, $8, $9, $10)
+          site_url, admin_url, custom_domain, status
+        ) VALUES ($1, 'account', $2, $3, $4, $5, $6, $7, $8)
         RETURNING *
       `, [
         publicId,
         old.account_id,
         old.site_name || old.account_name || 'My Website',
-        old.template_used || 'starter',
+        'starter',
         old.site_url,
         old.admin_url,
-        old.custom_domain,
-        old.instawp_site_id,
-        old.instawp_data,
-        old.status || 'active'
+        null,
+        old.status === 'deployed' ? 'active' : (old.status || 'active')
       ]);
       
       const websiteId = newSite.rows[0].id;
@@ -20429,11 +20427,11 @@ app.post('/api/websites/migrate', async (req, res) => {
       
       // Mark old site as migrated
       await pool.query(
-        'UPDATE account_websites SET migrated_to_website_id = $1 WHERE id = $2',
+        'UPDATE deployed_sites SET migrated_to_website_id = $1 WHERE id = $2',
         [websiteId, old.id]
       );
       
-      migrated.push({ old_id: old.id, new_id: websiteId, public_id: publicId });
+      migrated.push({ old_id: old.id, new_id: websiteId, public_id: publicId, name: old.site_name || old.account_name });
     }
     
     res.json({ 
