@@ -4361,6 +4361,8 @@ app.get('/api/setup-billing', async (req, res) => {
         UNIQUE(account_id)
       )
     `);
+    // Add migration column if not exists
+    await pool.query(`ALTER TABLE account_websites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
     
     // Property payment settings
     await pool.query(`
