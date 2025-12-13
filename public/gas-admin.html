@@ -13266,19 +13266,69 @@ Local honey and preserves"></textarea>
             }
         }
         
-        async function resetAccountPassword(accountId, email) {
-            if (!confirm(`Reset password for ${email}?\n\nThis will clear their password and they'll need to use "Set Password" to create a new one.`)) {
+        function resetAccountPassword(accountId, email) {
+            // Remove existing modal if any
+            const existingModal = document.getElementById('passwordResetModal');
+            if (existingModal) existingModal.remove();
+            
+            const modalHtml = `
+                <div class="modal active" id="passwordResetModal">
+                    <div class="modal-content" style="max-width: 450px;">
+                        <div class="modal-header">
+                            <h3 class="modal-title">🔑 Reset Password</h3>
+                            <button class="modal-close" onclick="closeModal('passwordResetModal')">&times;</button>
+                        </div>
+                        <div style="padding: 1.5rem;">
+                            <p style="margin-bottom: 1rem;">Set new password for <strong>${email}</strong></p>
+                            
+                            <div class="form-group" style="margin-bottom: 1rem;">
+                                <label>New Password *</label>
+                                <input type="password" id="new-password-input" class="form-input" placeholder="Enter new password (min 8 characters)" minlength="8" required>
+                            </div>
+                            
+                            <div class="form-group" style="margin-bottom: 1.5rem;">
+                                <label>Confirm Password *</label>
+                                <input type="password" id="confirm-password-input" class="form-input" placeholder="Confirm new password" required>
+                            </div>
+                            
+                            <div style="display: flex; gap: 1rem;">
+                                <button class="btn btn-secondary" onclick="closeModal('passwordResetModal')" style="flex: 1;">Cancel</button>
+                                <button class="btn" onclick="saveNewPassword(${accountId}, '${email}')" style="flex: 1;">Set Password</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+            document.getElementById('new-password-input').focus();
+        }
+        
+        async function saveNewPassword(accountId, email) {
+            const newPassword = document.getElementById('new-password-input').value;
+            const confirmPassword = document.getElementById('confirm-password-input').value;
+            
+            if (!newPassword || newPassword.length < 8) {
+                alert('Password must be at least 8 characters');
+                return;
+            }
+            
+            if (newPassword !== confirmPassword) {
+                alert('Passwords do not match');
                 return;
             }
             
             try {
-                const response = await fetch(`/api/admin/reset-password/${encodeURIComponent(email)}`, {
-                    headers: authHeaders()
+                const response = await fetch(`/api/admin/set-password`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ account_id: accountId, password: newPassword })
                 });
                 const result = await response.json();
                 
                 if (result.success) {
-                    showNotification('Password reset. User can now set a new password.', 'success');
+                    closeModal('passwordResetModal');
+                    showNotification('Password updated successfully', 'success');
                 } else {
                     alert('Error: ' + result.error);
                 }
@@ -16997,7 +17047,7 @@ Local honey and preserves"></textarea>
             const modal = document.getElementById(modalId);
             if (modal) {
                 // List of dynamically created modals that should be removed
-                const dynamicModals = ['assignAgencyModal', 'changeRoleModal'];
+                const dynamicModals = ['assignAgencyModal', 'changeRoleModal', 'passwordResetModal'];
                 
                 if (dynamicModals.includes(modalId)) {
                     modal.remove();
