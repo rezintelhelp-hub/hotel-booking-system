@@ -4214,14 +4214,12 @@ app.get('/api/setup-billing', async (req, res) => {
         await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR(500)`);
         await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
         
-        // Create unique constraint on code if not exists
-        await pool.query(`
-          DO $$ BEGIN
-            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'website_templates_code_key') THEN
-              ALTER TABLE website_templates ADD CONSTRAINT website_templates_code_key UNIQUE (code);
-            END IF;
-          END $$;
-        `);
+        // Create unique constraint on code if not exists - use try/catch instead of DO block
+        try {
+          await pool.query(`ALTER TABLE website_templates ADD CONSTRAINT website_templates_code_key UNIQUE (code)`);
+        } catch (constraintErr) {
+          // Constraint already exists, ignore
+        }
         
         console.log('✅ Migrated website_templates table');
       }
