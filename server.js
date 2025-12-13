@@ -199,6 +199,219 @@ function generateBookingConfirmationEmail(booking, property, room) {
   `;
 }
 
+// Generate group booking confirmation email
+function generateGroupBookingConfirmationEmail(groupBookingId, bookings, rooms, property, guestInfo, totals) {
+  const formatDate = (dateStr) => {
+    const d = new Date(dateStr);
+    return d.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  };
+  
+  const depositPaid = totals.depositAmount && parseFloat(totals.depositAmount) > 0;
+  const balanceDue = totals.balanceAmount && parseFloat(totals.balanceAmount) > 0;
+  const currency = totals.currency || '$';
+  
+  // Build rooms HTML
+  let roomsHtml = '';
+  rooms.forEach((room, index) => {
+    const booking = bookings[index];
+    const roomPrice = booking?.accommodation_price || room.price || 0;
+    roomsHtml += `
+      <tr>
+        <td style="padding: 12px 16px; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 8px;">
+          <table width="100%" cellpadding="0" cellspacing="0">
+            <tr>
+              <td>
+                <strong style="font-size: 14px; color: #1e293b;">${room.name || 'Room'}</strong>
+                <div style="font-size: 13px; color: #64748b;">${room.guests || 1} guest${(room.guests || 1) > 1 ? 's' : ''}</div>
+              </td>
+              <td style="text-align: right;">
+                <strong style="font-size: 14px; color: #047857;">${currency}${parseFloat(roomPrice).toFixed(2)}</strong>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+      <tr><td style="height: 8px;"></td></tr>
+    `;
+  });
+  
+  // Build extras HTML if any
+  let extrasHtml = '';
+  if (totals.upsells && totals.upsells.length > 0) {
+    extrasHtml = `
+      <tr>
+        <td style="padding: 16px 0 8px; font-size: 14px; font-weight: 600; color: #1e293b; text-align: center;">Extras</td>
+      </tr>
+    `;
+    totals.upsells.forEach(upsell => {
+      extrasHtml += `
+        <tr>
+          <td style="padding: 10px 16px; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="font-size: 14px; color: #92400e;">${upsell.name}</td>
+                <td style="text-align: right; font-size: 14px; font-weight: 600; color: #b45309;">${currency}${parseFloat(upsell.price).toFixed(2)}</td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr><td style="height: 8px;"></td></tr>
+      `;
+    });
+  }
+  
+  const totalGuests = rooms.reduce((sum, r) => sum + (parseInt(r.guests) || 1), 0);
+  
+  return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Group Booking Confirmation</title>
+</head>
+<body style="margin: 0; padding: 0; background-color: #f4f4f5; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f4f4f5; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">
+          <!-- Header -->
+          <tr>
+            <td style="background: linear-gradient(135deg, #10b981, #059669); padding: 40px; text-align: center;">
+              <div style="width: 60px; height: 60px; background: white; border-radius: 50%; margin: 0 auto 16px; line-height: 60px; font-size: 30px;">✓</div>
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: 700;">Booking Confirmed!</h1>
+              <p style="color: rgba(255,255,255,0.9); margin: 8px 0 0; font-size: 16px;">Thank you for your reservation</p>
+            </td>
+          </tr>
+          
+          <!-- Booking Reference -->
+          <tr>
+            <td style="padding: 32px 40px 0;">
+              <table width="100%" style="background: #f0fdf4; border: 2px solid #10b981; border-radius: 12px; padding: 20px; text-align: center;">
+                <tr>
+                  <td>
+                    <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 1px; color: #059669;">Booking Reference</span>
+                    <div style="font-size: 18px; font-weight: 700; color: #047857; margin-top: 4px; word-break: break-all;">${groupBookingId}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Property Details -->
+          <tr>
+            <td style="padding: 32px 40px 0; text-align: center;">
+              <h2 style="margin: 0 0 8px; font-size: 20px; color: #1e293b;">Group Booking - ${rooms.length} room${rooms.length > 1 ? 's' : ''}</h2>
+              <p style="margin: 0; color: #64748b; font-size: 14px;">${property?.name || 'Property'}</p>
+            </td>
+          </tr>
+          
+          <!-- Rooms List -->
+          <tr>
+            <td style="padding: 24px 40px 0;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${roomsHtml}
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Extras if any -->
+          ${extrasHtml ? `
+          <tr>
+            <td style="padding: 0 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                ${extrasHtml}
+              </table>
+            </td>
+          </tr>
+          ` : ''}
+          
+          <!-- Dates -->
+          <tr>
+            <td style="padding: 24px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-in</span>
+                    <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(totals.checkin)}</strong>
+                    <span style="font-size: 12px; color: #64748b;">From 3:00 PM</span>
+                  </td>
+                  <td width="10%" style="text-align: center; color: #cbd5e1; font-size: 20px;">→</td>
+                  <td width="45%" style="text-align: center; padding: 16px; background: #f8fafc; border-radius: 8px;">
+                    <span style="font-size: 11px; text-transform: uppercase; color: #94a3b8; display: block;">Check-out</span>
+                    <strong style="font-size: 14px; color: #1e293b; display: block; margin: 4px 0;">${formatDate(totals.checkout)}</strong>
+                    <span style="font-size: 12px; color: #64748b;">By 11:00 AM</span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Guest Info -->
+          <tr>
+            <td style="padding: 0 40px 24px; text-align: center;">
+              <span style="font-size: 14px; color: #475569;">👤 ${totalGuests} ${totalGuests === 1 ? 'Guest' : 'Guests'}</span>
+            </td>
+          </tr>
+          
+          <!-- Divider -->
+          <tr>
+            <td style="padding: 0 40px;">
+              <hr style="border: none; border-top: 1px solid #e2e8f0; margin: 0;">
+            </td>
+          </tr>
+          
+          <!-- Pricing -->
+          <tr>
+            <td style="padding: 24px 40px;">
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td style="padding: 8px 0; font-size: 16px; font-weight: 600; color: #1e293b;">Total</td>
+                  <td style="padding: 8px 0; font-size: 16px; font-weight: 600; color: #1e293b; text-align: right;">${currency}${parseFloat(totals.total || 0).toFixed(2)}</td>
+                </tr>
+                ${depositPaid ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Deposit Paid</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #10b981; text-align: right; font-weight: 500;">✓ ${currency}${parseFloat(totals.depositAmount).toFixed(2)}</td>
+                </tr>
+                ` : ''}
+                ${balanceDue ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Balance Due at Check-in</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #f59e0b; text-align: right; font-weight: 500;">${currency}${parseFloat(totals.balanceAmount).toFixed(2)}</td>
+                </tr>
+                ` : ''}
+                ${!depositPaid ? `
+                <tr>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569;">Payment</td>
+                  <td style="padding: 8px 0; font-size: 14px; color: #475569; text-align: right;">Pay at Property</td>
+                </tr>
+                ` : ''}
+              </table>
+            </td>
+          </tr>
+          
+          <!-- Footer -->
+          <tr>
+            <td style="background: #f8fafc; padding: 24px 40px; text-align: center; border-top: 1px solid #e2e8f0;">
+              <p style="margin: 0 0 8px; font-size: 14px; color: #64748b;">Questions about your booking?</p>
+              <p style="margin: 0; font-size: 14px; color: #64748b;">Contact us at <a href="mailto:${property?.email || EMAIL_FROM}" style="color: #10b981;">${property?.email || EMAIL_FROM}</a></p>
+            </td>
+          </tr>
+        </table>
+        
+        <!-- Unsubscribe -->
+        <p style="text-align: center; margin-top: 24px; font-size: 12px; color: #94a3b8;">
+          This is a transactional email regarding your booking.
+        </p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+  `;
+}
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -784,11 +997,13 @@ app.get('/api/setup-accounts', async (req, res) => {
         public_id UUID DEFAULT gen_random_uuid() UNIQUE NOT NULL,
         account_code VARCHAR(20) UNIQUE,
         parent_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
+        managed_by_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL,
         role VARCHAR(20) NOT NULL DEFAULT 'admin',
         name VARCHAR(255) NOT NULL,
         email VARCHAR(255) NOT NULL UNIQUE,
         password_hash VARCHAR(255),
         phone VARCHAR(50),
+        contact_name VARCHAR(255),
         business_name VARCHAR(255),
         logo_url VARCHAR(500),
         primary_color VARCHAR(20) DEFAULT '#6366f1',
@@ -811,7 +1026,7 @@ app.get('/api/setup-accounts', async (req, res) => {
         last_login_at TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        CONSTRAINT valid_role CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin'))
+        CONSTRAINT valid_role CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin', 'travel_agent'))
       )
     `);
     
@@ -827,6 +1042,102 @@ app.get('/api/setup-accounts', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_email ON accounts(email)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_api_key ON accounts(api_key)`);
     console.log('✅ Created accounts indexes');
+
+    // =========================================================
+    // MULTI-TENANT STRUCTURE - Agency Management & Distribution
+    // =========================================================
+    
+    // Update role constraint to include travel_agent
+    await pool.query(`ALTER TABLE accounts DROP CONSTRAINT IF EXISTS valid_role`).catch(e => console.log('Drop constraint:', e.message));
+    await pool.query(`
+      ALTER TABLE accounts ADD CONSTRAINT valid_role 
+        CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin', 'travel_agent'))
+    `).catch(e => console.log('Add constraint:', e.message));
+    
+    // Add managed_by_id to accounts (which agency manages this account)
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS managed_by_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_managed_by ON accounts(managed_by_id)`);
+    
+    // Add contact_name to accounts
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`);
+    
+    // Add distribution settings to properties
+    // distribution_mode: 'open', 'request', 'private'
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS distribution_mode VARCHAR(20) DEFAULT 'private'`);
+    // owner_price: Base price owner wants per night
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_price DECIMAL(10,2)`);
+    // owner_account_id: Actual owner (vs manager)
+    await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS owner_account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
+    
+    // Management requests table (Admin/SubMaster requesting Agency management)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS management_requests (
+        id SERIAL PRIMARY KEY,
+        requesting_account_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        agency_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        message TEXT,
+        response_message TEXT,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        responded_at TIMESTAMP,
+        CONSTRAINT valid_mgmt_status CHECK (status IN ('pending', 'approved', 'rejected', 'cancelled')),
+        CONSTRAINT unique_mgmt_request UNIQUE (requesting_account_id, agency_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_requester ON management_requests(requesting_account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_agency ON management_requests(agency_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_mgmt_requests_status ON management_requests(status)`);
+    // Add unique constraint if not exists (for existing databases)
+    await pool.query(`
+      DO $$ BEGIN
+        ALTER TABLE management_requests ADD CONSTRAINT unique_mgmt_request UNIQUE (requesting_account_id, agency_id);
+      EXCEPTION WHEN duplicate_table THEN
+        NULL;
+      END $$
+    `).catch(() => {});
+    
+    // Fix orphaned approved requests - if account is self-managed, cancel any approved requests
+    await pool.query(`
+      UPDATE management_requests mr
+      SET status = 'cancelled', response_message = 'Management removed (data cleanup)', responded_at = NOW()
+      WHERE mr.status = 'approved' 
+        AND NOT EXISTS (
+          SELECT 1 FROM accounts a 
+          WHERE a.id = mr.requesting_account_id 
+            AND a.managed_by_id = mr.agency_id
+        )
+    `).catch(() => {});
+    
+    // Distribution access table (Property ↔ Travel Agent relationship)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS distribution_access (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER NOT NULL REFERENCES properties(id) ON DELETE CASCADE,
+        travel_agent_id INTEGER NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        status VARCHAR(20) DEFAULT 'pending',
+        commission_percent DECIMAL(5,2) DEFAULT 0,
+        message TEXT,
+        response_message TEXT,
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        approved_at TIMESTAMP,
+        CONSTRAINT valid_dist_status CHECK (status IN ('pending', 'approved', 'rejected', 'revoked')),
+        UNIQUE(property_id, travel_agent_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_property ON distribution_access(property_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_agent ON distribution_access(travel_agent_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_dist_access_status ON distribution_access(status)`);
+    
+    // Add booking tracking for who sold it and revenue split
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS sold_by_account_id INTEGER REFERENCES accounts(id)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS owner_amount DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS agent_amount DECIMAL(10,2)`);
+    await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS platform_fee DECIMAL(10,2)`);
+    
+    console.log('✅ Created multi-tenant structure (management_requests, distribution_access)');
+    // =========================================================
+    // END MULTI-TENANT STRUCTURE
+    // =========================================================
 
     // Add account_id to properties if not exists
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
@@ -892,6 +1203,30 @@ const crypto = require('crypto');
 // Generate a secure session token
 function generateSessionToken() {
   return crypto.randomBytes(32).toString('hex');
+}
+
+// Generate unique account code from name
+async function generateAccountCode(pool, name) {
+  // Take first 4 chars of name, uppercase, remove non-alphanumeric
+  let baseCode = (name || 'ACCT').toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 4);
+  if (baseCode.length < 2) baseCode = 'ACCT';
+  
+  // Check if code exists, if so add number
+  let code = baseCode;
+  let counter = 1;
+  
+  while (true) {
+    const existing = await pool.query('SELECT id FROM accounts WHERE account_code = $1', [code]);
+    if (existing.rows.length === 0) break;
+    code = baseCode + counter;
+    counter++;
+    if (counter > 999) {
+      code = baseCode + crypto.randomBytes(2).toString('hex').toUpperCase();
+      break;
+    }
+  }
+  
+  return code;
 }
 
 // Login endpoint for accounts
@@ -1016,19 +1351,38 @@ app.get('/api/accounts/me', async (req, res) => {
       return res.json({ success: false, error: 'Invalid or expired session' });
     }
     
-    // Get account details
+    // Get account details - use * to avoid column not found errors during migration
     const account = await pool.query(`
-      SELECT id, public_id, name, email, role, business_name, logo_url,
-             primary_color, secondary_color, status, currency, timezone
-      FROM accounts WHERE id = $1
+      SELECT * FROM accounts WHERE id = $1
     `, [session.rows[0].account_id]);
     
     if (account.rows.length === 0) {
       return res.json({ success: false, error: 'Account not found' });
     }
     
-    res.json({ success: true, account: account.rows[0] });
+    // Return safe subset of fields
+    const acc = account.rows[0];
+    res.json({ 
+      success: true, 
+      account: {
+        id: acc.id,
+        public_id: acc.public_id,
+        account_code: acc.account_code || null,
+        name: acc.name,
+        email: acc.email,
+        role: acc.role,
+        business_name: acc.business_name,
+        logo_url: acc.logo_url,
+        primary_color: acc.primary_color,
+        secondary_color: acc.secondary_color,
+        status: acc.status,
+        currency: acc.currency,
+        timezone: acc.timezone,
+        managed_by_id: acc.managed_by_id || null
+      }
+    });
   } catch (error) {
+    console.error('Get account error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -1065,6 +1419,41 @@ app.get('/api/admin/reset-password/:email', async (req, res) => {
     res.json({ 
       success: true, 
       message: `Password cleared for ${result.rows[0].name}. Go to /login.html and use "Set Password" tab.`,
+      account: result.rows[0]
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Set password for account (Master Admin only)
+app.post('/api/admin/set-password', async (req, res) => {
+  try {
+    const { account_id, password } = req.body;
+    
+    if (!account_id || !password) {
+      return res.json({ success: false, error: 'Account ID and password required' });
+    }
+    
+    if (password.length < 8) {
+      return res.json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    
+    // Hash password
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    
+    const result = await pool.query(
+      'UPDATE accounts SET password_hash = $1, updated_at = NOW() WHERE id = $2 RETURNING id, name, email',
+      [passwordHash, account_id]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Password set for ${result.rows[0].name}`,
       account: result.rows[0]
     });
   } catch (error) {
@@ -1137,6 +1526,60 @@ app.post('/api/accounts/forgot-password', async (req, res) => {
   }
 });
 
+// Change password for logged-in user
+app.post('/api/accounts/change-password', async (req, res) => {
+  try {
+    const { current_password, new_password } = req.body;
+    
+    if (!current_password || !new_password) {
+      return res.json({ success: false, error: 'Current password and new password required' });
+    }
+    
+    if (new_password.length < 8) {
+      return res.json({ success: false, error: 'New password must be at least 8 characters' });
+    }
+    
+    // Get account from session token
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Not authenticated' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT account_id FROM account_sessions 
+      WHERE token = $1 AND expires_at > NOW()
+    `, [token]);
+    
+    if (session.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired session' });
+    }
+    
+    const accountId = session.rows[0].account_id;
+    
+    // Verify current password
+    const currentPasswordHash = crypto.createHash('sha256').update(current_password).digest('hex');
+    const account = await pool.query('SELECT password_hash FROM accounts WHERE id = $1', [accountId]);
+    
+    if (account.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    if (account.rows[0].password_hash !== currentPasswordHash) {
+      return res.json({ success: false, error: 'Current password is incorrect' });
+    }
+    
+    // Update password
+    const newPasswordHash = crypto.createHash('sha256').update(new_password).digest('hex');
+    await pool.query('UPDATE accounts SET password_hash = $1, updated_at = NOW() WHERE id = $2', [newPasswordHash, accountId]);
+    
+    res.json({ success: true, message: 'Password changed successfully' });
+  } catch (error) {
+    console.error('Change password error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // ONBOARDING ENDPOINTS
 // =====================================================
@@ -1170,15 +1613,18 @@ app.post('/api/onboarding/create-account', async (req, res) => {
     // Generate API key
     const apiKey = 'gas_' + crypto.randomBytes(24).toString('hex');
     
+    // Generate account code
+    const accountCode = await generateAccountCode(pool, name);
+    
     // Create account (default role is 'admin')
     const result = await pool.query(`
       INSERT INTO accounts (
         name, email, password_hash, business_name, role, parent_id,
-        api_key, api_key_created_at, status
+        account_code, api_key, api_key_created_at, status
       )
-      VALUES ($1, $2, $3, $1, 'admin', $4, $5, NOW(), 'active')
-      RETURNING id, public_id, name, email, role, business_name
-    `, [name, email.toLowerCase().trim(), passwordHash, parentId, apiKey]);
+      VALUES ($1, $2, $3, $1, 'admin', $4, $5, $6, NOW(), 'active')
+      RETURNING id, public_id, name, email, role, business_name, account_code
+    `, [name, email.toLowerCase().trim(), passwordHash, parentId, accountCode, apiKey]);
     
     const account = result.rows[0];
     
@@ -1503,29 +1949,200 @@ app.post('/api/migrate-to-accounts', async (req, res) => {
 // Get all accounts (for admin view)
 app.get('/api/admin/accounts', async (req, res) => {
   try {
-    // Ensure account_code column exists
-    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
+    // Ensure managed_by_id column exists (for backwards compatibility)
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS managed_by_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`).catch(() => {});
     
-    const result = await pool.query(`
-      SELECT 
-        a.*,
-        p.name as parent_name,
-        (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-        (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
-      FROM accounts a
-      LEFT JOIN accounts p ON a.parent_id = p.id
-      ORDER BY 
-        CASE a.role 
-          WHEN 'master_admin' THEN 1 
-          WHEN 'agency_admin' THEN 2 
-          WHEN 'submaster_admin' THEN 3 
-          WHEN 'admin' THEN 4 
-        END,
-        a.name
-    `);
+    // Check if filtering by a specific account (when viewing as that account)
+    const viewingAccountId = req.query.account_id;
+    
+    // Also check who is making the request
+    let requestingAccount = null;
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.split(' ')[1];
+      const session = await pool.query(`
+        SELECT a.id, a.role, a.parent_id
+        FROM account_sessions s
+        JOIN accounts a ON s.account_id = a.id
+        WHERE s.token = $1 AND s.expires_at > NOW()
+      `, [token]);
+      if (session.rows.length > 0) {
+        requestingAccount = session.rows[0];
+      }
+    }
+    
+    let result;
+    
+    // Determine which accounts to show based on context
+    const filterAccountId = viewingAccountId || (requestingAccount ? requestingAccount.id : null);
+    const filterRole = requestingAccount ? requestingAccount.role : null;
+    
+    if (filterRole === 'master_admin' && !viewingAccountId) {
+      // Master admin viewing all - show everything
+      result = await pool.query(`
+        SELECT 
+          a.*,
+          p.name as parent_name,
+          m.name as managed_by_name,
+          (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+        FROM accounts a
+        LEFT JOIN accounts p ON a.parent_id = p.id
+        LEFT JOIN accounts m ON a.managed_by_id = m.id
+        ORDER BY 
+          CASE a.role 
+            WHEN 'master_admin' THEN 1 
+            WHEN 'agency_admin' THEN 2 
+            WHEN 'submaster_admin' THEN 3 
+            WHEN 'admin' THEN 4 
+          END,
+          a.name
+      `);
+    } else if (filterAccountId) {
+      // Get the viewing account's role
+      const viewingAccount = await pool.query('SELECT id, role FROM accounts WHERE id = $1', [filterAccountId]);
+      if (viewingAccount.rows.length === 0) {
+        return res.json({ success: true, accounts: [] });
+      }
+      
+      const viewerRole = viewingAccount.rows[0].role;
+      
+      if (viewerRole === 'master_admin') {
+        // Master admin can see all
+        result = await pool.query(`
+          SELECT 
+            a.*,
+            p.name as parent_name,
+            m.name as managed_by_name,
+            (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          FROM accounts a
+          LEFT JOIN accounts p ON a.parent_id = p.id
+          LEFT JOIN accounts m ON a.managed_by_id = m.id
+          ORDER BY a.name
+        `);
+      } else if (viewerRole === 'agency_admin' || viewerRole === 'submaster_admin') {
+        // Show self + direct children + grandchildren (recursive)
+        result = await pool.query(`
+          WITH RECURSIVE account_tree AS (
+            SELECT id FROM accounts WHERE id = $1
+            UNION ALL
+            SELECT a.id FROM accounts a
+            JOIN account_tree t ON a.parent_id = t.id
+          )
+          SELECT 
+            a.*,
+            p.name as parent_name,
+            m.name as managed_by_name,
+            (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          FROM accounts a
+          LEFT JOIN accounts p ON a.parent_id = p.id
+          LEFT JOIN accounts m ON a.managed_by_id = m.id
+          WHERE a.id IN (SELECT id FROM account_tree)
+          ORDER BY 
+            CASE a.role 
+              WHEN 'master_admin' THEN 1 
+              WHEN 'agency_admin' THEN 2 
+              WHEN 'submaster_admin' THEN 3 
+              WHEN 'admin' THEN 4 
+            END,
+            a.name
+        `, [filterAccountId]);
+      } else {
+        // Admin - only show themselves
+        result = await pool.query(`
+          SELECT 
+            a.*,
+            p.name as parent_name,
+            m.name as managed_by_name,
+            (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          FROM accounts a
+          LEFT JOIN accounts p ON a.parent_id = p.id
+          LEFT JOIN accounts m ON a.managed_by_id = m.id
+          WHERE a.id = $1
+        `, [filterAccountId]);
+      }
+    } else {
+      // Fallback - return all (shouldn't normally reach here)
+      result = await pool.query(`
+        SELECT 
+          a.*,
+          p.name as parent_name,
+          m.name as managed_by_name,
+          (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
+          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+        FROM accounts a
+        LEFT JOIN accounts p ON a.parent_id = p.id
+        LEFT JOIN accounts m ON a.managed_by_id = m.id
+        ORDER BY a.name
+      `);
+    }
     
     res.json({ success: true, accounts: result.rows });
   } catch (error) {
+    console.error('Accounts error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create master admin (only master admins can do this)
+app.post('/api/admin/create-master-admin', async (req, res) => {
+  try {
+    const { name, email, password } = req.body;
+    
+    if (!name || !email || !password) {
+      return res.json({ success: false, error: 'Name, email and password are required' });
+    }
+    
+    if (password.length < 8) {
+      return res.json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    
+    // Verify the requester is a master admin
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Not authenticated' });
+    }
+    
+    const token = authHeader.split(' ')[1];
+    const session = await pool.query(`
+      SELECT s.account_id, a.role 
+      FROM account_sessions s
+      JOIN accounts a ON s.account_id = a.id
+      WHERE s.token = $1 AND s.expires_at > NOW()
+    `, [token]);
+    
+    if (session.rows.length === 0 || session.rows[0].role !== 'master_admin') {
+      return res.json({ success: false, error: 'Only master admins can create other master admins' });
+    }
+    
+    // Check if email already exists
+    const existing = await pool.query('SELECT id FROM accounts WHERE email = $1', [email.toLowerCase().trim()]);
+    if (existing.rows.length > 0) {
+      return res.json({ success: false, error: 'An account with this email already exists' });
+    }
+    
+    // Hash password
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    
+    // Generate API key
+    const apiKey = 'gas_' + crypto.randomBytes(24).toString('hex');
+    
+    // Generate account code
+    const accountCode = await generateAccountCode(pool, name);
+    
+    // Create master admin account
+    const result = await pool.query(`
+      INSERT INTO accounts (name, email, password_hash, role, account_code, api_key, api_key_created_at, status)
+      VALUES ($1, $2, $3, 'master_admin', $4, $5, NOW(), 'active')
+      RETURNING id, name, email, role, account_code
+    `, [name, email.toLowerCase().trim(), passwordHash, accountCode, apiKey]);
+    
+    res.json({ success: true, account: result.rows[0] });
+  } catch (error) {
+    console.error('Create master admin error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -1536,13 +2153,454 @@ app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
     const { id } = req.params;
     const { role } = req.body;
     
-    if (!['agency_admin', 'submaster_admin', 'admin'].includes(role)) {
+    if (!['agency_admin', 'submaster_admin', 'admin', 'travel_agent'].includes(role)) {
       return res.json({ success: false, error: 'Invalid role' });
     }
     
     await pool.query(`UPDATE accounts SET role = $1, updated_at = NOW() WHERE id = $2`, [role, id]);
     
     res.json({ success: true, message: 'Role updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Generate account codes for all accounts missing one
+app.post('/api/admin/generate-account-codes', async (req, res) => {
+  try {
+    // Get all accounts without codes
+    const accounts = await pool.query(`
+      SELECT id, name FROM accounts WHERE account_code IS NULL OR account_code = ''
+    `);
+    
+    let count = 0;
+    for (const account of accounts.rows) {
+      const code = await generateAccountCode(pool, account.name);
+      await pool.query(`UPDATE accounts SET account_code = $1 WHERE id = $2`, [code, account.id]);
+      count++;
+    }
+    
+    res.json({ success: true, count, message: `Generated ${count} account codes` });
+  } catch (error) {
+    console.error('Generate codes error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// AGENCY MANAGEMENT REQUESTS
+// =====================================================
+
+// Get list of available agencies (for Admin/SubMaster to request management)
+app.get('/api/agencies/available', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, business_name, email, logo_url
+      FROM accounts 
+      WHERE role = 'agency_admin' AND status = 'active'
+      ORDER BY name
+    `);
+    res.json({ success: true, agencies: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get management requests for an account (as requester or agency)
+app.get('/api/management-requests', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    const role = req.query.role; // 'requester' or 'agency'
+    const showAll = req.query.all === 'true';
+    
+    let query;
+    
+    if (showAll) {
+      // Master admin viewing ALL requests
+      query = await pool.query(`
+        SELECT mr.*, 
+               ra.name as requester_name, ra.email as requester_email, ra.business_name as requester_business,
+               aa.name as agency_name, aa.email as agency_email, aa.business_name as agency_business,
+               (SELECT COUNT(*) FROM properties WHERE account_id = mr.requesting_account_id) as property_count
+        FROM management_requests mr
+        JOIN accounts ra ON mr.requesting_account_id = ra.id
+        JOIN accounts aa ON mr.agency_id = aa.id
+        ORDER BY mr.requested_at DESC
+      `);
+    } else if (!accountId) {
+      return res.json({ success: false, error: 'account_id required' });
+    } else if (role === 'agency') {
+      // Agency viewing requests made TO them
+      query = await pool.query(`
+        SELECT mr.*, 
+               ra.name as requester_name, ra.email as requester_email, ra.business_name as requester_business,
+               (SELECT COUNT(*) FROM properties WHERE account_id = mr.requesting_account_id) as property_count
+        FROM management_requests mr
+        JOIN accounts ra ON mr.requesting_account_id = ra.id
+        WHERE mr.agency_id = $1
+        ORDER BY mr.requested_at DESC
+      `, [accountId]);
+    } else {
+      // Account viewing their own requests (requester mode)
+      query = await pool.query(`
+        SELECT mr.*, 
+               a.name as agency_name, a.email as agency_email, a.business_name as agency_business
+        FROM management_requests mr
+        JOIN accounts a ON mr.agency_id = a.id
+        WHERE mr.requesting_account_id = $1
+        ORDER BY mr.requested_at DESC
+      `, [accountId]);
+    }
+    
+    res.json({ success: true, requests: query.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create a management request (Admin/SubMaster requesting Agency management)
+app.post('/api/management-requests', async (req, res) => {
+  try {
+    const { requesting_account_id, agency_id, message } = req.body;
+    
+    if (!requesting_account_id || !agency_id) {
+      return res.json({ success: false, error: 'requesting_account_id and agency_id required' });
+    }
+    
+    // Check if agency exists and has agency_admin role
+    const agency = await pool.query('SELECT id, role FROM accounts WHERE id = $1', [agency_id]);
+    if (agency.rows.length === 0 || agency.rows[0].role !== 'agency_admin') {
+      return res.json({ success: false, error: 'Invalid agency' });
+    }
+    
+    // Check if already has pending request
+    const existing = await pool.query(`
+      SELECT id, status FROM management_requests 
+      WHERE requesting_account_id = $1 AND agency_id = $2
+    `, [requesting_account_id, agency_id]);
+    
+    if (existing.rows.length > 0) {
+      const existingRequest = existing.rows[0];
+      if (existingRequest.status === 'pending') {
+        return res.json({ success: false, error: 'A pending request already exists' });
+      }
+      // Reset the existing request to pending (re-request)
+      const result = await pool.query(`
+        UPDATE management_requests 
+        SET status = 'pending', message = $1, response_message = NULL, 
+            requested_at = NOW(), responded_at = NULL
+        WHERE id = $2
+        RETURNING *
+      `, [message, existingRequest.id]);
+      return res.json({ success: true, request: result.rows[0] });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO management_requests (requesting_account_id, agency_id, message)
+      VALUES ($1, $2, $3)
+      RETURNING *
+    `, [requesting_account_id, agency_id, message]);
+    
+    res.json({ success: true, request: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Respond to a management request (Agency approves/rejects)
+app.post('/api/management-requests/:id/respond', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, response_message } = req.body;
+    
+    if (!['approved', 'rejected', 'cancelled'].includes(status)) {
+      return res.json({ success: false, error: 'Invalid status' });
+    }
+    
+    // Get the request
+    const request = await pool.query('SELECT * FROM management_requests WHERE id = $1', [id]);
+    if (request.rows.length === 0) {
+      return res.json({ success: false, error: 'Request not found' });
+    }
+    
+    // Update request status
+    await pool.query(`
+      UPDATE management_requests 
+      SET status = $1, response_message = $2, responded_at = NOW()
+      WHERE id = $3
+    `, [status, response_message, id]);
+    
+    // If approved, update the account's managed_by_id
+    if (status === 'approved') {
+      await pool.query(`
+        UPDATE accounts SET managed_by_id = $1, updated_at = NOW()
+        WHERE id = $2
+      `, [request.rows[0].agency_id, request.rows[0].requesting_account_id]);
+    }
+    
+    res.json({ success: true, message: `Request ${status}` });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Remove agency management (go back to self-managed)
+app.post('/api/accounts/:id/remove-management', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get current agency before removing
+    const current = await pool.query('SELECT managed_by_id FROM accounts WHERE id = $1', [id]);
+    const agencyId = current.rows[0]?.managed_by_id;
+    
+    console.log(`Removing management for account ${id}, current agency: ${agencyId}`);
+    
+    // Remove management
+    await pool.query(`
+      UPDATE accounts SET managed_by_id = NULL, updated_at = NOW()
+      WHERE id = $1
+    `, [id]);
+    
+    // Mark ALL approved/pending requests from this account as cancelled
+    const updateResult = await pool.query(`
+      UPDATE management_requests 
+      SET status = 'cancelled', response_message = 'Management removed', responded_at = NOW()
+      WHERE requesting_account_id = $1 AND status IN ('approved', 'pending')
+    `, [id]);
+    
+    console.log(`Cancelled ${updateResult.rowCount} management requests`);
+    
+    res.json({ success: true, message: 'Now self-managed' });
+  } catch (error) {
+    console.error('Remove management error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Assign agency to an account (Master Admin)
+app.post('/api/admin/accounts/:id/assign-agency', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { agency_id } = req.body;
+    
+    if (!agency_id) {
+      return res.json({ success: false, error: 'agency_id required' });
+    }
+    
+    // Verify agency exists and has agency_admin role
+    const agency = await pool.query('SELECT id, role FROM accounts WHERE id = $1', [agency_id]);
+    if (agency.rows.length === 0 || agency.rows[0].role !== 'agency_admin') {
+      return res.json({ success: false, error: 'Invalid agency' });
+    }
+    
+    // Update account's managed_by_id
+    await pool.query(`
+      UPDATE accounts SET managed_by_id = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [agency_id, id]);
+    
+    // Also create an approved management request record for tracking
+    await pool.query(`
+      INSERT INTO management_requests (requesting_account_id, agency_id, status, message, responded_at)
+      VALUES ($1, $2, 'approved', 'Assigned by Master Admin', NOW())
+      ON CONFLICT (requesting_account_id, agency_id) 
+      DO UPDATE SET status = 'approved', message = 'Assigned by Master Admin', responded_at = NOW()
+    `, [id, agency_id]).catch(e => console.log('Management request insert:', e.message));
+    
+    res.json({ success: true, message: 'Agency assigned' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// TRAVEL AGENT DISTRIBUTION ACCESS
+// =====================================================
+
+// Search properties available for distribution (for Travel Agents)
+app.get('/api/distribution/properties', async (req, res) => {
+  try {
+    const { amenity, city, country, property_type } = req.query;
+    
+    let query = `
+      SELECT p.id, p.name, p.city, p.country, p.property_type, p.hero_image_url,
+             p.distribution_mode, p.owner_price,
+             a.name as owner_name, a.business_name as owner_business
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE p.distribution_mode IN ('open', 'request') AND p.active = true
+    `;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (city) {
+      query += ` AND LOWER(p.city) LIKE LOWER($${paramIndex++})`;
+      params.push(`%${city}%`);
+    }
+    if (country) {
+      query += ` AND LOWER(p.country) LIKE LOWER($${paramIndex++})`;
+      params.push(`%${country}%`);
+    }
+    if (property_type) {
+      query += ` AND p.property_type = $${paramIndex++}`;
+      params.push(property_type);
+    }
+    
+    query += ` ORDER BY p.name`;
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get distribution access for a travel agent
+app.get('/api/distribution/access', async (req, res) => {
+  try {
+    const { travel_agent_id, property_id, status } = req.query;
+    
+    let query = `
+      SELECT da.*, 
+             p.name as property_name, p.city, p.country, p.hero_image_url, p.owner_price,
+             a.name as owner_name
+      FROM distribution_access da
+      JOIN properties p ON da.property_id = p.id
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramIndex = 1;
+    
+    if (travel_agent_id) {
+      query += ` AND da.travel_agent_id = $${paramIndex++}`;
+      params.push(travel_agent_id);
+    }
+    if (property_id) {
+      query += ` AND da.property_id = $${paramIndex++}`;
+      params.push(property_id);
+    }
+    if (status) {
+      query += ` AND da.status = $${paramIndex++}`;
+      params.push(status);
+    }
+    
+    query += ` ORDER BY da.requested_at DESC`;
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, access: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Request distribution access (Travel Agent requesting access to property)
+app.post('/api/distribution/request', async (req, res) => {
+  try {
+    const { travel_agent_id, property_id, message } = req.body;
+    
+    if (!travel_agent_id || !property_id) {
+      return res.json({ success: false, error: 'travel_agent_id and property_id required' });
+    }
+    
+    // Check property exists and is available for distribution
+    const property = await pool.query('SELECT distribution_mode FROM properties WHERE id = $1', [property_id]);
+    if (property.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    if (property.rows[0].distribution_mode === 'private') {
+      return res.json({ success: false, error: 'Property not available for distribution' });
+    }
+    
+    // Check if already has access or pending request
+    const existing = await pool.query(`
+      SELECT id, status FROM distribution_access 
+      WHERE property_id = $1 AND travel_agent_id = $2
+    `, [property_id, travel_agent_id]);
+    
+    if (existing.rows.length > 0) {
+      const status = existing.rows[0].status;
+      if (status === 'approved') {
+        return res.json({ success: false, error: 'Already have access to this property' });
+      }
+      if (status === 'pending') {
+        return res.json({ success: false, error: 'Request already pending' });
+      }
+    }
+    
+    // If distribution_mode is 'open', auto-approve
+    const autoApprove = property.rows[0].distribution_mode === 'open';
+    
+    const result = await pool.query(`
+      INSERT INTO distribution_access (property_id, travel_agent_id, message, status, approved_at)
+      VALUES ($1, $2, $3, $4, $5)
+      ON CONFLICT (property_id, travel_agent_id) 
+      DO UPDATE SET status = $4, message = $3, requested_at = NOW(), approved_at = $5
+      RETURNING *
+    `, [property_id, travel_agent_id, message, autoApprove ? 'approved' : 'pending', autoApprove ? new Date() : null]);
+    
+    res.json({ success: true, access: result.rows[0], auto_approved: autoApprove });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Respond to distribution request (Property owner approves/rejects)
+app.post('/api/distribution/access/:id/respond', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, response_message } = req.body;
+    
+    if (!['approved', 'rejected'].includes(status)) {
+      return res.json({ success: false, error: 'Status must be approved or rejected' });
+    }
+    
+    await pool.query(`
+      UPDATE distribution_access 
+      SET status = $1, response_message = $2, approved_at = $3
+      WHERE id = $4
+    `, [status, response_message, status === 'approved' ? new Date() : null, id]);
+    
+    res.json({ success: true, message: `Request ${status}` });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Revoke distribution access
+app.post('/api/distribution/access/:id/revoke', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await pool.query(`UPDATE distribution_access SET status = 'revoked' WHERE id = $1`, [id]);
+    
+    res.json({ success: true, message: 'Access revoked' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get pending distribution requests for a property owner
+app.get('/api/distribution/requests/pending', async (req, res) => {
+  try {
+    const { account_id } = req.query;
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT da.*, 
+             p.name as property_name,
+             ta.name as agent_name, ta.business_name as agent_business, ta.email as agent_email
+      FROM distribution_access da
+      JOIN properties p ON da.property_id = p.id
+      JOIN accounts ta ON da.travel_agent_id = ta.id
+      WHERE p.account_id = $1 AND da.status = 'pending'
+      ORDER BY da.requested_at DESC
+    `, [account_id]);
+    
+    res.json({ success: true, requests: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -1588,8 +2646,10 @@ app.get('/api/accounts/:id', async (req, res) => {
     
     const result = await pool.query(`
       SELECT a.*, 
+             m.name as managed_by_name,
              (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
       FROM accounts a 
+      LEFT JOIN accounts m ON a.managed_by_id = m.id
       WHERE a.id = $1
     `, [id]);
     
@@ -1633,10 +2693,14 @@ app.post('/api/accounts', async (req, res) => {
 app.put('/api/accounts/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { account_code, name, email, phone, business_name, status, notes, role } = req.body;
+    const { 
+      account_code, name, email, phone, business_name, status, notes, role,
+      contact_name, address_line1, address_line2, city, region, postcode, country 
+    } = req.body;
     
-    // Ensure account_code column exists
+    // Ensure columns exist
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`).catch(() => {});
     
     // Build dynamic update query
     const updates = [];
@@ -1659,17 +2723,57 @@ app.put('/api/accounts/:id', async (req, res) => {
       updates.push(`phone = $${paramIndex++}`);
       values.push(phone);
     }
+    if (contact_name !== undefined) {
+      updates.push(`contact_name = $${paramIndex++}`);
+      values.push(contact_name);
+    }
     if (business_name !== undefined) {
       updates.push(`business_name = $${paramIndex++}`);
       values.push(business_name);
+    }
+    if (address_line1 !== undefined) {
+      updates.push(`address_line1 = $${paramIndex++}`);
+      values.push(address_line1);
+    }
+    if (address_line2 !== undefined) {
+      updates.push(`address_line2 = $${paramIndex++}`);
+      values.push(address_line2);
+    }
+    if (city !== undefined) {
+      updates.push(`city = $${paramIndex++}`);
+      values.push(city);
+    }
+    if (region !== undefined) {
+      updates.push(`region = $${paramIndex++}`);
+      values.push(region);
+    }
+    if (postcode !== undefined) {
+      updates.push(`postcode = $${paramIndex++}`);
+      values.push(postcode);
+    }
+    if (country !== undefined) {
+      updates.push(`country = $${paramIndex++}`);
+      values.push(country);
     }
     if (status !== undefined) {
       updates.push(`status = $${paramIndex++}`);
       values.push(status);
     }
+    if (role !== undefined) {
+      // Validate role
+      const validRoles = ['admin', 'submaster_admin', 'agency_admin', 'master_admin', 'travel_agent'];
+      if (validRoles.includes(role)) {
+        updates.push(`role = $${paramIndex++}`);
+        values.push(role);
+      }
+    }
     if (notes !== undefined) {
       updates.push(`notes = $${paramIndex++}`);
       values.push(notes);
+    }
+    
+    if (updates.length === 0) {
+      return res.json({ success: false, error: 'No fields to update' });
     }
     
     updates.push(`updated_at = CURRENT_TIMESTAMP`);
@@ -2351,7 +3455,9 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         // Generate unique group booking ID
         const groupBookingId = 'GRP-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9).toUpperCase();
         
+        console.log(`DEBUG: Starting transaction for group ${groupBookingId}`);
         await client.query('BEGIN');
+        console.log(`DEBUG: Transaction BEGIN completed`);
         
         const createdBookings = [];
         const cmResults = { beds24: [], hostaway: [], smoobu: [] };
@@ -2405,6 +3511,8 @@ app.post('/api/public/create-group-booking', async (req, res) => {
             ]);
             
             const booking = bookingResult.rows[0];
+            console.log(`DEBUG: Inserted booking ID ${booking.id} for room ${roomId}, group ${groupBookingId}`);
+            console.log(`DEBUG: Full booking row: id=${booking.id}, property_id=${booking.property_id}, group_booking_id=${booking.group_booking_id}`);
             createdBookings.push(booking);
             
             // Block availability for these dates (copied from working endpoint)
@@ -2584,24 +3692,143 @@ app.post('/api/public/create-group-booking', async (req, res) => {
         // Record Stripe payment transaction if deposit was paid (once for whole group)
         if (stripe_payment_intent_id && deposit_amount && createdBookings.length > 0) {
             try {
+                // Use SAVEPOINT to prevent failed INSERT from aborting entire transaction
+                await client.query('SAVEPOINT payment_tx');
                 await client.query(`
                     INSERT INTO payment_transactions (booking_id, type, amount, currency, status, stripe_payment_intent_id, created_at)
                     VALUES ($1, 'deposit', $2, 'USD', 'completed', $3, NOW())
                 `, [createdBookings[0].id, deposit_amount, stripe_payment_intent_id]);
-                
-                // Update payment status on first booking
+                await client.query('RELEASE SAVEPOINT payment_tx');
+            } catch (txError) {
+                await client.query('ROLLBACK TO SAVEPOINT payment_tx');
+                console.log('Could not record payment transaction:', txError.message);
+            }
+            
+            // Update payment status on first booking (separate try/catch with savepoint)
+            try {
+                await client.query('SAVEPOINT payment_status');
                 await client.query(`
                     UPDATE bookings SET payment_status = 'deposit_paid', stripe_payment_intent_id = $1, deposit_amount = $2
                     WHERE id = $3
                 `, [stripe_payment_intent_id, deposit_amount, createdBookings[0].id]);
-            } catch (txError) {
-                console.log('Could not record payment transaction:', txError.message);
+                await client.query('RELEASE SAVEPOINT payment_status');
+            } catch (statusError) {
+                await client.query('ROLLBACK TO SAVEPOINT payment_status');
+                console.log('Could not update payment status:', statusError.message);
             }
         }
         
+        console.log(`DEBUG: About to COMMIT transaction with ${createdBookings.length} bookings`);
+        console.log(`DEBUG: Booking IDs to commit: ${createdBookings.map(b => b.id).join(', ')}`);
+        
+        // DEBUG: Verify data exists in transaction BEFORE commit
+        const preCommitCheck = await client.query(
+            `SELECT id, group_booking_id FROM bookings WHERE group_booking_id = $1`,
+            [groupBookingId]
+        );
+        console.log(`DEBUG: PRE-COMMIT check found ${preCommitCheck.rows.length} bookings in transaction`);
+        
         await client.query('COMMIT');
         
+        console.log(`DEBUG: COMMIT completed successfully`);
+        
+        // DEBUG: Verify bookings exist on SAME connection before releasing
+        const verifyBeforeRelease = await client.query(
+            `SELECT id, group_booking_id FROM bookings WHERE group_booking_id = $1`,
+            [groupBookingId]
+        );
+        console.log(`DEBUG: Same-connection verify found ${verifyBeforeRelease.rows.length} bookings`);
+        console.log(`DEBUG: IDs on same connection: ${verifyBeforeRelease.rows.map(r => r.id).join(', ')}`);
+        
         console.log(`Group booking created: ${groupBookingId} with ${createdBookings.length} rooms`);
+        console.log(`Created booking IDs: ${createdBookings.map(b => b.id).join(', ')}`);
+        
+        // DEBUG: Verify bookings exist after commit on DIFFERENT connection
+        try {
+            const verifyResult = await pool.query(
+                `SELECT id, group_booking_id FROM bookings WHERE group_booking_id = $1`,
+                [groupBookingId]
+            );
+            console.log(`DEBUG: Pool verify found ${verifyResult.rows.length} bookings for ${groupBookingId}`);
+            console.log(`DEBUG: Pool IDs: ${verifyResult.rows.map(r => r.id).join(', ')}`);
+        } catch (verifyError) {
+            console.log(`DEBUG: Pool verification query failed: ${verifyError.message}`);
+        }
+        
+        // ========== SEND EMAIL ==========
+        try {
+            // Get property info for email
+            const propertyResult = await pool.query(`
+                SELECT p.id, p.name, p.email, a.email as account_email
+                FROM properties p
+                LEFT JOIN accounts a ON p.account_id = a.id
+                WHERE p.id = $1
+            `, [createdBookings[0]?.property_id]);
+            
+            const property = propertyResult.rows[0];
+            
+            // Build room info for email
+            const roomsForEmail = rooms.map((room, index) => ({
+                name: room.name || `Room ${index + 1}`,
+                guests: room.guests || 1,
+                price: room.totalPrice || 0
+            }));
+            
+            // Calculate balance
+            const depositPaid = deposit_amount && parseFloat(deposit_amount) > 0 ? parseFloat(deposit_amount) : 0;
+            const balanceAmount = depositPaid > 0 ? parseFloat(total_amount) - depositPaid : 0;
+            
+            // Get upsells from request if present
+            const upsells = req.body.upsells || [];
+            
+            const totals = {
+                total: total_amount,
+                depositAmount: depositPaid,
+                balanceAmount: balanceAmount,
+                currency: rooms[0]?.currency || '$',
+                checkin: checkin,
+                checkout: checkout,
+                upsells: upsells
+            };
+            
+            const guestInfo = {
+                firstName: guest_first_name,
+                lastName: guest_last_name,
+                email: guest_email,
+                phone: guest_phone
+            };
+            
+            const emailHtml = generateGroupBookingConfirmationEmail(
+                groupBookingId,
+                createdBookings,
+                roomsForEmail,
+                property,
+                guestInfo,
+                totals
+            );
+            
+            // Send to guest
+            await sendEmail({
+                to: guest_email,
+                subject: `Group Booking Confirmed - ${property?.name || 'Your Reservation'} (Ref: ${groupBookingId})`,
+                html: emailHtml
+            });
+            
+            // Also send to property owner if different email
+            if (property?.account_email && property.account_email !== guest_email) {
+                await sendEmail({
+                    to: property.account_email,
+                    subject: `New Group Booking - ${guest_first_name} ${guest_last_name} (Ref: ${groupBookingId})`,
+                    html: emailHtml
+                });
+            }
+            
+            console.log(`Group booking confirmation email sent to ${guest_email}`);
+        } catch (emailError) {
+            console.error('Group booking email error:', emailError.message);
+            // Don't fail the booking if email fails
+        }
+        // ========== END EMAIL ==========
         
         res.json({
             success: true,
@@ -3944,8 +5171,6 @@ app.post('/api/kb/import', async (req, res) => {
 // Setup billing tables
 app.get('/api/setup-billing', async (req, res) => {
   try {
-    console.log('🚀 SETUP-BILLING: Running updated version (no FK on websites.template_code)');
-    
     // Subscription plans (editable by admin)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS billing_plans (
@@ -4188,142 +5413,7 @@ app.get('/api/setup-billing', async (req, res) => {
       )
     `);
     
-    // ============================================================
-    // WEBSITE ARCHITECTURE - Multi-site, Unit-based Distribution
-    // ============================================================
-    
-    // Migrate old website_templates table to new structure
-    try {
-      // Check if old table exists with slug column
-      const checkSlug = await pool.query(`
-        SELECT column_name FROM information_schema.columns 
-        WHERE table_name = 'website_templates' AND column_name = 'slug'
-      `);
-      
-      if (checkSlug.rows.length > 0) {
-        // Old table exists - add code column and migrate data
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
-        await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '{}'`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS color_presets JSONB DEFAULT '[]'`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS font_presets JSONB DEFAULT '[]'`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS min_plan VARCHAR(20) DEFAULT 'starter'`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS demo_url VARCHAR(500)`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR(500)`);
-        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
-        
-        // Create unique constraint on code if not exists - use try/catch instead of DO block
-        try {
-          await pool.query(`ALTER TABLE website_templates ADD CONSTRAINT website_templates_code_key UNIQUE (code)`);
-        } catch (constraintErr) {
-          // Constraint already exists, ignore
-        }
-        
-        console.log('✅ Migrated website_templates table');
-      }
-    } catch (migErr) {
-      console.log('Note: website_templates migration:', migErr.message);
-    }
-    
-    // Website Templates (defines available sections & variants) - only creates if not exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS website_templates (
-        id SERIAL PRIMARY KEY,
-        code VARCHAR(50) UNIQUE NOT NULL,
-        name VARCHAR(100) NOT NULL,
-        description TEXT,
-        category VARCHAR(50),
-        thumbnail_url VARCHAR(500),
-        demo_url VARCHAR(500),
-        sections JSONB NOT NULL DEFAULT '{}',
-        color_presets JSONB DEFAULT '[]',
-        font_presets JSONB DEFAULT '[]',
-        features JSONB DEFAULT '[]',
-        is_active BOOLEAN DEFAULT TRUE,
-        is_premium BOOLEAN DEFAULT FALSE,
-        min_plan VARCHAR(20) DEFAULT 'starter',
-        version VARCHAR(10) DEFAULT '1.0',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    
-    // Clean up any existing websites table with broken FK
-    try {
-      // Try to drop the FK constraint if it exists
-      await pool.query(`ALTER TABLE websites DROP CONSTRAINT IF EXISTS websites_template_code_fkey`);
-      console.log('✅ Removed FK constraint from websites table (if existed)');
-    } catch (cleanupErr) {
-      console.log('Note: websites cleanup:', cleanupErr.message);
-    }
-    
-    console.log('🔧 About to create websites table...');
-    
-    // Websites (independent entities - many per account)
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS websites (
-        id SERIAL PRIMARY KEY,
-        public_id VARCHAR(20) UNIQUE NOT NULL,
-        owner_type VARCHAR(20) NOT NULL DEFAULT 'account',
-        owner_id INTEGER NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        slug VARCHAR(100),
-        template_code VARCHAR(50), -- References website_templates(code) but not enforced for flexibility
-        site_url VARCHAR(500),
-        admin_url VARCHAR(500),
-        custom_domain VARCHAR(255),
-        instawp_site_id VARCHAR(255),
-        instawp_data JSONB DEFAULT '{}',
-        website_type VARCHAR(30) DEFAULT 'portfolio',
-        status VARCHAR(20) DEFAULT 'draft',
-        default_currency VARCHAR(3) DEFAULT 'GBP',
-        timezone VARCHAR(50) DEFAULT 'Europe/London',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_owner ON websites(owner_type, owner_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_status ON websites(status)`);
-    
-    // Website Units (which units are on which website - many-to-many)
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS website_units (
-        id SERIAL PRIMARY KEY,
-        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
-        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
-        display_order INTEGER DEFAULT 0,
-        is_featured BOOLEAN DEFAULT FALSE,
-        custom_name VARCHAR(255),
-        custom_description TEXT,
-        custom_price_modifier DECIMAL(5,2),
-        is_active BOOLEAN DEFAULT TRUE,
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(website_id, unit_id)
-      )
-    `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_website ON website_units(website_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_unit ON website_units(unit_id)`);
-    
-    // Website Pages (custom pages per website)
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS website_pages (
-        id SERIAL PRIMARY KEY,
-        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
-        page_type VARCHAR(50) NOT NULL,
-        slug VARCHAR(100),
-        title VARCHAR(255),
-        content JSONB DEFAULT '{}',
-        is_published BOOLEAN DEFAULT FALSE,
-        display_order INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(website_id, page_type, COALESCE(slug, ''))
-      )
-    `);
-    
-    // Legacy: Keep account_websites for backwards compatibility during migration
+    // Account websites (InstaWP sites created for accounts)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS account_websites (
         id SERIAL PRIMARY KEY,
@@ -4338,12 +5428,9 @@ app.get('/api/setup-billing', async (req, res) => {
         instawp_data JSONB DEFAULT '{}',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        migrated_to_website_id INTEGER,
         UNIQUE(account_id)
       )
     `);
-    // Add migration column if not exists
-    await pool.query(`ALTER TABLE account_websites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
     
     // Property payment settings
     await pool.query(`
@@ -4771,93 +5858,6 @@ app.get('/api/admin/billing/subscriptions', async (req, res) => {
 
 const VPS_DEPLOY_URL = 'https://sites.gas.travel/gas-deploy.php';
 const VPS_DEPLOY_API_KEY = process.env.VPS_DEPLOY_API_KEY || 'gas-deploy-2024-secure-key';
-
-// Simple setup for websites tables only
-app.get('/api/setup-websites', async (req, res) => {
-  try {
-    // Add migrated_to_website_id column to account_websites
-    await pool.query(`ALTER TABLE account_websites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
-    console.log('✅ Added migrated_to_website_id column');
-    
-    // Add code column to website_templates if it doesn't exist
-    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
-    await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
-    console.log('✅ Added code column to website_templates');
-    
-    // Create websites table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS websites (
-        id SERIAL PRIMARY KEY,
-        public_id VARCHAR(20) UNIQUE NOT NULL,
-        owner_type VARCHAR(20) NOT NULL DEFAULT 'account',
-        owner_id INTEGER NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        slug VARCHAR(100),
-        template_code VARCHAR(50),
-        site_url VARCHAR(500),
-        admin_url VARCHAR(500),
-        custom_domain VARCHAR(255),
-        instawp_site_id VARCHAR(255),
-        instawp_data JSONB DEFAULT '{}',
-        website_type VARCHAR(30) DEFAULT 'portfolio',
-        status VARCHAR(20) DEFAULT 'draft',
-        default_currency VARCHAR(3) DEFAULT 'GBP',
-        timezone VARCHAR(50) DEFAULT 'Europe/London',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_owner ON websites(owner_type, owner_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_status ON websites(status)`);
-    console.log('✅ Created websites table');
-    
-    // Create website_units table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS website_units (
-        id SERIAL PRIMARY KEY,
-        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
-        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
-        display_order INTEGER DEFAULT 0,
-        is_featured BOOLEAN DEFAULT FALSE,
-        custom_name VARCHAR(255),
-        custom_description TEXT,
-        custom_price_modifier DECIMAL(5,2),
-        is_active BOOLEAN DEFAULT TRUE,
-        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(website_id, unit_id)
-      )
-    `);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_website ON website_units(website_id)`);
-    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_unit ON website_units(unit_id)`);
-    console.log('✅ Created website_units table');
-    
-    // Create website_pages table
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS website_pages (
-        id SERIAL PRIMARY KEY,
-        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
-        page_type VARCHAR(50) NOT NULL,
-        slug VARCHAR(100),
-        title VARCHAR(255),
-        content JSONB DEFAULT '{}',
-        is_published BOOLEAN DEFAULT FALSE,
-        display_order INTEGER DEFAULT 0,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-    console.log('✅ Created website_pages table');
-    
-    // Add website_id to website_settings if needed
-    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER`);
-    console.log('✅ Added website_id to website_settings');
-    
-    res.json({ success: true, message: 'Websites tables created successfully!' });
-  } catch (error) {
-    console.error('Setup websites error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
 
 // Create deployed_sites table
 app.get('/api/setup-deploy', async (req, res) => {
@@ -6466,7 +7466,25 @@ app.get('/api/db/properties', async (req, res) => {
     let result;
     
     if (accountId) {
-      result = await pool.query('SELECT * FROM properties WHERE account_id = $1 ORDER BY created_at DESC', [accountId]);
+      // Check if this account is an agency_admin
+      const accountCheck = await pool.query('SELECT role FROM accounts WHERE id = $1', [accountId]);
+      const isAgency = accountCheck.rows.length > 0 && accountCheck.rows[0].role === 'agency_admin';
+      
+      if (isAgency) {
+        // For agencies, get BOTH:
+        // 1. Their own properties
+        // 2. Properties from accounts they manage
+        result = await pool.query(`
+          SELECT p.*, a.name as owner_account_name FROM properties p
+          LEFT JOIN accounts a ON p.account_id = a.id
+          WHERE p.account_id = $1 
+             OR a.managed_by_id = $1
+          ORDER BY p.created_at DESC
+        `, [accountId]);
+      } else {
+        // For regular accounts, get their own properties
+        result = await pool.query('SELECT * FROM properties WHERE account_id = $1 ORDER BY created_at DESC', [accountId]);
+      }
     } else if (clientId) {
       result = await pool.query('SELECT * FROM properties WHERE client_id = $1 ORDER BY created_at DESC', [clientId]);
     } else {
@@ -11878,7 +12896,11 @@ app.get('/api/admin/stats', async (req, res) => {
         JOIN properties p ON b.property_id = p.id
         WHERE p.account_id = $1
       `, [accountId]);
-      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE gas_account_id = $1 AND status = $2', [accountId, 'active']);
+      // Check both gas_account_id (INTEGER) and account_id (VARCHAR) columns
+      connectionsCount = await pool.query(`
+        SELECT COUNT(*) FROM channel_connections 
+        WHERE (gas_account_id = $1 OR account_id = $2) AND status = 'active'
+      `, [accountId, String(accountId)]);
     } else if (clientId) {
       // Client-specific stats (legacy)
       propertiesCount = await pool.query('SELECT COUNT(*) FROM properties WHERE client_id = $1', [clientId]);
@@ -11892,7 +12914,10 @@ app.get('/api/admin/stats', async (req, res) => {
         JOIN properties p ON b.property_id = p.id
         WHERE p.client_id = $1
       `, [clientId]);
-      connectionsCount = await pool.query('SELECT COUNT(*) FROM channel_connections WHERE gas_account_id = $1 AND status = $2', [clientId, 'active']);
+      connectionsCount = await pool.query(`
+        SELECT COUNT(*) FROM channel_connections 
+        WHERE (gas_account_id = $1 OR account_id = $2) AND status = 'active'
+      `, [clientId, String(clientId)]);
     } else {
       // All stats (admin view)
       propertiesCount = await pool.query('SELECT COUNT(*) FROM properties');
@@ -19693,835 +20718,24 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
 // WEBSITE BUILDER API
 // =========================================================
 
-// Create website_settings table if not exists (supports both old account_id and new website_id)
+// Create website_settings table if not exists
 pool.query(`
   CREATE TABLE IF NOT EXISTS website_settings (
     id SERIAL PRIMARY KEY,
-    website_id INTEGER REFERENCES websites(id) ON DELETE CASCADE,
-    account_id INTEGER,
+    account_id INTEGER NOT NULL,
     section VARCHAR(50) NOT NULL,
-    variant VARCHAR(50),
     settings JSONB DEFAULT '{}',
-    is_enabled BOOLEAN DEFAULT TRUE,
-    display_order INTEGER DEFAULT 0,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(account_id, section)
   )
 `).catch(err => console.log('Website settings table may already exist'));
 
-// Add new columns if they don't exist
-pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER REFERENCES websites(id) ON DELETE CASCADE`).catch(() => {});
-pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS variant VARCHAR(50)`).catch(() => {});
-pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT TRUE`).catch(() => {});
-pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`).catch(() => {});
+// Migrate old client_id to account_id if needed
+pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS account_id INTEGER`).catch(() => {});
+pool.query(`UPDATE website_settings SET account_id = client_id WHERE account_id IS NULL AND client_id IS NOT NULL`).catch(() => {});
 
-// Create unique index for new structure
-pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_website_settings_unique ON website_settings(website_id, section) WHERE website_id IS NOT NULL`).catch(() => {});
-
-// Seed default templates if none exist
-pool.query(`
-  INSERT INTO website_templates (code, name, description, category, sections, is_active)
-  SELECT 'starter', 'Starter', 'Simple and clean starter template', 'general', 
-    '{"header":{"enabled":true,"required":true},"hero":{"enabled":true,"required":true,"variants":["fullscreen","split"]},"intro":{"enabled":true},"rooms":{"enabled":true,"required":true},"reviews":{"enabled":true},"cta":{"enabled":true},"footer":{"enabled":true,"required":true}}'::jsonb,
-    true
-  WHERE NOT EXISTS (SELECT 1 FROM website_templates WHERE code = 'starter')
-`).catch(() => {});
-
-pool.query(`
-  INSERT INTO website_templates (code, name, description, category, sections, is_active)
-  SELECT 'boutique-hotel', 'Boutique Hotel', 'Elegant template for boutique hotels', 'hotel',
-    '{"header":{"enabled":true,"required":true},"hero":{"enabled":true,"required":true,"variants":["fullscreen","split","video","slider"]},"intro":{"enabled":true},"rooms":{"enabled":true,"required":true},"amenities":{"enabled":true},"restaurant":{"enabled":true},"spa":{"enabled":true},"reviews":{"enabled":true},"location":{"enabled":true},"cta":{"enabled":true},"footer":{"enabled":true,"required":true}}'::jsonb,
-    true
-  WHERE NOT EXISTS (SELECT 1 FROM website_templates WHERE code = 'boutique-hotel')
-`).catch(() => {});
-
-pool.query(`
-  INSERT INTO website_templates (code, name, description, category, sections, is_active)
-  SELECT 'beach-villa', 'Beach Villa', 'Perfect for beach and holiday properties', 'villa',
-    '{"header":{"enabled":true,"required":true},"hero":{"enabled":true,"required":true,"variants":["fullscreen","video"]},"intro":{"enabled":true},"rooms":{"enabled":true,"required":true},"amenities":{"enabled":true},"beach":{"enabled":true},"activities":{"enabled":true},"reviews":{"enabled":true},"location":{"enabled":true},"cta":{"enabled":true},"footer":{"enabled":true,"required":true}}'::jsonb,
-    true
-  WHERE NOT EXISTS (SELECT 1 FROM website_templates WHERE code = 'beach-villa')
-`).catch(() => {});
-
-pool.query(`
-  INSERT INTO website_templates (code, name, description, category, sections, is_active)
-  SELECT 'city-apartment', 'City Apartment', 'Modern template for city rentals', 'apartment',
-    '{"header":{"enabled":true,"required":true},"hero":{"enabled":true,"required":true,"variants":["fullscreen","split"]},"intro":{"enabled":true},"rooms":{"enabled":true,"required":true},"amenities":{"enabled":true},"neighborhood":{"enabled":true},"transport":{"enabled":true},"reviews":{"enabled":true},"cta":{"enabled":true},"footer":{"enabled":true,"required":true}}'::jsonb,
-    true
-  WHERE NOT EXISTS (SELECT 1 FROM website_templates WHERE code = 'city-apartment')
-`).catch(() => {});
-
-pool.query(`
-  INSERT INTO website_templates (code, name, description, category, sections, is_active)
-  SELECT 'agency-portfolio', 'Agency Portfolio', 'Showcase multiple properties', 'agency',
-    '{"header":{"enabled":true,"required":true},"hero":{"enabled":true,"required":true},"intro":{"enabled":true},"properties":{"enabled":true,"required":true},"destinations":{"enabled":true},"about":{"enabled":true},"team":{"enabled":true},"testimonials":{"enabled":true},"cta":{"enabled":true},"footer":{"enabled":true,"required":true}}'::jsonb,
-    true
-  WHERE NOT EXISTS (SELECT 1 FROM website_templates WHERE code = 'agency-portfolio')
-`).catch(() => {});
-
-// =========================================================
-// WEBSITES API ENDPOINTS
-// =========================================================
-
-// Generate unique public ID for websites
-function generateWebsitePublicId() {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let id = 'WEB-';
-  for (let i = 0; i < 6; i++) {
-    id += chars.charAt(Math.floor(Math.random() * chars.length));
-  }
-  return id;
-}
-
-// List websites for current owner
-app.get('/api/websites', async (req, res) => {
-  try {
-    const { owner_type, owner_id, all } = req.query;
-    
-    let result;
-    
-    // If all=true, return all websites (for master_admin)
-    if (all === 'true') {
-      result = await pool.query(`
-        SELECT w.*, 
-               wt.name as template_name,
-               wt.category as template_category,
-               a.name as account_name,
-               (SELECT COUNT(*) FROM website_units wu WHERE wu.website_id = w.id AND wu.is_active = true) as unit_count
-        FROM websites w
-        LEFT JOIN website_templates wt ON w.template_code = wt.code
-        LEFT JOIN accounts a ON w.owner_id = a.id AND w.owner_type = 'account'
-        ORDER BY w.created_at DESC
-      `);
-    } else {
-      if (!owner_id) {
-        return res.json({ success: false, error: 'owner_id required' });
-      }
-      
-      const ownerType = owner_type || 'account';
-      
-      result = await pool.query(`
-        SELECT w.*, 
-               wt.name as template_name,
-               wt.category as template_category,
-               (SELECT COUNT(*) FROM website_units wu WHERE wu.website_id = w.id AND wu.is_active = true) as unit_count
-        FROM websites w
-        LEFT JOIN website_templates wt ON w.template_code = wt.code
-        WHERE w.owner_type = $1 AND w.owner_id = $2
-        ORDER BY w.created_at DESC
-      `, [ownerType, owner_id]);
-    }
-    
-    res.json({ success: true, websites: result.rows });
-  } catch (error) {
-    console.error('Get websites error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get single website with units
-app.get('/api/websites/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Get website
-    const websiteResult = await pool.query(`
-      SELECT w.*, wt.name as template_name, wt.sections as template_sections
-      FROM websites w
-      LEFT JOIN website_templates wt ON w.template_code = wt.code
-      WHERE w.id = $1 OR w.public_id = $1
-    `, [id]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = websiteResult.rows[0];
-    
-    // Get units on this website
-    const unitsResult = await pool.query(`
-      SELECT wu.*, bu.name as unit_name, bu.display_name, bu.base_price,
-             p.name as property_name, p.id as property_id
-      FROM website_units wu
-      JOIN bookable_units bu ON wu.unit_id = bu.id
-      JOIN properties p ON bu.property_id = p.id
-      WHERE wu.website_id = $1
-      ORDER BY wu.display_order, wu.added_at
-    `, [website.id]);
-    
-    // Get settings
-    const settingsResult = await pool.query(`
-      SELECT section, variant, settings, is_enabled, display_order
-      FROM website_settings
-      WHERE website_id = $1
-    `, [website.id]);
-    
-    const settings = {};
-    settingsResult.rows.forEach(row => {
-      settings[row.section] = {
-        variant: row.variant,
-        settings: row.settings,
-        is_enabled: row.is_enabled,
-        display_order: row.display_order
-      };
-    });
-    
-    res.json({ 
-      success: true, 
-      website, 
-      units: unitsResult.rows,
-      settings 
-    });
-  } catch (error) {
-    console.error('Get website error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Create new website
-app.post('/api/websites', async (req, res) => {
-  try {
-    const { 
-      owner_type = 'account', 
-      owner_id, 
-      name, 
-      template_code = 'starter',
-      website_type = 'portfolio',
-      slug
-    } = req.body;
-    
-    if (!owner_id || !name) {
-      return res.json({ success: false, error: 'owner_id and name required' });
-    }
-    
-    const publicId = generateWebsitePublicId();
-    
-    const result = await pool.query(`
-      INSERT INTO websites (public_id, owner_type, owner_id, name, slug, template_code, website_type, status)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, 'draft')
-      RETURNING *
-    `, [publicId, owner_type, owner_id, name, slug, template_code, website_type]);
-    
-    res.json({ success: true, website: result.rows[0] });
-  } catch (error) {
-    console.error('Create website error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Update website
-app.put('/api/websites/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { name, slug, custom_domain, status, template_code, website_type } = req.body;
-    
-    const result = await pool.query(`
-      UPDATE websites 
-      SET name = COALESCE($2, name),
-          slug = COALESCE($3, slug),
-          custom_domain = COALESCE($4, custom_domain),
-          status = COALESCE($5, status),
-          template_code = COALESCE($6, template_code),
-          website_type = COALESCE($7, website_type),
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-      RETURNING *
-    `, [id, name, slug, custom_domain, status, template_code, website_type]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    res.json({ success: true, website: result.rows[0] });
-  } catch (error) {
-    console.error('Update website error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Delete website
-app.delete('/api/websites/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    await pool.query('DELETE FROM websites WHERE id = $1', [id]);
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Delete website error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// =========================================================
-// WEBSITE UNITS API ENDPOINTS
-// =========================================================
-
-// Get units on a website
-app.get('/api/websites/:id/units', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      SELECT wu.*, bu.name as unit_name, bu.display_name, bu.base_price, bu.max_guests,
-             p.name as property_name, p.id as property_id, p.city, p.country
-      FROM website_units wu
-      JOIN bookable_units bu ON wu.unit_id = bu.id
-      JOIN properties p ON bu.property_id = p.id
-      WHERE wu.website_id = $1
-      ORDER BY wu.display_order, wu.added_at
-    `, [id]);
-    
-    res.json({ success: true, units: result.rows });
-  } catch (error) {
-    console.error('Get website units error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get available units to add (not already on this website)
-app.get('/api/websites/:id/available-units', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { owner_type, owner_id } = req.query;
-    
-    // Get website to know owner
-    const websiteResult = await pool.query('SELECT * FROM websites WHERE id = $1', [id]);
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = websiteResult.rows[0];
-    
-    // Get units the owner has access to that aren't already on this website
-    let query;
-    if (website.owner_type === 'account') {
-      // Account owner - get their own units + units from accounts they manage (if agency)
-      query = await pool.query(`
-        SELECT bu.*, p.name as property_name, p.city, p.country
-        FROM bookable_units bu
-        JOIN properties p ON bu.property_id = p.id
-        WHERE (p.account_id = $1 OR p.account_id IN (
-          SELECT id FROM accounts WHERE managed_by_id = $1
-        ))
-        AND bu.id NOT IN (SELECT unit_id FROM website_units WHERE website_id = $2)
-        ORDER BY p.name, bu.name
-      `, [website.owner_id, id]);
-    } else if (website.owner_type === 'agency') {
-      // Agency - get units from all managed accounts
-      query = await pool.query(`
-        SELECT bu.*, p.name as property_name, p.city, p.country
-        FROM bookable_units bu
-        JOIN properties p ON bu.property_id = p.id
-        JOIN accounts a ON p.account_id = a.id
-        WHERE a.managed_by_id = $1
-        AND bu.id NOT IN (SELECT unit_id FROM website_units WHERE website_id = $2)
-        ORDER BY p.name, bu.name
-      `, [website.owner_id, id]);
-    } else if (website.owner_type === 'travel_agent') {
-      // Travel agent - get units they have distribution access to
-      query = await pool.query(`
-        SELECT bu.*, p.name as property_name, p.city, p.country
-        FROM bookable_units bu
-        JOIN properties p ON bu.property_id = p.id
-        JOIN distribution_access da ON bu.id = da.unit_id
-        WHERE da.agent_account_id = $1 AND da.status = 'approved'
-        AND bu.id NOT IN (SELECT unit_id FROM website_units WHERE website_id = $2)
-        ORDER BY p.name, bu.name
-      `, [website.owner_id, id]);
-    } else {
-      return res.json({ success: false, error: 'Invalid owner type' });
-    }
-    
-    res.json({ success: true, units: query.rows });
-  } catch (error) {
-    console.error('Get available units error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Add units to website
-app.post('/api/websites/:id/units', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { unit_ids } = req.body;
-    
-    if (!unit_ids || !Array.isArray(unit_ids) || unit_ids.length === 0) {
-      return res.json({ success: false, error: 'unit_ids array required' });
-    }
-    
-    // Get current max display order
-    const maxOrderResult = await pool.query(
-      'SELECT COALESCE(MAX(display_order), 0) as max_order FROM website_units WHERE website_id = $1',
-      [id]
-    );
-    let displayOrder = maxOrderResult.rows[0].max_order + 1;
-    
-    const added = [];
-    for (const unitId of unit_ids) {
-      try {
-        const result = await pool.query(`
-          INSERT INTO website_units (website_id, unit_id, display_order)
-          VALUES ($1, $2, $3)
-          ON CONFLICT (website_id, unit_id) DO NOTHING
-          RETURNING *
-        `, [id, unitId, displayOrder]);
-        
-        if (result.rows.length > 0) {
-          added.push(result.rows[0]);
-          displayOrder++;
-        }
-      } catch (err) {
-        console.log(`Couldn't add unit ${unitId}:`, err.message);
-      }
-    }
-    
-    res.json({ success: true, added, count: added.length });
-  } catch (error) {
-    console.error('Add units error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Remove unit from website
-app.delete('/api/websites/:websiteId/units/:unitId', async (req, res) => {
-  try {
-    const { websiteId, unitId } = req.params;
-    
-    await pool.query(
-      'DELETE FROM website_units WHERE website_id = $1 AND unit_id = $2',
-      [websiteId, unitId]
-    );
-    
-    res.json({ success: true });
-  } catch (error) {
-    console.error('Remove unit error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Update unit display settings on website
-app.put('/api/websites/:websiteId/units/:unitId', async (req, res) => {
-  try {
-    const { websiteId, unitId } = req.params;
-    const { display_order, is_featured, custom_name, custom_description, custom_price_modifier, is_active } = req.body;
-    
-    const result = await pool.query(`
-      UPDATE website_units 
-      SET display_order = COALESCE($3, display_order),
-          is_featured = COALESCE($4, is_featured),
-          custom_name = COALESCE($5, custom_name),
-          custom_description = COALESCE($6, custom_description),
-          custom_price_modifier = COALESCE($7, custom_price_modifier),
-          is_active = COALESCE($8, is_active)
-      WHERE website_id = $1 AND unit_id = $2
-      RETURNING *
-    `, [websiteId, unitId, display_order, is_featured, custom_name, custom_description, custom_price_modifier, is_active]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Unit not found on website' });
-    }
-    
-    res.json({ success: true, unit: result.rows[0] });
-  } catch (error) {
-    console.error('Update unit error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// =========================================================
-// WEBSITE BUILDER API ENDPOINTS (NEW - website_id based)
-// =========================================================
-
-// Get builder section for a website
-app.get('/api/websites/:id/builder/:section', async (req, res) => {
-  try {
-    const { id, section } = req.params;
-    
-    const result = await pool.query(`
-      SELECT section, variant, settings, is_enabled, display_order
-      FROM website_settings
-      WHERE website_id = $1 AND section = $2
-    `, [id, section]);
-    
-    if (result.rows.length > 0) {
-      res.json({ success: true, ...result.rows[0] });
-    } else {
-      res.json({ success: true, settings: null });
-    }
-  } catch (error) {
-    console.error('Get builder section error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Save builder section for a website
-app.post('/api/websites/:id/builder/:section', async (req, res) => {
-  try {
-    const { id, section } = req.params;
-    const { settings, variant, is_enabled, display_order } = req.body;
-    
-    const result = await pool.query(`
-      INSERT INTO website_settings (website_id, section, variant, settings, is_enabled, display_order, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP)
-      ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
-      DO UPDATE SET 
-        settings = COALESCE($4, website_settings.settings),
-        variant = COALESCE($3, website_settings.variant),
-        is_enabled = COALESCE($5, website_settings.is_enabled),
-        display_order = COALESCE($6, website_settings.display_order),
-        updated_at = CURRENT_TIMESTAMP
-      RETURNING *
-    `, [id, section, variant, JSON.stringify(settings), is_enabled, display_order]);
-    
-    res.json({ success: true, setting: result.rows[0] });
-  } catch (error) {
-    console.error('Save builder section error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get all builder sections for a website
-app.get('/api/websites/:id/builder', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    const result = await pool.query(`
-      SELECT section, variant, settings, is_enabled, display_order
-      FROM website_settings
-      WHERE website_id = $1
-      ORDER BY display_order
-    `, [id]);
-    
-    const settings = {};
-    result.rows.forEach(row => {
-      settings[row.section] = {
-        variant: row.variant,
-        settings: row.settings,
-        is_enabled: row.is_enabled,
-        display_order: row.display_order
-      };
-    });
-    
-    res.json({ success: true, settings });
-  } catch (error) {
-    console.error('Get all builder sections error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// =========================================================
-// TEMPLATES API ENDPOINTS
-// =========================================================
-
-// List available templates
-app.get('/api/templates', async (req, res) => {
-  try {
-    const { category, plan } = req.query;
-    
-    let query = 'SELECT * FROM website_templates WHERE is_active = true';
-    const params = [];
-    
-    if (category) {
-      params.push(category);
-      query += ` AND category = $${params.length}`;
-    }
-    
-    query += ' ORDER BY is_premium, name';
-    
-    const result = await pool.query(query, params);
-    
-    res.json({ success: true, templates: result.rows });
-  } catch (error) {
-    console.error('Get templates error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get single template
-app.get('/api/templates/:code', async (req, res) => {
-  try {
-    const { code } = req.params;
-    
-    const result = await pool.query(
-      'SELECT * FROM website_templates WHERE code = $1',
-      [code]
-    );
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Template not found' });
-    }
-    
-    res.json({ success: true, template: result.rows[0] });
-  } catch (error) {
-    console.error('Get template error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// =========================================================
-// PUBLIC WEBSITE API (for WordPress sites to fetch data)
-// =========================================================
-
-// Get public website info + units (for WP sites)
-app.get('/api/public/websites/:publicId', async (req, res) => {
-  try {
-    const { publicId } = req.params;
-    
-    // Get website
-    const websiteResult = await pool.query(`
-      SELECT w.*, wt.name as template_name, wt.sections as template_sections
-      FROM websites w
-      LEFT JOIN website_templates wt ON w.template_code = wt.code
-      WHERE w.public_id = $1 AND w.status = 'active'
-    `, [publicId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = websiteResult.rows[0];
-    
-    // Get active units on this website
-    const unitsResult = await pool.query(`
-      SELECT 
-        wu.display_order, wu.is_featured, 
-        COALESCE(wu.custom_name, bu.display_name, bu.name) as name,
-        COALESCE(wu.custom_description, bu.description) as description,
-        bu.id as unit_id, bu.beds24_room_id, bu.base_price, bu.max_guests,
-        bu.bedrooms, bu.bathrooms, bu.images,
-        p.id as property_id, p.name as property_name, p.city, p.country, p.address,
-        p.beds24_prop_id
-      FROM website_units wu
-      JOIN bookable_units bu ON wu.unit_id = bu.id
-      JOIN properties p ON bu.property_id = p.id
-      WHERE wu.website_id = $1 AND wu.is_active = true
-      ORDER BY wu.display_order, wu.added_at
-    `, [website.id]);
-    
-    // Get settings
-    const settingsResult = await pool.query(`
-      SELECT section, variant, settings, is_enabled
-      FROM website_settings
-      WHERE website_id = $1 AND is_enabled = true
-    `, [website.id]);
-    
-    const settings = {};
-    settingsResult.rows.forEach(row => {
-      settings[row.section] = {
-        variant: row.variant,
-        ...row.settings
-      };
-    });
-    
-    res.json({ 
-      success: true, 
-      website: {
-        id: website.public_id,
-        name: website.name,
-        template: website.template_code,
-        currency: website.default_currency,
-        timezone: website.timezone
-      },
-      units: unitsResult.rows,
-      settings 
-    });
-  } catch (error) {
-    console.error('Get public website error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Search availability for units on a specific website
-app.post('/api/public/websites/:publicId/search', async (req, res) => {
-  try {
-    const { publicId } = req.params;
-    const { check_in, check_out, guests } = req.body;
-    
-    // Get website and its units
-    const websiteResult = await pool.query(`
-      SELECT w.id FROM websites w WHERE w.public_id = $1 AND w.status = 'active'
-    `, [publicId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.status(404).json({ success: false, error: 'Website not found' });
-    }
-    
-    const websiteId = websiteResult.rows[0].id;
-    
-    // Get units on this website that can accommodate guests
-    const unitsResult = await pool.query(`
-      SELECT 
-        bu.id, bu.beds24_room_id, bu.name, bu.display_name, bu.base_price, bu.max_guests,
-        COALESCE(wu.custom_name, bu.display_name, bu.name) as display_name,
-        p.beds24_prop_id, p.name as property_name
-      FROM website_units wu
-      JOIN bookable_units bu ON wu.unit_id = bu.id
-      JOIN properties p ON bu.property_id = p.id
-      WHERE wu.website_id = $1 
-        AND wu.is_active = true
-        AND bu.max_guests >= $2
-      ORDER BY wu.display_order
-    `, [websiteId, guests || 1]);
-    
-    // TODO: Check Beds24 availability for each unit
-    // For now, return all units as potentially available
-    
-    res.json({ 
-      success: true, 
-      units: unitsResult.rows,
-      search: { check_in, check_out, guests }
-    });
-  } catch (error) {
-    console.error('Website search error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// =========================================================
-// WEBSITE MIGRATION & SETUP
-// =========================================================
-
-// Migrate old account_websites to new websites table
-app.post('/api/websites/migrate', async (req, res) => {
-  try {
-    // Ensure the migration column exists on deployed_sites
-    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
-    
-    // Ensure website_settings has website_id column
-    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER`);
-    
-    // Find deployed_sites that haven't been migrated
-    const oldSites = await pool.query(`
-      SELECT ds.*, a.name as account_name 
-      FROM deployed_sites ds
-      LEFT JOIN accounts a ON ds.account_id = a.id
-      WHERE ds.migrated_to_website_id IS NULL AND ds.status != 'deleted'
-    `);
-    
-    const migrated = [];
-    
-    for (const old of oldSites.rows) {
-      // Generate public ID
-      const publicId = 'WEB-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-      
-      // Create new website entry
-      const newSite = await pool.query(`
-        INSERT INTO websites (
-          public_id, owner_type, owner_id, name, template_code,
-          site_url, admin_url, custom_domain, status
-        ) VALUES ($1, 'account', $2, $3, $4, $5, $6, $7, $8)
-        RETURNING *
-      `, [
-        publicId,
-        old.account_id,
-        old.site_name || old.account_name || 'My Website',
-        'starter',
-        old.site_url,
-        old.admin_url,
-        null,
-        old.status === 'deployed' ? 'active' : (old.status || 'active')
-      ]);
-      
-      const websiteId = newSite.rows[0].id;
-      
-      // Add all units from this account to the website
-      await pool.query(`
-        INSERT INTO website_units (website_id, unit_id, display_order)
-        SELECT $1, bu.id, ROW_NUMBER() OVER (ORDER BY p.name, bu.name)
-        FROM bookable_units bu
-        JOIN properties p ON bu.property_id = p.id
-        WHERE p.account_id = $2
-        ON CONFLICT DO NOTHING
-      `, [websiteId, old.account_id]);
-      
-      // Migrate website_settings from account_id to website_id
-      await pool.query(`
-        UPDATE website_settings 
-        SET website_id = $1
-        WHERE account_id = $2 AND website_id IS NULL
-      `, [websiteId, old.account_id]);
-      
-      // Mark old site as migrated
-      await pool.query(
-        'UPDATE deployed_sites SET migrated_to_website_id = $1 WHERE id = $2',
-        [websiteId, old.id]
-      );
-      
-      migrated.push({ old_id: old.id, new_id: websiteId, public_id: publicId, name: old.site_name || old.account_name });
-    }
-    
-    res.json({ 
-      success: true, 
-      message: `Migrated ${migrated.length} websites`,
-      migrated 
-    });
-  } catch (error) {
-    console.error('Migration error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Create default website for account (auto-add all their units)
-app.post('/api/websites/create-default', async (req, res) => {
-  try {
-    const { account_id, name, template_code = 'starter' } = req.body;
-    
-    if (!account_id) {
-      return res.json({ success: false, error: 'account_id required' });
-    }
-    
-    // Check if account already has a website
-    const existing = await pool.query(
-      'SELECT id FROM websites WHERE owner_type = $1 AND owner_id = $2 LIMIT 1',
-      ['account', account_id]
-    );
-    
-    if (existing.rows.length > 0) {
-      return res.json({ success: false, error: 'Account already has a website', website_id: existing.rows[0].id });
-    }
-    
-    // Get account info
-    const accountResult = await pool.query('SELECT name FROM accounts WHERE id = $1', [account_id]);
-    const accountName = accountResult.rows[0]?.name || 'My Website';
-    
-    const publicId = 'WEB-' + Math.random().toString(36).substr(2, 6).toUpperCase();
-    
-    // Create website
-    const websiteResult = await pool.query(`
-      INSERT INTO websites (public_id, owner_type, owner_id, name, template_code, status)
-      VALUES ($1, 'account', $2, $3, $4, 'draft')
-      RETURNING *
-    `, [publicId, account_id, name || accountName, template_code]);
-    
-    const website = websiteResult.rows[0];
-    
-    // Add all units from this account
-    const unitsResult = await pool.query(`
-      INSERT INTO website_units (website_id, unit_id, display_order)
-      SELECT $1, bu.id, ROW_NUMBER() OVER (ORDER BY p.name, bu.name)
-      FROM bookable_units bu
-      JOIN properties p ON bu.property_id = p.id
-      WHERE p.account_id = $2
-      RETURNING *
-    `, [website.id, account_id]);
-    
-    res.json({ 
-      success: true, 
-      website,
-      units_added: unitsResult.rows.length
-    });
-  } catch (error) {
-    console.error('Create default website error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// =========================================================
-// LEGACY WEBSITE BUILDER ENDPOINTS (account_id based - for backwards compatibility)
-// =========================================================
-
-// Get website builder section settings (OLD - account_id based)
+// Get website builder section settings
 app.get('/api/admin/website-builder/:section', async (req, res) => {
   try {
     const { section } = req.params;
@@ -20531,26 +20745,10 @@ app.get('/api/admin/website-builder/:section', async (req, res) => {
       return res.json({ success: false, error: 'account_id required' });
     }
     
-    // First check if there's a website for this account
-    const websiteResult = await pool.query(
-      'SELECT id FROM websites WHERE owner_type = $1 AND owner_id = $2 LIMIT 1',
-      ['account', accountId]
-    );
-    
-    let result;
-    if (websiteResult.rows.length > 0) {
-      // Use new website-based settings
-      result = await pool.query(`
-        SELECT settings FROM website_settings
-        WHERE website_id = $1 AND section = $2
-      `, [websiteResult.rows[0].id, section]);
-    } else {
-      // Fall back to old account-based settings
-      result = await pool.query(`
-        SELECT settings FROM website_settings
-        WHERE account_id = $1 AND section = $2 AND website_id IS NULL
-      `, [accountId, section]);
-    }
+    const result = await pool.query(`
+      SELECT settings FROM website_settings
+      WHERE account_id = $1 AND section = $2
+    `, [accountId, section]);
     
     if (result.rows.length > 0) {
       res.json({ success: true, settings: result.rows[0].settings });
@@ -20606,29 +20804,13 @@ app.post('/api/admin/website-builder/:section', async (req, res) => {
       return res.json({ success: false, error: 'account_id required' });
     }
     
-    // Check if there's a website for this account
-    const websiteResult = await pool.query(
-      'SELECT id FROM websites WHERE owner_type = $1 AND owner_id = $2 LIMIT 1',
-      ['account', accountId]
-    );
-    
-    if (websiteResult.rows.length > 0) {
-      // Use new website-based settings
-      await pool.query(`
-        INSERT INTO website_settings (website_id, section, settings, updated_at)
-        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-        ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
-        DO UPDATE SET settings = $3, updated_at = CURRENT_TIMESTAMP
-      `, [websiteResult.rows[0].id, section, JSON.stringify(settings)]);
-    } else {
-      // Fall back to old account-based settings (legacy)
-      await pool.query(`
-        INSERT INTO website_settings (account_id, section, settings, updated_at)
-        VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
-        ON CONFLICT (account_id, section)
-        DO UPDATE SET settings = $3, updated_at = CURRENT_TIMESTAMP
-      `, [accountId, section, JSON.stringify(settings)]);
-    }
+    // Upsert the settings
+    await pool.query(`
+      INSERT INTO website_settings (account_id, section, settings, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      ON CONFLICT (account_id, section)
+      DO UPDATE SET settings = $3, updated_at = CURRENT_TIMESTAMP
+    `, [accountId, section, JSON.stringify(settings)]);
     
     res.json({ success: true, message: 'Settings saved' });
   } catch (error) {
@@ -20646,24 +20828,10 @@ app.get('/api/admin/website-builder', async (req, res) => {
       return res.json({ success: false, error: 'account_id required' });
     }
     
-    // Check if there's a website for this account
-    const websiteResult = await pool.query(
-      'SELECT id FROM websites WHERE owner_type = $1 AND owner_id = $2 LIMIT 1',
-      ['account', accountId]
+    const result = await pool.query(
+      'SELECT section, settings FROM website_settings WHERE account_id = $1',
+      [accountId]
     );
-    
-    let result;
-    if (websiteResult.rows.length > 0) {
-      result = await pool.query(
-        'SELECT section, settings FROM website_settings WHERE website_id = $1',
-        [websiteResult.rows[0].id]
-      );
-    } else {
-      result = await pool.query(
-        'SELECT section, settings FROM website_settings WHERE account_id = $1 AND website_id IS NULL',
-        [accountId]
-      );
-    }
     
     const allSettings = {};
     result.rows.forEach(row => {
