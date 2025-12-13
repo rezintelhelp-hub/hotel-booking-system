@@ -2696,6 +2696,14 @@ app.put('/api/accounts/:id', async (req, res) => {
       updates.push(`status = $${paramIndex++}`);
       values.push(status);
     }
+    if (role !== undefined) {
+      // Validate role
+      const validRoles = ['admin', 'submaster_admin', 'agency_admin', 'master_admin', 'travel_agent'];
+      if (validRoles.includes(role)) {
+        updates.push(`role = $${paramIndex++}`);
+        values.push(role);
+      }
+    }
     if (notes !== undefined) {
       updates.push(`notes = $${paramIndex++}`);
       values.push(notes);
