@@ -1250,7 +1250,7 @@
                         <button id="managePlanBtn" class="billing-admin-only" onclick="openAssignPlanModal(selectedAccountId, document.getElementById('agencyFilterName').textContent)" style="background: rgba(255,255,255,0.2); border: none; color: white; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; white-space: nowrap; transition: all 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">
                             ⚙️ Manage
                         </button>
-                        <button onclick="clearAccountFilter()" style="background: rgba(0,0,0,0.1); border: none; color: white; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.2)'" onmouseout="this.style.background='rgba(0,0,0,0.1)'">
+                        <button id="clearFilterBtn" onclick="clearAccountFilter()" style="background: rgba(0,0,0,0.1); border: none; color: white; padding: 0.4rem 0.75rem; border-radius: 6px; cursor: pointer; font-size: 0.8rem; font-weight: 500; transition: all 0.2s;" onmouseover="this.style.background='rgba(0,0,0,0.2)'" onmouseout="this.style.background='rgba(0,0,0,0.1)'">
                             ✕ Clear
                         </button>
                     </div>
@@ -11067,35 +11067,52 @@ Local honey and preserves"></textarea>
                 document.querySelectorAll('.agency-only').forEach(el => {
                     el.style.display = 'flex';
                 });
+                // Show Clear button for master admin
+                const clearBtn = document.getElementById('clearFilterBtn');
+                if (clearBtn) clearBtn.style.display = 'block';
                 return;
             }
             
-            // Agency Admin: show management requests
+            // Agency Admin: show management requests, can switch between managed accounts
             if (currentAccount.role === 'agency_admin') {
                 document.querySelectorAll('.agency-only').forEach(el => {
                     el.style.display = 'flex';
                 });
+                // Agency admins can clear to see all their managed accounts
+                const clearBtn = document.getElementById('clearFilterBtn');
+                if (clearBtn) clearBtn.style.display = 'block';
+            }
+            
+            // Admin/SubMaster: show Management Requests (so they can see their requests)
+            if (currentAccount.role === 'admin' || currentAccount.role === 'submaster_admin') {
+                // Show Management Requests for admins (they need to see requests they've made)
+                const mgmtRequestsNav = document.querySelector('[data-view="management-requests"]');
+                if (mgmtRequestsNav) mgmtRequestsNav.style.display = 'flex';
             }
             
             // Non-master admins: auto-filter to their own account
             selectedAccountId = currentAccount.id;
             selectedAccountName = currentAccount.name;
             
-            // Show the filter banner (but hide clear button)
+            // Show the filter banner
             const banner = document.getElementById('agencyFilterBanner');
             const nameEl = document.getElementById('agencyFilterName');
             if (banner && nameEl) {
                 banner.style.display = 'flex';
                 nameEl.textContent = currentAccount.name;
                 
-                // Hide the clear button for non-master-admins
-                const clearBtn = banner.querySelector('button');
-                if (clearBtn) {
-                    clearBtn.style.display = 'none';
+                // Hide the clear button for regular admins (not agency_admin)
+                if (currentAccount.role !== 'agency_admin') {
+                    const clearBtn = document.getElementById('clearFilterBtn');
+                    if (clearBtn) clearBtn.style.display = 'none';
+                    
+                    // Also hide manage button
+                    const manageBtn = document.getElementById('managePlanBtn');
+                    if (manageBtn) manageBtn.style.display = 'none';
                 }
             }
             
-            // Hide "All Accounts" nav item for non-master-admins
+            // Hide "All Accounts" nav item for non-master-admins (but keep section visible)
             const accountsNavItem = document.querySelector('[data-view="accounts"]');
             if (accountsNavItem) {
                 accountsNavItem.style.display = 'none';
