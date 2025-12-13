@@ -1046,11 +1046,11 @@ app.get('/api/setup-accounts', async (req, res) => {
     // =========================================================
     
     // Update role constraint to include travel_agent
+    await pool.query(`ALTER TABLE accounts DROP CONSTRAINT IF EXISTS valid_role`).catch(e => console.log('Drop constraint:', e.message));
     await pool.query(`
-      ALTER TABLE accounts DROP CONSTRAINT IF EXISTS valid_role;
       ALTER TABLE accounts ADD CONSTRAINT valid_role 
-        CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin', 'travel_agent'));
-    `).catch(e => console.log('Role constraint update:', e.message));
+        CHECK (role IN ('master_admin', 'agency_admin', 'submaster_admin', 'admin', 'travel_agent'))
+    `).catch(e => console.log('Add constraint:', e.message));
     
     // Add managed_by_id to accounts (which agency manages this account)
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS managed_by_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
@@ -1301,19 +1301,38 @@ app.get('/api/accounts/me', async (req, res) => {
       return res.json({ success: false, error: 'Invalid or expired session' });
     }
     
-    // Get account details
+    // Get account details - use * to avoid column not found errors during migration
     const account = await pool.query(`
-      SELECT id, public_id, account_code, name, email, role, business_name, logo_url,
-             primary_color, secondary_color, status, currency, timezone, managed_by_id
-      FROM accounts WHERE id = $1
+      SELECT * FROM accounts WHERE id = $1
     `, [session.rows[0].account_id]);
     
     if (account.rows.length === 0) {
       return res.json({ success: false, error: 'Account not found' });
     }
     
-    res.json({ success: true, account: account.rows[0] });
+    // Return safe subset of fields
+    const acc = account.rows[0];
+    res.json({ 
+      success: true, 
+      account: {
+        id: acc.id,
+        public_id: acc.public_id,
+        account_code: acc.account_code || null,
+        name: acc.name,
+        email: acc.email,
+        role: acc.role,
+        business_name: acc.business_name,
+        logo_url: acc.logo_url,
+        primary_color: acc.primary_color,
+        secondary_color: acc.secondary_color,
+        status: acc.status,
+        currency: acc.currency,
+        timezone: acc.timezone,
+        managed_by_id: acc.managed_by_id || null
+      }
+    });
   } catch (error) {
+    console.error('Get account error:', error);
     res.json({ success: false, error: error.message });
   }
 });
