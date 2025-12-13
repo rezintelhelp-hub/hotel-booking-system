@@ -3944,6 +3944,8 @@ app.post('/api/kb/import', async (req, res) => {
 // Setup billing tables
 app.get('/api/setup-billing', async (req, res) => {
   try {
+    console.log('🚀 SETUP-BILLING: Running updated version (no FK on websites.template_code)');
+    
     // Subscription plans (editable by admin)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS billing_plans (
@@ -4190,7 +4192,44 @@ app.get('/api/setup-billing', async (req, res) => {
     // WEBSITE ARCHITECTURE - Multi-site, Unit-based Distribution
     // ============================================================
     
-    // Website Templates (defines available sections & variants)
+    // Migrate old website_templates table to new structure
+    try {
+      // Check if old table exists with slug column
+      const checkSlug = await pool.query(`
+        SELECT column_name FROM information_schema.columns 
+        WHERE table_name = 'website_templates' AND column_name = 'slug'
+      `);
+      
+      if (checkSlug.rows.length > 0) {
+        // Old table exists - add code column and migrate data
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
+        await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '{}'`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS color_presets JSONB DEFAULT '[]'`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS font_presets JSONB DEFAULT '[]'`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT FALSE`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS min_plan VARCHAR(20) DEFAULT 'starter'`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS demo_url VARCHAR(500)`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR(500)`);
+        await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+        
+        // Create unique constraint on code if not exists
+        await pool.query(`
+          DO $$ BEGIN
+            IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'website_templates_code_key') THEN
+              ALTER TABLE website_templates ADD CONSTRAINT website_templates_code_key UNIQUE (code);
+            END IF;
+          END $$;
+        `);
+        
+        console.log('✅ Migrated website_templates table');
+      }
+    } catch (migErr) {
+      console.log('Note: website_templates migration:', migErr.message);
+    }
+    
+    // Website Templates (defines available sections & variants) - only creates if not exists
     await pool.query(`
       CREATE TABLE IF NOT EXISTS website_templates (
         id SERIAL PRIMARY KEY,
@@ -4213,6 +4252,36 @@ app.get('/api/setup-billing', async (req, res) => {
       )
     `);
     
+    // Clean up any existing websites table with broken FK
+    try {
+      // Check if websites table exists
+      const websitesCheck = await pool.query(`
+        SELECT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'websites')
+      `);
+      
+      if (websitesCheck.rows[0].exists) {
+        // Check if it has any data
+        const countCheck = await pool.query('SELECT COUNT(*) FROM websites');
+        if (parseInt(countCheck.rows[0].count) === 0) {
+          // Empty table - safe to drop and recreate
+          await pool.query('DROP TABLE IF EXISTS website_pages CASCADE');
+          await pool.query('DROP TABLE IF EXISTS website_units CASCADE');
+          await pool.query('DROP TABLE IF EXISTS websites CASCADE');
+          console.log('✅ Dropped empty websites tables for recreation');
+        } else {
+          // Has data - try to drop just the FK constraint
+          await pool.query(`
+            ALTER TABLE websites DROP CONSTRAINT IF EXISTS websites_template_code_fkey
+          `);
+          console.log('✅ Removed FK constraint from existing websites table');
+        }
+      }
+    } catch (cleanupErr) {
+      console.log('Note: websites cleanup:', cleanupErr.message);
+    }
+    
+    console.log('🔧 About to create websites table...');
+    
     // Websites (independent entities - many per account)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS websites (
@@ -4222,7 +4291,7 @@ app.get('/api/setup-billing', async (req, res) => {
         owner_id INTEGER NOT NULL,
         name VARCHAR(255) NOT NULL,
         slug VARCHAR(100),
-        template_code VARCHAR(50) REFERENCES website_templates(code),
+        template_code VARCHAR(50), -- References website_templates(code) but not enforced for flexibility
         site_url VARCHAR(500),
         admin_url VARCHAR(500),
         custom_domain VARCHAR(255),
