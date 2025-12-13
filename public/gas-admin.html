@@ -1765,10 +1765,15 @@
                             <h2>👥 Accounts</h2>
                             <p>Manage all accounts - Master Admin, Agency Admins, Sub Masters, and Admins</p>
                         </div>
-                        <button class="btn" onclick="openAddAccountModal()">
-                            <span>+</span>
-                            <span>Add Account</span>
-                        </button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn btn-secondary" onclick="generateMissingCodes()" id="generateCodesBtn" style="display: none;">
+                                🔄 Generate Missing Codes
+                            </button>
+                            <button class="btn" onclick="openAddAccountModal()">
+                                <span>+</span>
+                                <span>Add Account</span>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -10017,7 +10022,7 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                     
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                    <div id="account-role-status-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                         <div class="form-group">
                             <label>Role</label>
                             <select id="account-role" class="form-input">
@@ -12529,6 +12534,16 @@ Local honey and preserves"></textarea>
                     document.getElementById('stat-submaster-admins').textContent = subMasters.length;
                     document.getElementById('stat-admins').textContent = admins.length;
                     
+                    // Show generate codes button if master admin and accounts missing codes
+                    const missingCodes = data.accounts.filter(a => !a.account_code);
+                    const generateBtn = document.getElementById('generateCodesBtn');
+                    if (generateBtn && currentAccount && currentAccount.role === 'master_admin' && missingCodes.length > 0) {
+                        generateBtn.style.display = 'flex';
+                        generateBtn.textContent = `🔄 Generate ${missingCodes.length} Missing Codes`;
+                    } else if (generateBtn) {
+                        generateBtn.style.display = 'none';
+                    }
+                    
                     renderAccountsTable(data.accounts);
                 } else {
                     console.error('Accounts API error:', data.error);
@@ -12666,9 +12681,6 @@ Local honey and preserves"></textarea>
                                             <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
                                             ${currentAccount && currentAccount.role === 'master_admin' ? `
                                                 <button class="btn btn-secondary btn-small" onclick="editAccount(${account.id})">Edit</button>
-                                                ${account.role !== 'master_admin' ? `
-                                                    <button class="btn btn-secondary btn-small" onclick="openChangeRoleModal(${account.id}, '${account.role}', '${(account.name || '').replace(/'/g, '')}')">Role</button>
-                                                ` : ''}
                                                 <button class="btn btn-secondary btn-small" onclick="resetAccountPassword(${account.id}, '${account.email}')" title="Reset password">🔑</button>
                                             ` : ''}
                                         </div>
@@ -12733,7 +12745,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/accounts/${accountId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ account_code: code.toUpperCase() })
                 });
                 
@@ -12746,6 +12758,27 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 showNotification('Error saving code', 'error');
+            }
+        }
+        
+        async function generateMissingCodes() {
+            if (!confirm('Generate codes for all accounts that don\'t have one?')) return;
+            
+            try {
+                const response = await fetch('/api/admin/generate-account-codes', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(`Generated ${data.count} account codes`, 'success');
+                    loadAccounts();
+                } else {
+                    showNotification(data.error || 'Error generating codes', 'error');
+                }
+            } catch (error) {
+                showNotification('Error generating codes', 'error');
             }
         }
         
@@ -13200,7 +13233,7 @@ Local honey and preserves"></textarea>
         
         async function editAccount(accountId) {
             try {
-                const response = await fetch(`/api/accounts/${accountId}`);
+                const response = await fetch(`/api/accounts/${accountId}`, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success && data.account) {
@@ -13211,15 +13244,24 @@ Local honey and preserves"></textarea>
                     document.getElementById('account-email').value = account.email || '';
                     document.getElementById('account-phone').value = account.phone || '';
                     document.getElementById('account-code').value = account.account_code || '';
-                    document.getElementById('account-role').value = account.role || 'agency_admin';
+                    document.getElementById('account-role').value = account.role || 'admin';
                     document.getElementById('account-status').value = account.status || 'active';
+                    
+                    // Only master admins can change role/status
+                    const roleStatusRow = document.getElementById('account-role-status-row');
+                    if (currentAccount && currentAccount.role === 'master_admin') {
+                        roleStatusRow.style.display = 'grid';
+                    } else {
+                        roleStatusRow.style.display = 'none';
+                    }
+                    
                     openModal('accountModal');
                 } else {
-                    alert('Error loading account');
+                    alert('Error loading account: ' + (data.error || 'Unknown error'));
                 }
             } catch (error) {
                 console.error('Error loading account:', error);
-                alert('Error loading account');
+                alert('Error loading account: ' + error.message);
             }
         }
         
@@ -13231,10 +13273,14 @@ Local honey and preserves"></textarea>
                 name: document.getElementById('account-name').value,
                 email: document.getElementById('account-email').value,
                 phone: document.getElementById('account-phone').value,
-                account_code: document.getElementById('account-code').value,
-                role: document.getElementById('account-role').value,
-                status: document.getElementById('account-status').value
+                account_code: document.getElementById('account-code').value
             };
+            
+            // Only master admins can change role/status
+            if (currentAccount && currentAccount.role === 'master_admin') {
+                accountData.role = document.getElementById('account-role').value;
+                accountData.status = document.getElementById('account-status').value;
+            }
             
             try {
                 const url = accountId ? `/api/accounts/${accountId}` : '/api/accounts';
@@ -13242,7 +13288,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(accountData)
                 });
                 
@@ -13251,6 +13297,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     closeModal('accountModal');
                     loadAccounts();
+                    showNotification('Account saved successfully', 'success');
                 } else {
                     alert('Error saving account: ' + (data.error || 'Unknown error'));
                 }
