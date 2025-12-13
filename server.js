@@ -1003,6 +1003,7 @@ app.get('/api/setup-accounts', async (req, res) => {
         email VARCHAR(255) NOT NULL UNIQUE,
         password_hash VARCHAR(255),
         phone VARCHAR(50),
+        contact_name VARCHAR(255),
         business_name VARCHAR(255),
         logo_url VARCHAR(500),
         primary_color VARCHAR(20) DEFAULT '#6366f1',
@@ -1056,6 +1057,9 @@ app.get('/api/setup-accounts', async (req, res) => {
     // Add managed_by_id to accounts (which agency manages this account)
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS managed_by_id INTEGER REFERENCES accounts(id) ON DELETE SET NULL`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_accounts_managed_by ON accounts(managed_by_id)`);
+    
+    // Add contact_name to accounts
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`);
     
     // Add distribution settings to properties
     // distribution_mode: 'open', 'request', 'private'
@@ -2544,8 +2548,10 @@ app.get('/api/accounts/:id', async (req, res) => {
     
     const result = await pool.query(`
       SELECT a.*, 
+             m.name as managed_by_name,
              (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
       FROM accounts a 
+      LEFT JOIN accounts m ON a.managed_by_id = m.id
       WHERE a.id = $1
     `, [id]);
     
@@ -2589,10 +2595,14 @@ app.post('/api/accounts', async (req, res) => {
 app.put('/api/accounts/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { account_code, name, email, phone, business_name, status, notes, role } = req.body;
+    const { 
+      account_code, name, email, phone, business_name, status, notes, role,
+      contact_name, address_line1, address_line2, city, region, postcode, country 
+    } = req.body;
     
-    // Ensure account_code column exists
+    // Ensure columns exist
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`).catch(() => {});
     
     // Build dynamic update query
     const updates = [];
@@ -2615,9 +2625,37 @@ app.put('/api/accounts/:id', async (req, res) => {
       updates.push(`phone = $${paramIndex++}`);
       values.push(phone);
     }
+    if (contact_name !== undefined) {
+      updates.push(`contact_name = $${paramIndex++}`);
+      values.push(contact_name);
+    }
     if (business_name !== undefined) {
       updates.push(`business_name = $${paramIndex++}`);
       values.push(business_name);
+    }
+    if (address_line1 !== undefined) {
+      updates.push(`address_line1 = $${paramIndex++}`);
+      values.push(address_line1);
+    }
+    if (address_line2 !== undefined) {
+      updates.push(`address_line2 = $${paramIndex++}`);
+      values.push(address_line2);
+    }
+    if (city !== undefined) {
+      updates.push(`city = $${paramIndex++}`);
+      values.push(city);
+    }
+    if (region !== undefined) {
+      updates.push(`region = $${paramIndex++}`);
+      values.push(region);
+    }
+    if (postcode !== undefined) {
+      updates.push(`postcode = $${paramIndex++}`);
+      values.push(postcode);
+    }
+    if (country !== undefined) {
+      updates.push(`country = $${paramIndex++}`);
+      values.push(country);
     }
     if (status !== undefined) {
       updates.push(`status = $${paramIndex++}`);
@@ -2626,6 +2664,10 @@ app.put('/api/accounts/:id', async (req, res) => {
     if (notes !== undefined) {
       updates.push(`notes = $${paramIndex++}`);
       values.push(notes);
+    }
+    
+    if (updates.length === 0) {
+      return res.json({ success: false, error: 'No fields to update' });
     }
     
     updates.push(`updated_at = CURRENT_TIMESTAMP`);
