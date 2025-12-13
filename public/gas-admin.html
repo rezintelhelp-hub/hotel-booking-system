@@ -14579,13 +14579,9 @@ Local honey and preserves"></textarea>
                 const accountsData = await accountsRes.json();
                 const allAccounts = accountsData.accounts || [];
                 
-                // Filter properties by account if filter is set
+                // Properties are already filtered by server based on account_id
+                // No need for client-side filtering - server handles agency logic
                 let properties = data.data || [];
-                if (selectedAccountId && properties.length > 0) {
-                    properties = properties.filter(p => p.account_id === selectedAccountId);
-                } else if (selectedAgencyId && properties.length > 0) {
-                    properties = properties.filter(p => p.agency_id === selectedAgencyId);
-                }
                 
                 if (properties.length > 0) {
                     const html = `
