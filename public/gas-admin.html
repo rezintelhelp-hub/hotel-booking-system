@@ -12617,9 +12617,9 @@ Local honey and preserves"></textarea>
                                             ? (account.managed_by_name 
                                                 ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
                                                     <span class="badge" style="background: #dbeafe; color: #1e40af;">🏢 ${account.managed_by_name}</span>
-                                                    <button class="btn btn-secondary btn-small" onclick="removeAccountManagement(${account.id}, '${(account.name || '').replace(/'/g, '')}')" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; color: #dc2626;" title="Remove agency">✕</button>
+                                                    <button class="btn btn-secondary btn-small" data-action="remove-management" data-id="${account.id}" data-name="${(account.name || '').replace(/"/g, '')}" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; color: #dc2626;" title="Remove agency">✕</button>
                                                    </div>`
-                                                : `<button class="btn btn-secondary btn-small" onclick="openAssignAgencyModal(${account.id}, '${(account.name || '').replace(/'/g, '')}')" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">+ Assign</button>`)
+                                                : `<button class="btn btn-secondary btn-small" data-action="assign-agency" data-id="${account.id}" data-name="${(account.name || '').replace(/"/g, '')}" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">+ Assign</button>`)
                                             : `<span style="color: var(--text-muted); font-size: 0.8rem;">—</span>`
                                         }
                                     </td>
@@ -12662,6 +12662,18 @@ Local honey and preserves"></textarea>
             
             // Load plan badges for each account
             accounts.forEach(account => loadAccountPlanBadge(account.id));
+            
+            // Add click handlers for agency buttons
+            container.querySelectorAll('[data-action="assign-agency"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    openAssignAgencyModal(parseInt(btn.dataset.id), btn.dataset.name);
+                });
+            });
+            container.querySelectorAll('[data-action="remove-management"]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    removeAccountManagement(parseInt(btn.dataset.id), btn.dataset.name);
+                });
+            });
         }
         
         function connectStripeForAccount(accountId) {
