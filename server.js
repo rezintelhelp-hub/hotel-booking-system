@@ -1180,6 +1180,30 @@ function generateSessionToken() {
   return crypto.randomBytes(32).toString('hex');
 }
 
+// Generate unique account code from name
+async function generateAccountCode(pool, name) {
+  // Take first 4 chars of name, uppercase, remove non-alphanumeric
+  let baseCode = (name || 'ACCT').toUpperCase().replace(/[^A-Z0-9]/g, '').substring(0, 4);
+  if (baseCode.length < 2) baseCode = 'ACCT';
+  
+  // Check if code exists, if so add number
+  let code = baseCode;
+  let counter = 1;
+  
+  while (true) {
+    const existing = await pool.query('SELECT id FROM accounts WHERE account_code = $1', [code]);
+    if (existing.rows.length === 0) break;
+    code = baseCode + counter;
+    counter++;
+    if (counter > 999) {
+      code = baseCode + crypto.randomBytes(2).toString('hex').toUpperCase();
+      break;
+    }
+  }
+  
+  return code;
+}
+
 // Login endpoint for accounts
 app.post('/api/accounts/login', async (req, res) => {
   try {
@@ -1529,15 +1553,18 @@ app.post('/api/onboarding/create-account', async (req, res) => {
     // Generate API key
     const apiKey = 'gas_' + crypto.randomBytes(24).toString('hex');
     
+    // Generate account code
+    const accountCode = await generateAccountCode(pool, name);
+    
     // Create account (default role is 'admin')
     const result = await pool.query(`
       INSERT INTO accounts (
         name, email, password_hash, business_name, role, parent_id,
-        api_key, api_key_created_at, status
+        account_code, api_key, api_key_created_at, status
       )
-      VALUES ($1, $2, $3, $1, 'admin', $4, $5, NOW(), 'active')
-      RETURNING id, public_id, name, email, role, business_name
-    `, [name, email.toLowerCase().trim(), passwordHash, parentId, apiKey]);
+      VALUES ($1, $2, $3, $1, 'admin', $4, $5, $6, NOW(), 'active')
+      RETURNING id, public_id, name, email, role, business_name, account_code
+    `, [name, email.toLowerCase().trim(), passwordHash, parentId, accountCode, apiKey]);
     
     const account = result.rows[0];
     
@@ -2043,12 +2070,15 @@ app.post('/api/admin/create-master-admin', async (req, res) => {
     // Generate API key
     const apiKey = 'gas_' + crypto.randomBytes(24).toString('hex');
     
+    // Generate account code
+    const accountCode = await generateAccountCode(pool, name);
+    
     // Create master admin account
     const result = await pool.query(`
-      INSERT INTO accounts (name, email, password_hash, role, api_key, api_key_created_at, status)
-      VALUES ($1, $2, $3, 'master_admin', $4, NOW(), 'active')
-      RETURNING id, name, email, role
-    `, [name, email.toLowerCase().trim(), passwordHash, apiKey]);
+      INSERT INTO accounts (name, email, password_hash, role, account_code, api_key, api_key_created_at, status)
+      VALUES ($1, $2, $3, 'master_admin', $4, $5, NOW(), 'active')
+      RETURNING id, name, email, role, account_code
+    `, [name, email.toLowerCase().trim(), passwordHash, accountCode, apiKey]);
     
     res.json({ success: true, account: result.rows[0] });
   } catch (error) {
