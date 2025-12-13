@@ -9999,113 +9999,128 @@ Local honey and preserves"></textarea>
                 </div>
                 <button class="modal-close" onclick="closeModal('accountModal')" style="color: white;">&times;</button>
             </div>
-            <div class="modal-body" style="padding: 1.5rem; max-height: 70vh; overflow-y: auto;">
+            <div class="modal-body" style="padding: 1rem; max-height: 70vh; overflow-y: auto;">
                 <form id="account-form" onsubmit="saveAccount(event)">
                     <input type="hidden" id="edit-account-id">
                     <input type="hidden" id="account-code">
                     <input type="hidden" id="account-role">
                     <input type="hidden" id="account-status">
                     
-                    <!-- Account Info (Read Only) -->
-                    <div style="background: var(--bg-primary); padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem;">
+                    <!-- Account Info Banner (Read Only) -->
+                    <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #bae6fd;">
                         <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; text-align: center;">
                             <div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Account Code</div>
-                                <div id="account-code-display" style="font-weight: 600; font-family: monospace;">—</div>
+                                <div style="font-size: 0.7rem; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Code</div>
+                                <div id="account-code-display" style="font-weight: 700; font-family: monospace; color: #0c4a6e; font-size: 1.1rem;">—</div>
                             </div>
                             <div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Role</div>
-                                <div id="account-role-display" style="font-weight: 600;">—</div>
+                                <div style="font-size: 0.7rem; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Role</div>
+                                <div id="account-role-display" style="font-weight: 600; color: #0c4a6e;">—</div>
                             </div>
                             <div>
-                                <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.25rem;">Status</div>
-                                <div id="account-status-display" style="font-weight: 600;">—</div>
+                                <div style="font-size: 0.7rem; color: #0369a1; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 0.25rem;">Status</div>
+                                <div id="account-status-display" style="font-weight: 600; color: #0c4a6e;">—</div>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Business Details -->
-                    <h4 style="margin: 0 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">📋 Business Details</h4>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <div class="form-group">
-                            <label>Business Name *</label>
-                            <input type="text" id="account-name" class="form-input" required placeholder="e.g., Elevate Stays">
+                    <!-- Business Details Section -->
+                    <div style="background: #f8fafc; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e2e8f0;">
+                        <h4 style="margin: 0 0 1rem 0; font-size: 0.85rem; color: #475569; font-weight: 600;">📋 Business Details</h4>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Business Name *</label>
+                                <input type="text" id="account-name" class="form-input" required placeholder="e.g., Elevate Stays" style="padding: 0.5rem;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Contact Name</label>
+                                <input type="text" id="account-contact-name" class="form-input" placeholder="e.g., John Smith" style="padding: 0.5rem;">
+                            </div>
                         </div>
-                        <div class="form-group">
-                            <label>Contact Name</label>
-                            <input type="text" id="account-contact-name" class="form-input" placeholder="e.g., John Smith">
-                        </div>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <div class="form-group">
-                            <label>Email</label>
-                            <input type="email" id="account-email" class="form-input" placeholder="contact@example.com">
-                        </div>
-                        <div class="form-group">
-                            <label>Phone</label>
-                            <input type="tel" id="account-phone" class="form-input" placeholder="+1 234 567 8900">
-                        </div>
-                    </div>
-                    
-                    <!-- Business Address -->
-                    <h4 style="margin: 1.5rem 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">📍 Business Address</h4>
-                    
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label>Address Line 1</label>
-                        <input type="text" id="account-address1" class="form-input" placeholder="Street address">
-                    </div>
-                    
-                    <div class="form-group" style="margin-bottom: 1rem;">
-                        <label>Address Line 2</label>
-                        <input type="text" id="account-address2" class="form-input" placeholder="Apartment, suite, etc.">
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                        <div class="form-group">
-                            <label>City</label>
-                            <input type="text" id="account-city" class="form-input" placeholder="City">
-                        </div>
-                        <div class="form-group">
-                            <label>Region/State</label>
-                            <input type="text" id="account-region" class="form-input" placeholder="Region">
-                        </div>
-                        <div class="form-group">
-                            <label>Postcode</label>
-                            <input type="text" id="account-postcode" class="form-input" placeholder="Postcode">
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Email</label>
+                                <input type="email" id="account-email" class="form-input" placeholder="contact@example.com" style="padding: 0.5rem;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Phone</label>
+                                <input type="tel" id="account-phone" class="form-input" placeholder="+1 234 567 8900" style="padding: 0.5rem;">
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="form-group" style="margin-bottom: 1.5rem;">
-                        <label>Country</label>
-                        <input type="text" id="account-country" class="form-input" placeholder="Country">
+                    <!-- Business Address Section -->
+                    <div style="background: #fafafa; padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #e5e5e5;">
+                        <h4 style="margin: 0 0 1rem 0; font-size: 0.85rem; color: #525252; font-weight: 600;">📍 Business Address</h4>
+                        
+                        <div class="form-group" style="margin: 0 0 0.75rem 0;">
+                            <label style="font-size: 0.8rem;">Address Line 1</label>
+                            <input type="text" id="account-address1" class="form-input" placeholder="Street address" style="padding: 0.5rem;">
+                        </div>
+                        
+                        <div class="form-group" style="margin: 0 0 0.75rem 0;">
+                            <label style="font-size: 0.8rem;">Address Line 2</label>
+                            <input type="text" id="account-address2" class="form-input" placeholder="Apartment, suite, etc." style="padding: 0.5rem;">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0.75rem; margin-bottom: 0.75rem;">
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">City</label>
+                                <input type="text" id="account-city" class="form-input" placeholder="City" style="padding: 0.5rem;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Region</label>
+                                <input type="text" id="account-region" class="form-input" placeholder="Region" style="padding: 0.5rem;">
+                            </div>
+                            <div class="form-group" style="margin: 0;">
+                                <label style="font-size: 0.8rem;">Postcode</label>
+                                <input type="text" id="account-postcode" class="form-input" placeholder="Postcode" style="padding: 0.5rem;">
+                            </div>
+                        </div>
+                        
+                        <div class="form-group" style="margin: 0;">
+                            <label style="font-size: 0.8rem;">Country</label>
+                            <input type="text" id="account-country" class="form-input" placeholder="Country" style="padding: 0.5rem;">
+                        </div>
                     </div>
                     
                     <!-- Security Section -->
-                    <h4 style="margin: 1.5rem 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">🔐 Security</h4>
-                    
-                    <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
-                        <div>
-                            <div style="font-weight: 600; color: #92400e;">Password Reset</div>
-                            <div style="font-size: 0.85rem; color: #a16207;">Clear password so user can set a new one</div>
+                    <div style="background: linear-gradient(135deg, #fefce8 0%, #fef9c3 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #fde047;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <div>
+                                <h4 style="margin: 0 0 0.25rem 0; font-size: 0.85rem; color: #854d0e; font-weight: 600;">🔐 Security</h4>
+                                <div style="font-size: 0.8rem; color: #a16207;">Set a new password for this account</div>
+                            </div>
+                            <button type="button" class="btn btn-secondary" onclick="resetPasswordFromModal()" style="white-space: nowrap; font-size: 0.85rem;">
+                                🔑 Reset Password
+                            </button>
                         </div>
-                        <button type="button" class="btn btn-secondary" onclick="resetPasswordFromModal()" style="white-space: nowrap;">
-                            🔑 Reset Password
-                        </button>
                     </div>
                     
                     <!-- Agency Management Section (only for admin/submaster) -->
                     <div id="account-agency-section" style="display: none;">
-                        <h4 style="margin: 1.5rem 0 1rem 0; font-size: 0.9rem; color: var(--text-secondary);">🏢 Agency Management</h4>
-                        
-                        <div id="account-agency-status" style="background: var(--bg-primary); padding: 1rem; border-radius: 8px;">
-                            <!-- Filled dynamically -->
+                        <div style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #d8b4fe;">
+                            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #6b21a8; font-weight: 600;">🏢 Agency Management</h4>
+                            <div id="account-agency-status">
+                                <!-- Filled dynamically -->
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Travel Agent Access Section (placeholder for future) -->
+                    <div id="account-travel-agent-section" style="display: none;">
+                        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #6ee7b7;">
+                            <h4 style="margin: 0 0 0.75rem 0; font-size: 0.85rem; color: #047857; font-weight: 600;">🧳 Travel Agent Access</h4>
+                            <div id="account-travel-agent-status">
+                                <!-- Filled dynamically -->
+                            </div>
                         </div>
                     </div>
                     
                     <!-- Form Actions -->
-                    <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
+                    <div style="display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--border);">
                         <button type="button" class="btn btn-secondary" onclick="closeModal('accountModal')">Cancel</button>
                         <button type="submit" class="btn">Save Changes</button>
                     </div>
@@ -12712,12 +12727,9 @@ Local honey and preserves"></textarea>
                                     <td>
                                         ${account.role === 'admin' || account.role === 'submaster_admin' 
                                             ? (account.managed_by_name 
-                                                ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                    <span class="badge" style="background: #dbeafe; color: #1e40af;">🏢 ${account.managed_by_name}</span>
-                                                    <button class="btn btn-secondary btn-small" data-action="remove-management" data-id="${account.id}" data-name="${(account.name || '').replace(/"/g, '')}" style="font-size: 0.65rem; padding: 0.1rem 0.3rem; color: #dc2626;" title="Remove agency">✕</button>
-                                                   </div>`
-                                                : `<button class="btn btn-secondary btn-small" data-action="assign-agency" data-id="${account.id}" data-name="${(account.name || '').replace(/"/g, '')}" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">+ Assign</button>`)
-                                            : `<span style="color: var(--text-muted); font-size: 0.8rem;">—</span>`
+                                                ? `<span style="color: #1e40af; font-weight: 500;">🏢 ${account.managed_by_name}</span>`
+                                                : `<span style="color: var(--text-muted); font-size: 0.85rem;">Self-managed</span>`)
+                                            : `<span style="color: var(--text-muted);">—</span>`
                                         }
                                     </td>
                                     <td>
@@ -12757,18 +12769,6 @@ Local honey and preserves"></textarea>
             
             // Load plan badges for each account
             accounts.forEach(account => loadAccountPlanBadge(account.id));
-            
-            // Add click handlers for agency buttons
-            container.querySelectorAll('[data-action="assign-agency"]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    openAssignAgencyModal(parseInt(btn.dataset.id), btn.dataset.name);
-                });
-            });
-            container.querySelectorAll('[data-action="remove-management"]').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    removeAccountManagement(parseInt(btn.dataset.id), btn.dataset.name);
-                });
-            });
         }
         
         function connectStripeForAccount(accountId) {
