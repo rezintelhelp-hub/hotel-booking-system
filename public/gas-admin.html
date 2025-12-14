@@ -3800,7 +3800,7 @@
                     <!-- Header Tab -->
                     <div id="editor-panel-header" class="editor-panel">
                         <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                            <button class="btn" onclick="saveWebsiteSection('header')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Header</button>
+                            <button class="btn" onclick="saveWebsiteSection('header', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Header</button>
                         </div>
                         <div id="editor-header-content"></div>
                     </div>
@@ -3818,37 +3818,37 @@
                         </div>
                         <div id="editor-homepage-hero" class="home-subtab-panel">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('hero')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Hero</button>
+                                <button class="btn" onclick="saveWebsiteSection('hero', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Hero</button>
                             </div>
                             <div id="editor-hero-content"></div>
                         </div>
                         <div id="editor-homepage-intro" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('intro')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Intro</button>
+                                <button class="btn" onclick="saveWebsiteSection('intro', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Intro</button>
                             </div>
                             <div id="editor-intro-content"></div>
                         </div>
                         <div id="editor-homepage-featured" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('featured')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Featured</button>
+                                <button class="btn" onclick="saveWebsiteSection('featured', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Featured</button>
                             </div>
                             <div id="editor-featured-content"></div>
                         </div>
                         <div id="editor-homepage-about" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('about')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About</button>
+                                <button class="btn" onclick="saveWebsiteSection('about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About</button>
                             </div>
                             <div id="editor-about-content"></div>
                         </div>
                         <div id="editor-homepage-reviews" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('reviews')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Reviews</button>
+                                <button class="btn" onclick="saveWebsiteSection('reviews', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Reviews</button>
                             </div>
                             <div id="editor-reviews-content"></div>
                         </div>
                         <div id="editor-homepage-cta" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('cta')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save CTA</button>
+                                <button class="btn" onclick="saveWebsiteSection('cta', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save CTA</button>
                             </div>
                             <div id="editor-cta-content"></div>
                         </div>
@@ -3866,37 +3866,37 @@
                         </div>
                         <div id="editor-subpage-page-about" class="subpage-panel">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('page-about')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
+                                <button class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
                             </div>
                             <div id="editor-page-about-content"></div>
                         </div>
                         <div id="editor-subpage-page-gallery" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('page-gallery')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Gallery Page</button>
+                                <button class="btn" onclick="saveWebsiteSection('page-gallery', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Gallery Page</button>
                             </div>
                             <div id="editor-page-gallery-content"></div>
                         </div>
                         <div id="editor-subpage-page-blog" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('page-blog')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Blog Page</button>
+                                <button class="btn" onclick="saveWebsiteSection('page-blog', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Blog Page</button>
                             </div>
                             <div id="editor-page-blog-content"></div>
                         </div>
                         <div id="editor-subpage-page-attractions" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('page-attractions')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Attractions Page</button>
+                                <button class="btn" onclick="saveWebsiteSection('page-attractions', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Attractions Page</button>
                             </div>
                             <div id="editor-page-attractions-content"></div>
                         </div>
                         <div id="editor-subpage-page-dining" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('page-dining')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Dining Page</button>
+                                <button class="btn" onclick="saveWebsiteSection('page-dining', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Dining Page</button>
                             </div>
                             <div id="editor-page-dining-content"></div>
                         </div>
                         <div id="editor-subpage-page-contact" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('page-contact')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Contact Page</button>
+                                <button class="btn" onclick="saveWebsiteSection('page-contact', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Contact Page</button>
                             </div>
                             <div id="editor-page-contact-content"></div>
                         </div>
@@ -3911,19 +3911,19 @@
                         </div>
                         <div id="editor-footer-footer-main" class="footer-panel">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('footer')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Footer</button>
+                                <button class="btn" onclick="saveWebsiteSection('footer', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Footer</button>
                             </div>
                             <div id="editor-footer-content"></div>
                         </div>
                         <div id="editor-footer-footer-terms" class="footer-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('page-terms')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Terms</button>
+                                <button class="btn" onclick="saveWebsiteSection('page-terms', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Terms</button>
                             </div>
                             <div id="editor-terms-content"></div>
                         </div>
                         <div id="editor-footer-footer-privacy" class="footer-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                                <button class="btn" onclick="saveWebsiteSection('page-privacy')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Privacy</button>
+                                <button class="btn" onclick="saveWebsiteSection('page-privacy', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Privacy</button>
                             </div>
                             <div id="editor-privacy-content"></div>
                         </div>
@@ -3932,7 +3932,7 @@
                     <!-- Styles Tab -->
                     <div id="editor-panel-styles" class="editor-panel" style="display: none;">
                         <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
-                            <button class="btn" onclick="saveWebsiteSection('styles')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Styles</button>
+                            <button class="btn" onclick="saveWebsiteSection('styles', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Styles</button>
                         </div>
                         <div id="editor-styles-content"></div>
                     </div>
@@ -3952,7 +3952,7 @@
                                 <span>👁️</span>
                                 <span>Preview Site</span>
                             </button>
-                            <button class="btn" onclick="saveWebsiteSection('header')">💾 Save & Sync</button>
+                            <button class="btn" onclick="saveWebsiteSection('header', this)">💾 Save & Sync</button>
                         </div>
                     </div>
                     
@@ -4159,7 +4159,7 @@
                             <h2>🖼️ Hero Section</h2>
                             <p>The main banner at the top of your website</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('hero')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('hero', this)">💾 Save & Sync</button>
                     </div>
                 </div>
 
@@ -4335,7 +4335,7 @@
                             <h2>📝 Intro Section</h2>
                             <p>Welcome text below the hero</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('intro')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('intro', this)">💾 Save & Sync</button>
                     </div>
                 </div>
 
@@ -4431,7 +4431,7 @@
                             <h2>🏨 Featured Properties</h2>
                             <p>Choose which rooms to highlight</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('featured')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('featured', this)">💾 Save & Sync</button>
                     </div>
                 </div>
 
@@ -4514,7 +4514,7 @@
                             <h2>⭐ Reviews Section</h2>
                             <p>Customer testimonials and ratings</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('reviews')" id="wb-reviews-save-btn">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('reviews', this)" id="wb-reviews-save-btn">💾 Save & Sync</button>
                     </div>
                 </div>
 
@@ -4596,7 +4596,7 @@
                             <h2>ℹ️ About Section</h2>
                             <p>Tell visitors about your property</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('about')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('about', this)">💾 Save & Sync</button>
                     </div>
                 </div>
 
@@ -4716,7 +4716,7 @@
                             <h2>📢 Call to Action</h2>
                             <p>Encourage visitors to book</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('cta')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('cta', this)">💾 Save & Sync</button>
                     </div>
                 </div>
 
@@ -4808,7 +4808,7 @@
                             <h2>🦶 Footer</h2>
                             <p>Bottom section of your website</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('footer')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('footer', this)">💾 Save & Sync</button>
                     </div>
                 </div>
 
@@ -4958,7 +4958,7 @@
                             <h2>🎨 Styles & Colors</h2>
                             <p>Global styling for your website</p>
                         </div>
-                        <button class="btn" onclick="saveWebsiteSection('styles')">💾 Save & Sync</button>
+                        <button class="btn" onclick="saveWebsiteSection('styles', this)">💾 Save & Sync</button>
                     </div>
                 </div>
 
@@ -12228,8 +12228,19 @@ Local honey and preserves"></textarea>
             }
         }
         
-        async function saveWebsiteSection(section) {
+        async function saveWebsiteSection(section, buttonEl = null) {
+            // Find the save button if not passed
+            const saveBtn = buttonEl || document.querySelector(`button[onclick*="saveWebsiteSection('${section}', this)"]`);
+            const originalText = saveBtn ? saveBtn.innerHTML : '';
+            
             try {
+                // Show loading state
+                if (saveBtn) {
+                    saveBtn.disabled = true;
+                    saveBtn.innerHTML = '⏳ Saving...';
+                    saveBtn.style.opacity = '0.7';
+                }
+                
                 const accountId = selectedAccountId;
                 const websiteId = selectedWebsiteId;
                 
@@ -12294,6 +12305,7 @@ Local honey and preserves"></textarea>
                             
                             // Also push to WordPress if site exists
                             if (selectedWebsiteData?.site_url) {
+                                if (saveBtn) saveBtn.innerHTML = '⏳ Syncing to WordPress...';
                                 await pushToWordPress(section, settings);
                             }
                         }
@@ -12310,6 +12322,13 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error saving website section:', error);
                 showNotification('Error saving. Please try again.', 'error');
+            } finally {
+                // Restore button state
+                if (saveBtn) {
+                    saveBtn.disabled = false;
+                    saveBtn.innerHTML = originalText;
+                    saveBtn.style.opacity = '1';
+                }
             }
         }
         
