@@ -11400,6 +11400,7 @@ Local honey and preserves"></textarea>
         let selectedWebsiteId = null;
         let selectedWebsiteData = null;
         let availableWebsites = [];
+        let deployedSitesCache = [];
         
         // Template-specific defaults
         const templateDefaults = {
@@ -11596,8 +11597,26 @@ Local honey and preserves"></textarea>
             console.log('availableWebsites:', availableWebsites);
             
             // Find the website data from availableWebsites (populated from deployed sites)
-            const website = availableWebsites.find(w => w.id == websiteId);
+            let website = availableWebsites.find(w => w.id == websiteId);
+            
+            // Fallback to deployedSitesCache if not found
+            if (!website && deployedSitesCache.length > 0) {
+                const cached = deployedSitesCache.find(s => s.id == websiteId);
+                if (cached) {
+                    website = {
+                        id: cached.id,
+                        name: cached.site_name || cached.slug,
+                        site_url: cached.site_url,
+                        admin_url: cached.admin_url,
+                        status: cached.status,
+                        account_id: cached.account_id,
+                        template: cached.template || 'developer-light'
+                    };
+                }
+            }
+            
             console.log('Found website:', website);
+            console.log('Website template:', website?.template);
             
             if (website) {
                 selectWebsite(websiteId, website);
@@ -12183,7 +12202,9 @@ Local honey and preserves"></textarea>
                 if (!clientId) return;
                 
                 // Get template defaults for this section
+                const template = selectedWebsiteData?.template || 'developer-light';
                 const defaults = getTemplateDefaults(section);
+                console.log(`Loading section "${section}" with template "${template}"`, defaults);
                 
                 // Apply template defaults first (will be overwritten by saved values)
                 Object.keys(defaults).forEach(key => {
@@ -17253,14 +17274,18 @@ Local honey and preserves"></textarea>
                 const sites = data.sites;
                 updateDeployStats(sites);
                 
-                // Also update availableWebsites for the selector
+                // Cache deployed sites for editWebsite lookups
+                deployedSitesCache = sites;
+                
+                // Also update availableWebsites for the selector (include template!)
                 availableWebsites = sites.map(s => ({
                     id: s.id,
                     name: s.site_name || s.slug,
                     site_url: s.site_url,
                     admin_url: s.admin_url,
                     status: s.status,
-                    account_id: s.account_id
+                    account_id: s.account_id,
+                    template: s.template || 'developer-light'
                 }));
                 updateWebsiteSelectors();
                 
