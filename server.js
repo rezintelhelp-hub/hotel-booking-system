@@ -486,6 +486,40 @@ async function runMigrations() {
     }
 
     console.log('🎉 Migrations check complete!');
+    
+    // ===== INLINE MIGRATIONS (no SQL files needed) =====
+    
+    // Fix: Add unique constraint to website_settings if missing
+    try {
+      const constraintCheck = await pool.query(`
+        SELECT constraint_name FROM information_schema.table_constraints 
+        WHERE table_name = 'website_settings' 
+        AND constraint_type = 'UNIQUE'
+        AND constraint_name = 'website_settings_website_id_section_unique'
+      `);
+      
+      if (constraintCheck.rows.length === 0) {
+        console.log('🔧 Adding missing unique constraint to website_settings...');
+        
+        // First remove any duplicates that would block the constraint
+        await pool.query(`
+          DELETE FROM website_settings a USING website_settings b
+          WHERE a.id < b.id 
+          AND a.website_id = b.website_id 
+          AND a.section = b.section
+        `);
+        
+        await pool.query(`
+          ALTER TABLE website_settings 
+          ADD CONSTRAINT website_settings_website_id_section_unique 
+          UNIQUE (website_id, section)
+        `);
+        console.log('✅ website_settings unique constraint added');
+      }
+    } catch (constraintError) {
+      console.log('ℹ️  Constraint check:', constraintError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
