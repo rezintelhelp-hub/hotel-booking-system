@@ -11259,12 +11259,15 @@ Local honey and preserves"></textarea>
         }
         
         function selectWebsite(websiteId, websiteData = null) {
+            console.log('selectWebsite called:', websiteId, websiteData);
+            
             selectedWebsiteId = websiteId;
             selectedWebsiteData = websiteData;
             
             // Also set the account ID from the website data
             if (websiteData && websiteData.account_id) {
                 selectedAccountId = websiteData.account_id;
+                console.log('Set selectedAccountId to:', selectedAccountId);
             }
             
             // Update all website selector dropdowns
@@ -11284,7 +11287,11 @@ Local honey and preserves"></textarea>
         }
         
         function updateWebsiteBanner() {
+            console.log('updateWebsiteBanner called - selectedWebsiteId:', selectedWebsiteId, 'selectedWebsiteData:', selectedWebsiteData);
+            
             const banners = document.querySelectorAll('.website-edit-banner');
+            console.log('Found banners:', banners.length);
+            
             banners.forEach(banner => {
                 if (selectedWebsiteId && selectedWebsiteData) {
                     banner.style.display = 'block';
@@ -11301,6 +11308,7 @@ Local honey and preserves"></textarea>
                     if (statusEl) {
                         statusEl.textContent = selectedWebsiteData.status || 'draft';
                         statusEl.className = 'website-status status-' + (selectedWebsiteData.status || 'draft');
+                        console.log('Set status to:', selectedWebsiteData.status);
                     }
                 } else {
                     banner.style.display = 'none';
@@ -11351,8 +11359,13 @@ Local honey and preserves"></textarea>
         }
         
         function editWebsite(websiteId) {
+            console.log('editWebsite called with ID:', websiteId);
+            console.log('availableWebsites:', availableWebsites);
+            
             // Find the website data from availableWebsites (populated from deployed sites)
             const website = availableWebsites.find(w => w.id == websiteId);
+            console.log('Found website:', website);
+            
             if (website) {
                 selectWebsite(websiteId, website);
                 navClick(null, 'wb-header');
@@ -24199,22 +24212,33 @@ Local honey and preserves"></textarea>
         }
         
         function updateBrandingPreviews() {
-            // Update button previews
+            // Update button previews - check if elements exist first
             const primaryBtn = document.getElementById('preview-btn-primary');
             const secondaryBtn = document.getElementById('preview-btn-secondary');
-            const radius = document.getElementById('brand-btn-radius').value;
+            const radiusEl = document.getElementById('brand-btn-radius');
+            
+            // Exit early if branding elements don't exist on this page
+            if (!radiusEl) return;
+            
+            const radius = radiusEl.value;
             
             if (primaryBtn) {
-                primaryBtn.style.background = document.getElementById('brand-btn-primary-bg').value;
-                primaryBtn.style.color = document.getElementById('brand-btn-primary-text').value;
+                const bgEl = document.getElementById('brand-btn-primary-bg');
+                const textEl = document.getElementById('brand-btn-primary-text');
+                if (bgEl) primaryBtn.style.background = bgEl.value;
+                if (textEl) primaryBtn.style.color = textEl.value;
                 primaryBtn.style.borderRadius = radius;
             }
             
             if (secondaryBtn) {
-                const textColor = document.getElementById('brand-btn-secondary-text').value;
-                secondaryBtn.style.background = document.getElementById('brand-btn-secondary-bg').value;
-                secondaryBtn.style.color = textColor;
-                secondaryBtn.style.border = '2px solid ' + textColor;
+                const bgEl = document.getElementById('brand-btn-secondary-bg');
+                const textEl = document.getElementById('brand-btn-secondary-text');
+                if (textEl) {
+                    const textColor = textEl.value;
+                    if (bgEl) secondaryBtn.style.background = bgEl.value;
+                    secondaryBtn.style.color = textColor;
+                    secondaryBtn.style.border = '2px solid ' + textColor;
+                }
                 secondaryBtn.style.borderRadius = radius;
             }
             
@@ -24223,13 +24247,17 @@ Local honey and preserves"></textarea>
             const bodyPreview = document.getElementById('preview-body');
             
             if (headingPreview) {
-                headingPreview.style.fontFamily = document.getElementById('brand-font-heading').value;
-                headingPreview.style.fontWeight = document.getElementById('brand-font-heading-weight').value;
+                const fontEl = document.getElementById('brand-font-heading');
+                const weightEl = document.getElementById('brand-font-heading-weight');
+                if (fontEl) headingPreview.style.fontFamily = fontEl.value;
+                if (weightEl) headingPreview.style.fontWeight = weightEl.value;
             }
             
             if (bodyPreview) {
-                bodyPreview.style.fontFamily = document.getElementById('brand-font-body').value;
-                bodyPreview.style.fontWeight = document.getElementById('brand-font-body-weight').value;
+                const fontEl = document.getElementById('brand-font-body');
+                const weightEl = document.getElementById('brand-font-body-weight');
+                if (fontEl) bodyPreview.style.fontFamily = fontEl.value;
+                if (weightEl) bodyPreview.style.fontWeight = weightEl.value;
             }
         }
 
