@@ -21811,39 +21811,85 @@ app.post('/api/websites/:websiteId/builder/:section', async (req, res) => {
     const { websiteId, section } = req.params;
     const { settings, variant, is_enabled, display_order } = req.body;
     
-    // Get website id if public_id provided
-    const websiteResult = await pool.query(`
-      SELECT id, owner_id FROM websites WHERE id = $1 OR public_id = $1
-    `, [websiteId]);
+    // Get website id - check if numeric ID or public_id
+    const isNumeric = /^\d+$/.test(websiteId);
+    let websiteResult;
+    let accountId;
+    let dbWebsiteId;
+    let isDeployedSite = false;
     
-    if (websiteResult.rows.length === 0) {
+    if (isNumeric) {
+      // First try websites table
+      websiteResult = await pool.query(`
+        SELECT id, owner_id FROM websites WHERE id = $1
+      `, [parseInt(websiteId)]);
+      
+      // If not found, try deployed_sites table
+      if (websiteResult.rows.length === 0) {
+        websiteResult = await pool.query(`
+          SELECT id, account_id FROM deployed_sites WHERE id = $1
+        `, [parseInt(websiteId)]);
+        if (websiteResult.rows.length > 0) {
+          isDeployedSite = true;
+          dbWebsiteId = websiteResult.rows[0].id;
+          accountId = websiteResult.rows[0].account_id;
+        }
+      } else {
+        dbWebsiteId = websiteResult.rows[0].id;
+        accountId = websiteResult.rows[0].owner_id;
+      }
+    } else {
+      websiteResult = await pool.query(`
+        SELECT id, owner_id FROM websites WHERE public_id = $1
+      `, [websiteId]);
+      if (websiteResult.rows.length > 0) {
+        dbWebsiteId = websiteResult.rows[0].id;
+        accountId = websiteResult.rows[0].owner_id;
+      }
+    }
+    
+    if (!dbWebsiteId) {
       return res.json({ success: false, error: 'Website not found' });
     }
     
-    const dbWebsiteId = websiteResult.rows[0].id;
-    const accountId = websiteResult.rows[0].owner_id;
-    
-    // Upsert the settings
-    await pool.query(`
-      INSERT INTO website_settings (website_id, account_id, section, settings, variant, is_enabled, display_order, sync_source, updated_at)
-      VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), COALESCE($7, 0), 'gas', CURRENT_TIMESTAMP)
-      ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
-      DO UPDATE SET 
-        settings = $4, 
-        variant = COALESCE($5, website_settings.variant),
-        is_enabled = COALESCE($6, website_settings.is_enabled),
-        display_order = COALESCE($7, website_settings.display_order),
-        sync_source = 'gas',
-        updated_at = CURRENT_TIMESTAMP
-    `, [dbWebsiteId, accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
-    
-    // Update setup progress
-    await pool.query(`
-      UPDATE websites 
-      SET setup_progress = COALESCE(setup_progress, '{}'::jsonb) || $2::jsonb,
+    // For deployed sites, use deployed_site_id column; for websites, use website_id
+    if (isDeployedSite) {
+      // Check if deployed_site_id column exists, if not use account-based storage
+      await pool.query(`
+        INSERT INTO website_settings (account_id, section, settings, variant, is_enabled, display_order, sync_source, updated_at)
+        VALUES ($1, $2, $3, $4, COALESCE($5, true), COALESCE($6, 0), 'gas', CURRENT_TIMESTAMP)
+        ON CONFLICT (account_id, section) WHERE account_id IS NOT NULL AND website_id IS NULL
+        DO UPDATE SET 
+          settings = $3, 
+          variant = COALESCE($4, website_settings.variant),
+          is_enabled = COALESCE($5, website_settings.is_enabled),
+          display_order = COALESCE($6, website_settings.display_order),
+          sync_source = 'gas',
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-    `, [dbWebsiteId, JSON.stringify({ [section]: true })]);
+      `, [accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
+    } else {
+      // Upsert the settings for websites table entries
+      await pool.query(`
+        INSERT INTO website_settings (website_id, account_id, section, settings, variant, is_enabled, display_order, sync_source, updated_at)
+        VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), COALESCE($7, 0), 'gas', CURRENT_TIMESTAMP)
+        ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
+        DO UPDATE SET 
+          settings = $4, 
+          variant = COALESCE($5, website_settings.variant),
+          is_enabled = COALESCE($6, website_settings.is_enabled),
+          display_order = COALESCE($7, website_settings.display_order),
+          sync_source = 'gas',
+          updated_at = CURRENT_TIMESTAMP
+      `, [dbWebsiteId, accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
+      
+      // Update setup progress for websites
+      await pool.query(`
+        UPDATE websites 
+        SET setup_progress = COALESCE(setup_progress, '{}'::jsonb) || $2::jsonb,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+      `, [dbWebsiteId, JSON.stringify({ [section]: true })]);
+    }
     
     res.json({ success: true, message: 'Settings saved' });
   } catch (error) {
