@@ -11401,6 +11401,82 @@ Local honey and preserves"></textarea>
         let selectedWebsiteData = null;
         let availableWebsites = [];
         
+        // Template-specific defaults
+        const templateDefaults = {
+            'developer-light': {
+                header: {
+                    'bg-color': '#ffffff',
+                    'text-color': '#1e293b',
+                    'logo-color': '#0f172a',
+                    'cta-bg': '#2563eb',
+                    'cta-text': '#ffffff',
+                    'border-color': '#e5e7eb'
+                },
+                hero: {
+                    'overlay-color': '#0f172a',
+                    'title-color': '#ffffff',
+                    'subtitle-color': '#ffffff'
+                },
+                intro: {
+                    'bg': '#ffffff',
+                    'text-color': '#1e293b'
+                },
+                featured: {
+                    'bg': '#f8fafc',
+                    'text-color': '#1e293b'
+                },
+                footer: {
+                    'bg-color': '#0f172a',
+                    'text-color': '#ffffff'
+                },
+                styles: {
+                    'primary-color': '#2563eb',
+                    'secondary-color': '#0f172a',
+                    'body-bg': '#ffffff',
+                    'text-color': '#1e293b'
+                }
+            },
+            'developer-dark': {
+                header: {
+                    'bg-color': '#0f172a',
+                    'text-color': '#e2e8f0',
+                    'logo-color': '#f8fafc',
+                    'cta-bg': '#6366f1',
+                    'cta-text': '#ffffff',
+                    'border-color': '#334155'
+                },
+                hero: {
+                    'overlay-color': '#0f172a',
+                    'title-color': '#ffffff',
+                    'subtitle-color': '#e2e8f0'
+                },
+                intro: {
+                    'bg': '#1e293b',
+                    'text-color': '#e2e8f0'
+                },
+                featured: {
+                    'bg': '#0f172a',
+                    'text-color': '#e2e8f0'
+                },
+                footer: {
+                    'bg-color': '#020617',
+                    'text-color': '#e2e8f0'
+                },
+                styles: {
+                    'primary-color': '#6366f1',
+                    'secondary-color': '#f8fafc',
+                    'body-bg': '#0f172a',
+                    'text-color': '#e2e8f0'
+                }
+            }
+        };
+        
+        // Get template defaults for current website
+        function getTemplateDefaults(section) {
+            const template = selectedWebsiteData?.template || 'developer-light';
+            return templateDefaults[template]?.[section] || templateDefaults['developer-light'][section] || {};
+        }
+        
         // Website selection functions
         async function loadAccountWebsites() {
             if (!selectedAccountId) {
@@ -12106,18 +12182,33 @@ Local honey and preserves"></textarea>
                 const clientId = getClientId();
                 if (!clientId) return;
                 
+                // Get template defaults for this section
+                const defaults = getTemplateDefaults(section);
+                
+                // Apply template defaults first (will be overwritten by saved values)
+                Object.keys(defaults).forEach(key => {
+                    const el = document.getElementById(`wb-${section}-${key}`);
+                    const pickerEl = document.getElementById(`wb-${section}-${key}-picker`);
+                    if (el) {
+                        el.value = defaults[key];
+                        if (pickerEl) pickerEl.value = defaults[key];
+                    }
+                });
+                
                 const response = await fetch(`/api/admin/website-builder/${section}?client_id=${clientId}`);
                 const data = await response.json();
                 
                 if (data.success && data.settings) {
-                    // Populate form fields based on section
+                    // Populate form fields based on section (overwriting defaults)
                     Object.keys(data.settings).forEach(key => {
                         const el = document.getElementById(`wb-${section}-${key}`);
+                        const pickerEl = document.getElementById(`wb-${section}-${key}-picker`);
                         if (el) {
                             if (el.type === 'checkbox') {
                                 el.checked = data.settings[key];
                             } else if (el.type === 'color') {
                                 el.value = data.settings[key] || el.value;
+                                if (pickerEl) pickerEl.value = data.settings[key] || pickerEl.value;
                             } else {
                                 el.value = data.settings[key] || '';
                             }
