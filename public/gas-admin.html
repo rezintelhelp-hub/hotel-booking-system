@@ -11621,6 +11621,12 @@ Local honey and preserves"></textarea>
             if (website) {
                 selectWebsite(websiteId, website);
                 
+                // Also set account ID for saving (deployed sites have account_id)
+                if (website.account_id && !selectedAccountId) {
+                    selectedAccountId = website.account_id;
+                    console.log('Set selectedAccountId from website:', selectedAccountId);
+                }
+                
                 // Update editor header with site info
                 document.getElementById('editor-site-name').textContent = website.name || 'Website Editor';
                 document.getElementById('editor-site-url-display').innerHTML = website.site_url ? 
@@ -12355,6 +12361,7 @@ Local honey and preserves"></textarea>
                 });
                 
                 console.log('Saving settings:', section, settings);
+                console.log('websiteId:', websiteId, 'accountId:', accountId);
                 
                 let saved = false;
                 
@@ -12367,13 +12374,18 @@ Local honey and preserves"></textarea>
                             body: JSON.stringify({ settings })
                         });
                         const data = await response.json();
+                        console.log('Per-website endpoint response:', data);
                         if (data.success) {
                             saved = true;
                             console.log('Saved to per-website endpoint');
+                        } else {
+                            console.log('Per-website endpoint failed:', data.error);
                         }
                     } catch (e) {
-                        console.log('Per-website save failed, trying account-based...');
+                        console.log('Per-website save failed (exception):', e);
                     }
+                } else {
+                    console.log('No websiteId, skipping per-website endpoint');
                 }
                 
                 // Also save to account-based endpoint (for compatibility)
@@ -12385,6 +12397,7 @@ Local honey and preserves"></textarea>
                             body: JSON.stringify({ account_id: accountId, settings })
                         });
                         const data = await response.json();
+                        console.log('Account-based endpoint response:', data);
                         if (data.success) {
                             saved = true;
                             console.log('Saved to account-based endpoint');
@@ -12394,10 +12407,14 @@ Local honey and preserves"></textarea>
                                 if (saveBtn) saveBtn.innerHTML = '⏳ Syncing to WordPress...';
                                 await pushToWordPress(section, settings);
                             }
+                        } else {
+                            console.log('Account-based endpoint failed:', data.error);
                         }
                     } catch (e) {
-                        console.log('Account-based save failed:', e);
+                        console.log('Account-based save failed (exception):', e);
                     }
+                } else {
+                    console.log('No accountId, skipping account-based endpoint');
                 }
                 
                 if (saved) {
