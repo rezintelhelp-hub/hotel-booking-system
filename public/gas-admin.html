@@ -17119,7 +17119,7 @@ Local honey and preserves"></textarea>
                     } catch (e) { roomCount = 0; }
                     
                     // Master override dropdown (only show for master accounts)
-                    const isMaster = currentUser && currentUser.role === 'master';
+                    const isMaster = currentAccount && currentAccount.role === 'master_admin';
                     const statusDropdown = isMaster ? `
                         <select onchange="updateSiteStatus(${site.id}, this.value)" 
                                 style="font-size: 0.7rem; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #e2e8f0; background: white; cursor: pointer; margin-top: 0.5rem;">
