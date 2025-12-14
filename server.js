@@ -21503,6 +21503,294 @@ app.get('/api/admin/fix-api-keys-table', async (req, res) => {
   }
 });
 
+// ============================================
+// PER-WEBSITE BUILDER ENDPOINTS
+// ============================================
+
+// Get theme registry (all available themes)
+app.get('/api/themes', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT code, name, description, version, sections, thumbnail_url, 
+             preview_url, is_premium, min_tier, sort_order
+      FROM theme_registry
+      WHERE is_active = true
+      ORDER BY sort_order, name
+    `);
+    res.json({ success: true, themes: result.rows });
+  } catch (error) {
+    console.error('Get themes error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get specific theme schema
+app.get('/api/themes/:code', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM theme_registry WHERE code = $1
+    `, [req.params.code]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Theme not found' });
+    }
+    
+    res.json({ success: true, theme: result.rows[0] });
+  } catch (error) {
+    console.error('Get theme error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all settings for a specific website
+app.get('/api/websites/:websiteId/builder', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    // Get website details - handle both id and public_id
+    const websiteResult = await pool.query(`
+      SELECT w.*, tr.schema as theme_schema, tr.sections as theme_sections
+      FROM websites w
+      LEFT JOIN theme_registry tr ON w.template_code = tr.code
+      WHERE w.id = $1 OR w.public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    // Get all settings for this website
+    const settingsResult = await pool.query(`
+      SELECT section, settings, variant, is_enabled, display_order, last_synced_at, sync_source
+      FROM website_settings
+      WHERE website_id = $1
+      ORDER BY display_order
+    `, [website.id]);
+    
+    const settings = {};
+    settingsResult.rows.forEach(row => {
+      settings[row.section] = {
+        settings: row.settings,
+        variant: row.variant,
+        is_enabled: row.is_enabled,
+        display_order: row.display_order,
+        last_synced_at: row.last_synced_at,
+        sync_source: row.sync_source
+      };
+    });
+    
+    res.json({ 
+      success: true, 
+      website: {
+        id: website.id,
+        public_id: website.public_id,
+        name: website.name,
+        template_code: website.template_code,
+        theme_mode: website.theme_mode,
+        status: website.status,
+        setup_complete: website.setup_complete,
+        setup_progress: website.setup_progress,
+        site_url: website.site_url,
+        last_synced_at: website.last_synced_at
+      },
+      theme_schema: website.theme_schema,
+      theme_sections: website.theme_sections,
+      settings 
+    });
+  } catch (error) {
+    console.error('Get website builder error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get specific section settings for a website
+app.get('/api/websites/:websiteId/builder/:section', async (req, res) => {
+  try {
+    const { websiteId, section } = req.params;
+    
+    // Get website id if public_id provided
+    const websiteResult = await pool.query(`
+      SELECT id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const dbWebsiteId = websiteResult.rows[0].id;
+    
+    const result = await pool.query(`
+      SELECT settings, variant, is_enabled, display_order
+      FROM website_settings
+      WHERE website_id = $1 AND section = $2
+    `, [dbWebsiteId, section]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, ...result.rows[0] });
+    } else {
+      res.json({ success: true, settings: null, is_enabled: true });
+    }
+  } catch (error) {
+    console.error('Get website section error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save section settings for a specific website
+app.post('/api/websites/:websiteId/builder/:section', async (req, res) => {
+  try {
+    const { websiteId, section } = req.params;
+    const { settings, variant, is_enabled, display_order } = req.body;
+    
+    // Get website id if public_id provided
+    const websiteResult = await pool.query(`
+      SELECT id, owner_id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const dbWebsiteId = websiteResult.rows[0].id;
+    const accountId = websiteResult.rows[0].owner_id;
+    
+    // Check if settings exist for this website+section
+    const existingResult = await pool.query(`
+      SELECT id FROM website_settings WHERE website_id = $1 AND section = $2
+    `, [dbWebsiteId, section]);
+    
+    if (existingResult.rows.length > 0) {
+      // Update existing
+      await pool.query(`
+        UPDATE website_settings SET
+          settings = $1,
+          variant = COALESCE($2, variant),
+          is_enabled = COALESCE($3, is_enabled),
+          display_order = COALESCE($4, display_order),
+          sync_source = 'gas',
+          updated_at = CURRENT_TIMESTAMP
+        WHERE website_id = $5 AND section = $6
+      `, [JSON.stringify(settings), variant, is_enabled, display_order, dbWebsiteId, section]);
+    } else {
+      // Insert new
+      await pool.query(`
+        INSERT INTO website_settings (website_id, account_id, section, settings, variant, is_enabled, display_order, sync_source, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), COALESCE($7, 0), 'gas', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+      `, [dbWebsiteId, accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
+    }
+    
+    // Update setup progress
+    await pool.query(`
+      UPDATE websites 
+      SET setup_progress = COALESCE(setup_progress, '{}'::jsonb) || $2::jsonb,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [dbWebsiteId, JSON.stringify({ [section]: true })]);
+    
+    res.json({ success: true, message: 'Settings saved' });
+  } catch (error) {
+    console.error('Save website section error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Sync website settings to WordPress
+app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const { sections } = req.body;
+    
+    // Get website and settings
+    const websiteResult = await pool.query(`
+      SELECT w.*, ws.section, ws.settings
+      FROM websites w
+      LEFT JOIN website_settings ws ON w.id = ws.website_id
+      WHERE w.id = $1 OR w.public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    if (!website.site_url) {
+      return res.json({ success: false, error: 'Website has no site URL' });
+    }
+    
+    // Collect settings to sync
+    const allSettings = {};
+    websiteResult.rows.forEach(row => {
+      if (row.section && row.settings) {
+        if (!sections || sections.includes(row.section)) {
+          if (typeof row.settings === 'object') {
+            Object.assign(allSettings, row.settings);
+          }
+        }
+      }
+    });
+    
+    // Get WordPress API settings
+    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const apiKey = wpSettings.rows[0]?.api_key;
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'WordPress API not configured' });
+    }
+    
+    // Push to WordPress
+    const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'sync_theme_mods',
+        site_url: website.site_url,
+        theme_mods: allSettings
+      })
+    });
+    
+    const wpData = await wpResponse.json();
+    
+    // Log the sync
+    await pool.query(`
+      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, error_message, source_data)
+      VALUES ($1, 'push', $2, $3, $4, $5)
+    `, [
+      website.id, 
+      JSON.stringify(sections || Object.keys(allSettings)),
+      wpData.success ? 'success' : 'failed',
+      wpData.error || null,
+      JSON.stringify(allSettings)
+    ]);
+    
+    // Update website sync timestamp
+    if (wpData.success) {
+      await pool.query(`
+        UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'gas'
+        WHERE id = $1
+      `, [website.id]);
+    }
+    
+    res.json({ 
+      success: wpData.success, 
+      message: wpData.success ? 'Settings synced to WordPress' : 'Sync failed',
+      error: wpData.error
+    });
+  } catch (error) {
+    console.error('Sync to WordPress error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// END PER-WEBSITE BUILDER ENDPOINTS
+// ============================================
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   // Don't serve index.html for API routes - return 404 instead
@@ -22083,294 +22371,6 @@ app.post('/api/websites/migrate', async (req, res) => {
     res.json({ success: false, error: error.message });
   }
 });
-
-// ============================================
-// PER-WEBSITE BUILDER ENDPOINTS
-// ============================================
-
-// Get theme registry (all available themes)
-app.get('/api/themes', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT code, name, description, version, sections, thumbnail_url, 
-             preview_url, is_premium, min_tier, sort_order
-      FROM theme_registry
-      WHERE is_active = true
-      ORDER BY sort_order, name
-    `);
-    res.json({ success: true, themes: result.rows });
-  } catch (error) {
-    console.error('Get themes error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get specific theme schema
-app.get('/api/themes/:code', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT * FROM theme_registry WHERE code = $1
-    `, [req.params.code]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Theme not found' });
-    }
-    
-    res.json({ success: true, theme: result.rows[0] });
-  } catch (error) {
-    console.error('Get theme error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get all settings for a specific website
-app.get('/api/websites/:websiteId/builder', async (req, res) => {
-  try {
-    const { websiteId } = req.params;
-    
-    // Get website details - handle both id and public_id
-    const websiteResult = await pool.query(`
-      SELECT w.*, tr.schema as theme_schema, tr.sections as theme_sections
-      FROM websites w
-      LEFT JOIN theme_registry tr ON w.template_code = tr.code
-      WHERE w.id = $1 OR w.public_id = $1
-    `, [websiteId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = websiteResult.rows[0];
-    
-    // Get all settings for this website
-    const settingsResult = await pool.query(`
-      SELECT section, settings, variant, is_enabled, display_order, last_synced_at, sync_source
-      FROM website_settings
-      WHERE website_id = $1
-      ORDER BY display_order
-    `, [website.id]);
-    
-    const settings = {};
-    settingsResult.rows.forEach(row => {
-      settings[row.section] = {
-        settings: row.settings,
-        variant: row.variant,
-        is_enabled: row.is_enabled,
-        display_order: row.display_order,
-        last_synced_at: row.last_synced_at,
-        sync_source: row.sync_source
-      };
-    });
-    
-    res.json({ 
-      success: true, 
-      website: {
-        id: website.id,
-        public_id: website.public_id,
-        name: website.name,
-        template_code: website.template_code,
-        theme_mode: website.theme_mode,
-        status: website.status,
-        setup_complete: website.setup_complete,
-        setup_progress: website.setup_progress,
-        site_url: website.site_url,
-        last_synced_at: website.last_synced_at
-      },
-      theme_schema: website.theme_schema,
-      theme_sections: website.theme_sections,
-      settings 
-    });
-  } catch (error) {
-    console.error('Get website builder error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get specific section settings for a website
-app.get('/api/websites/:websiteId/builder/:section', async (req, res) => {
-  try {
-    const { websiteId, section } = req.params;
-    
-    // Get website id if public_id provided
-    const websiteResult = await pool.query(`
-      SELECT id FROM websites WHERE id = $1 OR public_id = $1
-    `, [websiteId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const dbWebsiteId = websiteResult.rows[0].id;
-    
-    const result = await pool.query(`
-      SELECT settings, variant, is_enabled, display_order
-      FROM website_settings
-      WHERE website_id = $1 AND section = $2
-    `, [dbWebsiteId, section]);
-    
-    if (result.rows.length > 0) {
-      res.json({ success: true, ...result.rows[0] });
-    } else {
-      res.json({ success: true, settings: null, is_enabled: true });
-    }
-  } catch (error) {
-    console.error('Get website section error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Save section settings for a specific website
-app.post('/api/websites/:websiteId/builder/:section', async (req, res) => {
-  try {
-    const { websiteId, section } = req.params;
-    const { settings, variant, is_enabled, display_order } = req.body;
-    
-    // Get website id if public_id provided
-    const websiteResult = await pool.query(`
-      SELECT id, owner_id FROM websites WHERE id = $1 OR public_id = $1
-    `, [websiteId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const dbWebsiteId = websiteResult.rows[0].id;
-    const accountId = websiteResult.rows[0].owner_id;
-    
-    // Check if settings exist for this website+section
-    const existingResult = await pool.query(`
-      SELECT id FROM website_settings WHERE website_id = $1 AND section = $2
-    `, [dbWebsiteId, section]);
-    
-    if (existingResult.rows.length > 0) {
-      // Update existing
-      await pool.query(`
-        UPDATE website_settings SET
-          settings = $1,
-          variant = COALESCE($2, variant),
-          is_enabled = COALESCE($3, is_enabled),
-          display_order = COALESCE($4, display_order),
-          sync_source = 'gas',
-          updated_at = CURRENT_TIMESTAMP
-        WHERE website_id = $5 AND section = $6
-      `, [JSON.stringify(settings), variant, is_enabled, display_order, dbWebsiteId, section]);
-    } else {
-      // Insert new
-      await pool.query(`
-        INSERT INTO website_settings (website_id, account_id, section, settings, variant, is_enabled, display_order, sync_source, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), COALESCE($7, 0), 'gas', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [dbWebsiteId, accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
-    }
-    
-    // Update setup progress
-    await pool.query(`
-      UPDATE websites 
-      SET setup_progress = COALESCE(setup_progress, '{}'::jsonb) || $2::jsonb,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-    `, [dbWebsiteId, JSON.stringify({ [section]: true })]);
-    
-    res.json({ success: true, message: 'Settings saved' });
-  } catch (error) {
-    console.error('Save website section error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Sync website settings to WordPress
-app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
-  try {
-    const { websiteId } = req.params;
-    const { sections } = req.body;
-    
-    // Get website and settings
-    const websiteResult = await pool.query(`
-      SELECT w.*, ws.section, ws.settings
-      FROM websites w
-      LEFT JOIN website_settings ws ON w.id = ws.website_id
-      WHERE w.id = $1 OR w.public_id = $1
-    `, [websiteId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = websiteResult.rows[0];
-    
-    if (!website.site_url) {
-      return res.json({ success: false, error: 'Website has no site URL' });
-    }
-    
-    // Collect settings to sync
-    const allSettings = {};
-    websiteResult.rows.forEach(row => {
-      if (row.section && row.settings) {
-        if (!sections || sections.includes(row.section)) {
-          if (typeof row.settings === 'object') {
-            Object.assign(allSettings, row.settings);
-          }
-        }
-      }
-    });
-    
-    // Get WordPress API settings
-    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
-    const apiKey = wpSettings.rows[0]?.api_key;
-    
-    if (!apiKey) {
-      return res.json({ success: false, error: 'WordPress API not configured' });
-    }
-    
-    // Push to WordPress
-    const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'sync_theme_mods',
-        site_url: website.site_url,
-        theme_mods: allSettings
-      })
-    });
-    
-    const wpData = await wpResponse.json();
-    
-    // Log the sync
-    await pool.query(`
-      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, error_message, source_data)
-      VALUES ($1, 'push', $2, $3, $4, $5)
-    `, [
-      website.id, 
-      JSON.stringify(sections || Object.keys(allSettings)),
-      wpData.success ? 'success' : 'failed',
-      wpData.error || null,
-      JSON.stringify(allSettings)
-    ]);
-    
-    // Update website sync timestamp
-    if (wpData.success) {
-      await pool.query(`
-        UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'gas'
-        WHERE id = $1
-      `, [website.id]);
-    }
-    
-    res.json({ 
-      success: wpData.success, 
-      message: wpData.success ? 'Settings synced to WordPress' : 'Sync failed',
-      error: wpData.error
-    });
-  } catch (error) {
-    console.error('Sync to WordPress error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// ============================================
-// END PER-WEBSITE BUILDER ENDPOINTS
-// ============================================
 
 // Run initial Beds24 sync 60 seconds after startup
 setTimeout(() => {
