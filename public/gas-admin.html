@@ -11647,6 +11647,27 @@ Local honey and preserves"></textarea>
         
         // Initialize Website Editor - copy content from hidden wb-* views
         function initializeWebsiteEditor() {
+            // First, apply template defaults to the SOURCE elements BEFORE cloning
+            const template = selectedWebsiteData?.template || 'developer-light';
+            console.log('Initializing editor with template:', template);
+            
+            const allDefaults = templateDefaults[template] || templateDefaults['developer-light'];
+            
+            // Apply all section defaults to source elements
+            Object.keys(allDefaults).forEach(section => {
+                const sectionDefaults = allDefaults[section];
+                Object.keys(sectionDefaults).forEach(key => {
+                    const elId = `wb-${section}-${key}`;
+                    const pickerId = `wb-${section}-${key}-picker`;
+                    const el = document.getElementById(elId);
+                    const pickerEl = document.getElementById(pickerId);
+                    if (el) {
+                        el.value = sectionDefaults[key];
+                        if (pickerEl) pickerEl.value = sectionDefaults[key];
+                    }
+                });
+            });
+            
             // Clone content from existing views into editor panels
             const mappings = [
                 { source: 'wb-header', target: 'editor-header-content', section: 'header' },
@@ -11682,7 +11703,7 @@ Local honey and preserves"></textarea>
                 }
             });
             
-            // Load the header section data for the first tab
+            // Load saved data for the header section (will overwrite defaults if data exists)
             loadWebsiteBuilderSection('header');
         }
         
@@ -12201,6 +12222,43 @@ Local honey and preserves"></textarea>
                 const clientId = getClientId();
                 if (!clientId) return;
                 
+                // Determine which container to update - editor panel (visible) or original view
+                const editorPanelMap = {
+                    'header': 'editor-header-content',
+                    'hero': 'editor-hero-content',
+                    'intro': 'editor-intro-content',
+                    'featured': 'editor-featured-content',
+                    'about': 'editor-about-content',
+                    'reviews': 'editor-reviews-content',
+                    'cta': 'editor-cta-content',
+                    'footer': 'editor-footer-content',
+                    'styles': 'editor-styles-content',
+                    'page-about': 'editor-page-about-content',
+                    'page-gallery': 'editor-page-gallery-content',
+                    'page-blog': 'editor-page-blog-content',
+                    'page-attractions': 'editor-page-attractions-content',
+                    'page-dining': 'editor-page-dining-content',
+                    'page-contact': 'editor-page-contact-content',
+                    'page-terms': 'editor-terms-content',
+                    'page-privacy': 'editor-privacy-content'
+                };
+                
+                // Get container for this section
+                const editorContainerId = editorPanelMap[section];
+                const editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
+                const originalContainer = document.getElementById(`wb-${section}`);
+                
+                // Helper to get element - prefer editor container if visible
+                const getEl = (id) => {
+                    if (editorContainer) {
+                        // Query within editor container using attribute selector (handles duplicate IDs)
+                        const el = editorContainer.querySelector(`[id="${id}"]`);
+                        if (el) return el;
+                    }
+                    // Fall back to global ID
+                    return document.getElementById(id);
+                };
+                
                 // Get template defaults for this section
                 const template = selectedWebsiteData?.template || 'developer-light';
                 const defaults = getTemplateDefaults(section);
@@ -12208,8 +12266,11 @@ Local honey and preserves"></textarea>
                 
                 // Apply template defaults first (will be overwritten by saved values)
                 Object.keys(defaults).forEach(key => {
-                    const el = document.getElementById(`wb-${section}-${key}`);
-                    const pickerEl = document.getElementById(`wb-${section}-${key}-picker`);
+                    const elId = `wb-${section}-${key}`;
+                    const pickerId = `wb-${section}-${key}-picker`;
+                    const el = getEl(elId);
+                    const pickerEl = getEl(pickerId);
+                    console.log(`  Setting ${elId} to ${defaults[key]} - found: ${!!el}`);
                     if (el) {
                         el.value = defaults[key];
                         if (pickerEl) pickerEl.value = defaults[key];
@@ -12218,12 +12279,14 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(`/api/admin/website-builder/${section}?client_id=${clientId}`);
                 const data = await response.json();
+                console.log('API response for section', section, ':', data);
                 
                 if (data.success && data.settings) {
+                    console.log('API has saved settings, overwriting template defaults...');
                     // Populate form fields based on section (overwriting defaults)
                     Object.keys(data.settings).forEach(key => {
-                        const el = document.getElementById(`wb-${section}-${key}`);
-                        const pickerEl = document.getElementById(`wb-${section}-${key}-picker`);
+                        const el = getEl(`wb-${section}-${key}`);
+                        const pickerEl = getEl(`wb-${section}-${key}-picker`);
                         if (el) {
                             if (el.type === 'checkbox') {
                                 el.checked = data.settings[key];
@@ -12238,11 +12301,13 @@ Local honey and preserves"></textarea>
                     
                     // Handle image preview
                     if (data.settings.image) {
-                        const preview = document.getElementById(`wb-${section}-image-preview`);
+                        const preview = getEl(`wb-${section}-image-preview`);
                         if (preview) {
                             preview.innerHTML = `<img src="${data.settings.image}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
                         }
                     }
+                } else {
+                    console.log('No saved settings from API, keeping template defaults');
                 }
             } catch (error) {
                 console.error('Error loading website builder section:', error);
