@@ -4893,18 +4893,17 @@
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; font-weight: bold; color: #10b981;" id="deploy-stat-active">0</div>
-                        <div style="color: var(--text-secondary); font-size: 0.9rem;">Active Sites</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">Live Sites</div>
                     </div>
                     <div class="card" style="text-align: center; padding: 1.5rem;">
                         <div style="font-size: 2.5rem; font-weight: bold; color: #f59e0b;" id="deploy-stat-pending">0</div>
-                        <div style="color: var(--text-secondary); font-size: 0.9rem;">Pending Deploy</div>
+                        <div style="color: var(--text-secondary); font-size: 0.9rem;">In Development</div>
                     </div>
                 </div>
 
                 <div class="card">
-                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                    <div class="card-header">
                         <h3>📋 Deployed Sites</h3>
-                        <button class="btn btn-secondary" onclick="loadDeployedSites()">🔄 Refresh</button>
                     </div>
                     <div id="deployed-sites-list" style="padding: 1rem;">
                         <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
@@ -17090,15 +17089,46 @@ Local honey and preserves"></textarea>
                 let html = '<div style="display: grid; gap: 1rem;">';
                 
                 sites.forEach(site => {
-                    const statusColor = site.status === 'active' ? '#10b981' : 
-                                       site.status === 'pending' ? '#f59e0b' : '#ef4444';
-                    const statusLabel = site.status === 'active' ? '✅ Active' :
-                                       site.status === 'pending' ? '⏳ Pending' : '❌ ' + site.status;
+                    // Determine effective status
+                    // Auto-promote to 'live' if custom_domain is set and status is 'deployed'
+                    let effectiveStatus = site.status || 'development';
+                    if (site.custom_domain && effectiveStatus === 'deployed') {
+                        effectiveStatus = 'live';
+                    }
+                    
+                    // Status configuration
+                    const statusConfig = {
+                        'development': { color: '#f59e0b', icon: '🔨', label: 'Development' },
+                        'deployed': { color: '#7c3aed', icon: '🚀', label: 'Deployed' },
+                        'live': { color: '#10b981', icon: '✅', label: 'Live' },
+                        'on-hold': { color: '#6b7280', icon: '⏸️', label: 'On Hold' },
+                        // Legacy status mappings
+                        'active': { color: '#10b981', icon: '✅', label: 'Live' },
+                        'pending': { color: '#f59e0b', icon: '🔨', label: 'Development' },
+                        'creating': { color: '#f59e0b', icon: '⏳', label: 'Creating...' }
+                    };
+                    
+                    const status = statusConfig[effectiveStatus] || statusConfig['development'];
+                    const statusColor = status.color;
+                    const statusLabel = `${status.icon} ${status.label}`;
+                    
                     let roomCount = 0;
                     try {
                         const roomIds = typeof site.room_ids === 'string' ? JSON.parse(site.room_ids || '[]') : (site.room_ids || []);
                         roomCount = Array.isArray(roomIds) ? roomIds.length : 0;
                     } catch (e) { roomCount = 0; }
+                    
+                    // Master override dropdown (only show for master accounts)
+                    const isMaster = currentUser && currentUser.role === 'master';
+                    const statusDropdown = isMaster ? `
+                        <select onchange="updateSiteStatus(${site.id}, this.value)" 
+                                style="font-size: 0.7rem; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #e2e8f0; background: white; cursor: pointer; margin-top: 0.5rem;">
+                            <option value="development" ${effectiveStatus === 'development' ? 'selected' : ''}>🔨 Development</option>
+                            <option value="deployed" ${effectiveStatus === 'deployed' ? 'selected' : ''}>🚀 Deployed</option>
+                            <option value="live" ${effectiveStatus === 'live' ? 'selected' : ''}>✅ Live</option>
+                            <option value="on-hold" ${effectiveStatus === 'on-hold' ? 'selected' : ''}>⏸️ On Hold</option>
+                        </select>
+                    ` : '';
                     
                     html += `
                         <div class="card" style="padding: 1rem; border-left: 4px solid ${statusColor};">
@@ -17117,17 +17147,23 @@ Local honey and preserves"></textarea>
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
-                                    <span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; background: ${statusColor}20; color: ${statusColor};">
+                                    <span style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 20px; font-size: 0.75rem; background: ${statusColor}20; color: ${statusColor}; font-weight: 600;">
                                         ${statusLabel}
                                     </span>
+                                    ${site.custom_domain ? `
+                                        <div style="margin-top: 0.5rem; font-size: 0.7rem; color: #10b981;">
+                                            🌐 ${site.custom_domain}
+                                        </div>
+                                    ` : ''}
                                     <div style="margin-top: 0.5rem; font-size: 0.75rem; color: var(--text-secondary);">
-                                        Deployed: ${site.deployed_at ? new Date(site.deployed_at).toLocaleDateString() : 'N/A'}
+                                        Created: ${site.deployed_at ? new Date(site.deployed_at).toLocaleDateString() : 'N/A'}
                                     </div>
                                     ${site.wp_username ? `
                                         <div style="margin-top: 0.5rem; font-size: 0.7rem; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px;">
                                             👤 ${site.wp_username}
                                         </div>
                                     ` : ''}
+                                    ${statusDropdown}
                                 </div>
                             </div>
                         </div>
@@ -17153,8 +17189,32 @@ Local honey and preserves"></textarea>
             const activeEl = document.getElementById('deploy-stat-active');
             const pendingEl = document.getElementById('deploy-stat-pending');
             if (totalEl) totalEl.textContent = sites.length;
-            if (activeEl) activeEl.textContent = sites.filter(s => s.status === 'active').length;
-            if (pendingEl) pendingEl.textContent = sites.filter(s => s.status === 'pending').length;
+            // Count 'live' and 'active' (legacy) as active
+            if (activeEl) activeEl.textContent = sites.filter(s => s.status === 'live' || s.status === 'active' || (s.status === 'deployed' && s.custom_domain)).length;
+            // Count 'development', 'deployed' (without domain), and 'pending' (legacy) 
+            if (pendingEl) pendingEl.textContent = sites.filter(s => s.status === 'development' || s.status === 'pending' || (s.status === 'deployed' && !s.custom_domain)).length;
+        }
+        
+        // Master override - update site status
+        async function updateSiteStatus(siteId, newStatus) {
+            try {
+                const response = await fetch(`/api/deployed-sites/${siteId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status: newStatus })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Site status updated to ${newStatus}`, 'success');
+                    loadDeployedSites(); // Refresh the list
+                } else {
+                    showNotification(data.error || 'Failed to update status', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating site status:', error);
+                showNotification('Failed to update status', 'error');
+            }
         }
         
         async function deleteDeployedSite(siteId, siteName) {
