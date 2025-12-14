@@ -21141,7 +21141,10 @@ app.post('/api/admin/push-to-wordpress', async (req, res) => {
   try {
     const { account_id, section, settings, site_url } = req.body;
     
+    console.log('Push to WordPress request:', { account_id, section, site_url, settingsKeys: Object.keys(settings || {}) });
+    
     if (!account_id || !section || !site_url) {
+      console.log('Missing required fields:', { account_id: !!account_id, section: !!section, site_url: !!site_url });
       return res.json({ success: false, error: 'Missing required fields' });
     }
     
@@ -21150,10 +21153,13 @@ app.post('/api/admin/push-to-wordpress', async (req, res) => {
     const apiKey = wpSettings.rows[0]?.api_key;
     
     if (!apiKey) {
+      console.log('WordPress API key not found');
       return res.json({ success: false, error: 'WordPress API not configured' });
     }
     
     // Push settings to WordPress via gas-api.php
+    console.log('Sending to gas-api.php:', { action: 'update_settings', site_url, section });
+    
     const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
       method: 'POST',
       headers: {
@@ -21169,7 +21175,18 @@ app.post('/api/admin/push-to-wordpress', async (req, res) => {
       })
     });
     
-    const wpData = await wpResponse.json();
+    const wpText = await wpResponse.text();
+    console.log('WordPress response text:', wpText);
+    
+    let wpData;
+    try {
+      wpData = JSON.parse(wpText);
+    } catch (e) {
+      console.error('Failed to parse WordPress response:', e);
+      return res.json({ success: false, error: 'Invalid response from WordPress: ' + wpText.substring(0, 200) });
+    }
+    
+    console.log('WordPress response parsed:', wpData);
     
     if (wpData.success) {
       res.json({ success: true, message: 'Settings pushed to WordPress' });
