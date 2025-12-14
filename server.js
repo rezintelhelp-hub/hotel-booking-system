@@ -6588,6 +6588,16 @@ app.post('/api/deploy/create', async (req, res) => {
       return res.json({ success: false, error: 'At least one room must be selected' });
     }
     
+    if (!account_id) {
+      return res.json({ success: false, error: 'Account ID is required. Please select an account or deploy from within a client account.' });
+    }
+    
+    // Verify account exists
+    const accountCheck = await pool.query('SELECT id, name FROM accounts WHERE id = $1', [account_id]);
+    if (accountCheck.rows.length === 0) {
+      return res.json({ success: false, error: `Account ID ${account_id} not found` });
+    }
+    
     // Determine theme based on template
     const selectedTemplate = template || 'developer-light';
     const wpTheme = selectedTemplate === 'developer-dark' ? 'gas-theme-developer-dark' : 'gas-theme-developer';
@@ -6610,17 +6620,17 @@ app.post('/api/deploy/create', async (req, res) => {
     
     // Get account code if available
     let accountCode = null;
-    if (account_id) {
-      try {
-        const accountResult = await pool.query(
-          'SELECT account_code FROM accounts WHERE id = $1',
-          [account_id]
-        );
-        accountCode = accountResult.rows[0]?.account_code || null;
-      } catch (e) {
-        console.log('Note: account_code not available');
-      }
+    try {
+      const accountResult = await pool.query(
+        'SELECT account_code FROM accounts WHERE id = $1',
+        [account_id]
+      );
+      accountCode = accountResult.rows[0]?.account_code || null;
+    } catch (e) {
+      console.log('Note: account_code not available');
     }
+    
+    console.log(`[Deploy] Creating site "${site_name}" for account ${account_id} (${accountCheck.rows[0].name}) with template ${selectedTemplate}`);
     
     // Call VPS to create site (no API key required in auto mode)
     const response = await fetch(`${VPS_DEPLOY_URL}?action=create-site`, {
@@ -6649,32 +6659,46 @@ app.post('/api/deploy/create', async (req, res) => {
     
     if (data.success) {
       // Store deployment record with template
-      await pool.query(`
-        INSERT INTO deployed_sites 
-        (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, deployed_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
-      `, [
-        uniquePropertyIds[0],
-        JSON.stringify(uniquePropertyIds),
-        JSON.stringify(room_ids),
-        account_id,
-        data.site.blog_id,
-        data.site.url,
-        data.site.admin_url,
-        data.site.slug,
-        site_name,
-        'deployed',  // Start as 'deployed' with new status system
-        data.credentials.username,
-        data.credentials.password || null,
-        selectedTemplate
-      ]);
-      
-      // Update rooms with site URL
-      for (const roomId of room_ids) {
-        await pool.query(
-          'UPDATE bookable_units SET website_url = $1 WHERE id = $2',
-          [data.site.url, roomId]
-        );
+      try {
+        await pool.query(`
+          INSERT INTO deployed_sites 
+          (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, deployed_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+        `, [
+          uniquePropertyIds[0],
+          JSON.stringify(uniquePropertyIds),
+          JSON.stringify(room_ids),
+          account_id,
+          data.site.blog_id,
+          data.site.url,
+          data.site.admin_url,
+          data.site.slug,
+          site_name,
+          'deployed',
+          data.credentials.username,
+          data.credentials.password || null,
+          selectedTemplate
+        ]);
+        
+        console.log(`[Deploy] Site "${site_name}" saved to database for account ${account_id}`);
+        
+        // Update rooms with site URL
+        for (const roomId of room_ids) {
+          await pool.query(
+            'UPDATE bookable_units SET website_url = $1 WHERE id = $2',
+            [data.site.url, roomId]
+          );
+        }
+      } catch (dbError) {
+        console.error('[Deploy] WordPress site created but database save failed:', dbError);
+        // Return success with warning - site exists on WordPress but not in GAS DB
+        return res.json({
+          success: true,
+          warning: 'Site created on WordPress but failed to save to GAS database. Please contact support.',
+          db_error: dbError.message,
+          site: data.site,
+          credentials: data.credentials
+        });
       }
     }
     
@@ -6724,21 +6748,100 @@ app.post('/api/admin/deployed-sites/add-existing', async (req, res) => {
 app.put('/api/admin/deployed-sites/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    const { status, site_name, site_url, admin_url } = req.body;
+    const {
+      account_id,
+      property_id,
+      property_ids,
+      room_ids,
+      blog_id,
+      site_url,
+      admin_url,
+      slug,
+      site_name,
+      status,
+      custom_domain,
+      template,
+      wp_username
+    } = req.body;
+    
+    // Build dynamic UPDATE query based on provided fields
+    const updates = [];
+    const values = [id];
+    let paramIndex = 2;
+    
+    if (account_id !== undefined) {
+      updates.push(`account_id = $${paramIndex++}`);
+      values.push(account_id);
+    }
+    if (property_id !== undefined) {
+      updates.push(`property_id = $${paramIndex++}`);
+      values.push(property_id);
+    }
+    if (property_ids !== undefined) {
+      updates.push(`property_ids = $${paramIndex++}`);
+      values.push(JSON.stringify(property_ids));
+    }
+    if (room_ids !== undefined) {
+      updates.push(`room_ids = $${paramIndex++}`);
+      values.push(JSON.stringify(room_ids));
+    }
+    if (blog_id !== undefined) {
+      updates.push(`blog_id = $${paramIndex++}`);
+      values.push(blog_id);
+    }
+    if (site_url !== undefined) {
+      updates.push(`site_url = $${paramIndex++}`);
+      values.push(site_url);
+    }
+    if (admin_url !== undefined) {
+      updates.push(`admin_url = $${paramIndex++}`);
+      values.push(admin_url);
+    }
+    if (slug !== undefined) {
+      updates.push(`slug = $${paramIndex++}`);
+      values.push(slug);
+    }
+    if (site_name !== undefined) {
+      updates.push(`site_name = $${paramIndex++}`);
+      values.push(site_name);
+    }
+    if (status !== undefined) {
+      updates.push(`status = $${paramIndex++}`);
+      values.push(status);
+    }
+    if (custom_domain !== undefined) {
+      updates.push(`custom_domain = $${paramIndex++}`);
+      values.push(custom_domain);
+    }
+    if (template !== undefined) {
+      updates.push(`template = $${paramIndex++}`);
+      values.push(template);
+    }
+    if (wp_username !== undefined) {
+      updates.push(`wp_username = $${paramIndex++}`);
+      values.push(wp_username);
+    }
+    
+    if (updates.length === 0) {
+      return res.json({ success: false, error: 'No fields to update' });
+    }
+    
+    updates.push('updated_at = NOW()');
     
     const result = await pool.query(`
       UPDATE deployed_sites SET
-        status = COALESCE($2, status),
-        site_name = COALESCE($3, site_name),
-        site_url = COALESCE($4, site_url),
-        admin_url = COALESCE($5, admin_url),
-        updated_at = NOW()
+        ${updates.join(', ')}
       WHERE id = $1
       RETURNING *
-    `, [id, status, site_name, site_url, admin_url]);
+    `, values);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Site not found' });
+    }
     
     res.json({ success: true, site: result.rows[0] });
   } catch (error) {
+    console.error('Update deployed site error:', error);
     res.json({ success: false, error: error.message });
   }
 });
