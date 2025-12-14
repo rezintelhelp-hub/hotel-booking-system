@@ -3728,7 +3728,7 @@
                             <p class="subtitle" id="editor-site-url-display">Customize your website settings</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn btn-secondary" onclick="navClick(null, 'deploy-sites')">
+                            <button class="btn btn-secondary" onclick="backToSitesList()">
                                 <span>←</span>
                                 <span>Back to Sites</span>
                             </button>
@@ -11357,11 +11357,8 @@ Local honey and preserves"></textarea>
             selectedWebsiteId = websiteId;
             selectedWebsiteData = websiteData;
             
-            // Also set the account ID from the website data
-            if (websiteData && websiteData.account_id) {
-                selectedAccountId = websiteData.account_id;
-                console.log('Set selectedAccountId to:', selectedAccountId);
-            }
+            // DON'T change selectedAccountId here - it breaks navigation back to master view
+            // The website builder sections will use selectedWebsiteId directly
             
             // Update all website selector dropdowns
             document.querySelectorAll('.website-selector-dropdown').forEach(select => {
@@ -11653,6 +11650,19 @@ Local honey and preserves"></textarea>
             if (sectionMap[subTabName]) {
                 loadWebsiteBuilderSection(sectionMap[subTabName]);
             }
+        }
+        
+        // Back to Sites List - clears website selection and returns to Create Sites view
+        function backToSitesList() {
+            // Clear selected website
+            selectedWebsiteId = null;
+            selectedWebsiteData = null;
+            
+            // Navigate back to sites list
+            navClick(null, 'deploy-sites');
+            
+            // Reload the sites list to ensure we see all sites for current account context
+            setTimeout(() => loadDeployedSites(), 100);
         }
         
         let selectedAccountName = null;
