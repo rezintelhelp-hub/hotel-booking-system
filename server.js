@@ -22016,11 +22016,11 @@ app.post('/api/gas-api/push-from-wordpress', async (req, res) => {
     
     // Upsert settings to website_settings table
     await pool.query(`
-      INSERT INTO website_settings (website_id, section, settings, updated_at)
-      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      INSERT INTO website_settings (website_id, account_id, section, settings, updated_at)
+      VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)
       ON CONFLICT (website_id, section)
-      DO UPDATE SET settings = $3, updated_at = CURRENT_TIMESTAMP
-    `, [websiteId, section, JSON.stringify(settings)]);
+      DO UPDATE SET settings = $4, updated_at = CURRENT_TIMESTAMP
+    `, [websiteId, client_id, section, JSON.stringify(settings)]);
     
     // Update website sync timestamp
     await pool.query(`
