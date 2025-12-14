@@ -5165,8 +5165,90 @@ app.post('/api/kb/import', async (req, res) => {
 });
 
 // =====================================================
-// WEBSITE BUILDER ENHANCED SETUP
+// BILLING & SUBSCRIPTION SYSTEM
 // =====================================================
+
+// Setup billing tables
+// Setup just the websites tables (separate from billing to avoid errors)
+app.get('/api/setup-websites', async (req, res) => {
+  try {
+    console.log('🌐 Setting up website tables...');
+    
+    // Add code column to website_templates if needed
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
+    await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
+    
+    // Websites table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS websites (
+        id SERIAL PRIMARY KEY,
+        public_id VARCHAR(20) UNIQUE NOT NULL,
+        owner_type VARCHAR(20) NOT NULL DEFAULT 'account',
+        owner_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        slug VARCHAR(100),
+        template_code VARCHAR(50),
+        site_url VARCHAR(500),
+        admin_url VARCHAR(500),
+        custom_domain VARCHAR(255),
+        instawp_site_id VARCHAR(255),
+        instawp_data JSONB DEFAULT '{}',
+        website_type VARCHAR(30) DEFAULT 'portfolio',
+        status VARCHAR(20) DEFAULT 'draft',
+        default_currency VARCHAR(3) DEFAULT 'GBP',
+        timezone VARCHAR(50) DEFAULT 'Europe/London',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_owner ON websites(owner_type, owner_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_websites_status ON websites(status)`);
+    
+    // Website Units junction table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_units (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        unit_id INTEGER NOT NULL REFERENCES bookable_units(id) ON DELETE CASCADE,
+        display_order INTEGER DEFAULT 0,
+        is_featured BOOLEAN DEFAULT FALSE,
+        custom_name VARCHAR(255),
+        custom_description TEXT,
+        custom_price_modifier DECIMAL(5,2),
+        is_active BOOLEAN DEFAULT TRUE,
+        added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(website_id, unit_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_website ON website_units(website_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_units_unit ON website_units(unit_id)`);
+    
+    // Website Pages
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_pages (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER NOT NULL REFERENCES websites(id) ON DELETE CASCADE,
+        page_type VARCHAR(50) NOT NULL,
+        slug VARCHAR(100),
+        title VARCHAR(255),
+        content JSONB DEFAULT '{}',
+        is_published BOOLEAN DEFAULT FALSE,
+        display_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    
+    // Migration tracking column
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS migrated_to_website_id INTEGER`);
+    
+    console.log('✅ Website tables created successfully');
+    res.json({ success: true, message: 'Website tables created' });
+  } catch (error) {
+    console.error('Setup websites error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
 
 // Enhanced Website Builder Schema Setup
 app.get('/api/setup-website-builder', async (req, res) => {
@@ -5181,8 +5263,19 @@ app.get('/api/setup-website-builder', async (req, res) => {
     await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS sync_source VARCHAR(20)`);
     console.log('  ✓ websites table enhanced');
     
-    // 2. Enhance website_settings to support per-website (not just per-account)
-    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER`);
+    // 2. Enhance website_templates with schema support
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
+    await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS schema JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR(500)`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS min_tier VARCHAR(20) DEFAULT 'starter'`);
+    console.log('  ✓ website_templates table enhanced');
+    
+    // 3. Enhance website_settings to support per-website (not just per-account)
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER REFERENCES websites(id) ON DELETE CASCADE`);
     await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP`);
     await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS sync_source VARCHAR(20)`);
     await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS variant VARCHAR(50)`);
@@ -5191,9 +5284,22 @@ app.get('/api/setup-website-builder', async (req, res) => {
     
     // Create index for website_id lookups
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_settings_website ON website_settings(website_id)`);
+    
+    // Create unique index for website+section (allows null website_id for legacy)
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_website_settings_unique 
+      ON website_settings(website_id, section) WHERE website_id IS NOT NULL`);
     console.log('  ✓ website_settings table enhanced');
     
-    // 3. Create theme_registry table
+    // 4. Enhance website_pages for sub-pages and better content management
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES website_pages(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS template VARCHAR(50)`);
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS seo_title VARCHAR(255)`);
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS seo_description TEXT`);
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS featured_image VARCHAR(500)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_pages_parent ON website_pages(parent_id)`);
+    console.log('  ✓ website_pages table enhanced');
+    
+    // 5. Create theme_registry table (separate from website_templates for clarity)
     await pool.query(`
       CREATE TABLE IF NOT EXISTS theme_registry (
         id SERIAL PRIMARY KEY,
@@ -5203,8 +5309,11 @@ app.get('/api/setup-website-builder', async (req, res) => {
         version VARCHAR(20) DEFAULT '1.0.0',
         schema JSONB NOT NULL DEFAULT '{}',
         sections JSONB NOT NULL DEFAULT '{}',
+        color_presets JSONB DEFAULT '[]',
+        font_presets JSONB DEFAULT '[]',
         thumbnail_url VARCHAR(500),
         preview_url VARCHAR(500),
+        download_url VARCHAR(500),
         is_active BOOLEAN DEFAULT true,
         is_premium BOOLEAN DEFAULT false,
         min_tier VARCHAR(20) DEFAULT 'starter',
@@ -5215,11 +5324,11 @@ app.get('/api/setup-website-builder', async (req, res) => {
     `);
     console.log('  ✓ theme_registry table created');
     
-    // 4. Create website_sync_log for tracking sync history
+    // 6. Create website_sync_log for tracking sync history
     await pool.query(`
       CREATE TABLE IF NOT EXISTS website_sync_log (
         id SERIAL PRIMARY KEY,
-        website_id INTEGER,
+        website_id INTEGER REFERENCES websites(id) ON DELETE CASCADE,
         direction VARCHAR(20) NOT NULL,
         sections_synced JSONB DEFAULT '[]',
         status VARCHAR(20) DEFAULT 'success',
@@ -5231,7 +5340,7 @@ app.get('/api/setup-website-builder', async (req, res) => {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_sync_log_website ON website_sync_log(website_id)`);
     console.log('  ✓ website_sync_log table created');
     
-    // 5. Insert Developer theme into theme_registry if not exists
+    // 7. Insert Developer theme into theme_registry if not exists
     const developerThemeSchema = {
       code: 'developer',
       name: 'GAS Developer Theme',
@@ -5242,12 +5351,15 @@ app.get('/api/setup-website-builder', async (req, res) => {
           required: true,
           order: 1,
           fields: {
-            'site-name': { type: 'text', label: 'Site Name', default: 'Your Property' },
-            'logo-image-url': { type: 'image', label: 'Logo Image' },
-            'bg-color': { type: 'color', label: 'Background Color', default: '#ffffff' },
-            'text-color': { type: 'color', label: 'Text Color', default: '#1e293b' },
-            'cta-bg': { type: 'color', label: 'CTA Button Color', default: '#2563eb' },
-            'cta-text': { type: 'color', label: 'CTA Text Color', default: '#ffffff' }
+            developer_logo_text: { type: 'text', label: 'Logo Text', default: 'Your Property' },
+            developer_logo_image: { type: 'image', label: 'Logo Image' },
+            developer_header_bg: { type: 'color', label: 'Background Color', default: '#ffffff' },
+            developer_header_text: { type: 'color', label: 'Text Color', default: '#1e293b' },
+            developer_header_transparent: { type: 'toggle', label: 'Transparent on Homepage', default: true },
+            developer_header_sticky: { type: 'toggle', label: 'Sticky Header', default: true },
+            developer_header_cta_text: { type: 'text', label: 'CTA Button Text', default: 'Book Now' },
+            developer_header_cta_url: { type: 'text', label: 'CTA Button URL', default: '/book-now/' },
+            developer_header_cta_bg: { type: 'color', label: 'CTA Button Color', default: '#2563eb' }
           }
         },
         hero: {
@@ -5255,11 +5367,16 @@ app.get('/api/setup-website-builder', async (req, res) => {
           required: true,
           order: 2,
           fields: {
-            'image-url': { type: 'image', label: 'Background Image' },
-            'title': { type: 'text', label: 'Title', default: 'Find Your Perfect Stay' },
-            'subtitle': { type: 'textarea', label: 'Subtitle' },
-            'overlay': { type: 'range', label: 'Overlay Opacity', min: 0, max: 100, default: 30 },
-            'overlay-color': { type: 'color', label: 'Overlay Color', default: '#0f172a' }
+            developer_hero_bg: { type: 'image', label: 'Background Image' },
+            developer_hero_title: { type: 'text', label: 'Title', default: 'Find Your Perfect Vacation Rental' },
+            developer_hero_subtitle: { type: 'textarea', label: 'Subtitle', default: 'Discover stunning vacation rentals with luxury amenities.' },
+            developer_hero_badge: { type: 'text', label: 'Badge Text', default: 'Welcome to Paradise' },
+            developer_hero_opacity: { type: 'range', label: 'Overlay Opacity', min: 0, max: 100, default: 30 },
+            developer_hero_overlay_color: { type: 'color', label: 'Overlay Color', default: '#0f172a' },
+            developer_search_btn_bg: { type: 'color', label: 'Search Button Color', default: '#2563eb' },
+            developer_hero_trust_1: { type: 'text', label: 'Trust Badge 1', default: 'Instant Booking' },
+            developer_hero_trust_2: { type: 'text', label: 'Trust Badge 2', default: 'Best Price Guarantee' },
+            developer_hero_trust_3: { type: 'text', label: 'Trust Badge 3', default: '24/7 Support' }
           }
         },
         intro: {
@@ -5267,9 +5384,67 @@ app.get('/api/setup-website-builder', async (req, res) => {
           required: false,
           order: 3,
           fields: {
-            'enabled': { type: 'toggle', label: 'Enable Section', default: true },
-            'title': { type: 'text', label: 'Title', default: 'Welcome' },
-            'text': { type: 'textarea', label: 'Text' }
+            developer_intro_enabled: { type: 'toggle', label: 'Enable Section', default: true },
+            developer_intro_title: { type: 'text', label: 'Title', default: 'Welcome to Our Property' },
+            developer_intro_text: { type: 'textarea', label: 'Text', default: 'We are delighted to have you here.' },
+            developer_intro_bg: { type: 'color', label: 'Background Color', default: '#ffffff' },
+            developer_intro_btn_text: { type: 'text', label: 'Button Text' },
+            developer_intro_btn_url: { type: 'text', label: 'Button URL' }
+          }
+        },
+        featured: {
+          label: 'Featured Properties',
+          required: true,
+          order: 4,
+          fields: {
+            developer_featured_mode: { type: 'select', label: 'Display Mode', options: ['all', 'featured', 'selected'], default: 'all' },
+            developer_featured_count: { type: 'number', label: 'Number to Show', default: 3 },
+            developer_featured_title: { type: 'text', label: 'Section Title', default: 'Featured Properties' },
+            developer_featured_subtitle: { type: 'textarea', label: 'Section Subtitle' },
+            developer_featured_btn_text: { type: 'text', label: 'Button Text', default: 'View All Properties' },
+            developer_featured_btn_url: { type: 'text', label: 'Button URL', default: '/book-now/' }
+          }
+        },
+        about: {
+          label: 'About Section',
+          required: false,
+          order: 5,
+          fields: {
+            developer_about_image: { type: 'image', label: 'Image' },
+            developer_about_title: { type: 'text', label: 'Title', default: 'Experience Luxury & Comfort' },
+            developer_about_text: { type: 'textarea', label: 'Description' },
+            developer_about_layout: { type: 'select', label: 'Layout', options: ['image-left', 'image-right'], default: 'image-left' },
+            developer_about_feature_1: { type: 'text', label: 'Feature 1', default: 'Spacious Bedrooms' },
+            developer_about_feature_2: { type: 'text', label: 'Feature 2', default: 'Luxury Bathrooms' },
+            developer_about_feature_3: { type: 'text', label: 'Feature 3', default: 'Prime Locations' },
+            developer_about_feature_4: { type: 'text', label: 'Feature 4', default: 'Full Amenities' },
+            developer_about_feature_5: { type: 'text', label: 'Feature 5', default: 'Entertainment Areas' },
+            developer_about_feature_6: { type: 'text', label: 'Feature 6', default: 'Private Parking' }
+          }
+        },
+        reviews: {
+          label: 'Reviews Section',
+          required: false,
+          order: 6,
+          fields: {
+            developer_reviews_enabled: { type: 'toggle', label: 'Enable Section', default: false },
+            developer_reviews_title: { type: 'text', label: 'Title', default: 'What Our Guests Say' },
+            developer_reviews_subtitle: { type: 'text', label: 'Subtitle' },
+            developer_reviews_bg: { type: 'color', label: 'Background Color', default: '#0f172a' },
+            developer_reviews_style: { type: 'select', label: 'Display Style', options: ['slider', 'grid', 'badges', 'summary'], default: 'slider' }
+          }
+        },
+        cta: {
+          label: 'Call to Action',
+          required: false,
+          order: 7,
+          fields: {
+            developer_cta_enabled: { type: 'toggle', label: 'Enable Section', default: true },
+            developer_cta_title: { type: 'text', label: 'Title', default: 'Ready to Book Your Stay?' },
+            developer_cta_text: { type: 'textarea', label: 'Text' },
+            developer_cta_background: { type: 'color', label: 'Background Color', default: '#2563eb' },
+            developer_cta_btn_text: { type: 'text', label: 'Button Text', default: 'Browse Properties' },
+            developer_cta_btn_url: { type: 'text', label: 'Button URL', default: '/book-now/' }
           }
         },
         footer: {
@@ -5277,10 +5452,25 @@ app.get('/api/setup-website-builder', async (req, res) => {
           required: true,
           order: 8,
           fields: {
-            'bg-color': { type: 'color', label: 'Background Color', default: '#0f172a' },
-            'text-color': { type: 'color', label: 'Text Color', default: '#e2e8f0' },
-            'tagline': { type: 'text', label: 'Tagline' },
-            'copyright': { type: 'text', label: 'Copyright Text' }
+            developer_footer_bg: { type: 'color', label: 'Background Color', default: '#0f172a' },
+            developer_footer_text: { type: 'color', label: 'Text Color', default: '#e2e8f0' },
+            developer_footer_tagline: { type: 'text', label: 'Tagline', default: 'Your perfect vacation awaits.' },
+            developer_footer_copyright: { type: 'text', label: 'Copyright Text' },
+            developer_footer_email: { type: 'text', label: 'Contact Email' },
+            developer_footer_phone: { type: 'text', label: 'Contact Phone' },
+            developer_footer_address: { type: 'textarea', label: 'Address' }
+          }
+        },
+        colors: {
+          label: 'Colors & Fonts',
+          required: false,
+          order: 9,
+          fields: {
+            developer_primary_color: { type: 'color', label: 'Primary Color', default: '#2563eb' },
+            developer_secondary_color: { type: 'color', label: 'Secondary Color', default: '#0f172a' },
+            developer_accent_color: { type: 'color', label: 'Accent Color', default: '#f59e0b' },
+            developer_body_font: { type: 'select', label: 'Body Font', options: ['Inter', 'Open Sans', 'Roboto', 'Lato', 'Poppins'], default: 'Inter' },
+            developer_heading_font: { type: 'select', label: 'Heading Font', options: ['Inter', 'Playfair Display', 'Montserrat', 'Roboto Slab'], default: 'Inter' }
           }
         }
       }
@@ -5310,7 +5500,7 @@ app.get('/api/setup-website-builder', async (req, res) => {
     res.json({ 
       success: true, 
       message: 'Website Builder schema setup complete',
-      tables_enhanced: ['websites', 'website_settings'],
+      tables_enhanced: ['websites', 'website_templates', 'website_settings', 'website_pages'],
       tables_created: ['theme_registry', 'website_sync_log']
     });
     
@@ -5320,11 +5510,6 @@ app.get('/api/setup-website-builder', async (req, res) => {
   }
 });
 
-// =====================================================
-// BILLING & SUBSCRIPTION SYSTEM
-// =====================================================
-
-// Setup billing tables
 app.get('/api/setup-billing', async (req, res) => {
   try {
     // Subscription plans (editable by admin)
@@ -21115,6 +21300,563 @@ app.get('/api/admin/website-builder', async (req, res) => {
   }
 });
 
+// ============================================
+// PER-WEBSITE BUILDER ENDPOINTS (New System)
+// ============================================
+
+// Get theme registry (all available themes)
+app.get('/api/themes', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT code, name, description, version, sections, thumbnail_url, 
+             preview_url, is_premium, min_tier, sort_order
+      FROM theme_registry
+      WHERE is_active = true
+      ORDER BY sort_order, name
+    `);
+    res.json({ success: true, themes: result.rows });
+  } catch (error) {
+    console.error('Get themes error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get specific theme schema
+app.get('/api/themes/:code', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM theme_registry WHERE code = $1
+    `, [req.params.code]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Theme not found' });
+    }
+    
+    res.json({ success: true, theme: result.rows[0] });
+  } catch (error) {
+    console.error('Get theme error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all settings for a specific website
+app.get('/api/websites/:websiteId/builder', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    // Get website details
+    const websiteResult = await pool.query(`
+      SELECT w.*, tr.schema as theme_schema, tr.sections as theme_sections
+      FROM websites w
+      LEFT JOIN theme_registry tr ON w.template_code = tr.code
+      WHERE w.id = $1 OR w.public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    // Get all settings for this website
+    const settingsResult = await pool.query(`
+      SELECT section, settings, variant, is_enabled, display_order, last_synced_at, sync_source
+      FROM website_settings
+      WHERE website_id = $1
+      ORDER BY display_order
+    `, [website.id]);
+    
+    const settings = {};
+    settingsResult.rows.forEach(row => {
+      settings[row.section] = {
+        settings: row.settings,
+        variant: row.variant,
+        is_enabled: row.is_enabled,
+        display_order: row.display_order,
+        last_synced_at: row.last_synced_at,
+        sync_source: row.sync_source
+      };
+    });
+    
+    res.json({ 
+      success: true, 
+      website: {
+        id: website.id,
+        public_id: website.public_id,
+        name: website.name,
+        template_code: website.template_code,
+        theme_mode: website.theme_mode,
+        status: website.status,
+        setup_complete: website.setup_complete,
+        setup_progress: website.setup_progress,
+        site_url: website.site_url,
+        last_synced_at: website.last_synced_at
+      },
+      theme_schema: website.theme_schema,
+      theme_sections: website.theme_sections,
+      settings 
+    });
+  } catch (error) {
+    console.error('Get website builder error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get specific section settings for a website
+app.get('/api/websites/:websiteId/builder/:section', async (req, res) => {
+  try {
+    const { websiteId, section } = req.params;
+    
+    // Get website id if public_id provided
+    const websiteResult = await pool.query(`
+      SELECT id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const dbWebsiteId = websiteResult.rows[0].id;
+    
+    const result = await pool.query(`
+      SELECT settings, variant, is_enabled, display_order
+      FROM website_settings
+      WHERE website_id = $1 AND section = $2
+    `, [dbWebsiteId, section]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, ...result.rows[0] });
+    } else {
+      res.json({ success: true, settings: null, is_enabled: true });
+    }
+  } catch (error) {
+    console.error('Get website section error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save section settings for a specific website
+app.post('/api/websites/:websiteId/builder/:section', async (req, res) => {
+  try {
+    const { websiteId, section } = req.params;
+    const { settings, variant, is_enabled, display_order } = req.body;
+    
+    // Get website id if public_id provided
+    const websiteResult = await pool.query(`
+      SELECT id, owner_id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const dbWebsiteId = websiteResult.rows[0].id;
+    const accountId = websiteResult.rows[0].owner_id;
+    
+    // Upsert the settings
+    await pool.query(`
+      INSERT INTO website_settings (website_id, account_id, section, settings, variant, is_enabled, display_order, sync_source, updated_at)
+      VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), COALESCE($7, 0), 'gas', CURRENT_TIMESTAMP)
+      ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
+      DO UPDATE SET 
+        settings = $4, 
+        variant = COALESCE($5, website_settings.variant),
+        is_enabled = COALESCE($6, website_settings.is_enabled),
+        display_order = COALESCE($7, website_settings.display_order),
+        sync_source = 'gas',
+        updated_at = CURRENT_TIMESTAMP
+    `, [dbWebsiteId, accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
+    
+    // Update setup progress
+    await pool.query(`
+      UPDATE websites 
+      SET setup_progress = COALESCE(setup_progress, '{}'::jsonb) || $2::jsonb,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [dbWebsiteId, JSON.stringify({ [section]: true })]);
+    
+    res.json({ success: true, message: 'Settings saved' });
+  } catch (error) {
+    console.error('Save website section error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save all settings for a website at once (bulk save)
+app.post('/api/websites/:websiteId/builder', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const { settings } = req.body; // { header: {...}, hero: {...}, ... }
+    
+    // Get website id
+    const websiteResult = await pool.query(`
+      SELECT id, owner_id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const dbWebsiteId = websiteResult.rows[0].id;
+    const accountId = websiteResult.rows[0].owner_id;
+    
+    const setupProgress = {};
+    
+    for (const [section, sectionData] of Object.entries(settings)) {
+      await pool.query(`
+        INSERT INTO website_settings (website_id, account_id, section, settings, sync_source, updated_at)
+        VALUES ($1, $2, $3, $4, 'gas', CURRENT_TIMESTAMP)
+        ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
+        DO UPDATE SET settings = $4, sync_source = 'gas', updated_at = CURRENT_TIMESTAMP
+      `, [dbWebsiteId, accountId, section, JSON.stringify(sectionData)]);
+      
+      setupProgress[section] = true;
+    }
+    
+    // Update setup progress
+    await pool.query(`
+      UPDATE websites 
+      SET setup_progress = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [dbWebsiteId, JSON.stringify(setupProgress)]);
+    
+    res.json({ success: true, message: 'All settings saved', sections: Object.keys(settings) });
+  } catch (error) {
+    console.error('Bulk save website settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Mark website setup as complete
+app.post('/api/websites/:websiteId/complete-setup', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    // Get website and check required sections
+    const websiteResult = await pool.query(`
+      SELECT w.id, w.template_code, w.setup_progress, tr.sections as theme_sections
+      FROM websites w
+      LEFT JOIN theme_registry tr ON w.template_code = tr.code
+      WHERE w.id = $1 OR w.public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    const themeSections = website.theme_sections || {};
+    const setupProgress = website.setup_progress || {};
+    
+    // Check all required sections are complete
+    const missingSections = [];
+    for (const [sectionCode, sectionConfig] of Object.entries(themeSections)) {
+      if (sectionConfig.required && !setupProgress[sectionCode]) {
+        missingSections.push(sectionConfig.label || sectionCode);
+      }
+    }
+    
+    if (missingSections.length > 0) {
+      return res.json({ 
+        success: false, 
+        error: 'Required sections incomplete',
+        missing: missingSections
+      });
+    }
+    
+    // Mark as complete
+    await pool.query(`
+      UPDATE websites SET setup_complete = true, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [website.id]);
+    
+    res.json({ success: true, message: 'Setup marked as complete' });
+  } catch (error) {
+    console.error('Complete setup error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Sync website settings to WordPress
+app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const { sections } = req.body; // Optional: specific sections to sync, or all if not provided
+    
+    // Get website details
+    const websiteResult = await pool.query(`
+      SELECT w.*, ws.section, ws.settings
+      FROM websites w
+      LEFT JOIN website_settings ws ON w.id = ws.website_id
+      WHERE w.id = $1 OR w.public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    if (!website.site_url) {
+      return res.json({ success: false, error: 'Website has no site URL' });
+    }
+    
+    // Collect all settings to sync
+    const allSettings = {};
+    websiteResult.rows.forEach(row => {
+      if (row.section && row.settings) {
+        if (!sections || sections.includes(row.section)) {
+          // Flatten settings for WordPress theme_mods
+          if (typeof row.settings === 'object') {
+            Object.assign(allSettings, row.settings);
+          }
+        }
+      }
+    });
+    
+    // Get WordPress API settings
+    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const apiKey = wpSettings.rows[0]?.api_key;
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'WordPress API not configured' });
+    }
+    
+    // Push to WordPress
+    const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'sync_theme_mods',
+        site_url: website.site_url,
+        theme_mods: allSettings
+      })
+    });
+    
+    const wpData = await wpResponse.json();
+    
+    // Log the sync
+    await pool.query(`
+      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, error_message, source_data)
+      VALUES ($1, 'push', $2, $3, $4, $5)
+    `, [
+      website.id, 
+      JSON.stringify(sections || Object.keys(allSettings)),
+      wpData.success ? 'success' : 'failed',
+      wpData.error || null,
+      JSON.stringify(allSettings)
+    ]);
+    
+    // Update website sync timestamp
+    if (wpData.success) {
+      await pool.query(`
+        UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'gas'
+        WHERE id = $1
+      `, [website.id]);
+    }
+    
+    res.json({ 
+      success: wpData.success, 
+      message: wpData.success ? 'Settings synced to WordPress' : 'Sync failed',
+      error: wpData.error
+    });
+  } catch (error) {
+    console.error('Sync to WordPress error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Pull settings from WordPress
+app.post('/api/websites/:websiteId/sync-from-wordpress', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    // Get website details
+    const websiteResult = await pool.query(`
+      SELECT * FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    if (!website.site_url) {
+      return res.json({ success: false, error: 'Website has no site URL' });
+    }
+    
+    // Get WordPress API settings
+    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const apiKey = wpSettings.rows[0]?.api_key;
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'WordPress API not configured' });
+    }
+    
+    // Pull from WordPress
+    const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'get_theme_mods',
+        site_url: website.site_url
+      })
+    });
+    
+    const wpData = await wpResponse.json();
+    
+    if (!wpData.success) {
+      return res.json({ success: false, error: wpData.error || 'Failed to get WordPress settings' });
+    }
+    
+    // Get theme schema to know how to group settings by section
+    const themeResult = await pool.query(`
+      SELECT sections FROM theme_registry WHERE code = $1
+    `, [website.template_code]);
+    
+    const themeSections = themeResult.rows[0]?.sections || {};
+    
+    // Group WordPress settings by section based on field prefixes
+    const settingsBySection = {};
+    for (const [key, value] of Object.entries(wpData.theme_mods || {})) {
+      for (const [sectionCode, sectionConfig] of Object.entries(themeSections)) {
+        const fields = sectionConfig.fields || {};
+        if (fields[key]) {
+          if (!settingsBySection[sectionCode]) {
+            settingsBySection[sectionCode] = {};
+          }
+          settingsBySection[sectionCode][key] = value;
+          break;
+        }
+      }
+    }
+    
+    // Save each section's settings
+    for (const [section, settings] of Object.entries(settingsBySection)) {
+      await pool.query(`
+        INSERT INTO website_settings (website_id, account_id, section, settings, sync_source, last_synced_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'wordpress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
+        DO UPDATE SET settings = $4, sync_source = 'wordpress', last_synced_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      `, [website.id, website.owner_id, section, JSON.stringify(settings)]);
+    }
+    
+    // Log the sync
+    await pool.query(`
+      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, source_data)
+      VALUES ($1, 'pull', $2, 'success', $3)
+    `, [website.id, JSON.stringify(Object.keys(settingsBySection)), JSON.stringify(wpData.theme_mods)]);
+    
+    // Update website sync timestamp
+    await pool.query(`
+      UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'wordpress'
+      WHERE id = $1
+    `, [website.id]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Settings pulled from WordPress',
+      sections_updated: Object.keys(settingsBySection)
+    });
+  } catch (error) {
+    console.error('Sync from WordPress error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get sync history for a website
+app.get('/api/websites/:websiteId/sync-log', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    const websiteResult = await pool.query(`
+      SELECT id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const result = await pool.query(`
+      SELECT id, direction, sections_synced, status, error_message, created_at
+      FROM website_sync_log
+      WHERE website_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50
+    `, [websiteResult.rows[0].id]);
+    
+    res.json({ success: true, logs: result.rows });
+  } catch (error) {
+    console.error('Get sync log error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Change website theme
+app.post('/api/websites/:websiteId/change-theme', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const { theme_code } = req.body;
+    
+    // Verify theme exists
+    const themeResult = await pool.query(`
+      SELECT code, name, sections FROM theme_registry WHERE code = $1 AND is_active = true
+    `, [theme_code]);
+    
+    if (themeResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Theme not found' });
+    }
+    
+    // Get website
+    const websiteResult = await pool.query(`
+      SELECT id, template_code FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    const oldTheme = website.template_code;
+    
+    // Update website theme
+    await pool.query(`
+      UPDATE websites 
+      SET template_code = $1, 
+          setup_complete = false, 
+          setup_progress = '{}',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+    `, [theme_code, website.id]);
+    
+    // Clear old theme-specific settings (keep units, etc.)
+    await pool.query(`
+      DELETE FROM website_settings WHERE website_id = $1
+    `, [website.id]);
+    
+    res.json({ 
+      success: true, 
+      message: `Theme changed from ${oldTheme} to ${theme_code}`,
+      requires_setup: true
+    });
+  } catch (error) {
+    console.error('Change theme error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// END PER-WEBSITE BUILDER ENDPOINTS
+// ============================================
+
 // Get all website settings for a client (for WordPress sync)
 app.get('/api/v1/website-settings', validateApiKey, async (req, res) => {
   try {
@@ -21141,10 +21883,7 @@ app.post('/api/admin/push-to-wordpress', async (req, res) => {
   try {
     const { account_id, section, settings, site_url } = req.body;
     
-    console.log('Push to WordPress request:', { account_id, section, site_url, settingsKeys: Object.keys(settings || {}) });
-    
     if (!account_id || !section || !site_url) {
-      console.log('Missing required fields:', { account_id: !!account_id, section: !!section, site_url: !!site_url });
       return res.json({ success: false, error: 'Missing required fields' });
     }
     
@@ -21153,13 +21892,10 @@ app.post('/api/admin/push-to-wordpress', async (req, res) => {
     const apiKey = wpSettings.rows[0]?.api_key;
     
     if (!apiKey) {
-      console.log('WordPress API key not found');
       return res.json({ success: false, error: 'WordPress API not configured' });
     }
     
     // Push settings to WordPress via gas-api.php
-    console.log('Sending to gas-api.php:', { action: 'update_settings', site_url, section });
-    
     const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
       method: 'POST',
       headers: {
@@ -21175,18 +21911,7 @@ app.post('/api/admin/push-to-wordpress', async (req, res) => {
       })
     });
     
-    const wpText = await wpResponse.text();
-    console.log('WordPress response text:', wpText);
-    
-    let wpData;
-    try {
-      wpData = JSON.parse(wpText);
-    } catch (e) {
-      console.error('Failed to parse WordPress response:', e);
-      return res.json({ success: false, error: 'Invalid response from WordPress: ' + wpText.substring(0, 200) });
-    }
-    
-    console.log('WordPress response parsed:', wpData);
+    const wpData = await wpResponse.json();
     
     if (wpData.success) {
       res.json({ success: true, message: 'Settings pushed to WordPress' });
@@ -21195,6 +21920,116 @@ app.post('/api/admin/push-to-wordpress', async (req, res) => {
     }
   } catch (error) {
     console.error('Push to WordPress error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Receive settings push from WordPress (WP → GAS bidirectional sync)
+app.post('/api/gas-api/push-from-wordpress', async (req, res) => {
+  try {
+    const { action, client_id, section, settings } = req.body;
+    
+    console.log('Push from WordPress:', { action, client_id, section, keys: Object.keys(settings || {}) });
+    
+    if (action !== 'update_settings') {
+      return res.json({ success: false, error: 'Invalid action' });
+    }
+    
+    if (!client_id || !section || !settings) {
+      return res.json({ success: false, error: 'Missing required fields: client_id, section, and settings are required' });
+    }
+    
+    // Find website by client_id (owner_id) - check both websites and account_websites tables
+    let websiteId;
+    
+    // First try the new websites table
+    const websiteResult = await pool.query(`
+      SELECT id FROM websites WHERE owner_id = $1 AND owner_type = 'account' LIMIT 1
+    `, [client_id]);
+    
+    if (websiteResult.rows.length > 0) {
+      websiteId = websiteResult.rows[0].id;
+    } else {
+      // Check if there's a legacy account_websites entry to migrate
+      const legacyResult = await pool.query(`
+        SELECT id, site_url, template_used FROM account_websites WHERE account_id = $1 LIMIT 1
+      `, [client_id]);
+      
+      if (legacyResult.rows.length > 0) {
+        // Create a website entry from legacy data
+        const legacy = legacyResult.rows[0];
+        const newWebsite = await pool.query(`
+          INSERT INTO websites (public_id, owner_type, owner_id, name, site_url, template_code, status)
+          VALUES ($1, 'account', $2, 'WordPress Site', $3, $4, 'active')
+          RETURNING id
+        `, [`WP-${client_id}-${Date.now()}`, client_id, legacy.site_url, legacy.template_used]);
+        websiteId = newWebsite.rows[0].id;
+        
+        // Update legacy record with migration reference
+        await pool.query(`
+          UPDATE account_websites SET migrated_to_website_id = $1 WHERE id = $2
+        `, [websiteId, legacy.id]);
+      } else {
+        // Create a fresh website entry
+        const newWebsite = await pool.query(`
+          INSERT INTO websites (public_id, owner_type, owner_id, name, status)
+          VALUES ($1, 'account', $2, 'WordPress Site', 'active')
+          RETURNING id
+        `, [`WP-${client_id}-${Date.now()}`, client_id]);
+        websiteId = newWebsite.rows[0].id;
+      }
+    }
+    
+    // Upsert settings to website_settings table
+    await pool.query(`
+      INSERT INTO website_settings (website_id, section, settings, updated_at)
+      VALUES ($1, $2, $3, CURRENT_TIMESTAMP)
+      ON CONFLICT (website_id, section)
+      DO UPDATE SET settings = $3, updated_at = CURRENT_TIMESTAMP
+    `, [websiteId, section, JSON.stringify(settings)]);
+    
+    // Update website sync timestamp
+    await pool.query(`
+      UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'wordpress'
+      WHERE id = $1
+    `, [websiteId]);
+    
+    // Log the sync event
+    await pool.query(`
+      INSERT INTO website_sync_log (website_id, direction, sections_synced, status)
+      VALUES ($1, 'pull', $2, 'success')
+    `, [websiteId, JSON.stringify([section])]);
+    
+    console.log(`✅ WordPress push received: ${section} for website ${websiteId} (client ${client_id})`);
+    
+    res.json({ 
+      success: true, 
+      message: `Received ${section} settings from WordPress`,
+      website_id: websiteId,
+      section: section
+    });
+    
+  } catch (error) {
+    console.error('Push from WordPress error:', error);
+    
+    // Log failed sync attempt if we have enough info
+    if (req.body?.client_id) {
+      try {
+        const websiteResult = await pool.query(`
+          SELECT id FROM websites WHERE owner_id = $1 LIMIT 1
+        `, [req.body.client_id]);
+        
+        if (websiteResult.rows.length > 0) {
+          await pool.query(`
+            INSERT INTO website_sync_log (website_id, direction, sections_synced, status, error_message)
+            VALUES ($1, 'pull', $2, 'failed', $3)
+          `, [websiteResult.rows[0].id, JSON.stringify([req.body.section || 'unknown']), error.message]);
+        }
+      } catch (logError) {
+        console.error('Failed to log sync error:', logError);
+      }
+    }
+    
     res.json({ success: false, error: error.message });
   }
 });
@@ -21520,580 +22355,6 @@ app.get('/api/admin/fix-api-keys-table', async (req, res) => {
   }
 });
 
-// ============================================
-// PER-WEBSITE BUILDER ENDPOINTS
-// ============================================
-
-// Get theme registry (all available themes)
-app.get('/api/themes', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT code, name, description, version, sections, thumbnail_url, 
-             preview_url, is_premium, min_tier, sort_order
-      FROM theme_registry
-      WHERE is_active = true
-      ORDER BY sort_order, name
-    `);
-    res.json({ success: true, themes: result.rows });
-  } catch (error) {
-    console.error('Get themes error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get specific theme schema
-app.get('/api/themes/:code', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT * FROM theme_registry WHERE code = $1
-    `, [req.params.code]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Theme not found' });
-    }
-    
-    res.json({ success: true, theme: result.rows[0] });
-  } catch (error) {
-    console.error('Get theme error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get all settings for a specific website
-app.get('/api/websites/:websiteId/builder', async (req, res) => {
-  try {
-    const { websiteId } = req.params;
-    
-    // Get website details - handle both id and public_id
-    const websiteResult = await pool.query(`
-      SELECT w.*, tr.schema as theme_schema, tr.sections as theme_sections
-      FROM websites w
-      LEFT JOIN theme_registry tr ON w.template_code = tr.code
-      WHERE w.id = $1 OR w.public_id = $1
-    `, [websiteId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = websiteResult.rows[0];
-    
-    // Get all settings for this website
-    const settingsResult = await pool.query(`
-      SELECT section, settings, variant, is_enabled, display_order, last_synced_at, sync_source
-      FROM website_settings
-      WHERE website_id = $1
-      ORDER BY display_order
-    `, [website.id]);
-    
-    const settings = {};
-    settingsResult.rows.forEach(row => {
-      settings[row.section] = {
-        settings: row.settings,
-        variant: row.variant,
-        is_enabled: row.is_enabled,
-        display_order: row.display_order,
-        last_synced_at: row.last_synced_at,
-        sync_source: row.sync_source
-      };
-    });
-    
-    res.json({ 
-      success: true, 
-      website: {
-        id: website.id,
-        public_id: website.public_id,
-        name: website.name,
-        template_code: website.template_code,
-        theme_mode: website.theme_mode,
-        status: website.status,
-        setup_complete: website.setup_complete,
-        setup_progress: website.setup_progress,
-        site_url: website.site_url,
-        last_synced_at: website.last_synced_at
-      },
-      theme_schema: website.theme_schema,
-      theme_sections: website.theme_sections,
-      settings 
-    });
-  } catch (error) {
-    console.error('Get website builder error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get specific section settings for a website
-app.get('/api/websites/:websiteId/builder/:section', async (req, res) => {
-  try {
-    const { websiteId, section } = req.params;
-    
-    // Get website id if public_id provided
-    const websiteResult = await pool.query(`
-      SELECT id FROM websites WHERE id = $1 OR public_id = $1
-    `, [websiteId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const dbWebsiteId = websiteResult.rows[0].id;
-    
-    const result = await pool.query(`
-      SELECT settings, variant, is_enabled, display_order
-      FROM website_settings
-      WHERE website_id = $1 AND section = $2
-    `, [dbWebsiteId, section]);
-    
-    if (result.rows.length > 0) {
-      res.json({ success: true, ...result.rows[0] });
-    } else {
-      res.json({ success: true, settings: null, is_enabled: true });
-    }
-  } catch (error) {
-    console.error('Get website section error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Save section settings for a specific website
-app.post('/api/websites/:websiteId/builder/:section', async (req, res) => {
-  try {
-    const { websiteId, section } = req.params;
-    const { settings, variant, is_enabled, display_order } = req.body;
-    
-    // Get website id if public_id provided
-    const websiteResult = await pool.query(`
-      SELECT id, owner_id FROM websites WHERE id = $1 OR public_id = $1
-    `, [websiteId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const dbWebsiteId = websiteResult.rows[0].id;
-    const accountId = websiteResult.rows[0].owner_id;
-    
-    // Check if settings exist for this website+section
-    const existingResult = await pool.query(`
-      SELECT id FROM website_settings WHERE website_id = $1 AND section = $2
-    `, [dbWebsiteId, section]);
-    
-    if (existingResult.rows.length > 0) {
-      // Update existing
-      await pool.query(`
-        UPDATE website_settings SET
-          settings = $1,
-          variant = COALESCE($2, variant),
-          is_enabled = COALESCE($3, is_enabled),
-          display_order = COALESCE($4, display_order),
-          sync_source = 'gas',
-          updated_at = CURRENT_TIMESTAMP
-        WHERE website_id = $5 AND section = $6
-      `, [JSON.stringify(settings), variant, is_enabled, display_order, dbWebsiteId, section]);
-    } else {
-      // Insert new
-      await pool.query(`
-        INSERT INTO website_settings (website_id, account_id, section, settings, variant, is_enabled, display_order, sync_source, created_at, updated_at)
-        VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), COALESCE($7, 0), 'gas', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-      `, [dbWebsiteId, accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
-    }
-    
-    // Update setup progress
-    await pool.query(`
-      UPDATE websites 
-      SET setup_progress = COALESCE(setup_progress, '{}'::jsonb) || $2::jsonb,
-          updated_at = CURRENT_TIMESTAMP
-      WHERE id = $1
-    `, [dbWebsiteId, JSON.stringify({ [section]: true })]);
-    
-    res.json({ success: true, message: 'Settings saved' });
-  } catch (error) {
-    console.error('Save website section error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Sync website settings to WordPress
-app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
-  try {
-    const { websiteId } = req.params;
-    const { sections } = req.body;
-    
-    // Get website and settings
-    const websiteResult = await pool.query(`
-      SELECT w.*, ws.section, ws.settings
-      FROM websites w
-      LEFT JOIN website_settings ws ON w.id = ws.website_id
-      WHERE w.id = $1 OR w.public_id = $1
-    `, [websiteId]);
-    
-    if (websiteResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Website not found' });
-    }
-    
-    const website = websiteResult.rows[0];
-    
-    if (!website.site_url) {
-      return res.json({ success: false, error: 'Website has no site URL' });
-    }
-    
-    // Check if we have website-specific settings, otherwise get account-based settings
-    let settingsRows = websiteResult.rows.filter(r => r.section && r.settings);
-    
-    if (settingsRows.length === 0 && website.owner_id) {
-      console.log('No website-specific settings, fetching account-based settings...');
-      const accountSettings = await pool.query(`
-        SELECT section, settings FROM website_settings WHERE account_id = $1
-      `, [website.owner_id]);
-      settingsRows = accountSettings.rows;
-    }
-    
-    // Get WordPress API settings
-    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
-    const apiKey = wpSettings.rows[0]?.api_key;
-    
-    if (!apiKey) {
-      return res.json({ success: false, error: 'WordPress API not configured' });
-    }
-    
-    // Push to WordPress using the working format
-    // Send each section separately like the old method
-    let syncSuccess = true;
-    let syncError = null;
-    let sectionsSynced = [];
-    
-    for (const row of settingsRows) {
-      if (row.section && row.settings) {
-        if (!sections || sections.includes(row.section)) {
-          try {
-            const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
-              method: 'POST',
-              headers: {
-                'Authorization': `Bearer ${apiKey}`,
-                'Content-Type': 'application/json'
-              },
-              body: JSON.stringify({
-                action: 'update_settings',
-                account_id: website.owner_id,
-                section: row.section,
-                settings: row.settings,
-                site_url: website.site_url
-              })
-            });
-            
-            const wpData = await wpResponse.json();
-            if (wpData.success) {
-              sectionsSynced.push(row.section);
-              console.log(`Synced section ${row.section} to WordPress`);
-            } else {
-              console.log(`Sync failed for section ${row.section}:`, wpData.error);
-              syncSuccess = false;
-              syncError = wpData.error;
-            }
-          } catch (e) {
-            console.error(`Sync error for section ${row.section}:`, e);
-            syncSuccess = false;
-            syncError = e.message;
-          }
-        }
-      }
-    }
-    
-    // Log the sync
-    await pool.query(`
-      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, error_message)
-      VALUES ($1, 'push', $2, $3, $4)
-    `, [
-      website.id, 
-      JSON.stringify(sectionsSynced),
-      syncSuccess ? 'success' : 'failed',
-      syncError
-    ]);
-    
-    // Update website sync timestamp
-    if (syncSuccess) {
-      await pool.query(`
-        UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'gas'
-        WHERE id = $1
-      `, [website.id]);
-    }
-    
-    res.json({ 
-      success: syncSuccess, 
-      message: syncSuccess ? 'Settings synced to WordPress' : 'Sync failed',
-      error: syncError
-    });
-  } catch (error) {
-    console.error('Sync to WordPress error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// ============================================
-// END PER-WEBSITE BUILDER ENDPOINTS
-// ============================================
-
-// Serve frontend - MUST BE LAST (after all API routes)
-app.get('*', (req, res) => {
-  // Don't serve index.html for API routes - return 404 instead
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
-
-// =====================================================
-// SCHEDULED SYNC - All Channel Managers
-// =====================================================
-async function syncAllChannelManagers() {
-  console.log('🔄 Starting scheduled sync for all channel managers...');
-  
-  try {
-    // Get all clients with CM connections
-    const clientsResult = await pool.query(`
-      SELECT DISTINCT c.id, c.name,
-        (SELECT setting_value FROM client_settings WHERE client_id = c.id AND setting_key = 'smoobu_api_key') as smoobu_key,
-        (SELECT setting_value FROM client_settings WHERE client_id = c.id AND setting_key = 'hostaway_api_key') as hostaway_key
-      FROM clients c
-      WHERE EXISTS (SELECT 1 FROM client_settings cs WHERE cs.client_id = c.id AND cs.setting_key LIKE '%_api_key')
-    `);
-    
-    for (const client of clientsResult.rows) {
-      // Sync Smoobu
-      if (client.smoobu_key) {
-        try {
-          const smoobuProps = await pool.query(`
-            SELECT bu.id as room_id, bu.smoobu_id
-            FROM bookable_units bu
-            JOIN properties p ON bu.property_id = p.id
-            WHERE p.client_id = $1 AND bu.smoobu_id IS NOT NULL
-          `, [client.id]);
-          
-          if (smoobuProps.rows.length > 0) {
-            const apartmentIds = smoobuProps.rows.map(r => r.smoobu_id);
-            const startDate = new Date().toISOString().split('T')[0];
-            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-            
-            const ratesResponse = await axios.get(
-              `https://login.smoobu.com/api/rates?${apartmentIds.map(id => `apartments[]=${id}`).join('&')}&start_date=${startDate}&end_date=${endDate}`,
-              { headers: { 'Api-Key': client.smoobu_key, 'Cache-Control': 'no-cache' } }
-            );
-            
-            for (const room of smoobuProps.rows) {
-              const apartmentRates = ratesResponse.data.data?.[room.smoobu_id];
-              if (!apartmentRates) continue;
-              
-              for (const [date, info] of Object.entries(apartmentRates)) {
-                await pool.query(`
-                  INSERT INTO room_availability (room_id, date, is_available, cm_price, standard_price, min_stay, source)
-                  VALUES ($1, $2, $3, $4, $4, $5, 'smoobu')
-                  ON CONFLICT (room_id, date) DO UPDATE SET
-                    is_available = EXCLUDED.is_available, cm_price = EXCLUDED.cm_price,
-                    standard_price = EXCLUDED.standard_price, min_stay = EXCLUDED.min_stay,
-                    source = EXCLUDED.source, updated_at = NOW()
-                `, [room.room_id, date, info.available > 0, info.price || null, info.min_length_of_stay || null]);
-              }
-            }
-            console.log(`  ✅ Synced Smoobu for ${client.name}`);
-          }
-        } catch (e) {
-          console.log(`  ❌ Smoobu sync failed for ${client.name}: ${e.message}`);
-        }
-      }
-      
-      // Sync Hostaway
-      if (client.hostaway_key) {
-        try {
-          // Similar logic for Hostaway...
-          console.log(`  ✅ Synced Hostaway for ${client.name}`);
-        } catch (e) {
-          console.log(`  ❌ Hostaway sync failed for ${client.name}: ${e.message}`);
-        }
-      }
-    }
-    
-    console.log('🔄 Scheduled sync complete');
-  } catch (error) {
-    console.error('Scheduled sync error:', error.message);
-  }
-}
-
-// Run sync every 15 minutes
-const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
-setInterval(syncAllChannelManagers, SYNC_INTERVAL);
-
-// Also run once on startup (after 30 seconds to let DB connect)
-setTimeout(syncAllChannelManagers, 30000);
-
-// =========================================================
-// BEDS24 SPECIFIC SCHEDULED SYNC
-// =========================================================
-
-// Helper function to run Beds24 bookings sync
-async function runBeds24BookingsSync() {
-  try {
-    console.log('⏰ [Scheduled] Starting Beds24 bookings sync...');
-    
-    const accessToken = await getBeds24AccessToken(pool);
-    const today = new Date();
-    const fromDate = new Date(today);
-    fromDate.setDate(fromDate.getDate() - 7);
-    const toDate = new Date(today);
-    toDate.setDate(toDate.getDate() + 365);
-    
-    const response = await axios.get('https://beds24.com/api/v2/bookings', {
-      headers: { 'token': accessToken },
-      params: {
-        arrivalFrom: fromDate.toISOString().split('T')[0],
-        arrivalTo: toDate.toISOString().split('T')[0]
-      }
-    });
-    
-    const bookings = Array.isArray(response.data) ? response.data : (response.data.data || []);
-    let updatedDates = 0;
-    let unblockedDates = 0;
-    let gasBookingsCancelled = 0;
-    
-    const client = await pool.connect();
-    try {
-      await client.query('BEGIN');
-      
-      for (const booking of bookings) {
-        const beds24RoomId = booking.roomId || booking.room_id || booking.unitId;
-        if (!beds24RoomId) continue;
-        
-        const roomResult = await client.query(
-          'SELECT id FROM bookable_units WHERE beds24_room_id = $1',
-          [beds24RoomId]
-        );
-        if (roomResult.rows.length === 0) continue;
-        
-        const ourRoomId = roomResult.rows[0].id;
-        const arrival = booking.arrival || booking.firstNight || booking.arrivalDate;
-        const departure = booking.departure || booking.lastNight || booking.departureDate;
-        if (!arrival || !departure) continue;
-        
-        const isCancelled = booking.status === 'cancelled' || booking.status === 'Cancelled';
-        
-        // If cancelled, check if we have a matching GAS booking to cancel
-        if (isCancelled) {
-          const gasBookingResult = await client.query(`
-            UPDATE bookings 
-            SET status = 'cancelled', updated_at = NOW()
-            WHERE beds24_booking_id = $1 AND status != 'cancelled'
-            RETURNING id
-          `, [booking.id.toString()]);
-          
-          if (gasBookingResult.rowCount > 0) {
-            gasBookingsCancelled++;
-          }
-        }
-        
-        const startDate = new Date(arrival);
-        const endDate = new Date(departure);
-        
-        for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
-          const dateStr = d.toISOString().split('T')[0];
-          
-          if (isCancelled) {
-            // Unblock cancelled booking dates (only if blocked by beds24)
-            const result = await client.query(`
-              UPDATE room_availability 
-              SET is_available = true, is_blocked = false, source = 'beds24_cancelled', updated_at = NOW()
-              WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking')
-            `, [ourRoomId, dateStr]);
-            if (result.rowCount > 0) unblockedDates++;
-          } else {
-            // Block confirmed booking dates
-            await client.query(`
-              INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-              VALUES ($1, $2, false, false, 'beds24_sync')
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
-            `, [ourRoomId, dateStr]);
-            updatedDates++;
-          }
-        }
-      }
-      
-      await client.query('COMMIT');
-    } finally {
-      client.release();
-    }
-    
-    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${bookings.length} bookings, ${updatedDates} blocked, ${unblockedDates} unblocked, ${gasBookingsCancelled} GAS cancelled`);
-  } catch (error) {
-    console.error('⏰ [Scheduled] Beds24 bookings sync error:', error.message);
-  }
-}
-async function runBeds24InventorySync() {
-  try {
-    console.log('⏰ [Scheduled] Starting Beds24 full inventory sync...');
-    
-    const accessToken = await getBeds24AccessToken(pool);
-    const today = new Date();
-    
-    const roomsResult = await pool.query(`
-      SELECT bu.id, bu.beds24_room_id, bu.name 
-      FROM bookable_units bu 
-      WHERE bu.beds24_room_id IS NOT NULL
-    `);
-    
-    const rooms = roomsResult.rows;
-    const startDate = today.toISOString().split('T')[0];
-    const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
-    
-    let inventoryBlocksFound = 0;
-    let datesUnblocked = 0;
-    
-    for (const room of rooms) {
-      try {
-        const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
-          headers: { 'token': accessToken },
-          params: { roomId: room.beds24_room_id, startDate, endDate }
-        });
-        
-        const data = availResponse.data?.data?.[0];
-        if (data && data.availability) {
-          for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
-            if (isAvailable === false) {
-              inventoryBlocksFound++;
-              await pool.query(`
-                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
-                VALUES ($1, $2, false, true, 'beds24_inventory')
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET is_available = false, is_blocked = true, 
-                  source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
-                  updated_at = NOW()
-              `, [room.id, dateStr]);
-            } else {
-              // Unblock if it was blocked by beds24
-              const result = await pool.query(`
-                UPDATE room_availability 
-                SET is_available = true, is_blocked = false, source = 'beds24_unblocked', updated_at = NOW()
-                WHERE room_id = $1 AND date = $2 AND source IN ('beds24_inventory', 'beds24_sync', 'beds24_webhook')
-              `, [room.id, dateStr]);
-              if (result.rowCount > 0) datesUnblocked++;
-            }
-          }
-        }
-      } catch (roomError) {
-        // Silently skip errors for individual rooms
-      }
-    }
-    
-    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${inventoryBlocksFound} blocked, ${datesUnblocked} unblocked from ${rooms.length} rooms`);
-  } catch (error) {
-    console.error('⏰ [Scheduled] Beds24 inventory sync error:', error.message);
-  }
-}
-
-// Schedule Beds24 bookings sync every 15 minutes
-setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
-
-// Schedule Beds24 full inventory sync every 6 hours
-setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
-
 // =====================================================
 // MULTI-WEBSITE API ENDPOINTS
 // =====================================================
@@ -22414,6 +22675,266 @@ app.post('/api/websites/migrate', async (req, res) => {
   }
 });
 
+// Serve frontend - MUST BE LAST (after all API routes)
+app.get('*', (req, res) => {
+  // Don't serve index.html for API routes - return 404 instead
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// =====================================================
+// SCHEDULED SYNC - All Channel Managers
+// =====================================================
+async function syncAllChannelManagers() {
+  console.log('🔄 Starting scheduled sync for all channel managers...');
+  
+  try {
+    // Get all clients with CM connections
+    const clientsResult = await pool.query(`
+      SELECT DISTINCT c.id, c.name,
+        (SELECT setting_value FROM client_settings WHERE client_id = c.id AND setting_key = 'smoobu_api_key') as smoobu_key,
+        (SELECT setting_value FROM client_settings WHERE client_id = c.id AND setting_key = 'hostaway_api_key') as hostaway_key
+      FROM clients c
+      WHERE EXISTS (SELECT 1 FROM client_settings cs WHERE cs.client_id = c.id AND cs.setting_key LIKE '%_api_key')
+    `);
+    
+    for (const client of clientsResult.rows) {
+      // Sync Smoobu
+      if (client.smoobu_key) {
+        try {
+          const smoobuProps = await pool.query(`
+            SELECT bu.id as room_id, bu.smoobu_id
+            FROM bookable_units bu
+            JOIN properties p ON bu.property_id = p.id
+            WHERE p.client_id = $1 AND bu.smoobu_id IS NOT NULL
+          `, [client.id]);
+          
+          if (smoobuProps.rows.length > 0) {
+            const apartmentIds = smoobuProps.rows.map(r => r.smoobu_id);
+            const startDate = new Date().toISOString().split('T')[0];
+            const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            const ratesResponse = await axios.get(
+              `https://login.smoobu.com/api/rates?${apartmentIds.map(id => `apartments[]=${id}`).join('&')}&start_date=${startDate}&end_date=${endDate}`,
+              { headers: { 'Api-Key': client.smoobu_key, 'Cache-Control': 'no-cache' } }
+            );
+            
+            for (const room of smoobuProps.rows) {
+              const apartmentRates = ratesResponse.data.data?.[room.smoobu_id];
+              if (!apartmentRates) continue;
+              
+              for (const [date, info] of Object.entries(apartmentRates)) {
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, is_available, cm_price, standard_price, min_stay, source)
+                  VALUES ($1, $2, $3, $4, $4, $5, 'smoobu')
+                  ON CONFLICT (room_id, date) DO UPDATE SET
+                    is_available = EXCLUDED.is_available, cm_price = EXCLUDED.cm_price,
+                    standard_price = EXCLUDED.standard_price, min_stay = EXCLUDED.min_stay,
+                    source = EXCLUDED.source, updated_at = NOW()
+                `, [room.room_id, date, info.available > 0, info.price || null, info.min_length_of_stay || null]);
+              }
+            }
+            console.log(`  ✅ Synced Smoobu for ${client.name}`);
+          }
+        } catch (e) {
+          console.log(`  ❌ Smoobu sync failed for ${client.name}: ${e.message}`);
+        }
+      }
+      
+      // Sync Hostaway
+      if (client.hostaway_key) {
+        try {
+          // Similar logic for Hostaway...
+          console.log(`  ✅ Synced Hostaway for ${client.name}`);
+        } catch (e) {
+          console.log(`  ❌ Hostaway sync failed for ${client.name}: ${e.message}`);
+        }
+      }
+    }
+    
+    console.log('🔄 Scheduled sync complete');
+  } catch (error) {
+    console.error('Scheduled sync error:', error.message);
+  }
+}
+
+// Run sync every 15 minutes
+const SYNC_INTERVAL = 15 * 60 * 1000; // 15 minutes
+setInterval(syncAllChannelManagers, SYNC_INTERVAL);
+
+// Also run once on startup (after 30 seconds to let DB connect)
+setTimeout(syncAllChannelManagers, 30000);
+
+// =========================================================
+// BEDS24 SPECIFIC SCHEDULED SYNC
+// =========================================================
+
+// Helper function to run Beds24 bookings sync
+async function runBeds24BookingsSync() {
+  try {
+    console.log('⏰ [Scheduled] Starting Beds24 bookings sync...');
+    
+    const accessToken = await getBeds24AccessToken(pool);
+    const today = new Date();
+    const fromDate = new Date(today);
+    fromDate.setDate(fromDate.getDate() - 7);
+    const toDate = new Date(today);
+    toDate.setDate(toDate.getDate() + 365);
+    
+    const response = await axios.get('https://beds24.com/api/v2/bookings', {
+      headers: { 'token': accessToken },
+      params: {
+        arrivalFrom: fromDate.toISOString().split('T')[0],
+        arrivalTo: toDate.toISOString().split('T')[0]
+      }
+    });
+    
+    const bookings = Array.isArray(response.data) ? response.data : (response.data.data || []);
+    let updatedDates = 0;
+    let unblockedDates = 0;
+    let gasBookingsCancelled = 0;
+    
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      
+      for (const booking of bookings) {
+        const beds24RoomId = booking.roomId || booking.room_id || booking.unitId;
+        if (!beds24RoomId) continue;
+        
+        const roomResult = await client.query(
+          'SELECT id FROM bookable_units WHERE beds24_room_id = $1',
+          [beds24RoomId]
+        );
+        if (roomResult.rows.length === 0) continue;
+        
+        const ourRoomId = roomResult.rows[0].id;
+        const arrival = booking.arrival || booking.firstNight || booking.arrivalDate;
+        const departure = booking.departure || booking.lastNight || booking.departureDate;
+        if (!arrival || !departure) continue;
+        
+        const isCancelled = booking.status === 'cancelled' || booking.status === 'Cancelled';
+        
+        // If cancelled, check if we have a matching GAS booking to cancel
+        if (isCancelled) {
+          const gasBookingResult = await client.query(`
+            UPDATE bookings 
+            SET status = 'cancelled', updated_at = NOW()
+            WHERE beds24_booking_id = $1 AND status != 'cancelled'
+            RETURNING id
+          `, [booking.id.toString()]);
+          
+          if (gasBookingResult.rowCount > 0) {
+            gasBookingsCancelled++;
+          }
+        }
+        
+        const startDate = new Date(arrival);
+        const endDate = new Date(departure);
+        
+        for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
+          const dateStr = d.toISOString().split('T')[0];
+          
+          if (isCancelled) {
+            // Unblock cancelled booking dates (only if blocked by beds24)
+            const result = await client.query(`
+              UPDATE room_availability 
+              SET is_available = true, is_blocked = false, source = 'beds24_cancelled', updated_at = NOW()
+              WHERE room_id = $1 AND date = $2 AND source IN ('beds24_sync', 'beds24_webhook', 'beds24_inventory', 'booking')
+            `, [ourRoomId, dateStr]);
+            if (result.rowCount > 0) unblockedDates++;
+          } else {
+            // Block confirmed booking dates
+            await client.query(`
+              INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+              VALUES ($1, $2, false, false, 'beds24_sync')
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET is_available = false, source = 'beds24_sync', updated_at = NOW()
+            `, [ourRoomId, dateStr]);
+            updatedDates++;
+          }
+        }
+      }
+      
+      await client.query('COMMIT');
+    } finally {
+      client.release();
+    }
+    
+    console.log(`⏰ [Scheduled] Beds24 bookings sync complete: ${bookings.length} bookings, ${updatedDates} blocked, ${unblockedDates} unblocked, ${gasBookingsCancelled} GAS cancelled`);
+  } catch (error) {
+    console.error('⏰ [Scheduled] Beds24 bookings sync error:', error.message);
+  }
+}
+async function runBeds24InventorySync() {
+  try {
+    console.log('⏰ [Scheduled] Starting Beds24 full inventory sync...');
+    
+    const accessToken = await getBeds24AccessToken(pool);
+    const today = new Date();
+    
+    const roomsResult = await pool.query(`
+      SELECT bu.id, bu.beds24_room_id, bu.name 
+      FROM bookable_units bu 
+      WHERE bu.beds24_room_id IS NOT NULL
+    `);
+    
+    const rooms = roomsResult.rows;
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = new Date(today.getTime() + 365*24*60*60*1000).toISOString().split('T')[0];
+    
+    let inventoryBlocksFound = 0;
+    let datesUnblocked = 0;
+    
+    for (const room of rooms) {
+      try {
+        const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+          headers: { 'token': accessToken },
+          params: { roomId: room.beds24_room_id, startDate, endDate }
+        });
+        
+        const data = availResponse.data?.data?.[0];
+        if (data && data.availability) {
+          for (const [dateStr, isAvailable] of Object.entries(data.availability)) {
+            if (isAvailable === false) {
+              inventoryBlocksFound++;
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, is_available, is_blocked, source)
+                VALUES ($1, $2, false, true, 'beds24_inventory')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET is_available = false, is_blocked = true, 
+                  source = CASE WHEN room_availability.source IN ('beds24_sync', 'booking') THEN room_availability.source ELSE 'beds24_inventory' END,
+                  updated_at = NOW()
+              `, [room.id, dateStr]);
+            } else {
+              // Unblock if it was blocked by beds24
+              const result = await pool.query(`
+                UPDATE room_availability 
+                SET is_available = true, is_blocked = false, source = 'beds24_unblocked', updated_at = NOW()
+                WHERE room_id = $1 AND date = $2 AND source IN ('beds24_inventory', 'beds24_sync', 'beds24_webhook')
+              `, [room.id, dateStr]);
+              if (result.rowCount > 0) datesUnblocked++;
+            }
+          }
+        }
+      } catch (roomError) {
+        // Silently skip errors for individual rooms
+      }
+    }
+    
+    console.log(`⏰ [Scheduled] Beds24 inventory sync complete: ${inventoryBlocksFound} blocked, ${datesUnblocked} unblocked from ${rooms.length} rooms`);
+  } catch (error) {
+    console.error('⏰ [Scheduled] Beds24 inventory sync error:', error.message);
+  }
+}
+
+// Schedule Beds24 bookings sync every 15 minutes
+setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
+
+// Schedule Beds24 full inventory sync every 6 hours
+setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
 // Run initial Beds24 sync 60 seconds after startup
 setTimeout(() => {
   runBeds24BookingsSync();
