@@ -6336,6 +6336,7 @@ app.get('/api/setup-deploy', async (req, res) => {
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS property_ids JSONB DEFAULT '[]'`);
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS room_ids JSONB DEFAULT '[]'`);
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_name VARCHAR(255)`);
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255)`);
     
     // Add website_url column to bookable_units if it doesn't exist
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_url VARCHAR(255)`);
@@ -6572,6 +6573,36 @@ app.get('/api/admin/deployed-sites', async (req, res) => {
     `, params);
     res.json({ success: true, sites: result.rows });
   } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update deployed site status (master override)
+app.put('/api/deployed-sites/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    // Validate status
+    const validStatuses = ['development', 'deployed', 'live', 'on-hold', 'active', 'pending'];
+    if (!validStatuses.includes(status)) {
+      return res.json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+    
+    const result = await pool.query(`
+      UPDATE deployed_sites SET status = $2, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [id, status]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    console.log(`Deployed site ${id} status updated to: ${status}`);
+    res.json({ success: true, site: result.rows[0] });
+  } catch (error) {
+    console.error('Update deployed site status error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -22538,6 +22569,45 @@ app.delete('/api/websites/:id', async (req, res) => {
     await pool.query('DELETE FROM websites WHERE id = $1', [id]);
     res.json({ success: true });
   } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update website status (with validation)
+app.put('/api/websites/:id/status', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+    
+    // Validate status
+    const validStatuses = ['development', 'deployed', 'live', 'on-hold'];
+    if (!validStatuses.includes(status)) {
+      return res.json({ success: false, error: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+    
+    // If setting to 'live', check if custom_domain is set (optional enforcement)
+    if (status === 'live') {
+      const website = await pool.query('SELECT custom_domain FROM websites WHERE id = $1', [id]);
+      if (website.rows.length > 0 && !website.rows[0].custom_domain) {
+        console.log('Note: Setting status to live without custom domain for website', id);
+        // Allow it but log - master can override
+      }
+    }
+    
+    const result = await pool.query(`
+      UPDATE websites SET status = $2, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [id, status]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    console.log(`Website ${id} status updated to: ${status}`);
+    res.json({ success: true, website: result.rows[0] });
+  } catch (error) {
+    console.error('Update website status error:', error);
     res.json({ success: false, error: error.message });
   }
 });
