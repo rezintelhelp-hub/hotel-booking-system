@@ -694,6 +694,42 @@
             color: var(--text-primary);
         }
 
+        /* Template Selection */
+        .template-option {
+            transition: all 0.2s ease;
+        }
+        
+        .template-option:hover {
+            border-color: var(--primary) !important;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        
+        .template-option:has(input:checked) {
+            border-color: var(--primary) !important;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.2);
+        }
+        
+        .template-option:has(input:checked)::after {
+            content: '✓';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: var(--primary);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+        }
+        
+        .template-option {
+            position: relative;
+        }
+
         /* Empty State */
         .empty-state {
             text-align: center;
@@ -8481,6 +8517,38 @@ Local honey and preserves"></textarea>
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label>Admin Email *</label>
                     <input type="email" id="deploy-admin-email" class="form-input" placeholder="admin@example.com" required>
+                </div>
+                
+                <!-- Template Selection -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">🎨 Select Template *</label>
+                    <div id="deploy-template-container" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        <!-- Light Template -->
+                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
+                            <input type="radio" name="deploy-template" value="developer-light" checked style="display: none;">
+                            <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); padding: 2rem; text-align: center; border-bottom: 1px solid var(--border);">
+                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">☀️</div>
+                                <div style="width: 60px; height: 40px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; margin: 0 auto;"></div>
+                            </div>
+                            <div style="padding: 1rem; background: white;">
+                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Developer Light</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Clean, bright white backgrounds</div>
+                            </div>
+                        </label>
+                        
+                        <!-- Dark Template -->
+                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
+                            <input type="radio" name="deploy-template" value="developer-dark" style="display: none;">
+                            <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 2rem; text-align: center; border-bottom: 1px solid #334155;">
+                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🌙</div>
+                                <div style="width: 60px; height: 40px; background: #0f172a; border: 1px solid #334155; border-radius: 4px; margin: 0 auto;"></div>
+                            </div>
+                            <div style="padding: 1rem; background: white;">
+                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Developer Dark</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Elegant dark grey/black theme</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
                 
                 <!-- Room Selection -->
@@ -17130,6 +17198,9 @@ Local honey and preserves"></textarea>
                         </select>
                     ` : '';
                     
+                    // Template badge
+                    const templateLabel = site.template === 'developer-dark' ? '🌙 Dark' : '☀️ Light';
+                    
                     html += `
                         <div class="card" style="padding: 1rem; border-left: 4px solid ${statusColor};">
                             <div style="display: flex; justify-content: space-between; align-items: start; flex-wrap: wrap; gap: 1rem;">
@@ -17138,6 +17209,7 @@ Local honey and preserves"></textarea>
                                     <p style="margin: 0; color: var(--text-secondary); font-size: 0.9rem;">
                                         ${site.account_name || 'Unknown Account'}
                                         ${roomCount > 0 ? `<span style="color: #6366f1;"> • ${roomCount} rooms</span>` : ''}
+                                        <span style="color: #94a3b8;"> • ${templateLabel}</span>
                                     </p>
                                     <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
                                         <button onclick="editWebsite(${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-color: #6366f1;">✏️ Edit</button>
@@ -17443,6 +17515,7 @@ Local honey and preserves"></textarea>
             // Get template options
             const useTheme = document.getElementById('deploy-use-theme').checked;
             const usePlugin = document.getElementById('deploy-use-plugin').checked;
+            const selectedTemplate = document.querySelector('input[name="deploy-template"]:checked')?.value || 'developer-light';
             
             try {
                 const response = await fetch('/api/deploy/create', {
@@ -17457,7 +17530,8 @@ Local honey and preserves"></textarea>
                         admin_email: adminEmail,
                         account_id: selectedAccountId,
                         use_theme: useTheme,
-                        use_plugin: usePlugin
+                        use_plugin: usePlugin,
+                        template: selectedTemplate
                     })
                 });
                 
