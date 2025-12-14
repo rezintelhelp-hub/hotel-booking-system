@@ -21720,17 +21720,16 @@ app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
       return res.json({ success: false, error: 'Website has no site URL' });
     }
     
-    // Collect settings to sync
-    const allSettings = {};
-    websiteResult.rows.forEach(row => {
-      if (row.section && row.settings) {
-        if (!sections || sections.includes(row.section)) {
-          if (typeof row.settings === 'object') {
-            Object.assign(allSettings, row.settings);
-          }
-        }
-      }
-    });
+    // Check if we have website-specific settings, otherwise get account-based settings
+    let settingsRows = websiteResult.rows.filter(r => r.section && r.settings);
+    
+    if (settingsRows.length === 0 && website.owner_id) {
+      console.log('No website-specific settings, fetching account-based settings...');
+      const accountSettings = await pool.query(`
+        SELECT section, settings FROM website_settings WHERE account_id = $1
+      `, [website.owner_id]);
+      settingsRows = accountSettings.rows;
+    }
     
     // Get WordPress API settings
     const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
@@ -21740,36 +21739,62 @@ app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
       return res.json({ success: false, error: 'WordPress API not configured' });
     }
     
-    // Push to WordPress
-    const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        action: 'sync_theme_mods',
-        site_url: website.site_url,
-        theme_mods: allSettings
-      })
-    });
+    // Push to WordPress using the working format
+    // Send each section separately like the old method
+    let syncSuccess = true;
+    let syncError = null;
+    let sectionsSynced = [];
     
-    const wpData = await wpResponse.json();
+    for (const row of settingsRows) {
+      if (row.section && row.settings) {
+        if (!sections || sections.includes(row.section)) {
+          try {
+            const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify({
+                action: 'update_settings',
+                account_id: website.owner_id,
+                section: row.section,
+                settings: row.settings,
+                site_url: website.site_url
+              })
+            });
+            
+            const wpData = await wpResponse.json();
+            if (wpData.success) {
+              sectionsSynced.push(row.section);
+              console.log(`Synced section ${row.section} to WordPress`);
+            } else {
+              console.log(`Sync failed for section ${row.section}:`, wpData.error);
+              syncSuccess = false;
+              syncError = wpData.error;
+            }
+          } catch (e) {
+            console.error(`Sync error for section ${row.section}:`, e);
+            syncSuccess = false;
+            syncError = e.message;
+          }
+        }
+      }
+    }
     
     // Log the sync
     await pool.query(`
-      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, error_message, source_data)
-      VALUES ($1, 'push', $2, $3, $4, $5)
+      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, error_message)
+      VALUES ($1, 'push', $2, $3, $4)
     `, [
       website.id, 
-      JSON.stringify(sections || Object.keys(allSettings)),
-      wpData.success ? 'success' : 'failed',
-      wpData.error || null,
-      JSON.stringify(allSettings)
+      JSON.stringify(sectionsSynced),
+      syncSuccess ? 'success' : 'failed',
+      syncError
     ]);
     
     // Update website sync timestamp
-    if (wpData.success) {
+    if (syncSuccess) {
       await pool.query(`
         UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'gas'
         WHERE id = $1
@@ -21777,9 +21802,9 @@ app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
     }
     
     res.json({ 
-      success: wpData.success, 
-      message: wpData.success ? 'Settings synced to WordPress' : 'Sync failed',
-      error: wpData.error
+      success: syncSuccess, 
+      message: syncSuccess ? 'Settings synced to WordPress' : 'Sync failed',
+      error: syncError
     });
   } catch (error) {
     console.error('Sync to WordPress error:', error);
