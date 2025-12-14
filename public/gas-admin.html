@@ -11262,6 +11262,11 @@ Local honey and preserves"></textarea>
             selectedWebsiteId = websiteId;
             selectedWebsiteData = websiteData;
             
+            // Also set the account ID from the website data
+            if (websiteData && websiteData.account_id) {
+                selectedAccountId = websiteData.account_id;
+            }
+            
             // Update all website selector dropdowns
             document.querySelectorAll('.website-selector-dropdown').forEach(select => {
                 select.value = websiteId || '';
@@ -11346,21 +11351,14 @@ Local honey and preserves"></textarea>
         }
         
         function editWebsite(websiteId) {
-            // Find the website data
+            // Find the website data from availableWebsites (populated from deployed sites)
             const website = availableWebsites.find(w => w.id == websiteId);
-            if (!website) {
-                // Try to fetch it
-                fetch(`/api/websites/${websiteId}`)
-                    .then(r => r.json())
-                    .then(data => {
-                        if (data.success && data.website) {
-                            selectWebsite(websiteId, data.website);
-                            navClick(null, 'wb-header');
-                        }
-                    });
-            } else {
+            if (website) {
                 selectWebsite(websiteId, website);
                 navClick(null, 'wb-header');
+            } else {
+                // If not in list, show error
+                showNotification('Website not found. Try refreshing the page.', 'error');
             }
         }
         let selectedAccountName = null;
@@ -11594,13 +11592,26 @@ Local honey and preserves"></textarea>
         function navClick(el, viewName) {
             // Update active state
             document.querySelectorAll('.nav-item').forEach(i => i.classList.remove('active'));
-            el.classList.add('active');
-            
-            // Expand the section if it's collapsed
-            const section = el.closest('.nav-section');
-            if (section && section.classList.contains('collapsed')) {
-                section.classList.remove('collapsed');
-                saveNavState();
+            if (el) {
+                el.classList.add('active');
+                
+                // Expand the section if it's collapsed
+                const section = el.closest('.nav-section');
+                if (section && section.classList.contains('collapsed')) {
+                    section.classList.remove('collapsed');
+                    saveNavState();
+                }
+            } else {
+                // Find and activate the nav item for this view
+                const navItem = document.querySelector(`.nav-item[data-view="${viewName}"]`);
+                if (navItem) {
+                    navItem.classList.add('active');
+                    const section = navItem.closest('.nav-section');
+                    if (section && section.classList.contains('collapsed')) {
+                        section.classList.remove('collapsed');
+                        saveNavState();
+                    }
+                }
             }
             
             // Show the view
@@ -11760,8 +11771,8 @@ Local honey and preserves"></textarea>
                 const accountId = selectedAccountId;
                 const websiteId = selectedWebsiteId;
                 
-                if (!websiteId) {
-                    alert('Please select a website to edit first');
+                if (!accountId && !websiteId) {
+                    alert('Please select an account or website to edit first');
                     return;
                 }
                 
@@ -11784,29 +11795,55 @@ Local honey and preserves"></textarea>
                     }
                 });
                 
-                console.log('Saving settings for website', websiteId, ':', section, JSON.stringify(settings, null, 2));
+                console.log('Saving settings:', section, settings);
                 
-                // Use new per-website endpoint
-                const response = await fetch(`/api/websites/${websiteId}/builder/${section}`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ settings })
-                });
+                let saved = false;
                 
-                const data = await response.json();
-                
-                if (data.success) {
-                    // Also sync to WordPress if site has a URL
-                    if (selectedWebsiteData?.site_url) {
-                        await fetch(`/api/websites/${websiteId}/sync-to-wordpress`, {
+                // Try per-website endpoint first if we have a websiteId
+                if (websiteId) {
+                    try {
+                        const response = await fetch(`/api/websites/${websiteId}/builder/${section}`, {
                             method: 'POST',
                             headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ sections: [section] })
+                            body: JSON.stringify({ settings })
                         });
+                        const data = await response.json();
+                        if (data.success) {
+                            saved = true;
+                            console.log('Saved to per-website endpoint');
+                        }
+                    } catch (e) {
+                        console.log('Per-website save failed, trying account-based...');
                     }
+                }
+                
+                // Also save to account-based endpoint (for compatibility)
+                if (accountId) {
+                    try {
+                        const response = await fetch(`/api/admin/website-builder/${section}`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ account_id: accountId, settings })
+                        });
+                        const data = await response.json();
+                        if (data.success) {
+                            saved = true;
+                            console.log('Saved to account-based endpoint');
+                            
+                            // Also push to WordPress if site exists
+                            if (selectedWebsiteData?.site_url) {
+                                await pushToWordPress(section, settings);
+                            }
+                        }
+                    } catch (e) {
+                        console.log('Account-based save failed:', e);
+                    }
+                }
+                
+                if (saved) {
                     showNotification('✅ Saved and synced to website!', 'success');
                 } else {
-                    showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
+                    showNotification('Error: Failed to save settings', 'error');
                 }
             } catch (error) {
                 console.error('Error saving website section:', error);
@@ -11816,83 +11853,93 @@ Local honey and preserves"></textarea>
         
         async function loadWebsiteSection(section) {
             const websiteId = selectedWebsiteId;
+            const accountId = selectedAccountId;
             
             // Update website selectors when loading a section
             updateWebsiteSelectors();
             
-            if (!websiteId) {
-                // Clear the form if no website selected
-                const prefix = `wb-${section}-`;
-                document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
-                    if (el.type === 'checkbox') {
-                        el.checked = false;
-                    } else if (el.type !== 'file') {
-                        el.value = '';
-                    }
-                });
+            // Try to load from per-website endpoint first, fallback to account-based
+            let data = null;
+            
+            if (websiteId) {
+                try {
+                    const response = await fetch(`/api/websites/${websiteId}/builder/${section}`);
+                    data = await response.json();
+                    console.log(`Loaded section ${section} for website ${websiteId}:`, data);
+                } catch (error) {
+                    console.log(`Per-website load failed for ${section}, trying account-based...`);
+                }
+            }
+            
+            // Fallback to account-based if no website data
+            if ((!data || !data.settings) && accountId) {
+                try {
+                    const response = await fetch(`/api/admin/website-builder/${section}?account_id=${accountId}`);
+                    data = await response.json();
+                    console.log(`Loaded section ${section} for account ${accountId}:`, data);
+                } catch (error) {
+                    console.error(`Account-based load also failed for ${section}:`, error);
+                }
+            }
+            
+            if (!data || !data.success) {
+                console.log(`No settings found for section ${section}`);
                 return;
             }
             
-            try {
-                const response = await fetch(`/api/websites/${websiteId}/builder/${section}`);
-                const data = await response.json();
-                
-                if (data.success && data.settings) {
-                    const prefix = `wb-${section}-`;
-                    Object.entries(data.settings).forEach(([key, value]) => {
-                        const el = document.getElementById(`${prefix}${key}`);
-                        if (el) {
-                            if (el.type === 'checkbox') {
-                                el.checked = value;
-                            } else if (el.type !== 'file') {
-                                el.value = value;
-                            }
-                        }
-                    });
-                    
-                    // Update image preview if image-url exists
-                    if (data.settings['image-url']) {
-                        const preview = document.getElementById(`wb-${section}-image-preview`);
-                        if (preview) {
-                            preview.style.backgroundImage = `url(${data.settings['image-url']})`;
-                            preview.style.backgroundSize = 'cover';
-                            preview.style.backgroundPosition = 'center';
-                            preview.innerHTML = '';
+            if (data.settings) {
+                const prefix = `wb-${section}-`;
+                Object.entries(data.settings).forEach(([key, value]) => {
+                    const el = document.getElementById(`${prefix}${key}`);
+                    if (el) {
+                        if (el.type === 'checkbox') {
+                            el.checked = value;
+                        } else if (el.type !== 'file') {
+                            el.value = value;
                         }
                     }
-                    
-                    // Sync color pickers with their text inputs
-                    Object.entries(data.settings).forEach(([key, value]) => {
-                        if (value && typeof value === 'string') {
-                            // Check if it looks like a hex color (with or without #)
-                            const hexMatch = value.match(/^#?([0-9A-Fa-f]{6})$/);
-                            if (hexMatch) {
-                                const hexColor = '#' + hexMatch[1];
-                                const picker = document.getElementById(`${prefix}${key}-picker`);
-                                const textInput = document.getElementById(`${prefix}${key}`);
-                                if (picker) {
-                                    picker.value = hexColor;
-                                }
-                                // Also ensure text input has # prefix
-                                if (textInput && !textInput.value.startsWith('#')) {
-                                    textInput.value = hexColor;
-                                }
+                });
+                
+                // Update image preview if image-url exists
+                if (data.settings['image-url']) {
+                    const preview = document.getElementById(`wb-${section}-image-preview`);
+                    if (preview) {
+                        preview.style.backgroundImage = `url(${data.settings['image-url']})`;
+                        preview.style.backgroundSize = 'cover';
+                        preview.style.backgroundPosition = 'center';
+                        preview.innerHTML = '';
+                    }
+                }
+                
+                // Sync color pickers with their text inputs
+                Object.entries(data.settings).forEach(([key, value]) => {
+                    if (value && typeof value === 'string') {
+                        // Check if it looks like a hex color (with or without #)
+                        const hexMatch = value.match(/^#?([0-9A-Fa-f]{6})$/);
+                        if (hexMatch) {
+                            const hexColor = '#' + hexMatch[1];
+                            const picker = document.getElementById(`${prefix}${key}-picker`);
+                            const textInput = document.getElementById(`${prefix}${key}`);
+                            if (picker) {
+                                picker.value = hexColor;
+                            }
+                            // Also ensure text input has # prefix
+                            if (textInput && !textInput.value.startsWith('#')) {
+                                textInput.value = hexColor;
                             }
                         }
-                    });
-                    
-                    // Update range slider value displays
-                    const rangeKeys = ['search-opacity', 'search-radius', 'search-padding', 'search-max-width', 'search-scale',
-                                       'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size'];
-                    rangeKeys.forEach(key => {
-                        const valueEl = document.getElementById(`wb-${section}-${key}-value`);
-                        if (valueEl && data.settings[key]) {
-                            valueEl.textContent = data.settings[key];
-                        }
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading website section:', error);
+                    }
+                });
+                
+                // Update range slider value displays
+                const rangeKeys = ['search-opacity', 'search-radius', 'search-padding', 'search-max-width', 'search-scale',
+                                   'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size'];
+                rangeKeys.forEach(key => {
+                    const valueEl = document.getElementById(`wb-${section}-${key}-value`);
+                    if (valueEl && data.settings[key]) {
+                        valueEl.textContent = data.settings[key];
+                    }
+                });
             }
         }
         
