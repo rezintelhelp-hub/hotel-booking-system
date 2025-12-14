@@ -5530,6 +5530,76 @@ app.get('/api/setup-website-builder', async (req, res) => {
     ]);
     console.log('  ✓ Developer theme schema added to registry');
     
+    // 8. Add Light and Dark template variations
+    const lightDefaults = {
+      header_bg_color: '#ffffff',
+      header_text_color: '#1e293b',
+      header_logo_color: '#0f172a',
+      header_cta_bg: '#2563eb',
+      primary_color: '#2563eb',
+      secondary_color: '#0f172a',
+      bg_color: '#ffffff',
+      bg_alt_color: '#f8fafc',
+      text_color: '#1e293b',
+      footer_bg: '#0f172a',
+      footer_text: '#ffffff'
+    };
+    
+    const darkDefaults = {
+      header_bg_color: '#0f172a',
+      header_text_color: '#e2e8f0',
+      header_logo_color: '#f8fafc',
+      header_cta_bg: '#6366f1',
+      primary_color: '#6366f1',
+      secondary_color: '#f8fafc',
+      bg_color: '#0f172a',
+      bg_alt_color: '#1e293b',
+      text_color: '#e2e8f0',
+      footer_bg: '#020617',
+      footer_text: '#e2e8f0'
+    };
+    
+    // Insert Light template
+    await pool.query(`
+      INSERT INTO website_templates (name, slug, description, preview_image, template_type, tier, is_active, features)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (slug) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        features = EXCLUDED.features,
+        is_active = EXCLUDED.is_active
+    `, [
+      'Developer Light',
+      'developer-light',
+      'Clean, bright theme with white backgrounds. Professional and modern design perfect for luxury properties.',
+      '/images/templates/developer-light-preview.jpg',
+      'theme',
+      'starter',
+      true,
+      JSON.stringify({ defaults: lightDefaults, wp_theme: 'developer', variant: 'light' })
+    ]);
+    
+    // Insert Dark template
+    await pool.query(`
+      INSERT INTO website_templates (name, slug, description, preview_image, template_type, tier, is_active, features)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (slug) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        features = EXCLUDED.features,
+        is_active = EXCLUDED.is_active
+    `, [
+      'Developer Dark',
+      'developer-dark',
+      'Elegant dark theme with grey/black backgrounds. Sophisticated look ideal for boutique and premium properties.',
+      '/images/templates/developer-dark-preview.jpg',
+      'theme',
+      'starter',
+      true,
+      JSON.stringify({ defaults: darkDefaults, wp_theme: 'developer-dark', variant: 'dark' })
+    ]);
+    console.log('  ✓ Light and Dark template variations added');
+    
     console.log('✅ Website Builder schema setup complete');
     res.json({ 
       success: true, 
@@ -5540,6 +5610,130 @@ app.get('/api/setup-website-builder', async (req, res) => {
     
   } catch (error) {
     console.error('Setup website builder error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get available website templates
+app.get('/api/templates', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, name, slug, description, preview_image, template_type, tier, is_active, features
+      FROM website_templates
+      WHERE is_active = true
+      ORDER BY name
+    `);
+    
+    // Parse features JSON for each template
+    const templates = result.rows.map(t => ({
+      ...t,
+      features: typeof t.features === 'string' ? JSON.parse(t.features) : t.features,
+      defaults: t.features?.defaults || {}
+    }));
+    
+    res.json({ success: true, templates });
+  } catch (error) {
+    console.error('Get templates error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single template with full details
+app.get('/api/templates/:slug', async (req, res) => {
+  try {
+    const { slug } = req.params;
+    const result = await pool.query(`
+      SELECT * FROM website_templates WHERE slug = $1
+    `, [slug]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Template not found' });
+    }
+    
+    const template = result.rows[0];
+    template.features = typeof template.features === 'string' ? JSON.parse(template.features) : template.features;
+    
+    res.json({ success: true, template });
+  } catch (error) {
+    console.error('Get template error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Seed default templates (run once or to reset)
+app.post('/api/templates/seed', async (req, res) => {
+  try {
+    const lightDefaults = {
+      header_bg_color: '#ffffff',
+      header_text_color: '#1e293b',
+      header_logo_color: '#0f172a',
+      header_cta_bg: '#2563eb',
+      primary_color: '#2563eb',
+      secondary_color: '#0f172a',
+      bg_color: '#ffffff',
+      bg_alt_color: '#f8fafc',
+      text_color: '#1e293b',
+      footer_bg: '#0f172a',
+      footer_text: '#ffffff'
+    };
+    
+    const darkDefaults = {
+      header_bg_color: '#0f172a',
+      header_text_color: '#e2e8f0',
+      header_logo_color: '#f8fafc',
+      header_cta_bg: '#6366f1',
+      primary_color: '#6366f1',
+      secondary_color: '#f8fafc',
+      bg_color: '#0f172a',
+      bg_alt_color: '#1e293b',
+      text_color: '#e2e8f0',
+      footer_bg: '#020617',
+      footer_text: '#e2e8f0'
+    };
+    
+    // Upsert Light template
+    await pool.query(`
+      INSERT INTO website_templates (name, slug, description, preview_image, template_type, tier, is_active, features)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (slug) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        features = EXCLUDED.features,
+        is_active = EXCLUDED.is_active
+    `, [
+      'Developer Light',
+      'developer-light',
+      'Clean, bright theme with white backgrounds. Professional and modern design perfect for luxury properties.',
+      '/images/templates/developer-light-preview.jpg',
+      'theme',
+      'starter',
+      true,
+      JSON.stringify({ defaults: lightDefaults, wp_theme: 'developer', variant: 'light' })
+    ]);
+    
+    // Upsert Dark template
+    await pool.query(`
+      INSERT INTO website_templates (name, slug, description, preview_image, template_type, tier, is_active, features)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (slug) DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        features = EXCLUDED.features,
+        is_active = EXCLUDED.is_active
+    `, [
+      'Developer Dark',
+      'developer-dark',
+      'Elegant dark theme with grey/black backgrounds. Sophisticated look ideal for boutique and premium properties.',
+      '/images/templates/developer-dark-preview.jpg',
+      'theme',
+      'starter',
+      true,
+      JSON.stringify({ defaults: darkDefaults, wp_theme: 'developer-dark', variant: 'dark' })
+    ]);
+    
+    res.json({ success: true, message: 'Templates seeded successfully' });
+  } catch (error) {
+    console.error('Seed templates error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -6337,6 +6531,7 @@ app.get('/api/setup-deploy', async (req, res) => {
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS room_ids JSONB DEFAULT '[]'`);
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_name VARCHAR(255)`);
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255)`);
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS template VARCHAR(50) DEFAULT 'developer-light'`);
     
     // Add website_url column to bookable_units if it doesn't exist
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_url VARCHAR(255)`);
@@ -6382,7 +6577,7 @@ app.get('/api/deploy/sites', async (req, res) => {
 // Deploy a new site (room-level selection)
 app.post('/api/deploy/create', async (req, res) => {
   try {
-    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin } = req.body;
+    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin, template } = req.body;
     
     // Validate required fields
     if (!site_name || !slug || !admin_email) {
@@ -6392,6 +6587,10 @@ app.post('/api/deploy/create', async (req, res) => {
     if (!room_ids || room_ids.length === 0) {
       return res.json({ success: false, error: 'At least one room must be selected' });
     }
+    
+    // Determine theme based on template
+    const selectedTemplate = template || 'developer-light';
+    const wpTheme = selectedTemplate === 'developer-dark' ? 'developer-dark' : 'developer';
     
     // Get unique property IDs from selected rooms
     const uniquePropertyIds = property_ids || [...new Set(rooms.map(r => r.property_id))];
@@ -6440,18 +6639,20 @@ app.post('/api/deploy/create', async (req, res) => {
         account_id,
         account_code: accountCode,
         use_theme: use_theme !== false,
-        use_plugin: use_plugin !== false
+        use_plugin: use_plugin !== false,
+        theme: wpTheme,
+        template: selectedTemplate
       })
     });
     
     const data = await response.json();
     
     if (data.success) {
-      // Store deployment record
+      // Store deployment record with template
       await pool.query(`
         INSERT INTO deployed_sites 
-        (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, deployed_at)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, NOW())
+        (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, deployed_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
       `, [
         uniquePropertyIds[0],
         JSON.stringify(uniquePropertyIds),
@@ -6462,9 +6663,10 @@ app.post('/api/deploy/create', async (req, res) => {
         data.site.admin_url,
         data.site.slug,
         site_name,
-        'active',
+        'deployed',  // Start as 'deployed' with new status system
         data.credentials.username,
-        data.credentials.password || null
+        data.credentials.password || null,
+        selectedTemplate
       ]);
       
       // Update rooms with site URL
