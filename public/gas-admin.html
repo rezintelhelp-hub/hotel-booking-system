@@ -11998,27 +11998,37 @@ Local honey and preserves"></textarea>
         
         async function pushToWordPress(section, settings) {
             const accountId = selectedAccountId;
+            const siteUrl = selectedWebsiteData?.site_url;
+            
+            console.log('pushToWordPress called:', { accountId, section, siteUrl, settings });
+            
+            if (!siteUrl) {
+                console.log('No site_url available, skipping push');
+                return;
+            }
+            
             try {
-                // Get the account's website
-                const siteResponse = await fetch(`/api/account/${accountId}/website`);
-                const siteData = await siteResponse.json();
+                // Push settings to WordPress via our API
+                console.log('Pushing to WordPress via /api/admin/push-to-wordpress...');
+                const response = await fetch('/api/admin/push-to-wordpress', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        section,
+                        settings,
+                        site_url: siteUrl
+                    })
+                });
                 
-                if (siteData.success && siteData.data?.site_url) {
-                    // Push settings to WordPress
-                    const wpApiUrl = siteData.data.site_url.replace(/\/$/, '') + '/wp-json/gas/v1/settings';
-                    await fetch('/api/admin/push-to-wordpress', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            account_id: accountId,
-                            section,
-                            settings,
-                            site_url: siteData.data.site_url
-                        })
-                    });
+                const result = await response.json();
+                console.log('Push to WordPress result:', result);
+                
+                if (!result.success) {
+                    console.error('Push to WordPress failed:', result.error);
                 }
             } catch (error) {
-                console.log('Could not push to WordPress:', error.message);
+                console.error('Could not push to WordPress:', error);
             }
         }
         
