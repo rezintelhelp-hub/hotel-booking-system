@@ -5250,6 +5250,266 @@ app.get('/api/setup-websites', async (req, res) => {
   }
 });
 
+// Enhanced Website Builder Schema Setup
+app.get('/api/setup-website-builder', async (req, res) => {
+  try {
+    console.log('🔧 Setting up enhanced Website Builder schema...');
+    
+    // 1. Enhance websites table with setup tracking
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS setup_complete BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS setup_progress JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS theme_mode VARCHAR(20) DEFAULT 'developer'`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE websites ADD COLUMN IF NOT EXISTS sync_source VARCHAR(20)`);
+    console.log('  ✓ websites table enhanced');
+    
+    // 2. Enhance website_templates with schema support
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS code VARCHAR(50)`);
+    await pool.query(`UPDATE website_templates SET code = slug WHERE code IS NULL`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS schema JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS category VARCHAR(50)`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS sections JSONB DEFAULT '{}'`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS thumbnail_url VARCHAR(500)`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS is_premium BOOLEAN DEFAULT false`);
+    await pool.query(`ALTER TABLE website_templates ADD COLUMN IF NOT EXISTS min_tier VARCHAR(20) DEFAULT 'starter'`);
+    console.log('  ✓ website_templates table enhanced');
+    
+    // 3. Enhance website_settings to support per-website (not just per-account)
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS website_id INTEGER REFERENCES websites(id) ON DELETE CASCADE`);
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS last_synced_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS sync_source VARCHAR(20)`);
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS variant VARCHAR(50)`);
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS is_enabled BOOLEAN DEFAULT true`);
+    await pool.query(`ALTER TABLE website_settings ADD COLUMN IF NOT EXISTS display_order INTEGER DEFAULT 0`);
+    
+    // Create index for website_id lookups
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_settings_website ON website_settings(website_id)`);
+    
+    // Create unique index for website+section (allows null website_id for legacy)
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS idx_website_settings_unique 
+      ON website_settings(website_id, section) WHERE website_id IS NOT NULL`);
+    console.log('  ✓ website_settings table enhanced');
+    
+    // 4. Enhance website_pages for sub-pages and better content management
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS parent_id INTEGER REFERENCES website_pages(id) ON DELETE SET NULL`);
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS template VARCHAR(50)`);
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS seo_title VARCHAR(255)`);
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS seo_description TEXT`);
+    await pool.query(`ALTER TABLE website_pages ADD COLUMN IF NOT EXISTS featured_image VARCHAR(500)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_pages_parent ON website_pages(parent_id)`);
+    console.log('  ✓ website_pages table enhanced');
+    
+    // 5. Create theme_registry table (separate from website_templates for clarity)
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS theme_registry (
+        id SERIAL PRIMARY KEY,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        name VARCHAR(100) NOT NULL,
+        description TEXT,
+        version VARCHAR(20) DEFAULT '1.0.0',
+        schema JSONB NOT NULL DEFAULT '{}',
+        sections JSONB NOT NULL DEFAULT '{}',
+        color_presets JSONB DEFAULT '[]',
+        font_presets JSONB DEFAULT '[]',
+        thumbnail_url VARCHAR(500),
+        preview_url VARCHAR(500),
+        download_url VARCHAR(500),
+        is_active BOOLEAN DEFAULT true,
+        is_premium BOOLEAN DEFAULT false,
+        min_tier VARCHAR(20) DEFAULT 'starter',
+        sort_order INTEGER DEFAULT 0,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    console.log('  ✓ theme_registry table created');
+    
+    // 6. Create website_sync_log for tracking sync history
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS website_sync_log (
+        id SERIAL PRIMARY KEY,
+        website_id INTEGER REFERENCES websites(id) ON DELETE CASCADE,
+        direction VARCHAR(20) NOT NULL,
+        sections_synced JSONB DEFAULT '[]',
+        status VARCHAR(20) DEFAULT 'success',
+        error_message TEXT,
+        source_data JSONB,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_website_sync_log_website ON website_sync_log(website_id)`);
+    console.log('  ✓ website_sync_log table created');
+    
+    // 7. Insert Developer theme into theme_registry if not exists
+    const developerThemeSchema = {
+      code: 'developer',
+      name: 'GAS Developer Theme',
+      version: '1.0.0',
+      sections: {
+        header: {
+          label: 'Header & Navigation',
+          required: true,
+          order: 1,
+          fields: {
+            developer_logo_text: { type: 'text', label: 'Logo Text', default: 'Your Property' },
+            developer_logo_image: { type: 'image', label: 'Logo Image' },
+            developer_header_bg: { type: 'color', label: 'Background Color', default: '#ffffff' },
+            developer_header_text: { type: 'color', label: 'Text Color', default: '#1e293b' },
+            developer_header_transparent: { type: 'toggle', label: 'Transparent on Homepage', default: true },
+            developer_header_sticky: { type: 'toggle', label: 'Sticky Header', default: true },
+            developer_header_cta_text: { type: 'text', label: 'CTA Button Text', default: 'Book Now' },
+            developer_header_cta_url: { type: 'text', label: 'CTA Button URL', default: '/book-now/' },
+            developer_header_cta_bg: { type: 'color', label: 'CTA Button Color', default: '#2563eb' }
+          }
+        },
+        hero: {
+          label: 'Hero Section',
+          required: true,
+          order: 2,
+          fields: {
+            developer_hero_bg: { type: 'image', label: 'Background Image' },
+            developer_hero_title: { type: 'text', label: 'Title', default: 'Find Your Perfect Vacation Rental' },
+            developer_hero_subtitle: { type: 'textarea', label: 'Subtitle', default: 'Discover stunning vacation rentals with luxury amenities.' },
+            developer_hero_badge: { type: 'text', label: 'Badge Text', default: 'Welcome to Paradise' },
+            developer_hero_opacity: { type: 'range', label: 'Overlay Opacity', min: 0, max: 100, default: 30 },
+            developer_hero_overlay_color: { type: 'color', label: 'Overlay Color', default: '#0f172a' },
+            developer_search_btn_bg: { type: 'color', label: 'Search Button Color', default: '#2563eb' },
+            developer_hero_trust_1: { type: 'text', label: 'Trust Badge 1', default: 'Instant Booking' },
+            developer_hero_trust_2: { type: 'text', label: 'Trust Badge 2', default: 'Best Price Guarantee' },
+            developer_hero_trust_3: { type: 'text', label: 'Trust Badge 3', default: '24/7 Support' }
+          }
+        },
+        intro: {
+          label: 'Introduction',
+          required: false,
+          order: 3,
+          fields: {
+            developer_intro_enabled: { type: 'toggle', label: 'Enable Section', default: true },
+            developer_intro_title: { type: 'text', label: 'Title', default: 'Welcome to Our Property' },
+            developer_intro_text: { type: 'textarea', label: 'Text', default: 'We are delighted to have you here.' },
+            developer_intro_bg: { type: 'color', label: 'Background Color', default: '#ffffff' },
+            developer_intro_btn_text: { type: 'text', label: 'Button Text' },
+            developer_intro_btn_url: { type: 'text', label: 'Button URL' }
+          }
+        },
+        featured: {
+          label: 'Featured Properties',
+          required: true,
+          order: 4,
+          fields: {
+            developer_featured_mode: { type: 'select', label: 'Display Mode', options: ['all', 'featured', 'selected'], default: 'all' },
+            developer_featured_count: { type: 'number', label: 'Number to Show', default: 3 },
+            developer_featured_title: { type: 'text', label: 'Section Title', default: 'Featured Properties' },
+            developer_featured_subtitle: { type: 'textarea', label: 'Section Subtitle' },
+            developer_featured_btn_text: { type: 'text', label: 'Button Text', default: 'View All Properties' },
+            developer_featured_btn_url: { type: 'text', label: 'Button URL', default: '/book-now/' }
+          }
+        },
+        about: {
+          label: 'About Section',
+          required: false,
+          order: 5,
+          fields: {
+            developer_about_image: { type: 'image', label: 'Image' },
+            developer_about_title: { type: 'text', label: 'Title', default: 'Experience Luxury & Comfort' },
+            developer_about_text: { type: 'textarea', label: 'Description' },
+            developer_about_layout: { type: 'select', label: 'Layout', options: ['image-left', 'image-right'], default: 'image-left' },
+            developer_about_feature_1: { type: 'text', label: 'Feature 1', default: 'Spacious Bedrooms' },
+            developer_about_feature_2: { type: 'text', label: 'Feature 2', default: 'Luxury Bathrooms' },
+            developer_about_feature_3: { type: 'text', label: 'Feature 3', default: 'Prime Locations' },
+            developer_about_feature_4: { type: 'text', label: 'Feature 4', default: 'Full Amenities' },
+            developer_about_feature_5: { type: 'text', label: 'Feature 5', default: 'Entertainment Areas' },
+            developer_about_feature_6: { type: 'text', label: 'Feature 6', default: 'Private Parking' }
+          }
+        },
+        reviews: {
+          label: 'Reviews Section',
+          required: false,
+          order: 6,
+          fields: {
+            developer_reviews_enabled: { type: 'toggle', label: 'Enable Section', default: false },
+            developer_reviews_title: { type: 'text', label: 'Title', default: 'What Our Guests Say' },
+            developer_reviews_subtitle: { type: 'text', label: 'Subtitle' },
+            developer_reviews_bg: { type: 'color', label: 'Background Color', default: '#0f172a' },
+            developer_reviews_style: { type: 'select', label: 'Display Style', options: ['slider', 'grid', 'badges', 'summary'], default: 'slider' }
+          }
+        },
+        cta: {
+          label: 'Call to Action',
+          required: false,
+          order: 7,
+          fields: {
+            developer_cta_enabled: { type: 'toggle', label: 'Enable Section', default: true },
+            developer_cta_title: { type: 'text', label: 'Title', default: 'Ready to Book Your Stay?' },
+            developer_cta_text: { type: 'textarea', label: 'Text' },
+            developer_cta_background: { type: 'color', label: 'Background Color', default: '#2563eb' },
+            developer_cta_btn_text: { type: 'text', label: 'Button Text', default: 'Browse Properties' },
+            developer_cta_btn_url: { type: 'text', label: 'Button URL', default: '/book-now/' }
+          }
+        },
+        footer: {
+          label: 'Footer',
+          required: true,
+          order: 8,
+          fields: {
+            developer_footer_bg: { type: 'color', label: 'Background Color', default: '#0f172a' },
+            developer_footer_text: { type: 'color', label: 'Text Color', default: '#e2e8f0' },
+            developer_footer_tagline: { type: 'text', label: 'Tagline', default: 'Your perfect vacation awaits.' },
+            developer_footer_copyright: { type: 'text', label: 'Copyright Text' },
+            developer_footer_email: { type: 'text', label: 'Contact Email' },
+            developer_footer_phone: { type: 'text', label: 'Contact Phone' },
+            developer_footer_address: { type: 'textarea', label: 'Address' }
+          }
+        },
+        colors: {
+          label: 'Colors & Fonts',
+          required: false,
+          order: 9,
+          fields: {
+            developer_primary_color: { type: 'color', label: 'Primary Color', default: '#2563eb' },
+            developer_secondary_color: { type: 'color', label: 'Secondary Color', default: '#0f172a' },
+            developer_accent_color: { type: 'color', label: 'Accent Color', default: '#f59e0b' },
+            developer_body_font: { type: 'select', label: 'Body Font', options: ['Inter', 'Open Sans', 'Roboto', 'Lato', 'Poppins'], default: 'Inter' },
+            developer_heading_font: { type: 'select', label: 'Heading Font', options: ['Inter', 'Playfair Display', 'Montserrat', 'Roboto Slab'], default: 'Inter' }
+          }
+        }
+      }
+    };
+    
+    await pool.query(`
+      INSERT INTO theme_registry (code, name, description, version, schema, sections, is_active, min_tier)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      ON CONFLICT (code) DO UPDATE SET
+        name = EXCLUDED.name,
+        schema = EXCLUDED.schema,
+        sections = EXCLUDED.sections,
+        updated_at = NOW()
+    `, [
+      'developer',
+      'GAS Developer Theme',
+      'Clean, modern theme for vacation rentals with full customization options',
+      '1.0.0',
+      JSON.stringify(developerThemeSchema),
+      JSON.stringify(developerThemeSchema.sections),
+      true,
+      'starter'
+    ]);
+    console.log('  ✓ Developer theme schema added to registry');
+    
+    console.log('✅ Website Builder schema setup complete');
+    res.json({ 
+      success: true, 
+      message: 'Website Builder schema setup complete',
+      tables_enhanced: ['websites', 'website_templates', 'website_settings', 'website_pages'],
+      tables_created: ['theme_registry', 'website_sync_log']
+    });
+    
+  } catch (error) {
+    console.error('Setup website builder error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/setup-billing', async (req, res) => {
   try {
     // Subscription plans (editable by admin)
@@ -21039,6 +21299,563 @@ app.get('/api/admin/website-builder', async (req, res) => {
     res.json({ success: false, error: error.message });
   }
 });
+
+// ============================================
+// PER-WEBSITE BUILDER ENDPOINTS (New System)
+// ============================================
+
+// Get theme registry (all available themes)
+app.get('/api/themes', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT code, name, description, version, sections, thumbnail_url, 
+             preview_url, is_premium, min_tier, sort_order
+      FROM theme_registry
+      WHERE is_active = true
+      ORDER BY sort_order, name
+    `);
+    res.json({ success: true, themes: result.rows });
+  } catch (error) {
+    console.error('Get themes error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get specific theme schema
+app.get('/api/themes/:code', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM theme_registry WHERE code = $1
+    `, [req.params.code]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Theme not found' });
+    }
+    
+    res.json({ success: true, theme: result.rows[0] });
+  } catch (error) {
+    console.error('Get theme error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all settings for a specific website
+app.get('/api/websites/:websiteId/builder', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    // Get website details
+    const websiteResult = await pool.query(`
+      SELECT w.*, tr.schema as theme_schema, tr.sections as theme_sections
+      FROM websites w
+      LEFT JOIN theme_registry tr ON w.template_code = tr.code
+      WHERE w.id = $1 OR w.public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    // Get all settings for this website
+    const settingsResult = await pool.query(`
+      SELECT section, settings, variant, is_enabled, display_order, last_synced_at, sync_source
+      FROM website_settings
+      WHERE website_id = $1
+      ORDER BY display_order
+    `, [website.id]);
+    
+    const settings = {};
+    settingsResult.rows.forEach(row => {
+      settings[row.section] = {
+        settings: row.settings,
+        variant: row.variant,
+        is_enabled: row.is_enabled,
+        display_order: row.display_order,
+        last_synced_at: row.last_synced_at,
+        sync_source: row.sync_source
+      };
+    });
+    
+    res.json({ 
+      success: true, 
+      website: {
+        id: website.id,
+        public_id: website.public_id,
+        name: website.name,
+        template_code: website.template_code,
+        theme_mode: website.theme_mode,
+        status: website.status,
+        setup_complete: website.setup_complete,
+        setup_progress: website.setup_progress,
+        site_url: website.site_url,
+        last_synced_at: website.last_synced_at
+      },
+      theme_schema: website.theme_schema,
+      theme_sections: website.theme_sections,
+      settings 
+    });
+  } catch (error) {
+    console.error('Get website builder error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get specific section settings for a website
+app.get('/api/websites/:websiteId/builder/:section', async (req, res) => {
+  try {
+    const { websiteId, section } = req.params;
+    
+    // Get website id if public_id provided
+    const websiteResult = await pool.query(`
+      SELECT id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const dbWebsiteId = websiteResult.rows[0].id;
+    
+    const result = await pool.query(`
+      SELECT settings, variant, is_enabled, display_order
+      FROM website_settings
+      WHERE website_id = $1 AND section = $2
+    `, [dbWebsiteId, section]);
+    
+    if (result.rows.length > 0) {
+      res.json({ success: true, ...result.rows[0] });
+    } else {
+      res.json({ success: true, settings: null, is_enabled: true });
+    }
+  } catch (error) {
+    console.error('Get website section error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save section settings for a specific website
+app.post('/api/websites/:websiteId/builder/:section', async (req, res) => {
+  try {
+    const { websiteId, section } = req.params;
+    const { settings, variant, is_enabled, display_order } = req.body;
+    
+    // Get website id if public_id provided
+    const websiteResult = await pool.query(`
+      SELECT id, owner_id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const dbWebsiteId = websiteResult.rows[0].id;
+    const accountId = websiteResult.rows[0].owner_id;
+    
+    // Upsert the settings
+    await pool.query(`
+      INSERT INTO website_settings (website_id, account_id, section, settings, variant, is_enabled, display_order, sync_source, updated_at)
+      VALUES ($1, $2, $3, $4, $5, COALESCE($6, true), COALESCE($7, 0), 'gas', CURRENT_TIMESTAMP)
+      ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
+      DO UPDATE SET 
+        settings = $4, 
+        variant = COALESCE($5, website_settings.variant),
+        is_enabled = COALESCE($6, website_settings.is_enabled),
+        display_order = COALESCE($7, website_settings.display_order),
+        sync_source = 'gas',
+        updated_at = CURRENT_TIMESTAMP
+    `, [dbWebsiteId, accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
+    
+    // Update setup progress
+    await pool.query(`
+      UPDATE websites 
+      SET setup_progress = COALESCE(setup_progress, '{}'::jsonb) || $2::jsonb,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [dbWebsiteId, JSON.stringify({ [section]: true })]);
+    
+    res.json({ success: true, message: 'Settings saved' });
+  } catch (error) {
+    console.error('Save website section error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save all settings for a website at once (bulk save)
+app.post('/api/websites/:websiteId/builder', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const { settings } = req.body; // { header: {...}, hero: {...}, ... }
+    
+    // Get website id
+    const websiteResult = await pool.query(`
+      SELECT id, owner_id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const dbWebsiteId = websiteResult.rows[0].id;
+    const accountId = websiteResult.rows[0].owner_id;
+    
+    const setupProgress = {};
+    
+    for (const [section, sectionData] of Object.entries(settings)) {
+      await pool.query(`
+        INSERT INTO website_settings (website_id, account_id, section, settings, sync_source, updated_at)
+        VALUES ($1, $2, $3, $4, 'gas', CURRENT_TIMESTAMP)
+        ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
+        DO UPDATE SET settings = $4, sync_source = 'gas', updated_at = CURRENT_TIMESTAMP
+      `, [dbWebsiteId, accountId, section, JSON.stringify(sectionData)]);
+      
+      setupProgress[section] = true;
+    }
+    
+    // Update setup progress
+    await pool.query(`
+      UPDATE websites 
+      SET setup_progress = $2,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [dbWebsiteId, JSON.stringify(setupProgress)]);
+    
+    res.json({ success: true, message: 'All settings saved', sections: Object.keys(settings) });
+  } catch (error) {
+    console.error('Bulk save website settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Mark website setup as complete
+app.post('/api/websites/:websiteId/complete-setup', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    // Get website and check required sections
+    const websiteResult = await pool.query(`
+      SELECT w.id, w.template_code, w.setup_progress, tr.sections as theme_sections
+      FROM websites w
+      LEFT JOIN theme_registry tr ON w.template_code = tr.code
+      WHERE w.id = $1 OR w.public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    const themeSections = website.theme_sections || {};
+    const setupProgress = website.setup_progress || {};
+    
+    // Check all required sections are complete
+    const missingSections = [];
+    for (const [sectionCode, sectionConfig] of Object.entries(themeSections)) {
+      if (sectionConfig.required && !setupProgress[sectionCode]) {
+        missingSections.push(sectionConfig.label || sectionCode);
+      }
+    }
+    
+    if (missingSections.length > 0) {
+      return res.json({ 
+        success: false, 
+        error: 'Required sections incomplete',
+        missing: missingSections
+      });
+    }
+    
+    // Mark as complete
+    await pool.query(`
+      UPDATE websites SET setup_complete = true, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $1
+    `, [website.id]);
+    
+    res.json({ success: true, message: 'Setup marked as complete' });
+  } catch (error) {
+    console.error('Complete setup error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Sync website settings to WordPress
+app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const { sections } = req.body; // Optional: specific sections to sync, or all if not provided
+    
+    // Get website details
+    const websiteResult = await pool.query(`
+      SELECT w.*, ws.section, ws.settings
+      FROM websites w
+      LEFT JOIN website_settings ws ON w.id = ws.website_id
+      WHERE w.id = $1 OR w.public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    if (!website.site_url) {
+      return res.json({ success: false, error: 'Website has no site URL' });
+    }
+    
+    // Collect all settings to sync
+    const allSettings = {};
+    websiteResult.rows.forEach(row => {
+      if (row.section && row.settings) {
+        if (!sections || sections.includes(row.section)) {
+          // Flatten settings for WordPress theme_mods
+          if (typeof row.settings === 'object') {
+            Object.assign(allSettings, row.settings);
+          }
+        }
+      }
+    });
+    
+    // Get WordPress API settings
+    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const apiKey = wpSettings.rows[0]?.api_key;
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'WordPress API not configured' });
+    }
+    
+    // Push to WordPress
+    const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'sync_theme_mods',
+        site_url: website.site_url,
+        theme_mods: allSettings
+      })
+    });
+    
+    const wpData = await wpResponse.json();
+    
+    // Log the sync
+    await pool.query(`
+      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, error_message, source_data)
+      VALUES ($1, 'push', $2, $3, $4, $5)
+    `, [
+      website.id, 
+      JSON.stringify(sections || Object.keys(allSettings)),
+      wpData.success ? 'success' : 'failed',
+      wpData.error || null,
+      JSON.stringify(allSettings)
+    ]);
+    
+    // Update website sync timestamp
+    if (wpData.success) {
+      await pool.query(`
+        UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'gas'
+        WHERE id = $1
+      `, [website.id]);
+    }
+    
+    res.json({ 
+      success: wpData.success, 
+      message: wpData.success ? 'Settings synced to WordPress' : 'Sync failed',
+      error: wpData.error
+    });
+  } catch (error) {
+    console.error('Sync to WordPress error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Pull settings from WordPress
+app.post('/api/websites/:websiteId/sync-from-wordpress', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    // Get website details
+    const websiteResult = await pool.query(`
+      SELECT * FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    
+    if (!website.site_url) {
+      return res.json({ success: false, error: 'Website has no site URL' });
+    }
+    
+    // Get WordPress API settings
+    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const apiKey = wpSettings.rows[0]?.api_key;
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'WordPress API not configured' });
+    }
+    
+    // Pull from WordPress
+    const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'get_theme_mods',
+        site_url: website.site_url
+      })
+    });
+    
+    const wpData = await wpResponse.json();
+    
+    if (!wpData.success) {
+      return res.json({ success: false, error: wpData.error || 'Failed to get WordPress settings' });
+    }
+    
+    // Get theme schema to know how to group settings by section
+    const themeResult = await pool.query(`
+      SELECT sections FROM theme_registry WHERE code = $1
+    `, [website.template_code]);
+    
+    const themeSections = themeResult.rows[0]?.sections || {};
+    
+    // Group WordPress settings by section based on field prefixes
+    const settingsBySection = {};
+    for (const [key, value] of Object.entries(wpData.theme_mods || {})) {
+      for (const [sectionCode, sectionConfig] of Object.entries(themeSections)) {
+        const fields = sectionConfig.fields || {};
+        if (fields[key]) {
+          if (!settingsBySection[sectionCode]) {
+            settingsBySection[sectionCode] = {};
+          }
+          settingsBySection[sectionCode][key] = value;
+          break;
+        }
+      }
+    }
+    
+    // Save each section's settings
+    for (const [section, settings] of Object.entries(settingsBySection)) {
+      await pool.query(`
+        INSERT INTO website_settings (website_id, account_id, section, settings, sync_source, last_synced_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'wordpress', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+        ON CONFLICT (website_id, section) WHERE website_id IS NOT NULL
+        DO UPDATE SET settings = $4, sync_source = 'wordpress', last_synced_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+      `, [website.id, website.owner_id, section, JSON.stringify(settings)]);
+    }
+    
+    // Log the sync
+    await pool.query(`
+      INSERT INTO website_sync_log (website_id, direction, sections_synced, status, source_data)
+      VALUES ($1, 'pull', $2, 'success', $3)
+    `, [website.id, JSON.stringify(Object.keys(settingsBySection)), JSON.stringify(wpData.theme_mods)]);
+    
+    // Update website sync timestamp
+    await pool.query(`
+      UPDATE websites SET last_synced_at = CURRENT_TIMESTAMP, sync_source = 'wordpress'
+      WHERE id = $1
+    `, [website.id]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Settings pulled from WordPress',
+      sections_updated: Object.keys(settingsBySection)
+    });
+  } catch (error) {
+    console.error('Sync from WordPress error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get sync history for a website
+app.get('/api/websites/:websiteId/sync-log', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    
+    const websiteResult = await pool.query(`
+      SELECT id FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const result = await pool.query(`
+      SELECT id, direction, sections_synced, status, error_message, created_at
+      FROM website_sync_log
+      WHERE website_id = $1
+      ORDER BY created_at DESC
+      LIMIT 50
+    `, [websiteResult.rows[0].id]);
+    
+    res.json({ success: true, logs: result.rows });
+  } catch (error) {
+    console.error('Get sync log error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Change website theme
+app.post('/api/websites/:websiteId/change-theme', async (req, res) => {
+  try {
+    const { websiteId } = req.params;
+    const { theme_code } = req.body;
+    
+    // Verify theme exists
+    const themeResult = await pool.query(`
+      SELECT code, name, sections FROM theme_registry WHERE code = $1 AND is_active = true
+    `, [theme_code]);
+    
+    if (themeResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Theme not found' });
+    }
+    
+    // Get website
+    const websiteResult = await pool.query(`
+      SELECT id, template_code FROM websites WHERE id = $1 OR public_id = $1
+    `, [websiteId]);
+    
+    if (websiteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = websiteResult.rows[0];
+    const oldTheme = website.template_code;
+    
+    // Update website theme
+    await pool.query(`
+      UPDATE websites 
+      SET template_code = $1, 
+          setup_complete = false, 
+          setup_progress = '{}',
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $2
+    `, [theme_code, website.id]);
+    
+    // Clear old theme-specific settings (keep units, etc.)
+    await pool.query(`
+      DELETE FROM website_settings WHERE website_id = $1
+    `, [website.id]);
+    
+    res.json({ 
+      success: true, 
+      message: `Theme changed from ${oldTheme} to ${theme_code}`,
+      requires_setup: true
+    });
+  } catch (error) {
+    console.error('Change theme error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// ============================================
+// END PER-WEBSITE BUILDER ENDPOINTS
+// ============================================
 
 // Get all website settings for a client (for WordPress sync)
 app.get('/api/v1/website-settings', validateApiKey, async (req, res) => {
