@@ -1439,7 +1439,7 @@
                     </div>
                 </div>
 
-                <div class="nav-section collapsed">
+                <div class="nav-section collapsed master-only" style="display: none;">
                     <div class="nav-label" onclick="toggleNavSection(this)">Knowledge Base</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="kb-articles" href="#" onclick="navClick(this, 'kb-articles'); return false;">
@@ -1484,14 +1484,14 @@
                         <span class="nav-icon">🤝</span>
                         <span>Affiliates</span>
                     </a>
-                    <a class="nav-item" data-view="my-referrals" href="#" onclick="navClick(this, 'my-referrals'); return false;">
+                    <a class="nav-item billing-admin-only" style="display:none;" data-view="my-referrals" href="#" onclick="navClick(this, 'my-referrals'); return false;">
                         <span class="nav-icon">💰</span>
                         <span>My Referrals</span>
                     </a>
                     </div>
                 </div>
 
-                <div class="nav-section">
+                <div class="nav-section master-only" style="display: none;">
                     <div class="nav-label" onclick="toggleNavSection(this)">System</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="tasks" href="#" onclick="navClick(this, 'tasks'); return false;">
@@ -1530,7 +1530,7 @@
                     </div>
                 </div>
 
-                <div class="nav-section collapsed">
+                <div class="nav-section collapsed master-only" style="display: none;">
                     <div class="nav-label" onclick="toggleNavSection(this)">Developers</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="api-docs" data-requires-feature="api_access" href="#" onclick="return handleFeatureClick(this, 'api-docs', 'api_access');">
@@ -11406,11 +11406,22 @@ Local honey and preserves"></textarea>
                 document.querySelectorAll('.agency-only').forEach(el => {
                     el.style.display = 'flex';
                 });
+                // Show master-only sections (Knowledge Base, System, Developers)
+                document.querySelectorAll('.master-only').forEach(el => {
+                    el.style.display = 'block';
+                });
+                // Show billing admin items
+                document.querySelectorAll('.billing-admin-only').forEach(el => {
+                    el.style.display = 'flex';
+                });
                 // Show Clear button for master admin
                 const clearBtn = document.getElementById('clearFilterBtn');
                 if (clearBtn) clearBtn.style.display = 'block';
                 return;
             }
+            
+            // Non-master: hide master-only sections (already hidden via style="display:none")
+            // They stay hidden by default
             
             // Agency Admin: show management requests, can switch between managed accounts
             if (currentAccount.role === 'agency_admin') {
