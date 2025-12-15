@@ -13027,7 +13027,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings/${section}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ settings })
                 });
                 
@@ -13210,7 +13210,7 @@ Local honey and preserves"></textarea>
                 console.log('Pushing to WordPress via /api/admin/push-to-wordpress...');
                 const response = await fetch('/api/admin/push-to-wordpress', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: accountId,
                         section,
@@ -13259,7 +13259,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(`/api/admin/website-builder/page/${pageName}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: accountId,
                         settings: settings
@@ -14591,7 +14591,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/billing/assign-subscription', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: assignPlanAccountId,
                         plan_id: parseInt(planId),
@@ -14623,7 +14623,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/billing/cancel-subscription', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ account_id: assignPlanAccountId })
                 });
                 
@@ -14759,7 +14759,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/accounts/${accountId}/update-role`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ role: newRole })
                 });
                 const result = await response.json();
@@ -15336,7 +15336,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(agencyData)
                 });
                 
@@ -15460,7 +15460,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/properties/${propertyId}/assign-agency`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ agency_id: null })
                 });
                 const result = await response.json();
@@ -15504,7 +15504,7 @@ Local honey and preserves"></textarea>
                 try {
                     const res = await fetch(`/api/admin/agencies/${agencyId}/assign-client`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ client_id: parseInt(selectedId) })
                     });
                     const result = await res.json();
@@ -15527,7 +15527,7 @@ Local honey and preserves"></textarea>
             try {
                 const res = await fetch(`/api/admin/agencies/${agencyId}/remove-client`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ client_id: clientId })
                 });
                 const result = await res.json();
@@ -15666,7 +15666,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/clients/${clientId}/convert-to-agency`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 const result = await response.json();
                 
@@ -15772,7 +15772,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(clientData)
                 });
                 
@@ -15881,7 +15881,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Are you sure you want to regenerate the API key? The old key will stop working immediately.')) return;
             
             try {
-                const response = await fetch(`/api/admin/clients/${clientId}/regenerate-api-key`, { method: 'POST' });
+                const response = await fetch(`/api/admin/clients/${clientId}/regenerate-api-key`, { method: 'POST', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -15899,7 +15899,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Are you sure you want to delete this client? This cannot be undone.')) return;
             
             try {
-                const response = await fetch(`/api/admin/clients/${clientId}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/clients/${clientId}`, { method: 'DELETE', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -15931,7 +15931,7 @@ Local honey and preserves"></textarea>
                 if (propertyId) {
                     const assignResponse = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ property_id: parseInt(propertyId) })
                     });
                     
@@ -15985,7 +15985,7 @@ Local honey and preserves"></textarea>
                     // Now test POST with simulated webhook data
                     const testResponse = await fetch('/api/webhooks/beds24', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({
                             type: 'test',
                             message: 'GAS Admin test webhook',
@@ -16223,7 +16223,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/properties/${propertyId}/assign-agency`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ agency_id: agencyId || null })
                 });
                 const result = await response.json();
@@ -16668,7 +16668,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/properties/${propertyId}/terms`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ terms, beds })
                 });
                 
@@ -16812,7 +16812,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/units/${roomId}/amenities`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ amenities: selectedAmenities })
                 });
                 
@@ -17430,7 +17430,7 @@ Local honey and preserves"></textarea>
                     ? `/api/admin/properties/images/${imageId}`
                     : `/api/admin/rooms/images/${imageId}`;
                 
-                const response = await fetch(endpoint, { method: 'DELETE' });
+                const response = await fetch(endpoint, { method: 'DELETE', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -17493,7 +17493,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(endpoint, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ imageIds: newOrder })
                 });
                 
@@ -17882,7 +17882,7 @@ Local honey and preserves"></textarea>
                 
                 await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(taskData)
                 });
             } catch (error) {
@@ -17911,7 +17911,7 @@ Local honey and preserves"></textarea>
                 try {
                     const response = await fetch(`/api/admin/tasks/${taskId}`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ status: 'done', completed: new Date().toISOString().split('T')[0] })
                     });
                     
@@ -17951,7 +17951,7 @@ Local honey and preserves"></textarea>
             // Try database first
             if (!isNaN(taskId)) {
                 try {
-                    const response = await fetch(`/api/admin/tasks/${taskId}`, { method: 'DELETE' });
+                    const response = await fetch(`/api/admin/tasks/${taskId}`, { method: 'DELETE', headers: authHeaders() });
                     const data = await response.json();
                     
                     if (data.success) {
@@ -18163,7 +18163,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/deployed-sites/${siteId}/status`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ status: newStatus })
                 });
                 const data = await response.json();
@@ -18411,7 +18411,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/deploy/create', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         site_name: siteName,
                         property_ids: propertyIds,
@@ -18909,7 +18909,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/amenities', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ name, category, icon })
                 });
                 
@@ -18944,7 +18944,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/amenities', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         name: categoryName + ' (default)', 
                         category: categoryCode, 
@@ -19462,7 +19462,7 @@ Local honey and preserves"></textarea>
                 try {
                     const response = await fetch('/api/admin/availability', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(payload)
                     });
                     const result = await response.json();
@@ -19490,7 +19490,7 @@ Local honey and preserves"></textarea>
             try {
                 // First sync prices/availability
                 btn.textContent = '⏳ Syncing prices...';
-                const priceResponse = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
+                const priceResponse = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST', headers: authHeaders() });
                 const priceResult = await priceResponse.json();
                 
                 if (priceResult.success) {
@@ -19501,7 +19501,7 @@ Local honey and preserves"></textarea>
                 
                 // Sync bookings
                 btn.textContent = '⏳ Syncing bookings...';
-                const bookingResponse = await fetch('/api/admin/sync-beds24-bookings', { method: 'POST' });
+                const bookingResponse = await fetch('/api/admin/sync-beds24-bookings', { method: 'POST', headers: authHeaders() });
                 const bookingResult = await bookingResponse.json();
                 
                 if (bookingResult.success) {
@@ -19531,7 +19531,7 @@ Local honey and preserves"></textarea>
             btn.textContent = '⏳ Full sync (1-2 min)...';
             
             try {
-                const response = await fetch('/api/admin/sync-beds24-inventory', { method: 'POST' });
+                const response = await fetch('/api/admin/sync-beds24-inventory', { method: 'POST', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -19556,7 +19556,7 @@ Local honey and preserves"></textarea>
             btn.textContent = '⏳ Syncing...';
             
             try {
-                const response = await fetch('/api/admin/sync-hostaway-availability', { method: 'POST' });
+                const response = await fetch('/api/admin/sync-hostaway-availability', { method: 'POST', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -19581,7 +19581,7 @@ Local honey and preserves"></textarea>
             btn.textContent = '⏳ Syncing...';
             
             try {
-                const response = await fetch('/api/admin/sync-smoobu-availability', { method: 'POST' });
+                const response = await fetch('/api/admin/sync-smoobu-availability', { method: 'POST', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -19899,7 +19899,7 @@ Local honey and preserves"></textarea>
                 try {
                     const response = await fetch('/api/admin/availability', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({
                             room_id: change.roomId,
                             from_date: change.date,
@@ -20138,7 +20138,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(endpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ features, property_id: propertyId })
                 });
                 
@@ -20271,7 +20271,7 @@ Local honey and preserves"></textarea>
                 // Call the AI API with a special type for marketing features
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         type: 'marketing_features', 
                         property_id: propertyId, 
@@ -20767,7 +20767,7 @@ Local honey and preserves"></textarea>
                             
                             const response = await fetch(`/api/rooms/${room.roomId}/daily-rates`, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
                                 body: JSON.stringify(payload)
                             });
                             
@@ -20981,7 +20981,7 @@ Local honey and preserves"></textarea>
                         // Update existing
                         const response = await fetch(`/api/admin/offers/${existingStdOffer.id}`, {
                             method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 ...existingStdOffer,
                                 min_nights: standardRestrictions.min_nights,
@@ -20996,7 +20996,7 @@ Local honey and preserves"></textarea>
                         // Create new Standard Price offer for this room
                         const response = await fetch('/api/admin/offers', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 name: 'Standard Price',
                                 description: 'Standard website price with restrictions',
@@ -21043,7 +21043,7 @@ Local honey and preserves"></textarea>
                         
                         const response = await fetch(`/api/admin/offers/${offerId}`, {
                             method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify(updateData)
                         });
                         const result = await response.json();
@@ -21131,7 +21131,7 @@ Local honey and preserves"></textarea>
                 const field = channel === 'website' ? 'available_website' : 'available_agents';
                 await fetch(`/api/admin/offers/${offerId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ [field]: enabled })
                 });
             } catch (error) {
@@ -21289,7 +21289,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(offerData)
                 });
                 
@@ -21311,7 +21311,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this offer?')) return;
             
             try {
-                const response = await fetch(`/api/admin/offers/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/offers/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -21595,7 +21595,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/bookings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         property_id: propertyId,
                         room_id: roomId,
@@ -21840,7 +21840,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/bookings/${bookingId}/refund`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ amount: amount || null })
                 });
                 const data = await response.json();
@@ -21986,7 +21986,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(`/api/bookings/${bookingId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(updates)
                 });
                 
@@ -22409,7 +22409,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(voucherData)
                 });
                 
@@ -22431,7 +22431,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this voucher?')) return;
             
             try {
-                const response = await fetch(`/api/admin/vouchers/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/vouchers/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -22785,7 +22785,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(upsellData)
                 });
                 
@@ -22806,7 +22806,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this upsell?')) return;
             
             try {
-                const response = await fetch(`/api/admin/upsells/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/upsells/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -23003,7 +23003,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(feeData)
                 });
                 
@@ -23024,7 +23024,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this fee?')) return;
             
             try {
-                const response = await fetch(`/api/admin/fees/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/fees/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -23598,7 +23598,7 @@ Local honey and preserves"></textarea>
                 try {
                     const response = await fetch(`/api/properties/${propertyId}/deposit-rules`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(data)
                     });
                     const result = await response.json();
@@ -23672,20 +23672,20 @@ Local honey and preserves"></textarea>
                 if (ruleId) {
                     response = await fetch(`/api/deposit-rules/${ruleId}`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(data)
                     });
                 } else if (isAccountLevel) {
                     const accountId = selectedAccountId || 1;
                     response = await fetch(`/api/accounts/${accountId}/deposit-rules`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(data)
                     });
                 } else {
                     response = await fetch(`/api/properties/${selectValue}/deposit-rules`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(data)
                     });
                 }
@@ -24028,7 +24028,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(taxData)
                 });
                 
@@ -24049,7 +24049,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this tax?')) return;
             
             try {
-                const response = await fetch(`/api/admin/taxes/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/taxes/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -24120,7 +24120,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/db/properties/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(data)
                 });
                 
@@ -24367,7 +24367,7 @@ Local honey and preserves"></textarea>
                 // Update room fields
                 const response = await fetch(`/api/admin/units/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(data)
                 });
                 
@@ -24402,7 +24402,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         type: type === 'short' ? 'room_short' : 'room_full',
                         room_id: roomId,
@@ -24446,7 +24446,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         type: 'room_display_name',
                         room_id: roomId,
@@ -24486,7 +24486,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         type: type === 'short' ? 'property_short' : 'property_description',
                         property_id: propertyId,
@@ -24612,7 +24612,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/cleanup-duplicates', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 
                 const result = await response.json();
@@ -24778,7 +24778,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         type: 'page_content',
                         page_type: currentPageType,
@@ -24970,7 +24970,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         type: 'seo',
                         page_type: currentPageType,
@@ -25126,7 +25126,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/pages', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(pageData)
                 });
                 
@@ -25248,7 +25248,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/contact-info', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(contactData)
                 });
                 
@@ -25643,7 +25643,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/branding', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(brandData)
                 });
                 
@@ -25805,7 +25805,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/api-keys', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(keyData)
                 });
                 
@@ -25829,7 +25829,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/api-keys/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ is_active: newState })
                 });
                 
@@ -26070,7 +26070,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/kb/articles', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(articleData)
                 });
                 
@@ -26092,7 +26092,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this article? This cannot be undone.')) return;
             
             try {
-                const response = await fetch('/api/kb/articles/' + id, { method: 'DELETE' });
+                const response = await fetch('/api/kb/articles/' + id, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -26132,7 +26132,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch('/api/kb/import', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ articles })
                 });
                 
@@ -26211,7 +26211,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Dismiss this question?')) return;
             
             try {
-                const response = await fetch('/api/kb/unanswered/' + id, { method: 'DELETE' });
+                const response = await fetch('/api/kb/unanswered/' + id, { method: 'DELETE', headers: authHeaders() });
                 if (response.ok) {
                     showNotification('Question dismissed', 'success');
                     loadKBUnanswered();
@@ -26463,7 +26463,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/vps/settings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         api_url: document.getElementById('vps-api-url')?.value || 'https://sites.gas.travel/gas-api.php',
                         api_key: document.getElementById('vps-api-key').value,
@@ -26581,7 +26581,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/vps/create-site', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: accountId,
                         site_name: siteName,
@@ -26720,7 +26720,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/property/${propertyId}/payment-settings`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(settings)
                 });
                 
@@ -27125,7 +27125,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/billing/plans', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(planData)
                 });
                 
@@ -27146,7 +27146,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this plan?')) return;
             
             try {
-                const response = await fetch('/api/admin/billing/plans/' + id, { method: 'DELETE' });
+                const response = await fetch('/api/admin/billing/plans/' + id, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Plan deleted', 'success');
@@ -27237,7 +27237,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(productData)
                 });
                 
@@ -27257,7 +27257,7 @@ Local honey and preserves"></textarea>
         async function deleteProduct(id) {
             if (!confirm('Delete this product?')) return;
             try {
-                const response = await fetch(`/api/admin/billing/products/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/billing/products/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Product deleted', 'success');
@@ -27344,7 +27344,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(addonData)
                 });
                 
@@ -27364,7 +27364,7 @@ Local honey and preserves"></textarea>
         async function deleteAddon(id) {
             if (!confirm('Delete this add-on?')) return;
             try {
-                const response = await fetch(`/api/admin/billing/addons/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/billing/addons/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Add-on deleted', 'success');
@@ -27572,7 +27572,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/affiliate/join', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 const data = await response.json();
                 
@@ -27600,7 +27600,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/affiliate/payout', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 const data = await response.json();
                 
@@ -27666,7 +27666,7 @@ Local honey and preserves"></textarea>
         // Dashboard
         async function loadGasSyncDashboard() {
             try {
-                const response = await fetchWithAuth('/api/gas-sync/status');
+                const response = await fetch('/api/gas-sync/status', { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -27702,7 +27702,7 @@ Local honey and preserves"></textarea>
 
         async function loadConnectionStatus() {
             try {
-                const response = await fetchWithAuth('/api/gas-sync/connections');
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
                 
                 const container = document.getElementById('connectionStatusList');
@@ -27743,7 +27743,7 @@ Local honey and preserves"></textarea>
         // Connections
         async function loadGasSyncConnections() {
             try {
-                const response = await fetchWithAuth('/api/gas-sync/connections');
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
                 
                 gasSyncConnections = data.connections || [];
@@ -27831,9 +27831,9 @@ Local honey and preserves"></textarea>
         async function triggerSync(connectionId, type = 'incremental') {
             try {
                 showNotification('Starting sync...', 'info');
-                const response = await fetchWithAuth(`/api/gas-sync/connections/${connectionId}/sync`, {
+                const response = await fetch(`/api/gas-sync/connections/${connectionId}/sync`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ type })
                 });
                 const data = await response.json();
@@ -27851,7 +27851,7 @@ Local honey and preserves"></textarea>
         async function deleteConnection(connectionId) {
             if (!confirm('Delete this connection? All synced data will be removed.')) return;
             try {
-                const response = await fetchWithAuth(`/api/gas-sync/connections/${connectionId}`, { method: 'DELETE' });
+                const response = await fetch(`/api/gas-sync/connections/${connectionId}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Connection deleted', 'success');
@@ -27867,7 +27867,7 @@ Local honey and preserves"></textarea>
         // Add Connection Modal
         async function showAddConnectionModal() {
             try {
-                const response = await fetchWithAuth('/api/gas-sync/adapters');
+                const response = await fetch('/api/gas-sync/adapters', { headers: authHeaders() });
                 const data = await response.json();
                 gasSyncAdapters = data.adapters || [];
                 
@@ -27879,7 +27879,7 @@ Local honey and preserves"></textarea>
                     </div>
                 `).join('');
                 
-                const accountsResponse = await fetchWithAuth('/api/accounts');
+                const accountsResponse = await fetch('/api/accounts');
                 const accountsData = await accountsResponse.json();
                 const accountSelect = document.getElementById('connectionAccountId');
                 accountSelect.innerHTML = (accountsData.accounts || []).map(a => `<option value="${a.id}">${a.name}</option>`).join('');
@@ -27953,9 +27953,9 @@ Local honey and preserves"></textarea>
             
             try {
                 showNotification('Testing connection...', 'info');
-                const response = await fetchWithAuth('/api/gas-sync/connections', {
+                const response = await fetch('/api/gas-sync/connections', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: accountId,
                         adapter_code: adapterCode,
@@ -28000,7 +28000,7 @@ Local honey and preserves"></textarea>
         async function loadConnectionOverview() {
             const container = document.getElementById('connectionTabOverview');
             try {
-                const response = await fetchWithAuth(`/api/gas-sync/connections/${selectedConnectionId}`);
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}`, { headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     const conn = data.connection;
@@ -28034,7 +28034,7 @@ Local honey and preserves"></textarea>
         async function loadConnectionPropertiesTab() {
             const container = document.getElementById('connectionTabProperties');
             try {
-                const response = await fetchWithAuth(`/api/gas-sync/connections/${selectedConnectionId}/properties`);
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/properties`, { headers: authHeaders() });
                 const data = await response.json();
                 if (data.success && data.properties.length > 0) {
                     container.innerHTML = `<table class="data-table"><thead><tr><th>Property</th><th>Location</th><th>Room Types</th><th>Images</th><th>Linked</th><th>Actions</th></tr></thead><tbody>
@@ -28059,7 +28059,7 @@ Local honey and preserves"></textarea>
         async function loadConnectionReservationsTab() {
             const container = document.getElementById('connectionTabReservations');
             try {
-                const response = await fetchWithAuth(`/api/gas-sync/connections/${selectedConnectionId}/reservations?limit=20`);
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/reservations?limit=20`, { headers: authHeaders() });
                 const data = await response.json();
                 if (data.success && data.reservations.length > 0) {
                     container.innerHTML = `<table class="data-table"><thead><tr><th>Guest</th><th>Property</th><th>Dates</th><th>Channel</th><th>Total</th><th>Status</th></tr></thead><tbody>
@@ -28083,7 +28083,7 @@ Local honey and preserves"></textarea>
         async function loadConnectionLogsTab() {
             const container = document.getElementById('connectionTabLogs');
             try {
-                const response = await fetchWithAuth(`/api/gas-sync/connections/${selectedConnectionId}/logs?limit=20`);
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/logs?limit=20`, { headers: authHeaders() });
                 const data = await response.json();
                 if (data.success && data.logs.length > 0) {
                     container.innerHTML = `<table class="data-table"><thead><tr><th>Time</th><th>Type</th><th>Status</th><th>Records</th><th>Duration</th><th>Error</th></tr></thead><tbody>
@@ -28137,9 +28137,9 @@ Local honey and preserves"></textarea>
 
         async function saveConnectionSettings() {
             try {
-                const response = await fetchWithAuth(`/api/gas-sync/connections/${selectedConnectionId}`, {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         sync_enabled: document.getElementById('settingSyncEnabled').checked,
                         sync_interval_minutes: parseInt(document.getElementById('settingSyncInterval').value),
@@ -28162,9 +28162,9 @@ Local honey and preserves"></textarea>
             const accountId = selectedAccountId || currentAccount.id;
             try {
                 showNotification('Importing property...', 'info');
-                const response = await fetchWithAuth(`/api/gas-sync/properties/${syncPropertyId}/import`, {
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/import`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ account_id: accountId })
                 });
                 const data = await response.json();
@@ -28182,7 +28182,7 @@ Local honey and preserves"></textarea>
         async function downloadPropertyImages(syncPropertyId) {
             try {
                 showNotification('Downloading images...', 'info');
-                const response = await fetchWithAuth(`/api/gas-sync/properties/${syncPropertyId}/download-images`, { method: 'POST' });
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/download-images`, { method: 'POST', headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     showNotification(data.message, 'success');
@@ -28201,12 +28201,12 @@ Local honey and preserves"></textarea>
             try {
                 let properties = [];
                 if (connectionId) {
-                    const response = await fetchWithAuth(`/api/gas-sync/connections/${connectionId}/properties`);
+                    const response = await fetch(`/api/gas-sync/connections/${connectionId}/properties`, { headers: authHeaders() });
                     const data = await response.json();
                     properties = data.properties || [];
                 } else {
                     for (const conn of gasSyncConnections) {
-                        const response = await fetchWithAuth(`/api/gas-sync/connections/${conn.id}/properties`);
+                        const response = await fetch(`/api/gas-sync/connections/${conn.id}/properties`, { headers: authHeaders() });
                         const data = await response.json();
                         if (data.properties) {
                             properties = properties.concat(data.properties.map(p => ({...p, connection: conn})));
@@ -28241,12 +28241,12 @@ Local honey and preserves"></textarea>
             try {
                 let allLogs = [];
                 if (connectionId) {
-                    const response = await fetchWithAuth(`/api/gas-sync/connections/${connectionId}/logs?limit=50`);
+                    const response = await fetch(`/api/gas-sync/connections/${connectionId}/logs?limit=50`, { headers: authHeaders() });
                     const data = await response.json();
                     allLogs = (data.logs || []).map(l => ({...l, connection: gasSyncConnections.find(c => c.id == connectionId)}));
                 } else {
                     for (const conn of gasSyncConnections) {
-                        const response = await fetchWithAuth(`/api/gas-sync/connections/${conn.id}/logs?limit=20`);
+                        const response = await fetch(`/api/gas-sync/connections/${conn.id}/logs?limit=20`, { headers: authHeaders() });
                         const data = await response.json();
                         if (data.logs) {
                             allLogs = allLogs.concat(data.logs.map(l => ({...l, connection: conn})));
