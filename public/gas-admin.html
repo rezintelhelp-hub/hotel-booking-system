@@ -12350,12 +12350,23 @@ Local honey and preserves"></textarea>
                 };
                 
                 const editorContainerId = editorPanelMap[section];
-                const editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
+                let editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
                 
                 // Collect from editor container (visible elements)
-                const elementsToCheck = editorContainer 
+                let elementsToCheck = editorContainer 
                     ? editorContainer.querySelectorAll(`[id^="${prefix}"]`)
                     : document.querySelectorAll(`[id^="${prefix}"]`);
+                
+                // Fallback: if no elements found in editor container, search in wb-{section}-content or whole document
+                if (elementsToCheck.length === 0) {
+                    const altContainer = document.getElementById(`wb-${section}-content`);
+                    if (altContainer) {
+                        elementsToCheck = altContainer.querySelectorAll(`[id^="${prefix}"]`);
+                    }
+                    if (elementsToCheck.length === 0) {
+                        elementsToCheck = document.querySelectorAll(`[id^="${prefix}"]`);
+                    }
+                }
                 
                 elementsToCheck.forEach(el => {
                     const key = el.id.replace(prefix, '');
