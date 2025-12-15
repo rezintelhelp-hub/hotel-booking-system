@@ -11764,11 +11764,9 @@ Local honey and preserves"></textarea>
                 
                 selectWebsite(websiteId, website);
                 
-                // Also set account ID for fallback
-                if (website.account_id) {
-                    selectedAccountId = website.account_id;
-                    console.log('Set selectedAccountId from website:', selectedAccountId);
-                }
+                // Note: We do NOT set selectedAccountId here anymore
+                // The website editor should use selectedDeployedSiteId for API calls
+                // Setting selectedAccountId was causing bugs when returning to Accounts view
                 
                 // Update editor header with site info
                 document.getElementById('editor-site-name').textContent = website.name || 'Website Editor';
@@ -12037,6 +12035,10 @@ Local honey and preserves"></textarea>
             // Clear selected website
             selectedWebsiteId = null;
             selectedWebsiteData = null;
+            selectedDeployedSiteId = null;
+            
+            // Note: Do NOT clear selectedAccountId here - that's the user's account filter
+            // If they were viewing a specific account's sites, keep that context
             
             // Navigate back to sites list
             navClick(null, 'deploy-sites');
@@ -13737,11 +13739,15 @@ Local honey and preserves"></textarea>
         
         async function loadAccounts() {
             const container = document.getElementById('accounts-list');
+            console.log('loadAccounts called - selectedAccountId:', selectedAccountId);
             try {
                 // Build query params based on current filter
                 let queryParams = [];
                 if (selectedAccountId) {
                     queryParams.push(`account_id=${selectedAccountId}`);
+                    console.log('Filtering accounts by account_id:', selectedAccountId);
+                } else {
+                    console.log('No account filter - loading all accounts');
                 }
                 const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
                 
@@ -14217,12 +14223,19 @@ Local honey and preserves"></textarea>
                 return;
             }
             
+            console.log('clearAccountFilter called - previous selectedAccountId:', selectedAccountId);
+            
             selectedAccountId = null;
             selectedAccountName = null;
             
             // Also clear old agency filter
             selectedAgencyId = null;
             selectedAgencyName = null;
+            
+            // Clear deployed site selection too
+            selectedDeployedSiteId = null;
+            
+            console.log('Account filter cleared - selectedAccountId is now:', selectedAccountId);
             
             // Hide banner
             const banner = document.getElementById('agencyFilterBanner');
@@ -14237,6 +14250,7 @@ Local honey and preserves"></textarea>
             const activeView = document.querySelector('.nav-item.active');
             if (activeView) {
                 const viewName = activeView.getAttribute('data-view');
+                console.log('Reloading view after clear:', viewName);
                 showView(viewName);
             }
         }
