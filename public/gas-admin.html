@@ -11406,14 +11406,8 @@ Local honey and preserves"></textarea>
                 document.querySelectorAll('.agency-only').forEach(el => {
                     el.style.display = 'flex';
                 });
-                // Show master-only sections (Knowledge Base, System, Developers)
-                document.querySelectorAll('.master-only').forEach(el => {
-                    el.style.display = 'block';
-                });
-                // Show billing admin items
-                document.querySelectorAll('.billing-admin-only').forEach(el => {
-                    el.style.display = 'flex';
-                });
+                // Show/hide master-only sections based on whether viewing a client
+                updateMasterOnlyVisibility();
                 // Show Clear button for master admin
                 const clearBtn = document.getElementById('clearFilterBtn');
                 if (clearBtn) clearBtn.style.display = 'block';
@@ -14029,6 +14023,9 @@ Local honey and preserves"></textarea>
                 nameEl.textContent = account.name;
             }
             
+            // Hide master-only sections when viewing a client
+            updateMasterOnlyVisibility();
+            
             // Reload entitlements for selected account
             if (typeof loadAccountEntitlements === 'function') {
                 loadAccountEntitlements();
@@ -14036,6 +14033,32 @@ Local honey and preserves"></textarea>
             
             // Navigate to dashboard with new filter
             showView('dashboard');
+        }
+        
+        // Show/hide master-only sections based on whether viewing a client
+        function updateMasterOnlyVisibility() {
+            const isMaster = currentAccount && currentAccount.role === 'master_admin';
+            const isViewingClient = selectedAccountId !== null;
+            
+            // Master-only sections: show only when master AND not viewing a client
+            const showMasterSections = isMaster && !isViewingClient;
+            
+            document.querySelectorAll('.master-only').forEach(el => {
+                el.style.display = showMasterSections ? 'block' : 'none';
+            });
+            
+            // Billing admin items: same logic
+            document.querySelectorAll('.billing-admin-only').forEach(el => {
+                if (el.tagName === 'A') {
+                    el.style.display = showMasterSections ? 'flex' : 'none';
+                } else if (el.tagName === 'BUTTON') {
+                    el.style.display = showMasterSections ? 'inline-flex' : 'none';
+                } else {
+                    el.style.display = showMasterSections ? 'block' : 'none';
+                }
+            });
+            
+            console.log('updateMasterOnlyVisibility - isMaster:', isMaster, 'isViewingClient:', isViewingClient, 'showMasterSections:', showMasterSections);
         }
         
         // Load plan badge for an account
@@ -14214,6 +14237,9 @@ Local honey and preserves"></textarea>
                 nameEl.textContent = accountName;
             }
             
+            // Hide master-only sections when viewing a client
+            updateMasterOnlyVisibility();
+            
             // Reload entitlements for selected account
             if (typeof loadAccountEntitlements === 'function') {
                 loadAccountEntitlements();
@@ -14251,6 +14277,9 @@ Local honey and preserves"></textarea>
             // Hide banner
             const banner = document.getElementById('agencyFilterBanner');
             if (banner) banner.style.display = 'none';
+            
+            // Show master-only sections again
+            updateMasterOnlyVisibility();
             
             // Reload entitlements (will show master admin's defaults)
             if (typeof loadAccountEntitlements === 'function') {
