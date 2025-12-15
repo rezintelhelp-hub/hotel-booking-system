@@ -21570,10 +21570,10 @@ app.get('/api/admin/website-builder/:section', async (req, res) => {
       return res.json({ success: false, error: 'account_id required' });
     }
     
-    // Get account-based settings (website_id IS NULL), most recent first
+    // Get account-based settings, most recent first
     const result = await pool.query(`
       SELECT settings FROM website_settings
-      WHERE account_id = $1 AND section = $2 AND website_id IS NULL
+      WHERE account_id = $1 AND section = $2
       ORDER BY updated_at DESC NULLS LAST
       LIMIT 1
     `, [accountId, section]);
@@ -21632,26 +21632,21 @@ app.post('/api/admin/website-builder/:section', async (req, res) => {
       return res.json({ success: false, error: 'account_id required' });
     }
     
-    // Check if row exists first
-    const existing = await pool.query(
-      'SELECT id FROM website_settings WHERE account_id = $1 AND section = $2 AND website_id IS NULL',
-      [accountId, section]
+    // Try update first
+    const updateResult = await pool.query(
+      'UPDATE website_settings SET settings = $1, updated_at = CURRENT_TIMESTAMP WHERE account_id = $2 AND section = $3',
+      [JSON.stringify(settings), accountId, section]
     );
     
-    if (existing.rows.length > 0) {
-      // Update existing row
-      await pool.query(
-        'UPDATE website_settings SET settings = $1, updated_at = CURRENT_TIMESTAMP WHERE id = $2',
-        [JSON.stringify(settings), existing.rows[0].id]
-      );
-      console.log(`Updated website_settings id=${existing.rows[0].id} for account ${accountId}, section ${section}`);
-    } else {
-      // Insert new row
+    if (updateResult.rowCount === 0) {
+      // No existing row, insert new one
       await pool.query(
         'INSERT INTO website_settings (account_id, section, settings, updated_at) VALUES ($1, $2, $3, CURRENT_TIMESTAMP)',
         [accountId, section, JSON.stringify(settings)]
       );
       console.log(`Inserted website_settings for account ${accountId}, section ${section}`);
+    } else {
+      console.log(`Updated ${updateResult.rowCount} website_settings row(s) for account ${accountId}, section ${section}`);
     }
     
     res.json({ success: true, message: 'Settings saved' });
