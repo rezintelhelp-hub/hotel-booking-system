@@ -12292,8 +12292,12 @@ Local honey and preserves"></textarea>
                         const wsResponse = await fetch(`/api/websites/${websiteId}/builder/${section}`);
                         const wsData = await wsResponse.json();
                         console.log('Per-website API response:', wsData);
-                        if (wsData.success && wsData.settings) {
+                        // Only use if we actually got settings
+                        if (wsData.success && wsData.settings && Object.keys(wsData.settings).length > 0) {
                             data = wsData;
+                            console.log('Using per-website settings');
+                        } else {
+                            console.log('Per-website returned no settings, falling back to account-based');
                         }
                     } catch (e) {
                         console.log('Per-website load failed, trying account-based...');
