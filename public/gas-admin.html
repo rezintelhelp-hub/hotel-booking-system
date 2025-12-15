@@ -3784,7 +3784,7 @@
                     <button class="editor-tab" data-tab="homepage" onclick="switchEditorTab('homepage')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         🏠 Home Page
                     </button>
-                    <button class="editor-tab" id="subpages-tab" data-tab="subpages" onclick="switchEditorTab('subpages')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s; display: none;">
+                    <button class="editor-tab" id="subpages-tab" data-tab="subpages" onclick="switchEditorTab('subpages')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         📄 Sub Pages
                     </button>
                     <button class="editor-tab" data-tab="footer" onclick="switchEditorTab('footer')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
@@ -11406,9 +11406,6 @@ Local honey and preserves"></textarea>
                 document.querySelectorAll('.agency-only').forEach(el => {
                     el.style.display = 'flex';
                 });
-                // Show Sub Pages tab for master admin only
-                const subpagesTab = document.getElementById('subpages-tab');
-                if (subpagesTab) subpagesTab.style.display = 'block';
                 // Show Clear button for master admin
                 const clearBtn = document.getElementById('clearFilterBtn');
                 if (clearBtn) clearBtn.style.display = 'block';
@@ -11926,6 +11923,47 @@ Local honey and preserves"></textarea>
         
         // Switch Sub Pages tabs
         function switchSubPageTab(subTabName) {
+            // Check if user is master_admin - if not, restrict to Rooms and Contact only
+            const allowedForClients = ['page-rooms', 'page-contact'];
+            const isMasterAdmin = currentAccount && currentAccount.role === 'master_admin';
+            
+            if (!isMasterAdmin && !allowedForClients.includes(subTabName)) {
+                // Show Coming Soon for non-master admins on restricted pages
+                document.querySelectorAll('#editor-panel-subpages .sub-tab').forEach(tab => {
+                    if (tab.dataset.subtab === subTabName) {
+                        tab.classList.add('active');
+                        tab.style.background = '#7c3aed';
+                        tab.style.color = 'white';
+                    } else {
+                        tab.classList.remove('active');
+                        tab.style.background = 'white';
+                        tab.style.color = '#64748b';
+                    }
+                });
+                
+                document.querySelectorAll('.subpage-panel').forEach(panel => {
+                    panel.style.display = 'none';
+                });
+                
+                // Show coming soon panel
+                let comingSoonPanel = document.getElementById('editor-subpage-coming-soon');
+                if (!comingSoonPanel) {
+                    comingSoonPanel = document.createElement('div');
+                    comingSoonPanel.id = 'editor-subpage-coming-soon';
+                    comingSoonPanel.className = 'subpage-panel';
+                    comingSoonPanel.innerHTML = `
+                        <div style="text-align: center; padding: 80px 40px; background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%); border-radius: 16px; border: 2px dashed #e2e8f0;">
+                            <div style="font-size: 64px; margin-bottom: 20px;">🚧</div>
+                            <h2 style="color: #1e293b; margin-bottom: 10px;">Coming Soon</h2>
+                            <p style="color: #64748b; max-width: 400px; margin: 0 auto;">This page editor is currently under development. Check back soon for updates!</p>
+                        </div>
+                    `;
+                    document.getElementById('editor-panel-subpages').appendChild(comingSoonPanel);
+                }
+                comingSoonPanel.style.display = 'block';
+                return;
+            }
+            
             // Update sub-tab buttons
             document.querySelectorAll('#editor-panel-subpages .sub-tab').forEach(tab => {
                 if (tab.dataset.subtab === subTabName) {
@@ -11938,6 +11976,10 @@ Local honey and preserves"></textarea>
                     tab.style.color = '#64748b';
                 }
             });
+            
+            // Hide coming soon panel if it exists
+            const comingSoonPanel = document.getElementById('editor-subpage-coming-soon');
+            if (comingSoonPanel) comingSoonPanel.style.display = 'none';
             
             // Show/hide sub-panels
             document.querySelectorAll('.subpage-panel').forEach(panel => {
