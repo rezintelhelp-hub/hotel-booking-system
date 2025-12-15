@@ -11923,12 +11923,15 @@ Local honey and preserves"></textarea>
         
         // Switch Sub Pages tabs
         function switchSubPageTab(subTabName) {
-            // Check if user is master_admin - if not, restrict to Rooms and Contact only
+            // Check if user is master_admin AND not viewing a different account
+            // If viewing another account, show client experience (restricted)
             const allowedForClients = ['page-rooms', 'page-contact'];
             const isMasterAdmin = currentAccount && currentAccount.role === 'master_admin';
+            const isViewingOwnAccount = !selectedAccountId || selectedAccountId === currentAccount.id;
+            const hasFullAccess = isMasterAdmin && isViewingOwnAccount;
             
-            if (!isMasterAdmin && !allowedForClients.includes(subTabName)) {
-                // Show Coming Soon for non-master admins on restricted pages
+            if (!hasFullAccess && !allowedForClients.includes(subTabName)) {
+                // Show Coming Soon for clients or when master is viewing client account
                 document.querySelectorAll('#editor-panel-subpages .sub-tab').forEach(tab => {
                     if (tab.dataset.subtab === subTabName) {
                         tab.classList.add('active');
