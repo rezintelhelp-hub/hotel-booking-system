@@ -11398,6 +11398,7 @@ Local honey and preserves"></textarea>
         // Account filter (new unified system) - when set, all views filter by this account
         let selectedAccountId = null;
         let selectedWebsiteId = null;
+        let selectedDeployedSiteId = null; // NEW: For clean per-site settings
         let selectedWebsiteData = null;
         let availableWebsites = [];
         let deployedSitesCache = [];
@@ -11619,10 +11620,14 @@ Local honey and preserves"></textarea>
             console.log('Website template:', website?.template);
             
             if (website) {
+                // Set the deployed site ID for the new clean endpoints
+                selectedDeployedSiteId = parseInt(websiteId);
+                console.log('Set selectedDeployedSiteId:', selectedDeployedSiteId);
+                
                 selectWebsite(websiteId, website);
                 
-                // Also set account ID for saving (deployed sites have account_id)
-                if (website.account_id && !selectedAccountId) {
+                // Also set account ID for fallback
+                if (website.account_id) {
                     selectedAccountId = website.account_id;
                     console.log('Set selectedAccountId from website:', selectedAccountId);
                 }
@@ -12225,9 +12230,6 @@ Local honey and preserves"></textarea>
         
         async function loadWebsiteBuilderSection(section) {
             try {
-                const clientId = getClientId();
-                if (!clientId) return;
-                
                 // Determine which container to update - editor panel (visible) or original view
                 const editorPanelMap = {
                     'header': 'editor-header-content',
@@ -12252,16 +12254,13 @@ Local honey and preserves"></textarea>
                 // Get container for this section
                 const editorContainerId = editorPanelMap[section];
                 const editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
-                const originalContainer = document.getElementById(`wb-${section}`);
                 
                 // Helper to get element - prefer editor container if visible
                 const getEl = (id) => {
                     if (editorContainer) {
-                        // Query within editor container using attribute selector (handles duplicate IDs)
                         const el = editorContainer.querySelector(`[id="${id}"]`);
                         if (el) return el;
                     }
-                    // Fall back to global ID
                     return document.getElementById(id);
                 };
                 
@@ -12276,55 +12275,45 @@ Local honey and preserves"></textarea>
                     const pickerId = `wb-${section}-${key}-picker`;
                     const el = getEl(elId);
                     const pickerEl = getEl(pickerId);
-                    console.log(`  Setting ${elId} to ${defaults[key]} - found: ${!!el}`);
                     if (el) {
-                        el.value = defaults[key];
+                        if (el.type === 'checkbox') {
+                            el.checked = defaults[key];
+                        } else {
+                            el.value = defaults[key];
+                        }
                         if (pickerEl) pickerEl.value = defaults[key];
                     }
                 });
                 
-                // Try per-website endpoint first if we have a websiteId
+                // Use NEW clean endpoint for deployed sites
                 let data = null;
-                const websiteId = selectedWebsiteId;
                 
-                if (websiteId) {
+                if (selectedDeployedSiteId) {
+                    // PRIMARY: Use new per-deployed-site endpoint
                     try {
-                        const wsResponse = await fetch(`/api/websites/${websiteId}/builder/${section}`);
-                        const wsData = await wsResponse.json();
-                        console.log('Per-website API response:', wsData);
-                        // Only use if we actually got settings
-                        if (wsData.success && wsData.settings && Object.keys(wsData.settings).length > 0) {
-                            data = wsData;
-                            console.log('Using per-website settings');
-                        } else {
-                            console.log('Per-website returned no settings, falling back to account-based');
-                        }
+                        const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings/${section}`);
+                        data = await response.json();
+                        console.log(`Deployed site ${selectedDeployedSiteId} settings response:`, data);
                     } catch (e) {
-                        console.log('Per-website load failed, trying account-based...');
+                        console.error('Failed to load from deployed site endpoint:', e);
                     }
                 }
                 
-                // Fall back to account-based endpoint
-                if (!data) {
-                    const response = await fetch(`/api/admin/website-builder/${section}?client_id=${clientId}`);
-                    data = await response.json();
-                    console.log('Account-based API response:', data);
-                }
-                
+                // Apply saved settings if we got any
                 if (data && data.success && data.settings) {
-                    console.log('Applying saved settings, overwriting template defaults...');
-                    // Populate form fields based on section (overwriting defaults)
+                    console.log(`Applying saved ${section} settings from source: ${data.source}`);
                     Object.keys(data.settings).forEach(key => {
                         const el = getEl(`wb-${section}-${key}`);
                         const pickerEl = getEl(`wb-${section}-${key}-picker`);
                         if (el) {
                             if (el.type === 'checkbox') {
-                                el.checked = data.settings[key];
-                            } else if (el.type === 'color') {
+                                // Handle boolean values properly
+                                el.checked = data.settings[key] === true || data.settings[key] === 'true' || data.settings[key] === '1' || data.settings[key] === 1;
+                            } else if (el.type === 'color' || el.classList.contains('color-input')) {
                                 el.value = data.settings[key] || el.value;
                                 if (pickerEl) pickerEl.value = data.settings[key] || pickerEl.value;
                             } else {
-                                el.value = data.settings[key] || '';
+                                el.value = data.settings[key] ?? '';
                             }
                         }
                     });
@@ -12337,7 +12326,7 @@ Local honey and preserves"></textarea>
                         }
                     }
                 } else {
-                    console.log('No saved settings from API, keeping template defaults');
+                    console.log(`No saved ${section} settings, using template defaults`);
                 }
             } catch (error) {
                 console.error('Error loading website builder section:', error);
@@ -12357,19 +12346,16 @@ Local honey and preserves"></textarea>
                     saveBtn.style.opacity = '0.7';
                 }
                 
-                const accountId = selectedAccountId;
-                const websiteId = selectedWebsiteId;
-                
-                if (!accountId && !websiteId) {
-                    alert('Please select an account or website to edit first');
+                // Must have a deployed site selected
+                if (!selectedDeployedSiteId) {
+                    showNotification('Please select a website to edit first', 'error');
                     return;
                 }
                 
-                // Collect all form values for this section
+                // Collect all form values from the VISIBLE editor container
                 const settings = {};
                 const prefix = `wb-${section}-`;
                 
-                // Find the active editor container for this section
                 const editorPanelMap = {
                     'header': 'editor-header-content',
                     'hero': 'editor-hero-content',
@@ -12393,93 +12379,59 @@ Local honey and preserves"></textarea>
                 const editorContainerId = editorPanelMap[section];
                 const editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
                 
-                // Collect from editor container if available, otherwise fall back to global
+                // Collect from editor container (visible elements)
                 const elementsToCheck = editorContainer 
                     ? editorContainer.querySelectorAll(`[id^="${prefix}"]`)
                     : document.querySelectorAll(`[id^="${prefix}"]`);
                 
                 elementsToCheck.forEach(el => {
                     const key = el.id.replace(prefix, '');
-                    // Skip picker, value display, and preview elements
                     if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
                         return;
                     }
                     if (el.type === 'checkbox') {
                         settings[key] = el.checked;
                     } else if (el.type === 'file') {
-                        // Handle file uploads separately
+                        // Skip file inputs
                     } else if (el.value !== undefined) {
                         settings[key] = el.value;
                     }
                 });
                 
-                console.log('Saving settings:', section, settings);
-                console.log('websiteId:', websiteId, 'accountId:', accountId);
+                console.log(`Saving ${section} for deployed site ${selectedDeployedSiteId}:`, settings);
                 
-                let saved = false;
+                // Use NEW clean endpoint
+                if (saveBtn) saveBtn.innerHTML = '⏳ Saving to database...';
                 
-                // Try per-website endpoint first if we have a websiteId
-                if (websiteId) {
-                    try {
-                        const response = await fetch(`/api/websites/${websiteId}/builder/${section}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ settings })
-                        });
-                        const data = await response.json();
-                        console.log('Per-website endpoint response:', data);
-                        if (data.success) {
-                            saved = true;
-                            console.log('Saved to per-website endpoint');
+                const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings/${section}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ settings })
+                });
+                
+                const data = await response.json();
+                console.log('Save response:', data);
+                
+                if (data.success) {
+                    // Check WordPress push result
+                    if (data.wordpress_push) {
+                        if (data.wordpress_push.success) {
+                            showNotification('✅ Saved and synced to WordPress!', 'success');
                         } else {
-                            console.log('Per-website endpoint failed:', data.error);
+                            console.warn('WordPress sync failed:', data.wordpress_push.error);
+                            showNotification('✅ Saved! WordPress sync: ' + (data.wordpress_push.error || 'pending'), 'warning');
                         }
-                    } catch (e) {
-                        console.log('Per-website save failed (exception):', e);
+                    } else {
+                        showNotification('✅ Settings saved!', 'success');
                     }
                 } else {
-                    console.log('No websiteId, skipping per-website endpoint');
+                    showNotification('Error: ' + (data.error || 'Failed to save'), 'error');
                 }
                 
-                // Also save to account-based endpoint (for compatibility)
-                if (accountId) {
-                    try {
-                        const response = await fetch(`/api/admin/website-builder/${section}`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ account_id: accountId, settings })
-                        });
-                        const data = await response.json();
-                        console.log('Account-based endpoint response:', data);
-                        if (data.success) {
-                            saved = true;
-                            console.log('Saved to account-based endpoint');
-                            
-                            // Also push to WordPress if site exists
-                            if (selectedWebsiteData?.site_url) {
-                                if (saveBtn) saveBtn.innerHTML = '⏳ Syncing to WordPress...';
-                                await pushToWordPress(section, settings);
-                            }
-                        } else {
-                            console.log('Account-based endpoint failed:', data.error);
-                        }
-                    } catch (e) {
-                        console.log('Account-based save failed (exception):', e);
-                    }
-                } else {
-                    console.log('No accountId, skipping account-based endpoint');
-                }
-                
-                if (saved) {
-                    showNotification('✅ Saved and synced to website!', 'success');
-                } else {
-                    showNotification('Error: Failed to save settings', 'error');
-                }
             } catch (error) {
                 console.error('Error saving website section:', error);
                 showNotification('Error saving. Please try again.', 'error');
             } finally {
-                // Restore button state
                 if (saveBtn) {
                     saveBtn.disabled = false;
                     saveBtn.innerHTML = originalText;
