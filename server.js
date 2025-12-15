@@ -6790,14 +6790,8 @@ app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
 // Helper function to push settings to WordPress
 async function pushSettingsToWordPress(siteUrl, section, settings) {
   try {
-    // Get WordPress API settings
-    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
-    const apiKey = wpSettings.rows[0]?.api_key;
-    
-    if (!apiKey) {
-      console.log('WordPress API not configured, skipping push');
-      return { success: false, error: 'WordPress API not configured' };
-    }
+    // Hardcoded API key for WordPress VPS
+    const apiKey = 'GAS_SECRET_KEY_2024!';
     
     console.log(`Pushing ${section} to WordPress: ${siteUrl}`);
     
