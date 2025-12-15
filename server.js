@@ -6542,6 +6542,297 @@ app.get('/api/setup-deploy', async (req, res) => {
   }
 });
 
+// =====================================================
+// DEPLOYED SITES SETTINGS - Clean Per-Site Architecture
+// =====================================================
+
+// Migration endpoint to add deployed_site_id support
+app.get('/api/migrate-website-settings', async (req, res) => {
+  try {
+    const results = [];
+    
+    // 1. Add deployed_site_id column
+    await pool.query(`
+      ALTER TABLE website_settings 
+      ADD COLUMN IF NOT EXISTS deployed_site_id INTEGER REFERENCES deployed_sites(id) ON DELETE CASCADE
+    `);
+    results.push('Added deployed_site_id column');
+    
+    // 2. Create index for lookups
+    await pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_website_settings_deployed_site 
+      ON website_settings(deployed_site_id)
+    `);
+    results.push('Created deployed_site_id index');
+    
+    // 3. Drop old conflicting constraints if they exist
+    await pool.query(`
+      ALTER TABLE website_settings 
+      DROP CONSTRAINT IF EXISTS website_settings_account_id_section_key
+    `).catch(() => {});
+    results.push('Removed old account_id+section constraint');
+    
+    // 4. Create unique constraint for deployed_site_id + section
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_website_settings_deployed_unique 
+      ON website_settings(deployed_site_id, section) 
+      WHERE deployed_site_id IS NOT NULL
+    `);
+    results.push('Created deployed_site_id+section unique index');
+    
+    // 5. Check current state
+    const tableInfo = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'website_settings'
+      ORDER BY ordinal_position
+    `);
+    
+    const countResult = await pool.query(`SELECT COUNT(*) as total FROM website_settings`);
+    const deployedCount = await pool.query(`SELECT COUNT(*) as total FROM website_settings WHERE deployed_site_id IS NOT NULL`);
+    
+    res.json({ 
+      success: true, 
+      message: 'Migration completed',
+      results,
+      columns: tableInfo.rows.map(r => r.column_name),
+      stats: {
+        total_rows: countResult.rows[0].total,
+        rows_with_deployed_site_id: deployedCount.rows[0].total
+      }
+    });
+  } catch (error) {
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET settings for a deployed site
+app.get('/api/deployed-sites/:id/settings/:section', async (req, res) => {
+  try {
+    const deployedSiteId = parseInt(req.params.id);
+    const section = req.params.section;
+    
+    // Verify deployed site exists and get template
+    const siteResult = await pool.query(
+      'SELECT id, account_id, template, site_name FROM deployed_sites WHERE id = $1',
+      [deployedSiteId]
+    );
+    
+    if (siteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    
+    // Try to get per-site settings first
+    let result = await pool.query(`
+      SELECT settings, variant, is_enabled, display_order, updated_at
+      FROM website_settings
+      WHERE deployed_site_id = $1 AND section = $2
+    `, [deployedSiteId, section]);
+    
+    if (result.rows.length > 0) {
+      console.log(`Loaded ${section} settings for deployed site ${deployedSiteId}`);
+      return res.json({ 
+        success: true, 
+        settings: result.rows[0].settings,
+        source: 'deployed_site',
+        template: site.template
+      });
+    }
+    
+    // Fall back to account-based settings (legacy)
+    result = await pool.query(`
+      SELECT settings, variant, is_enabled, display_order, updated_at
+      FROM website_settings
+      WHERE account_id = $1 AND section = $2 AND deployed_site_id IS NULL
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `, [site.account_id, section]);
+    
+    if (result.rows.length > 0) {
+      console.log(`Loaded ${section} settings from account ${site.account_id} for deployed site ${deployedSiteId}`);
+      return res.json({ 
+        success: true, 
+        settings: result.rows[0].settings,
+        source: 'account_fallback',
+        template: site.template
+      });
+    }
+    
+    // No settings found, return null (frontend will use template defaults)
+    console.log(`No ${section} settings found for deployed site ${deployedSiteId}, using template defaults`);
+    res.json({ 
+      success: true, 
+      settings: null,
+      source: 'template_defaults',
+      template: site.template
+    });
+    
+  } catch (error) {
+    console.error('Get deployed site settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// GET all settings for a deployed site
+app.get('/api/deployed-sites/:id/settings', async (req, res) => {
+  try {
+    const deployedSiteId = parseInt(req.params.id);
+    
+    // Verify deployed site exists
+    const siteResult = await pool.query(
+      'SELECT id, account_id, template, site_name, site_url FROM deployed_sites WHERE id = $1',
+      [deployedSiteId]
+    );
+    
+    if (siteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    
+    // Get all per-site settings
+    const result = await pool.query(`
+      SELECT section, settings, updated_at
+      FROM website_settings
+      WHERE deployed_site_id = $1
+    `, [deployedSiteId]);
+    
+    const allSettings = {};
+    result.rows.forEach(row => {
+      allSettings[row.section] = row.settings;
+    });
+    
+    res.json({ 
+      success: true, 
+      site: {
+        id: site.id,
+        name: site.site_name,
+        template: site.template,
+        site_url: site.site_url
+      },
+      settings: allSettings,
+      sections_saved: Object.keys(allSettings)
+    });
+    
+  } catch (error) {
+    console.error('Get all deployed site settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// SAVE settings for a deployed site
+app.post('/api/deployed-sites/:id/settings/:section', async (req, res) => {
+  try {
+    const deployedSiteId = parseInt(req.params.id);
+    const section = req.params.section;
+    const { settings } = req.body;
+    
+    if (!settings) {
+      return res.json({ success: false, error: 'Settings object required' });
+    }
+    
+    // Verify deployed site exists and get info for WordPress push
+    const siteResult = await pool.query(
+      'SELECT id, account_id, template, site_name, site_url FROM deployed_sites WHERE id = $1',
+      [deployedSiteId]
+    );
+    
+    if (siteResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    const site = siteResult.rows[0];
+    
+    console.log(`Saving ${section} settings for deployed site ${deployedSiteId} (${site.site_name})`);
+    console.log('Settings:', JSON.stringify(settings, null, 2));
+    
+    // UPSERT: Try update first, then insert
+    const updateResult = await pool.query(`
+      UPDATE website_settings 
+      SET settings = $1, updated_at = CURRENT_TIMESTAMP, sync_source = 'gas'
+      WHERE deployed_site_id = $2 AND section = $3
+    `, [JSON.stringify(settings), deployedSiteId, section]);
+    
+    if (updateResult.rowCount === 0) {
+      // No existing row, insert new one
+      await pool.query(`
+        INSERT INTO website_settings (deployed_site_id, account_id, section, settings, sync_source, updated_at)
+        VALUES ($1, $2, $3, $4, 'gas', CURRENT_TIMESTAMP)
+      `, [deployedSiteId, site.account_id, section, JSON.stringify(settings)]);
+      console.log(`Inserted new ${section} settings for deployed site ${deployedSiteId}`);
+    } else {
+      console.log(`Updated ${section} settings for deployed site ${deployedSiteId}`);
+    }
+    
+    // Push to WordPress if site has URL
+    let wpPushResult = null;
+    if (site.site_url) {
+      wpPushResult = await pushSettingsToWordPress(site.site_url, section, settings);
+    }
+    
+    res.json({ 
+      success: true, 
+      message: 'Settings saved',
+      deployed_site_id: deployedSiteId,
+      section,
+      wordpress_push: wpPushResult
+    });
+    
+  } catch (error) {
+    console.error('Save deployed site settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Helper function to push settings to WordPress
+async function pushSettingsToWordPress(siteUrl, section, settings) {
+  try {
+    // Get WordPress API settings
+    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
+    const apiKey = wpSettings.rows[0]?.api_key;
+    
+    if (!apiKey) {
+      console.log('WordPress API not configured, skipping push');
+      return { success: false, error: 'WordPress API not configured' };
+    }
+    
+    console.log(`Pushing ${section} to WordPress: ${siteUrl}`);
+    
+    const response = await fetch('https://sites.gas.travel/gas-api.php', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${apiKey}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        action: 'update_settings',
+        site_url: siteUrl,
+        section,
+        settings
+      })
+    });
+    
+    const responseText = await response.text();
+    console.log('WordPress API raw response:', responseText);
+    
+    // Try to parse as JSON
+    try {
+      const data = JSON.parse(responseText);
+      return data;
+    } catch (parseError) {
+      console.error('Failed to parse WordPress response as JSON:', responseText);
+      return { success: false, error: 'Invalid JSON response from WordPress', raw: responseText };
+    }
+    
+  } catch (error) {
+    console.error('WordPress push error:', error);
+    return { success: false, error: error.message };
+  }
+}
+
 // Check VPS status
 app.get('/api/deploy/status', async (req, res) => {
   try {
