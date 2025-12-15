@@ -12369,7 +12369,36 @@ Local honey and preserves"></textarea>
                 const settings = {};
                 const prefix = `wb-${section}-`;
                 
-                document.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
+                // Find the active editor container for this section
+                const editorPanelMap = {
+                    'header': 'editor-header-content',
+                    'hero': 'editor-hero-content',
+                    'intro': 'editor-intro-content',
+                    'featured': 'editor-featured-content',
+                    'about': 'editor-about-content',
+                    'reviews': 'editor-reviews-content',
+                    'cta': 'editor-cta-content',
+                    'footer': 'editor-footer-content',
+                    'styles': 'editor-styles-content',
+                    'page-about': 'editor-page-about-content',
+                    'page-gallery': 'editor-page-gallery-content',
+                    'page-blog': 'editor-page-blog-content',
+                    'page-attractions': 'editor-page-attractions-content',
+                    'page-dining': 'editor-page-dining-content',
+                    'page-contact': 'editor-page-contact-content',
+                    'page-terms': 'editor-terms-content',
+                    'page-privacy': 'editor-privacy-content'
+                };
+                
+                const editorContainerId = editorPanelMap[section];
+                const editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
+                
+                // Collect from editor container if available, otherwise fall back to global
+                const elementsToCheck = editorContainer 
+                    ? editorContainer.querySelectorAll(`[id^="${prefix}"]`)
+                    : document.querySelectorAll(`[id^="${prefix}"]`);
+                
+                elementsToCheck.forEach(el => {
                     const key = el.id.replace(prefix, '');
                     // Skip picker, value display, and preview elements
                     if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
