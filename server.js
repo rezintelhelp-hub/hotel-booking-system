@@ -23756,7 +23756,7 @@ setTimeout(() => {
 // =====================================================
 
 // Get all available adapters
-app.get('/api/gas-sync/adapters', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/adapters', async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT id, code, name, description, logo_url, auth_type, 
@@ -23774,7 +23774,7 @@ app.get('/api/gas-sync/adapters', authenticateToken, async (req, res) => {
 });
 
 // Get all connections for an account
-app.get('/api/gas-sync/connections', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/connections', async (req, res) => {
   try {
     const accountId = req.query.account_id || req.user.account_id;
     
@@ -23803,7 +23803,7 @@ app.get('/api/gas-sync/connections', authenticateToken, async (req, res) => {
 });
 
 // Get single connection details
-app.get('/api/gas-sync/connections/:id', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/connections/:id', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -23831,7 +23831,7 @@ app.get('/api/gas-sync/connections/:id', authenticateToken, async (req, res) => 
 });
 
 // Create new connection
-app.post('/api/gas-sync/connections', authenticateToken, async (req, res) => {
+app.post('/api/gas-sync/connections', async (req, res) => {
   try {
     const { 
       account_id, 
@@ -23925,7 +23925,7 @@ app.post('/api/gas-sync/connections', authenticateToken, async (req, res) => {
 });
 
 // Update connection
-app.put('/api/gas-sync/connections/:id', authenticateToken, async (req, res) => {
+app.put('/api/gas-sync/connections/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { 
@@ -23986,7 +23986,7 @@ app.put('/api/gas-sync/connections/:id', authenticateToken, async (req, res) => 
 });
 
 // Delete connection
-app.delete('/api/gas-sync/connections/:id', authenticateToken, async (req, res) => {
+app.delete('/api/gas-sync/connections/:id', async (req, res) => {
   try {
     const { id } = req.params;
     await pool.query('DELETE FROM gas_sync_connections WHERE id = $1', [id]);
@@ -23997,7 +23997,7 @@ app.delete('/api/gas-sync/connections/:id', authenticateToken, async (req, res) 
 });
 
 // Test connection
-app.post('/api/gas-sync/connections/:id/test', authenticateToken, async (req, res) => {
+app.post('/api/gas-sync/connections/:id/test', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -24025,7 +24025,7 @@ app.post('/api/gas-sync/connections/:id/test', authenticateToken, async (req, re
 });
 
 // Trigger sync for a connection
-app.post('/api/gas-sync/connections/:id/sync', authenticateToken, async (req, res) => {
+app.post('/api/gas-sync/connections/:id/sync', async (req, res) => {
   try {
     const { id } = req.params;
     const { type = 'incremental' } = req.body;
@@ -24060,7 +24060,7 @@ app.post('/api/gas-sync/connections/:id/sync', authenticateToken, async (req, re
 });
 
 // Get sync logs for a connection
-app.get('/api/gas-sync/connections/:id/logs', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/connections/:id/logs', async (req, res) => {
   try {
     const { id } = req.params;
     const { limit = 50, offset = 0 } = req.query;
@@ -24082,7 +24082,7 @@ app.get('/api/gas-sync/connections/:id/logs', authenticateToken, async (req, res
 });
 
 // Get synced properties for a connection
-app.get('/api/gas-sync/connections/:id/properties', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/connections/:id/properties', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -24103,7 +24103,7 @@ app.get('/api/gas-sync/connections/:id/properties', authenticateToken, async (re
 });
 
 // Get synced room types for a property
-app.get('/api/gas-sync/properties/:propertyId/room-types', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/properties/:propertyId/room-types', async (req, res) => {
   try {
     const { propertyId } = req.params;
     
@@ -24122,7 +24122,7 @@ app.get('/api/gas-sync/properties/:propertyId/room-types', authenticateToken, as
 });
 
 // Get synced reservations for a connection
-app.get('/api/gas-sync/connections/:id/reservations', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/connections/:id/reservations', async (req, res) => {
   try {
     const { id } = req.params;
     const { status, start_date, end_date, limit = 50, offset = 0 } = req.query;
@@ -24176,7 +24176,7 @@ app.get('/api/gas-sync/connections/:id/reservations', authenticateToken, async (
 });
 
 // Get synced images for a property
-app.get('/api/gas-sync/properties/:propertyId/images', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/properties/:propertyId/images', async (req, res) => {
   try {
     const { propertyId } = req.params;
     
@@ -24195,7 +24195,7 @@ app.get('/api/gas-sync/properties/:propertyId/images', authenticateToken, async 
 });
 
 // Download images for a property (Beds24 V1)
-app.post('/api/gas-sync/properties/:propertyId/download-images', authenticateToken, async (req, res) => {
+app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res) => {
   try {
     const { propertyId } = req.params;
     
@@ -24265,7 +24265,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', authenticateTok
 });
 
 // Link synced property to GAS property
-app.post('/api/gas-sync/properties/:syncPropertyId/link', authenticateToken, async (req, res) => {
+app.post('/api/gas-sync/properties/:syncPropertyId/link', async (req, res) => {
   try {
     const { syncPropertyId } = req.params;
     const { gas_property_id } = req.body;
@@ -24282,7 +24282,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link', authenticateToken, asy
 });
 
 // Auto-import synced property into GAS
-app.post('/api/gas-sync/properties/:syncPropertyId/import', authenticateToken, async (req, res) => {
+app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => {
   try {
     const { syncPropertyId } = req.params;
     const { account_id } = req.body;
@@ -24368,7 +24368,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', authenticateToken, a
 });
 
 // Get overall sync status
-app.get('/api/gas-sync/status', authenticateToken, async (req, res) => {
+app.get('/api/gas-sync/status', async (req, res) => {
   try {
     const accountId = req.query.account_id || req.user.account_id;
     
