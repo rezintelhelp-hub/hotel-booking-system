@@ -21777,27 +21777,73 @@ app.get('/api/websites/:websiteId/builder/:section', async (req, res) => {
   try {
     const { websiteId, section } = req.params;
     
-    // Get website id if public_id provided
-    const websiteResult = await pool.query(`
-      SELECT id FROM websites WHERE id = $1 OR public_id = $1
-    `, [websiteId]);
+    // Get website id - check websites table first, then deployed_sites
+    const isNumeric = /^\d+$/.test(websiteId);
+    let dbWebsiteId = null;
+    let accountId = null;
+    let isDeployedSite = false;
     
-    if (websiteResult.rows.length === 0) {
+    if (isNumeric) {
+      // First try websites table
+      const websiteResult = await pool.query(`
+        SELECT id, owner_id FROM websites WHERE id = $1
+      `, [parseInt(websiteId)]);
+      
+      if (websiteResult.rows.length > 0) {
+        dbWebsiteId = websiteResult.rows[0].id;
+        accountId = websiteResult.rows[0].owner_id;
+      } else {
+        // Try deployed_sites table
+        const deployedResult = await pool.query(`
+          SELECT id, account_id FROM deployed_sites WHERE id = $1
+        `, [parseInt(websiteId)]);
+        
+        if (deployedResult.rows.length > 0) {
+          isDeployedSite = true;
+          dbWebsiteId = deployedResult.rows[0].id;
+          accountId = deployedResult.rows[0].account_id;
+        }
+      }
+    } else {
+      const websiteResult = await pool.query(`
+        SELECT id, owner_id FROM websites WHERE public_id = $1
+      `, [websiteId]);
+      
+      if (websiteResult.rows.length > 0) {
+        dbWebsiteId = websiteResult.rows[0].id;
+        accountId = websiteResult.rows[0].owner_id;
+      }
+    }
+    
+    if (!dbWebsiteId) {
       return res.json({ success: false, error: 'Website not found' });
     }
     
-    const dbWebsiteId = websiteResult.rows[0].id;
-    
-    const result = await pool.query(`
-      SELECT settings, variant, is_enabled, display_order
-      FROM website_settings
-      WHERE website_id = $1 AND section = $2
-    `, [dbWebsiteId, section]);
-    
-    if (result.rows.length > 0) {
-      res.json({ success: true, ...result.rows[0] });
+    // For deployed sites, load from account-based settings
+    if (isDeployedSite) {
+      const result = await pool.query(`
+        SELECT settings, variant, is_enabled, display_order
+        FROM website_settings
+        WHERE account_id = $1 AND section = $2 AND website_id IS NULL
+      `, [accountId, section]);
+      
+      if (result.rows.length > 0) {
+        res.json({ success: true, ...result.rows[0] });
+      } else {
+        res.json({ success: true, settings: null, is_enabled: true });
+      }
     } else {
-      res.json({ success: true, settings: null, is_enabled: true });
+      const result = await pool.query(`
+        SELECT settings, variant, is_enabled, display_order
+        FROM website_settings
+        WHERE website_id = $1 AND section = $2
+      `, [dbWebsiteId, section]);
+      
+      if (result.rows.length > 0) {
+        res.json({ success: true, ...result.rows[0] });
+      } else {
+        res.json({ success: true, settings: null, is_enabled: true });
+      }
     }
   } catch (error) {
     console.error('Get website section error:', error);
