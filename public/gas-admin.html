@@ -6179,17 +6179,17 @@ const promo = await fetch('/api/v1/offers/validate', {
                 </div>
 
                 <!-- WordPress Hosting Settings (Master Admin Only) -->
-                <div id="wp-instawp-settings" class="card billing-admin-only" style="margin-bottom: 1.5rem; border: 2px dashed var(--border);">
+                <div id="wp-vps-settings" class="card billing-admin-only" style="margin-bottom: 1.5rem; border: 2px dashed var(--border);">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
                         <h3 style="margin: 0; display: flex; align-items: center; gap: 0.5rem;">
                             ⚙️ WordPress Hosting Configuration
                         </h3>
-                        <button class="btn btn-secondary btn-small" onclick="toggleInstaWPSettings()">
-                            <span id="instawp-toggle-text">Show Settings</span>
+                        <button class="btn btn-secondary btn-small" onclick="toggleVPSSettings()">
+                            <span id="vps-toggle-text">Show Settings</span>
                         </button>
                     </div>
                     
-                    <div id="instawp-settings-panel" style="display: none;">
+                    <div id="vps-settings-panel" style="display: none;">
                         <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
                             <p style="margin: 0; font-size: 0.9rem;">✅ <strong>Your WordPress hosting is active!</strong></p>
                             <p style="margin: 0.25rem 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">API: sites.gas.travel</p>
@@ -6197,27 +6197,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label>API URL</label>
-                            <input type="text" id="instawp-api-url" class="form-input" value="https://sites.gas.travel/gas-api.php">
+                            <input type="text" id="vps-api-url" class="form-input" value="https://sites.gas.travel/gas-api.php">
                         </div>
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label>API Key</label>
-                            <input type="password" id="instawp-api-key" class="form-input" placeholder="Enter your WordPress API key">
+                            <input type="password" id="vps-api-key" class="form-input" placeholder="Enter your WordPress API key">
                         </div>
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label>Default Template (Optional)</label>
-                            <input type="text" id="instawp-default-template" class="form-input" placeholder="e.g., developer-theme">
+                            <input type="text" id="vps-default-template" class="form-input" placeholder="e.g., developer-theme">
                         </div>
                         
                         <div class="form-group" style="margin-bottom: 1rem;">
                             <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                <input type="checkbox" id="instawp-enabled" style="width: 18px; height: 18px;">
+                                <input type="checkbox" id="vps-enabled" style="width: 18px; height: 18px;">
                                 Enable WordPress Site Creation
                             </label>
                         </div>
                         
-                        <button class="btn" onclick="saveInstaWPSettings()">💾 Save Settings</button>
+                        <button class="btn" onclick="saveVPSSettings()">💾 Save Settings</button>
                     </div>
                 </div>
 
@@ -8143,7 +8143,7 @@ Local honey and preserves"></textarea>
                     <label>Site Name</label>
                     <input type="text" id="create-website-name" class="form-input" placeholder="e.g., lehmannhouse">
                     <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
-                        Will be: <strong><span id="create-website-preview">yoursite</span>.instawp.site</strong>
+                        Will be: <strong><span id="create-website-preview">yoursite</span>.vps.site</strong>
                     </p>
                 </div>
                 
@@ -12283,12 +12283,32 @@ Local honey and preserves"></textarea>
                     }
                 });
                 
-                const response = await fetch(`/api/admin/website-builder/${section}?client_id=${clientId}`);
-                const data = await response.json();
-                console.log('API response for section', section, ':', data);
+                // Try per-website endpoint first if we have a websiteId
+                let data = null;
+                const websiteId = selectedWebsiteId;
                 
-                if (data.success && data.settings) {
-                    console.log('API has saved settings, overwriting template defaults...');
+                if (websiteId) {
+                    try {
+                        const wsResponse = await fetch(`/api/websites/${websiteId}/builder/${section}`);
+                        const wsData = await wsResponse.json();
+                        console.log('Per-website API response:', wsData);
+                        if (wsData.success && wsData.settings) {
+                            data = wsData;
+                        }
+                    } catch (e) {
+                        console.log('Per-website load failed, trying account-based...');
+                    }
+                }
+                
+                // Fall back to account-based endpoint
+                if (!data) {
+                    const response = await fetch(`/api/admin/website-builder/${section}?client_id=${clientId}`);
+                    data = await response.json();
+                    console.log('Account-based API response:', data);
+                }
+                
+                if (data && data.success && data.settings) {
+                    console.log('Applying saved settings, overwriting template defaults...');
                     // Populate form fields based on section (overwriting defaults)
                     Object.keys(data.settings).forEach(key => {
                         const el = getEl(`wb-${section}-${key}`);
@@ -25755,47 +25775,47 @@ Local honey and preserves"></textarea>
         // INSTAWP INTEGRATION
         // =====================================================
         
-        let instaWPSettingsVisible = false;
+        let vpsSettingsVisible = false;
         
-        function toggleInstaWPSettings() {
-            instaWPSettingsVisible = !instaWPSettingsVisible;
-            document.getElementById('instawp-settings-panel').style.display = instaWPSettingsVisible ? 'block' : 'none';
-            document.getElementById('instawp-toggle-text').textContent = instaWPSettingsVisible ? 'Hide Settings' : 'Show Settings';
+        function toggleVPSSettings() {
+            vpsSettingsVisible = !vpsSettingsVisible;
+            document.getElementById('vps-settings-panel').style.display = vpsSettingsVisible ? 'block' : 'none';
+            document.getElementById('vps-toggle-text').textContent = vpsSettingsVisible ? 'Hide Settings' : 'Show Settings';
             
-            if (instaWPSettingsVisible) {
-                loadInstaWPSettings();
+            if (vpsSettingsVisible) {
+                loadVPSSettings();
             }
         }
         
-        async function loadInstaWPSettings() {
+        async function loadVPSSettings() {
             try {
-                const response = await fetch('/api/admin/instawp/settings');
+                const response = await fetch('/api/admin/vps/settings');
                 const data = await response.json();
                 
                 if (data.success && data.data) {
-                    if (document.getElementById('instawp-api-url')) {
-                        document.getElementById('instawp-api-url').value = data.data.api_url || 'https://sites.gas.travel/gas-api.php';
+                    if (document.getElementById('vps-api-url')) {
+                        document.getElementById('vps-api-url').value = data.data.api_url || 'https://sites.gas.travel/gas-api.php';
                     }
-                    document.getElementById('instawp-api-key').value = data.data.api_key || '';
-                    document.getElementById('instawp-default-template').value = data.data.default_template || '';
-                    document.getElementById('instawp-enabled').checked = data.data.is_enabled || false;
+                    document.getElementById('vps-api-key').value = data.data.api_key || '';
+                    document.getElementById('vps-default-template').value = data.data.default_template || '';
+                    document.getElementById('vps-enabled').checked = data.data.is_enabled || false;
                 }
             } catch (error) {
                 console.error('Error loading WordPress settings:', error);
             }
         }
         
-        async function saveInstaWPSettings() {
+        async function saveVPSSettings() {
             try {
-                const response = await fetch('/api/admin/instawp/settings', {
+                const response = await fetch('/api/admin/vps/settings', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        api_url: document.getElementById('instawp-api-url')?.value || 'https://sites.gas.travel/gas-api.php',
-                        api_key: document.getElementById('instawp-api-key').value,
-                        default_template: document.getElementById('instawp-default-template').value,
+                        api_url: document.getElementById('vps-api-url')?.value || 'https://sites.gas.travel/gas-api.php',
+                        api_key: document.getElementById('vps-api-key').value,
+                        default_template: document.getElementById('vps-default-template').value,
                         templates: {},
-                        is_enabled: document.getElementById('instawp-enabled').checked
+                        is_enabled: document.getElementById('vps-enabled').checked
                     })
                 });
                 
@@ -25905,7 +25925,7 @@ Local honey and preserves"></textarea>
             btn.textContent = '⏳ Creating...';
             
             try {
-                const response = await fetch('/api/admin/instawp/create-site', {
+                const response = await fetch('/api/admin/vps/create-site', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
