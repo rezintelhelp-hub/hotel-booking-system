@@ -21836,7 +21836,9 @@ app.get('/api/websites/:websiteId/builder/:section', async (req, res) => {
       const result = await pool.query(`
         SELECT settings, variant, is_enabled, display_order
         FROM website_settings
-        WHERE account_id = $1 AND section = $2 AND website_id IS NULL
+        WHERE account_id = $1 AND section = $2
+        ORDER BY updated_at DESC NULLS LAST
+        LIMIT 1
       `, [accountId, section]);
       
       if (result.rows.length > 0) {
@@ -21912,19 +21914,22 @@ app.post('/api/websites/:websiteId/builder/:section', async (req, res) => {
     
     // For deployed sites, use deployed_site_id column; for websites, use website_id
     if (isDeployedSite) {
-      // Check if deployed_site_id column exists, if not use account-based storage
-      await pool.query(`
-        INSERT INTO website_settings (account_id, section, settings, variant, is_enabled, display_order, sync_source, updated_at)
-        VALUES ($1, $2, $3, $4, COALESCE($5, true), COALESCE($6, 0), 'gas', CURRENT_TIMESTAMP)
-        ON CONFLICT (account_id, section) WHERE account_id IS NOT NULL AND website_id IS NULL
-        DO UPDATE SET 
-          settings = $3, 
-          variant = COALESCE($4, website_settings.variant),
-          is_enabled = COALESCE($5, website_settings.is_enabled),
-          display_order = COALESCE($6, website_settings.display_order),
-          sync_source = 'gas',
-          updated_at = CURRENT_TIMESTAMP
-      `, [accountId, section, JSON.stringify(settings), variant, is_enabled, display_order]);
+      // Use simple update-first approach for deployed sites (account-based storage)
+      const updateResult = await pool.query(
+        'UPDATE website_settings SET settings = $1, sync_source = $2, updated_at = CURRENT_TIMESTAMP WHERE account_id = $3 AND section = $4',
+        [JSON.stringify(settings), 'gas', accountId, section]
+      );
+      
+      if (updateResult.rowCount === 0) {
+        // No existing row, insert new one
+        await pool.query(
+          'INSERT INTO website_settings (account_id, section, settings, sync_source, updated_at) VALUES ($1, $2, $3, $4, CURRENT_TIMESTAMP)',
+          [accountId, section, JSON.stringify(settings), 'gas']
+        );
+        console.log(`Inserted website_settings for deployed site, account ${accountId}, section ${section}`);
+      } else {
+        console.log(`Updated website_settings for deployed site, account ${accountId}, section ${section}`);
+      }
     } else {
       // Upsert the settings for websites table entries
       await pool.query(`
