@@ -18,6 +18,9 @@ const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// GasSync - Channel Manager Integration Layer
+const { getAdapter, getAvailableAdapters, getAdapterInfo, getAdapterGroups, SyncManager } = require('./gas-sync/adapters');
+
 // Email configuration - Mailgun
 const MAILGUN_API_KEY = process.env.MAILGUN_API_KEY;
 const MAILGUN_DOMAIN = process.env.MAILGUN_DOMAIN || 'mg.gas.travel';
@@ -419,6 +422,9 @@ const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
   ssl: { rejectUnauthorized: false }
 });
+
+// Initialize GasSync Manager
+const syncManager = new SyncManager(pool);
 
 // Run database migrations on startup
 async function runMigrations() {
@@ -23743,6 +23749,721 @@ setTimeout(() => {
   runBeds24BookingsSync();
   runBeds24InventorySync();
 }, 60 * 1000);
+
+// =====================================================
+// GASSYNC API ROUTES
+// Channel Manager Integration Layer
+// =====================================================
+
+// Get all available adapters
+app.get('/api/gas-sync/adapters', authenticateToken, async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, code, name, description, logo_url, auth_type, 
+             capabilities, supports_webhooks, webhook_events, is_active
+      FROM gas_sync_adapters
+      WHERE is_active = true
+      ORDER BY name
+    `);
+    
+    res.json({ success: true, adapters: result.rows });
+  } catch (error) {
+    console.error('Error fetching adapters:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get all connections for an account
+app.get('/api/gas-sync/connections', authenticateToken, async (req, res) => {
+  try {
+    const accountId = req.query.account_id || req.user.account_id;
+    
+    const result = await pool.query(`
+      SELECT c.id, c.account_id, c.adapter_code, c.status, 
+             c.external_account_id, c.external_account_name,
+             c.sync_enabled, c.sync_interval_minutes,
+             c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
+             c.webhook_registered, c.created_at, c.updated_at,
+             a.name as adapter_name, a.logo_url as adapter_logo,
+             a.capabilities as adapter_capabilities,
+             (SELECT COUNT(*) FROM gas_sync_properties WHERE connection_id = c.id) as property_count,
+             (SELECT COUNT(*) FROM gas_sync_room_types WHERE connection_id = c.id) as room_type_count,
+             (SELECT COUNT(*) FROM gas_sync_reservations WHERE connection_id = c.id AND status = 'confirmed') as reservation_count
+      FROM gas_sync_connections c
+      JOIN gas_sync_adapters a ON c.adapter_code = a.code
+      WHERE c.account_id = $1
+      ORDER BY c.created_at DESC
+    `, [accountId]);
+    
+    res.json({ success: true, connections: result.rows });
+  } catch (error) {
+    console.error('Error fetching connections:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get single connection details
+app.get('/api/gas-sync/connections/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT c.*, a.name as adapter_name, a.logo_url as adapter_logo,
+             a.capabilities as adapter_capabilities, a.auth_type
+      FROM gas_sync_connections c
+      JOIN gas_sync_adapters a ON c.adapter_code = a.code
+      WHERE c.id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const connection = result.rows[0];
+    delete connection.credentials;
+    delete connection.access_token;
+    delete connection.refresh_token;
+    
+    res.json({ success: true, connection });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Create new connection
+app.post('/api/gas-sync/connections', authenticateToken, async (req, res) => {
+  try {
+    const { 
+      account_id, 
+      adapter_code, 
+      credentials,
+      sync_enabled = true,
+      sync_interval_minutes = 15
+    } = req.body;
+    
+    // Validate adapter exists
+    const adapterCheck = await pool.query(
+      'SELECT id FROM gas_sync_adapters WHERE code = $1 AND is_active = true',
+      [adapter_code]
+    );
+    
+    if (adapterCheck.rows.length === 0) {
+      return res.status(400).json({ success: false, error: 'Invalid adapter code' });
+    }
+    
+    // Check for existing connection
+    const existingCheck = await pool.query(
+      'SELECT id FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = $2',
+      [account_id, adapter_code]
+    );
+    
+    if (existingCheck.rows.length > 0) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Connection already exists for this adapter',
+        existing_id: existingCheck.rows[0].id
+      });
+    }
+    
+    // Test the connection before saving
+    try {
+      const adapter = getAdapter(adapter_code, credentials);
+      const testResult = await adapter.testConnection();
+      
+      if (!testResult.success) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Connection test failed: ${testResult.error}` 
+        });
+      }
+    } catch (testError) {
+      return res.status(400).json({ 
+        success: false, 
+        error: `Failed to initialize adapter: ${testError.message}` 
+      });
+    }
+    
+    // Create the connection
+    const result = await pool.query(`
+      INSERT INTO gas_sync_connections (
+        account_id, adapter_code, credentials, 
+        access_token, refresh_token, token_expires_at,
+        status, sync_enabled, sync_interval_minutes,
+        external_account_id, external_account_name,
+        next_sync_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, 'connected', $7, $8, $9, $10, NOW())
+      RETURNING id
+    `, [
+      account_id,
+      adapter_code,
+      JSON.stringify(credentials),
+      credentials.token || credentials.access_token,
+      credentials.refreshToken || credentials.refresh_token,
+      credentials.expiresAt,
+      sync_enabled,
+      sync_interval_minutes,
+      credentials.externalAccountId || credentials.workspaceId,
+      credentials.externalAccountName || credentials.accountName
+    ]);
+    
+    const connectionId = result.rows[0].id;
+    
+    // Trigger initial sync in background
+    syncManager.syncConnection(connectionId, 'full').catch(err => {
+      console.error(`Initial sync failed for connection ${connectionId}:`, err);
+    });
+    
+    res.json({ 
+      success: true, 
+      connection_id: connectionId,
+      message: 'Connection created. Initial sync started in background.'
+    });
+  } catch (error) {
+    console.error('Error creating connection:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Update connection
+app.put('/api/gas-sync/connections/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { 
+      credentials, 
+      sync_enabled, 
+      sync_interval_minutes,
+      external_account_name 
+    } = req.body;
+    
+    const updates = [];
+    const values = [id];
+    let paramCount = 1;
+    
+    if (credentials !== undefined) {
+      paramCount++;
+      updates.push(`credentials = $${paramCount}`);
+      values.push(JSON.stringify(credentials));
+      
+      if (credentials.token) {
+        paramCount++;
+        updates.push(`access_token = $${paramCount}`);
+        values.push(credentials.token);
+      }
+    }
+    
+    if (sync_enabled !== undefined) {
+      paramCount++;
+      updates.push(`sync_enabled = $${paramCount}`);
+      values.push(sync_enabled);
+    }
+    
+    if (sync_interval_minutes !== undefined) {
+      paramCount++;
+      updates.push(`sync_interval_minutes = $${paramCount}`);
+      values.push(sync_interval_minutes);
+    }
+    
+    if (external_account_name !== undefined) {
+      paramCount++;
+      updates.push(`external_account_name = $${paramCount}`);
+      values.push(external_account_name);
+    }
+    
+    if (updates.length === 0) {
+      return res.status(400).json({ success: false, error: 'No updates provided' });
+    }
+    
+    updates.push('updated_at = NOW()');
+    
+    await pool.query(`
+      UPDATE gas_sync_connections SET ${updates.join(', ')} WHERE id = $1
+    `, values);
+    
+    res.json({ success: true, message: 'Connection updated' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Delete connection
+app.delete('/api/gas-sync/connections/:id', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM gas_sync_connections WHERE id = $1', [id]);
+    res.json({ success: true, message: 'Connection and all synced data deleted' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Test connection
+app.post('/api/gas-sync/connections/:id/test', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const adapter = await syncManager.getAdapterForConnection(id);
+    const result = await adapter.testConnection();
+    
+    await pool.query(`
+      UPDATE gas_sync_connections SET 
+        status = $2,
+        last_error = $3,
+        last_error_at = $4,
+        updated_at = NOW()
+      WHERE id = $1
+    `, [
+      id,
+      result.success ? 'connected' : 'error',
+      result.success ? null : result.error,
+      result.success ? null : new Date()
+    ]);
+    
+    res.json({ success: result.success, message: result.message || result.error });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Trigger sync for a connection
+app.post('/api/gas-sync/connections/:id/sync', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { type = 'incremental' } = req.body;
+    
+    await pool.query(`
+      UPDATE gas_sync_connections SET status = 'syncing', updated_at = NOW() WHERE id = $1
+    `, [id]);
+    
+    syncManager.syncConnection(id, type)
+      .then(async (result) => {
+        await pool.query(`
+          UPDATE gas_sync_connections SET status = 'connected', updated_at = NOW() WHERE id = $1
+        `, [id]);
+        console.log(`Sync completed for connection ${id}:`, result.stats);
+      })
+      .catch(async (error) => {
+        await pool.query(`
+          UPDATE gas_sync_connections SET 
+            status = 'error', 
+            last_error = $2, 
+            last_error_at = NOW(),
+            updated_at = NOW() 
+          WHERE id = $1
+        `, [id, error.message]);
+        console.error(`Sync failed for connection ${id}:`, error);
+      });
+    
+    res.json({ success: true, message: `${type} sync started` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get sync logs for a connection
+app.get('/api/gas-sync/connections/:id/logs', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { limit = 50, offset = 0 } = req.query;
+    
+    const result = await pool.query(`
+      SELECT id, sync_type, entity_type, direction, status,
+             records_processed, records_created, records_updated, records_failed,
+             started_at, completed_at, duration_ms, error_message
+      FROM gas_sync_log
+      WHERE connection_id = $1
+      ORDER BY started_at DESC
+      LIMIT $2 OFFSET $3
+    `, [id, limit, offset]);
+    
+    res.json({ success: true, logs: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get synced properties for a connection
+app.get('/api/gas-sync/connections/:id/properties', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT p.id, p.external_id, p.name, p.city, p.country, p.currency,
+             p.is_active, p.synced_at, p.gas_property_id,
+             (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_type_count,
+             (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
+      FROM gas_sync_properties p
+      WHERE p.connection_id = $1
+      ORDER BY p.name
+    `, [id]);
+    
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get synced room types for a property
+app.get('/api/gas-sync/properties/:propertyId/room-types', authenticateToken, async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT rt.id, rt.external_id, rt.name, rt.max_guests, rt.bedrooms, rt.beds,
+             rt.base_price, rt.currency, rt.unit_count, rt.synced_at, rt.gas_room_id
+      FROM gas_sync_room_types rt
+      WHERE rt.sync_property_id = $1
+      ORDER BY rt.name
+    `, [propertyId]);
+    
+    res.json({ success: true, room_types: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get synced reservations for a connection
+app.get('/api/gas-sync/connections/:id/reservations', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status, start_date, end_date, limit = 50, offset = 0 } = req.query;
+    
+    let whereClause = 'WHERE r.connection_id = $1';
+    const values = [id];
+    let paramCount = 1;
+    
+    if (status) {
+      paramCount++;
+      whereClause += ` AND r.status = $${paramCount}`;
+      values.push(status);
+    }
+    
+    if (start_date) {
+      paramCount++;
+      whereClause += ` AND r.check_in >= $${paramCount}`;
+      values.push(start_date);
+    }
+    
+    if (end_date) {
+      paramCount++;
+      whereClause += ` AND r.check_out <= $${paramCount}`;
+      values.push(end_date);
+    }
+    
+    paramCount++;
+    const limitParam = paramCount;
+    paramCount++;
+    const offsetParam = paramCount;
+    values.push(limit, offset);
+    
+    const result = await pool.query(`
+      SELECT r.id, r.external_id, r.channel, r.check_in, r.check_out,
+             r.guest_first_name, r.guest_last_name, r.guest_email,
+             r.adults, r.children, r.total, r.currency, r.status,
+             r.synced_at, r.gas_booking_id,
+             rt.name as room_type_name, p.name as property_name
+      FROM gas_sync_reservations r
+      LEFT JOIN gas_sync_room_types rt ON r.sync_room_type_id = rt.id
+      LEFT JOIN gas_sync_properties p ON rt.sync_property_id = p.id
+      ${whereClause}
+      ORDER BY r.check_in DESC
+      LIMIT $${limitParam} OFFSET $${offsetParam}
+    `, values);
+    
+    res.json({ success: true, reservations: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get synced images for a property
+app.get('/api/gas-sync/properties/:propertyId/images', authenticateToken, async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT id, external_id, original_url, thumbnail_url, caption,
+             sort_order, image_type, width, height, is_downloaded, synced_at
+      FROM gas_sync_images
+      WHERE sync_property_id = $1
+      ORDER BY sort_order, id
+    `, [propertyId]);
+    
+    res.json({ success: true, images: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Download images for a property (Beds24 V1)
+app.post('/api/gas-sync/properties/:propertyId/download-images', authenticateToken, async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    const propResult = await pool.query(`
+      SELECT p.connection_id, p.external_id, c.adapter_code
+      FROM gas_sync_properties p
+      JOIN gas_sync_connections c ON p.connection_id = c.id
+      WHERE p.id = $1
+    `, [propertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const { connection_id, external_id, adapter_code } = propResult.rows[0];
+    
+    if (adapter_code !== 'beds24') {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Image download only supported for Beds24' 
+      });
+    }
+    
+    const adapter = await syncManager.getAdapterForConnection(connection_id);
+    const imagesResult = await adapter.getImages(external_id);
+    
+    if (!imagesResult.success) {
+      return res.status(400).json({ success: false, error: imagesResult.error });
+    }
+    
+    let downloadedCount = 0;
+    for (const image of imagesResult.data) {
+      await pool.query(`
+        INSERT INTO gas_sync_images (
+          connection_id, sync_property_id, external_id, original_url, thumbnail_url,
+          caption, sort_order, image_type, width, height, synced_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+        ON CONFLICT (connection_id, external_id) DO UPDATE SET
+          original_url = EXCLUDED.original_url,
+          thumbnail_url = EXCLUDED.thumbnail_url,
+          caption = EXCLUDED.caption,
+          sort_order = EXCLUDED.sort_order,
+          synced_at = NOW()
+      `, [
+        connection_id,
+        propertyId,
+        image.externalId,
+        image.originalUrl,
+        image.thumbnailUrl,
+        image.caption,
+        image.sortOrder,
+        image.imageType,
+        image.width,
+        image.height
+      ]);
+      downloadedCount++;
+    }
+    
+    res.json({ 
+      success: true, 
+      message: `Downloaded ${downloadedCount} images`,
+      images: imagesResult.data
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Link synced property to GAS property
+app.post('/api/gas-sync/properties/:syncPropertyId/link', authenticateToken, async (req, res) => {
+  try {
+    const { syncPropertyId } = req.params;
+    const { gas_property_id } = req.body;
+    
+    await pool.query(`
+      UPDATE gas_sync_properties SET gas_property_id = $2, updated_at = NOW()
+      WHERE id = $1
+    `, [syncPropertyId, gas_property_id]);
+    
+    res.json({ success: true, message: 'Property linked' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Auto-import synced property into GAS
+app.post('/api/gas-sync/properties/:syncPropertyId/import', authenticateToken, async (req, res) => {
+  try {
+    const { syncPropertyId } = req.params;
+    const { account_id } = req.body;
+    
+    const syncProp = await pool.query(`
+      SELECT * FROM gas_sync_properties WHERE id = $1
+    `, [syncPropertyId]);
+    
+    if (syncProp.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Synced property not found' });
+    }
+    
+    const sp = syncProp.rows[0];
+    
+    const newProp = await pool.query(`
+      INSERT INTO properties (
+        account_id, name, description, property_type,
+        street_address, city, state, country, postal_code,
+        latitude, longitude, timezone, currency,
+        check_in_time, check_out_time, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active')
+      RETURNING id
+    `, [
+      account_id,
+      sp.name,
+      sp.description,
+      sp.property_type || 'vacation_rental',
+      sp.street,
+      sp.city,
+      sp.state,
+      sp.country,
+      sp.postal_code,
+      sp.latitude,
+      sp.longitude,
+      sp.timezone || 'UTC',
+      sp.currency || 'GBP',
+      sp.check_in_time || '15:00',
+      sp.check_out_time || '11:00'
+    ]);
+    
+    const gasPropertyId = newProp.rows[0].id;
+    
+    await pool.query(`
+      UPDATE gas_sync_properties SET gas_property_id = $2, updated_at = NOW() WHERE id = $1
+    `, [syncPropertyId, gasPropertyId]);
+    
+    const roomTypes = await pool.query(`
+      SELECT * FROM gas_sync_room_types WHERE sync_property_id = $1
+    `, [syncPropertyId]);
+    
+    for (const rt of roomTypes.rows) {
+      const newRoom = await pool.query(`
+        INSERT INTO rooms (
+          property_id, name, description, max_guests,
+          bedrooms, beds, bathrooms, base_price, currency
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        RETURNING id
+      `, [
+        gasPropertyId,
+        rt.name,
+        rt.description,
+        rt.max_guests,
+        rt.bedrooms,
+        rt.beds,
+        rt.bathrooms,
+        rt.base_price,
+        rt.currency
+      ]);
+      
+      await pool.query(`
+        UPDATE gas_sync_room_types SET gas_room_id = $2, updated_at = NOW() WHERE id = $1
+      `, [rt.id, newRoom.rows[0].id]);
+    }
+    
+    res.json({ 
+      success: true, 
+      gas_property_id: gasPropertyId,
+      message: `Property imported with ${roomTypes.rows.length} room types`
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get overall sync status
+app.get('/api/gas-sync/status', authenticateToken, async (req, res) => {
+  try {
+    const accountId = req.query.account_id || req.user.account_id;
+    
+    const stats = await pool.query(`
+      SELECT 
+        (SELECT COUNT(*) FROM gas_sync_connections WHERE account_id = $1) as total_connections,
+        (SELECT COUNT(*) FROM gas_sync_connections WHERE account_id = $1 AND status = 'connected') as active_connections,
+        (SELECT COUNT(*) FROM gas_sync_connections WHERE account_id = $1 AND status = 'error') as error_connections,
+        (SELECT COUNT(*) FROM gas_sync_properties p 
+         JOIN gas_sync_connections c ON p.connection_id = c.id 
+         WHERE c.account_id = $1) as total_properties,
+        (SELECT COUNT(*) FROM gas_sync_room_types rt
+         JOIN gas_sync_connections c ON rt.connection_id = c.id
+         WHERE c.account_id = $1) as total_room_types,
+        (SELECT COUNT(*) FROM gas_sync_reservations r
+         JOIN gas_sync_connections c ON r.connection_id = c.id
+         WHERE c.account_id = $1 AND r.status = 'confirmed') as active_reservations,
+        (SELECT COUNT(*) FROM gas_sync_images i
+         JOIN gas_sync_connections c ON i.connection_id = c.id
+         WHERE c.account_id = $1) as total_images
+    `, [accountId]);
+    
+    const recentActivity = await pool.query(`
+      SELECT l.sync_type, l.status, l.records_processed, l.started_at, l.duration_ms,
+             c.adapter_code
+      FROM gas_sync_log l
+      JOIN gas_sync_connections c ON l.connection_id = c.id
+      WHERE c.account_id = $1
+      ORDER BY l.started_at DESC
+      LIMIT 10
+    `, [accountId]);
+    
+    res.json({
+      success: true,
+      stats: stats.rows[0],
+      recent_activity: recentActivity.rows
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Webhook endpoint (no auth - CMs will call this)
+app.post('/api/gas-sync/webhooks/:connectionId', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    console.log(`Webhook received for connection ${connectionId}:`, req.body);
+    
+    syncManager.processWebhook(connectionId, req.body, req.headers)
+      .then(event => console.log(`Webhook processed: ${event.event}`))
+      .catch(err => console.error(`Webhook processing failed:`, err));
+    
+    res.json({ received: true });
+  } catch (error) {
+    console.error('Webhook error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Cron endpoint for scheduled syncs
+app.post('/api/gas-sync/cron/sync', async (req, res) => {
+  const cronSecret = req.headers['x-cron-secret'];
+  if (cronSecret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    const dueConnections = await pool.query(`
+      SELECT id FROM gas_sync_connections
+      WHERE sync_enabled = true
+        AND status != 'syncing'
+        AND (next_sync_at IS NULL OR next_sync_at <= NOW())
+      LIMIT 10
+    `);
+    
+    const results = [];
+    
+    for (const conn of dueConnections.rows) {
+      try {
+        await syncManager.syncConnection(conn.id, 'incremental');
+        results.push({ id: conn.id, status: 'success' });
+      } catch (error) {
+        results.push({ id: conn.id, status: 'error', error: error.message });
+      }
+    }
+    
+    res.json({ success: true, synced: results.length, results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// END GASSYNC ROUTES
+// =====================================================
 
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 Server running on port ' + PORT);
