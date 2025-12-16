@@ -42,6 +42,15 @@ class Beds24Adapter {
     this.apiKey = config.apiKey;         // V1 API key (optional)
     this.propKey = config.propKey;       // V1 property key (optional)
     
+    // Debug logging
+    console.log('Beds24Adapter constructor:', {
+      hasToken: !!this.token,
+      tokenLength: this.token?.length || 0,
+      hasRefreshToken: !!this.refreshToken,
+      hasApiKey: !!this.apiKey,
+      connectionId: config.connectionId
+    });
+    
     // Rate limiting
     this.rateLimiter = new RateLimiter(60); // 60 requests per minute
     
@@ -927,6 +936,8 @@ class Beds24Adapter {
   // =====================================================
   
   async fullSync(options = {}) {
+    console.log('Beds24 fullSync starting...');
+    
     const stats = {
       properties: { synced: 0, errors: 0 },
       roomTypes: { synced: 0, errors: 0 },
@@ -936,10 +947,18 @@ class Beds24Adapter {
     
     try {
       // 1. Sync properties
+      console.log('Beds24 fullSync: calling getProperties...');
       const propertiesResult = await this.getProperties({ limit: 100 });
+      console.log('Beds24 fullSync: getProperties result:', {
+        success: propertiesResult.success,
+        count: propertiesResult.data?.length || 0,
+        error: propertiesResult.error
+      });
+      
       if (propertiesResult.success) {
         for (const property of propertiesResult.data) {
           try {
+            console.log('Beds24 fullSync: syncing property', property.externalId, property.name);
             await this.syncPropertyToDatabase(property);
             stats.properties.synced++;
             
@@ -971,9 +990,12 @@ class Beds24Adapter {
               }
             }
           } catch (e) {
+            console.error('Beds24 fullSync: property error:', e.message);
             stats.properties.errors++;
           }
         }
+      } else {
+        console.error('Beds24 fullSync: getProperties failed:', propertiesResult.error);
       }
       
       // 4. Sync reservations
