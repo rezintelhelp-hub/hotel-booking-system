@@ -1923,45 +1923,54 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       )
     `);
     
-    console.log('link-to-gas: Starting image sync');
-    const syncImages = await pool.query(`
-      SELECT * FROM gas_sync_images WHERE sync_property_id = $1
-    `, [syncPropertyId]);
-    console.log('link-to-gas: Found', syncImages.rows.length, 'images to sync');
-    
+    // Skip images if requested (for quick re-syncs)
+    const { skipImages } = req.body;
     let imagesCreated = 0;
+    let syncImages = { rows: [] };
     
-    for (const img of syncImages.rows) {
-      // Find the GAS room ID for this image
-      const gasRoomId = roomIdMap[String(img.room_type_external_id)];
+    if (!skipImages) {
+      console.log('link-to-gas: Starting image sync');
+      syncImages = await pool.query(`
+        SELECT * FROM gas_sync_images WHERE sync_property_id = $1
+      `, [syncPropertyId]);
+      console.log('link-to-gas: Found', syncImages.rows.length, 'images to check');
       
-      if (!gasRoomId) {
-        console.log(`Skipping image ${img.external_id} - no matching room for ${img.room_type_external_id}`);
-        continue;
+      for (const img of syncImages.rows) {
+        // Find the GAS room ID for this image
+        const gasRoomId = roomIdMap[String(img.room_type_external_id)];
+        
+        if (!gasRoomId) {
+          continue; // Skip quietly - room might not exist
+        }
+        
+        // Check if image already exists (by URL to avoid duplicates)
+        const existingImg = await pool.query(`
+          SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2
+        `, [gasRoomId, img.original_url]);
+        
+        if (existingImg.rows.length === 0) {
+          await pool.query(`
+            INSERT INTO room_images (
+              room_id, image_key, image_url, thumbnail_url,
+              caption, display_order, upload_source, is_active, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, 'gas_sync', true, NOW())
+          `, [
+            gasRoomId,
+            img.external_id,
+            img.original_url,
+            img.thumbnail_url || img.original_url,
+            img.caption || '',
+            img.sort_order || 0
+          ]);
+          imagesCreated++;
+        }
       }
-      
-      // Check if image already exists
-      const existingImg = await pool.query(`
-        SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2
-      `, [gasRoomId, img.original_url]);
-      
-      if (existingImg.rows.length === 0) {
-        await pool.query(`
-          INSERT INTO room_images (
-            room_id, image_key, image_url, thumbnail_url,
-            caption, display_order, upload_source, is_active, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, 'gas_sync', true, NOW())
-        `, [
-          gasRoomId,
-          img.external_id,
-          img.original_url,
-          img.thumbnail_url || img.original_url,
-          img.caption || '',
-          img.sort_order || 0
-        ]);
-        imagesCreated++;
-      }
+    } else {
+      console.log('link-to-gas: Skipping image sync (skipImages=true)');
     }
+    
+    // Count images for response
+    const imageCount = skipImages ? 'skipped' : (syncImages?.rows?.length || 0);
     
     res.json({
       success: true,
@@ -1972,11 +1981,236 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         roomsUpdated,
         imagesCreated,
         totalRooms: syncRooms.rows.length,
-        totalImages: syncImages.rows.length
+        totalImages: imageCount
       }
     });
   } catch (error) {
     console.error('Link to GAS error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Sync availability and pricing from Beds24 (lightweight 15-min sync)
+app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    const { days = 90 } = req.body; // Default 90 days ahead
+    
+    // Get connection
+    const connResult = await pool.query(
+      'SELECT * FROM gas_sync_connections WHERE id = $1',
+      [connectionId]
+    );
+    
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = connResult.rows[0];
+    if (conn.adapter_code !== 'beds24') {
+      return res.json({ success: false, error: 'Only Beds24 connections supported for now' });
+    }
+    
+    const credentials = typeof conn.credentials === 'string' 
+      ? JSON.parse(conn.credentials) 
+      : conn.credentials;
+    
+    // Get fresh access token
+    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+      refreshToken: credentials.refreshToken
+    });
+    const accessToken = tokenResponse.data.token;
+    
+    // Get all synced properties with prop_keys
+    const propsResult = await pool.query(`
+      SELECT sp.id, sp.external_id, sp.name, sp.prop_key, sp.gas_property_id
+      FROM gas_sync_properties sp
+      WHERE sp.connection_id = $1 AND sp.prop_key IS NOT NULL
+    `, [connectionId]);
+    
+    if (propsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No properties with prop_keys found' });
+    }
+    
+    // Calculate date range
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    let totalDaysUpdated = 0;
+    let roomsSynced = 0;
+    const errors = [];
+    
+    // Ensure room_availability table has needed columns
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_availability (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL,
+        date DATE NOT NULL,
+        cm_price DECIMAL(10,2),
+        direct_price DECIMAL(10,2),
+        is_available BOOLEAN DEFAULT true,
+        is_blocked BOOLEAN DEFAULT false,
+        min_stay INTEGER DEFAULT 1,
+        max_stay INTEGER,
+        source VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(room_id, date)
+      )
+    `);
+    
+    for (const prop of propsResult.rows) {
+      try {
+        console.log(`Syncing availability for ${prop.name} (Beds24 ID: ${prop.external_id})`);
+        
+        // Get rooms for this property
+        const roomsResult = await pool.query(`
+          SELECT rt.external_id as beds24_room_id, bu.id as gas_room_id, bu.name
+          FROM gas_sync_room_types rt
+          JOIN bookable_units bu ON bu.cm_room_id = rt.external_id::text
+          WHERE rt.sync_property_id = $1 AND bu.property_id = $2
+        `, [prop.id, prop.gas_property_id]);
+        
+        if (roomsResult.rows.length === 0) {
+          console.log(`  No linked rooms found for ${prop.name}`);
+          continue;
+        }
+        
+        // Fetch calendar from Beds24 V2 API
+        // Rate limit: wait between requests
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const calendarResponse = await axios.post('https://beds24.com/api/v2/inventory/rooms/calendar', {
+          propertyId: parseInt(prop.external_id),
+          startDate,
+          endDate
+        }, {
+          headers: {
+            'token': accessToken,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const calendarData = calendarResponse.data;
+        
+        // Calendar data is organized by room
+        if (calendarData && Array.isArray(calendarData)) {
+          for (const roomCal of calendarData) {
+            const beds24RoomId = roomCal.roomId?.toString();
+            const matchedRoom = roomsResult.rows.find(r => r.beds24_room_id?.toString() === beds24RoomId);
+            
+            if (!matchedRoom) {
+              continue; // Skip rooms we haven't linked
+            }
+            
+            // Process each day
+            const days = roomCal.days || roomCal.calendar || [];
+            for (const day of days) {
+              const dateStr = day.date;
+              const price = parseFloat(day.price) || parseFloat(day.price1) || null;
+              const isAvailable = day.numAvail > 0 || day.available === true || day.available === 1;
+              const isBlocked = day.closed === true || day.closed === 1 || day.numAvail === 0;
+              const minStay = day.minStay || day.minimumStay || 1;
+              const maxStay = day.maxStay || day.maximumStay || null;
+              
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, max_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $4, $5, $6, $7, 'beds24', NOW())
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET 
+                  cm_price = EXCLUDED.cm_price,
+                  is_available = EXCLUDED.is_available,
+                  is_blocked = EXCLUDED.is_blocked,
+                  min_stay = EXCLUDED.min_stay,
+                  max_stay = EXCLUDED.max_stay,
+                  source = 'beds24',
+                  updated_at = NOW()
+              `, [matchedRoom.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay, maxStay]);
+              
+              totalDaysUpdated++;
+            }
+            
+            roomsSynced++;
+            console.log(`  ✓ Synced ${days.length} days for ${matchedRoom.name}`);
+          }
+        }
+        
+      } catch (propError) {
+        console.error(`  Error syncing ${prop.name}:`, propError.response?.data || propError.message);
+        errors.push({ property: prop.name, error: propError.message });
+        
+        // If rate limited, wait longer
+        if (propError.response?.status === 429) {
+          console.log('  Rate limited, waiting 10 seconds...');
+          await new Promise(resolve => setTimeout(resolve, 10000));
+        }
+      }
+    }
+    
+    // Update last sync time
+    await pool.query(
+      'UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1',
+      [connectionId]
+    );
+    
+    res.json({
+      success: true,
+      message: 'Availability sync complete',
+      stats: {
+        propertiesChecked: propsResult.rows.length,
+        roomsSynced,
+        totalDaysUpdated,
+        dateRange: { startDate, endDate }
+      },
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('Availability sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual full sync - checks for new/closed rooms
+app.post('/api/gas-sync/connections/:connectionId/full-sync', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    
+    // Run the regular sync (properties, rooms, images)
+    const syncResponse = await axios.post(`http://localhost:${process.env.PORT || 3001}/api/gas-sync/connections/${connectionId}/sync`, {
+      syncType: 'full'
+    });
+    
+    // Then for each linked property, update the GAS data
+    const propsResult = await pool.query(`
+      SELECT id, gas_property_id FROM gas_sync_properties 
+      WHERE connection_id = $1 AND gas_property_id IS NOT NULL
+    `, [connectionId]);
+    
+    const linkResults = [];
+    for (const prop of propsResult.rows) {
+      try {
+        // Re-link with skipImages to just update property/room data
+        const linkResponse = await axios.post(
+          `http://localhost:${process.env.PORT || 3001}/api/gas-sync/properties/${prop.id}/link-to-gas`,
+          { accountId: 1, skipImages: true }, // TODO: Get accountId from property
+          { headers: { 'Content-Type': 'application/json' } }
+        );
+        linkResults.push({ propertyId: prop.id, success: true, stats: linkResponse.data.stats });
+      } catch (linkError) {
+        linkResults.push({ propertyId: prop.id, success: false, error: linkError.message });
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Full sync complete',
+      syncResult: syncResponse.data,
+      linkResults
+    });
+    
+  } catch (error) {
+    console.error('Full sync error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -24693,11 +24927,141 @@ setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
 
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
+
+// Schedule GasSync availability sync every 15 minutes
+async function runGasSyncAvailabilitySync() {
+  try {
+    console.log('⏰ [Scheduled] Starting GasSync availability sync...');
+    
+    // Ensure room_availability table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_availability (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL,
+        date DATE NOT NULL,
+        cm_price DECIMAL(10,2),
+        direct_price DECIMAL(10,2),
+        is_available BOOLEAN DEFAULT true,
+        is_blocked BOOLEAN DEFAULT false,
+        min_stay INTEGER DEFAULT 1,
+        max_stay INTEGER,
+        source VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(room_id, date)
+      )
+    `);
+    
+    // Get all active GasSync connections
+    const connections = await pool.query(`
+      SELECT id, name, adapter_code FROM gas_sync_connections WHERE status = 'active'
+    `);
+    
+    for (const conn of connections.rows) {
+      if (conn.adapter_code === 'beds24') {
+        try {
+          // Call the availability sync endpoint internally
+          const propsResult = await pool.query(`
+            SELECT sp.id, sp.external_id, sp.name, sp.prop_key, sp.gas_property_id
+            FROM gas_sync_properties sp
+            WHERE sp.connection_id = $1 AND sp.prop_key IS NOT NULL AND sp.gas_property_id IS NOT NULL
+          `, [conn.id]);
+          
+          if (propsResult.rows.length === 0) continue;
+          
+          // Get access token
+          const connData = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [conn.id]);
+          const credentials = typeof connData.rows[0].credentials === 'string' 
+            ? JSON.parse(connData.rows[0].credentials) 
+            : connData.rows[0].credentials;
+          
+          const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+            refreshToken: credentials.refreshToken
+          });
+          const accessToken = tokenResponse.data.token;
+          
+          // Calculate date range (30 days for quick sync)
+          const startDate = new Date().toISOString().split('T')[0];
+          const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          
+          let roomsSynced = 0;
+          
+          for (const prop of propsResult.rows) {
+            // Get rooms for this property
+            const roomsResult = await pool.query(`
+              SELECT rt.external_id as beds24_room_id, bu.id as gas_room_id
+              FROM gas_sync_room_types rt
+              JOIN bookable_units bu ON bu.cm_room_id = rt.external_id::text
+              WHERE rt.sync_property_id = $1 AND bu.property_id = $2
+            `, [prop.id, prop.gas_property_id]);
+            
+            if (roomsResult.rows.length === 0) continue;
+            
+            // Rate limit
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            const calendarResponse = await axios.post('https://beds24.com/api/v2/inventory/rooms/calendar', {
+              propertyId: parseInt(prop.external_id),
+              startDate,
+              endDate
+            }, {
+              headers: { 'token': accessToken, 'Content-Type': 'application/json' }
+            });
+            
+            const calendarData = calendarResponse.data;
+            if (calendarData && Array.isArray(calendarData)) {
+              for (const roomCal of calendarData) {
+                const beds24RoomId = roomCal.roomId?.toString();
+                const matchedRoom = roomsResult.rows.find(r => r.beds24_room_id?.toString() === beds24RoomId);
+                if (!matchedRoom) continue;
+                
+                const days = roomCal.days || roomCal.calendar || [];
+                for (const day of days) {
+                  const price = parseFloat(day.price) || parseFloat(day.price1) || null;
+                  const isAvailable = day.numAvail > 0 || day.available === true;
+                  const isBlocked = day.closed === true || day.numAvail === 0;
+                  const minStay = day.minStay || 1;
+                  
+                  await pool.query(`
+                    INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
+                    VALUES ($1, $2, $3, $4, $5, $6, 'beds24', NOW())
+                    ON CONFLICT (room_id, date) 
+                    DO UPDATE SET cm_price = EXCLUDED.cm_price, is_available = EXCLUDED.is_available, 
+                      is_blocked = EXCLUDED.is_blocked, min_stay = EXCLUDED.min_stay, updated_at = NOW()
+                  `, [matchedRoom.gas_room_id, day.date, price, isAvailable, isBlocked, minStay]);
+                }
+                roomsSynced++;
+              }
+            }
+          }
+          
+          console.log(`⏰ [Scheduled] GasSync availability: ${conn.name} - ${roomsSynced} rooms synced`);
+          
+        } catch (connError) {
+          console.error(`⏰ [Scheduled] GasSync availability error for ${conn.name}:`, connError.message);
+        }
+      }
+    }
+    
+    console.log('⏰ [Scheduled] GasSync availability sync complete');
+  } catch (error) {
+    console.error('⏰ [Scheduled] GasSync availability sync error:', error.message);
+  }
+}
+
+// Run GasSync availability sync every 15 minutes
+setInterval(runGasSyncAvailabilitySync, 15 * 60 * 1000);
+
 // Run initial Beds24 sync 60 seconds after startup
 setTimeout(() => {
   runBeds24BookingsSync();
   runBeds24InventorySync();
 }, 60 * 1000);
+
+// Run initial GasSync availability sync 2 minutes after startup (staggered to avoid API overload)
+setTimeout(() => {
+  runGasSyncAvailabilitySync();
+}, 120 * 1000);
 
 // =====================================================
 // GASSYNC API ROUTES
