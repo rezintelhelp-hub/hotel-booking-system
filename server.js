@@ -1891,44 +1891,33 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
-      // DEBUG: Log the raw_data structure to understand what Beds24 sends
-      console.log('link-to-gas: Room raw_data keys:', Object.keys(roomRawData).join(', '));
-      if (roomRawData.texts) {
-        console.log('link-to-gas: texts type:', Array.isArray(roomRawData.texts) ? 'array' : typeof roomRawData.texts);
-        if (Array.isArray(roomRawData.texts) && roomRawData.texts.length > 0) {
-          console.log('link-to-gas: texts[0] keys:', Object.keys(roomRawData.texts[0]).join(', '));
-        }
-      }
+      // Beds24 texts is an OBJECT with nested language keys: texts.displayName.EN
+      const texts = roomRawData.texts || {};
       
-      // Extract nested text fields - Beds24 uses texts array: [{language: 'EN', displayName: {...}, description: {...}, auxiliaryText: {...}}]
-      let texts = {};
-      if (roomRawData.texts && Array.isArray(roomRawData.texts) && roomRawData.texts.length > 0) {
-        texts = roomRawData.texts[0]; // First element is default language (usually EN)
-      } else if (roomRawData.texts && typeof roomRawData.texts === 'object' && !Array.isArray(roomRawData.texts)) {
-        texts = roomRawData.texts;
-      }
-      
-      // Helper to extract text from Beds24 format (can be string or {EN: "...", DE: "..."})
+      // Helper to extract text from Beds24 format: {EN: "...", DE: "...", NL: "..."}
       function getText(val) {
         if (!val) return '';
         if (typeof val === 'string') return val;
         if (typeof val === 'object') {
-          return val.EN || val.en || val.DE || val.de || val.FR || val.fr || Object.values(val).find(v => typeof v === 'string') || '';
+          return val.EN || val.en || val.DE || val.de || val.FR || val.fr || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
         }
         return '';
       }
       
-      // Beds24 Display Name → GAS display_name (overrides room name)
-      const displayName = getText(texts.displayName) || getText(texts.roomDisplayName) || getText(roomRawData.displayName) || '';
+      // Beds24 Display Name → GAS display_name
+      const displayName = getText(texts.displayName) || '';
       
-      // Beds24 Room Description → GAS short_description (for listings)
-      const roomShortDesc = getText(texts.description) || getText(texts.roomDescription) || getText(roomRawData.description) || '';
+      // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
+      const roomShortDesc = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
       
-      // Beds24 Auxiliary Text → GAS full_description (long description)
-      const roomFullDesc = getText(texts.auxiliaryText) || getText(texts.roomAuxiliaryText) || getText(roomRawData.auxiliaryText) || '';
+      // Beds24 auxiliaryText (Auxiliary Text) → GAS full_description (long description)
+      const roomFullDesc = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
       
-      // Log what we found for debugging
-      console.log('link-to-gas: Room', room.name, '- displayName:', displayName?.substring?.(0,30) || displayName, 'shortDesc:', roomShortDesc?.substring?.(0,30) || roomShortDesc, 'fullDesc:', roomFullDesc?.substring?.(0,30) || roomFullDesc);
+      // Log what we found
+      console.log('link-to-gas: Room', room.name);
+      console.log('  - displayName:', displayName || '(empty)');
+      console.log('  - shortDesc (roomDescription1):', roomShortDesc || '(empty)');
+      console.log('  - fullDesc (auxiliaryText):', roomFullDesc || '(empty)');
       
       const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
       
