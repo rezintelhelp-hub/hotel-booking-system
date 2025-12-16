@@ -1625,20 +1625,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           country = COALESCE(NULLIF($5, ''), country),
           postal_code = COALESCE(NULLIF($6, ''), postal_code),
           property_type = COALESCE(NULLIF($7, ''), property_type),
-          short_description = CASE WHEN $8 = '' THEN short_description ELSE $8 END,
-          full_description = CASE WHEN $9 = '' THEN full_description ELSE $9 END,
-          policies = CASE WHEN $10 = '' THEN policies ELSE $10 END,
-          directions = CASE WHEN $11 = '' THEN directions ELSE $11 END,
-          check_in_time = COALESCE(NULLIF($12, ''), check_in_time),
-          check_out_time = COALESCE(NULLIF($13, ''), check_out_time),
-          contact_email = COALESCE(NULLIF($14, ''), contact_email),
-          contact_phone = COALESCE(NULLIF($15, ''), contact_phone),
-          website = COALESCE(NULLIF($16, ''), website),
-          latitude = COALESCE($17, latitude),
-          longitude = COALESCE($18, longitude),
-          account_id = $19,
+          check_in_time = COALESCE(NULLIF($8, ''), check_in_time),
+          check_out_time = COALESCE(NULLIF($9, ''), check_out_time),
+          contact_email = COALESCE(NULLIF($10, ''), contact_email),
+          contact_phone = COALESCE(NULLIF($11, ''), contact_phone),
+          website = COALESCE(NULLIF($12, ''), website),
+          latitude = COALESCE($13, latitude),
+          longitude = COALESCE($14, longitude),
+          account_id = $15,
           updated_at = NOW()
-        WHERE id = $20
+        WHERE id = $16
       `, [
         prop.name || 'Unnamed Property',
         rawData.address || '',
@@ -1647,10 +1643,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         rawData.country || '',
         rawData.postcode || rawData.postalCode || '',
         rawData.propertyType || '',
-        propShortDesc || '',
-        propDescription || '',
-        propPolicies || '',
-        propDirections || '',
         rawData.checkInStart || rawData.checkInTime || '',
         rawData.checkOutEnd || rawData.checkOutTime || '',
         rawData.email || '',
@@ -1695,16 +1687,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         console.log('link-to-gas: Creating property with full data');
         
-        // Full INSERT with all fields
+        // Full INSERT with all fields (excluding JSONB columns that cause type issues)
         const propResult = await pool.query(`
           INSERT INTO properties (
             account_id, user_id, ${adapterColumn}, name, 
             address, city, state, country, postal_code,
-            property_type, short_description, full_description,
-            policies, directions, check_in_time, check_out_time,
+            property_type, check_in_time, check_out_time,
             contact_email, contact_phone, website, latitude, longitude,
             cm_source, status, created_at
-          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, 'active', NOW())
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'active', NOW())
           RETURNING id
         `, [
           accountId,
@@ -1716,10 +1707,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           rawData.country || '',
           rawData.postcode || rawData.postalCode || '',
           rawData.propertyType || 'vacation_rental',
-          propShortDesc || '',
-          propDescription || '',
-          propPolicies || '',
-          propDirections || '',
           rawData.checkInStart || rawData.checkInTime || '15:00',
           rawData.checkOutEnd || rawData.checkOutTime || '11:00',
           rawData.email || '',
