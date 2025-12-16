@@ -1745,6 +1745,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     // Add more columns to bookable_units
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cm_room_id VARCHAR(50)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS name VARCHAR(255)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS display_name TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_guests INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT');
@@ -1758,6 +1759,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cleaning_fee DECIMAL(10,2)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS security_deposit DECIMAL(10,2)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS status VARCHAR(50)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS feature_codes TEXT');
     
     // Drop FK constraint on gas_room_id if it exists (we'll manage this ourselves)
     await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS gas_room_id INTEGER');
@@ -1776,19 +1778,26 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       // Extract nested text fields (Beds24 uses texts.roomDescription1.EN format)
       const texts = roomRawData.texts || {};
-      const roomDescription = extractText(
-        texts.roomDescription1,
-        roomRawData.fullDescription,
-        roomRawData.description,
-        room.description
-      );
+      
+      // Beds24 Display Name → GAS display_name (overrides room name)
+      const displayName = extractText(texts.displayName, roomRawData.displayName);
+      
+      // Beds24 Room Description → GAS short_description (for listings)
       const roomShortDesc = extractText(
-        texts.auxiliaryText,
-        texts.roomShortDescription,
+        texts.description,
+        texts.roomDescription,
         roomRawData.description,
         room.description
       );
-      const displayName = extractText(texts.displayName, room.name);
+      
+      // Beds24 Auxiliary Text → GAS full_description (long description)
+      const roomFullDesc = extractText(
+        texts.auxiliaryText,
+        texts.roomDescription1,
+        roomRawData.auxiliaryText,
+        roomRawData.fullDescription
+      );
+      
       const roomType = extractText(texts.accommodationType, roomRawData.accommodationType);
       
       // Extract numeric values
@@ -1801,11 +1810,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const bathrooms = roomRawData.bathrooms || roomRawData.numBathrooms || null;
       const sizeSqm = roomRawData.size || roomRawData.sqm || null;
       
-      // Extract amenities as JSON array
-      let amenitiesJson = null;
-      const amenitiesArray = roomRawData.featureCodes || roomRawData.amenities || room.amenities;
-      if (amenitiesArray && Array.isArray(amenitiesArray)) {
-        amenitiesJson = JSON.stringify(amenitiesArray);
+      // Extract feature codes for amenities
+      let featureCodes = null;
+      if (roomRawData.featureCodes) {
+        if (typeof roomRawData.featureCodes === 'string') {
+          featureCodes = roomRawData.featureCodes;
+        } else if (Array.isArray(roomRawData.featureCodes)) {
+          featureCodes = roomRawData.featureCodes.join(',');
+        }
       }
       
       // Check if room exists (use cm_room_id which should always exist)
@@ -1818,24 +1830,31 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       if (existingRoom.rows.length > 0) {
         gasRoomId = existingRoom.rows[0].id;
-        // Update existing room with full data (excluding JSONB columns)
+        // Update existing room with full data
         console.log('link-to-gas: Updating existing room', gasRoomId, room.name);
         await pool.query(`
           UPDATE bookable_units SET
             name = $1,
-            max_guests = COALESCE($2, max_guests),
-            base_price = COALESCE($3, base_price),
-            room_type = COALESCE(NULLIF($4, ''), room_type),
-            bedrooms = COALESCE($5, bedrooms),
-            beds = COALESCE($6, beds),
-            bathrooms = COALESCE($7, bathrooms),
-            size_sqm = COALESCE($8, size_sqm),
-            cleaning_fee = COALESCE($9, cleaning_fee),
-            security_deposit = COALESCE($10, security_deposit),
+            display_name = $2,
+            short_description = $3,
+            full_description = $4,
+            max_guests = COALESCE($5, max_guests),
+            base_price = COALESCE($6, base_price),
+            room_type = COALESCE(NULLIF($7, ''), room_type),
+            bedrooms = COALESCE($8, bedrooms),
+            beds = COALESCE($9, beds),
+            bathrooms = COALESCE($10, bathrooms),
+            size_sqm = COALESCE($11, size_sqm),
+            cleaning_fee = COALESCE($12, cleaning_fee),
+            security_deposit = COALESCE($13, security_deposit),
+            feature_codes = COALESCE(NULLIF($14, ''), feature_codes),
             updated_at = NOW()
-          WHERE id = $11
+          WHERE id = $15
         `, [
-          displayName || room.name || 'Unnamed Room',
+          room.name || 'Unnamed Room',
+          displayName || null,
+          roomShortDesc || null,
+          roomFullDesc || null,
           maxGuests,
           basePrice,
           roomType || '',
@@ -1845,25 +1864,34 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           sizeSqm,
           cleaningFee,
           securityDeposit,
+          featureCodes,
           gasRoomId
         ]);
         roomsUpdated++;
       } else {
-        // Create new room with full data (excluding JSONB columns)
+        // Create new room with full data
         console.log('link-to-gas: Creating room', room.name);
+        
+        // Ensure feature_codes column exists
+        await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS feature_codes TEXT').catch(() => {});
+        
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
-            property_id, cm_room_id, name,
+            property_id, cm_room_id, name, display_name,
+            short_description, full_description,
             max_guests, base_price,
             room_type, bedrooms, beds, bathrooms, size_sqm,
-            cleaning_fee, security_deposit,
+            cleaning_fee, security_deposit, feature_codes,
             status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'available', NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
           String(room.external_id),
-          displayName || room.name || 'Unnamed Room',
+          room.name || 'Unnamed Room',
+          displayName || null,
+          roomShortDesc || null,
+          roomFullDesc || null,
           maxGuests,
           basePrice,
           roomType || '',
@@ -1872,7 +1900,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           bathrooms,
           sizeSqm,
           cleaningFee,
-          securityDeposit
+          securityDeposit,
+          featureCodes
         ]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
