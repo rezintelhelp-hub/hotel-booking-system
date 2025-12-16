@@ -1614,22 +1614,50 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     if (prop.gas_property_id) {
       gasPropertyId = prop.gas_property_id;
-      // Update existing property - simplified
+      // Update existing property with all available fields
       console.log('link-to-gas: Updating existing property', gasPropertyId);
       await pool.query(`
         UPDATE properties SET
           name = $1,
-          address = COALESCE($2, address),
-          city = COALESCE($3, city),
-          country = COALESCE($4, country),
-          account_id = $5,
+          address = COALESCE(NULLIF($2, ''), address),
+          city = COALESCE(NULLIF($3, ''), city),
+          state = COALESCE(NULLIF($4, ''), state),
+          country = COALESCE(NULLIF($5, ''), country),
+          postal_code = COALESCE(NULLIF($6, ''), postal_code),
+          property_type = COALESCE(NULLIF($7, ''), property_type),
+          short_description = COALESCE(NULLIF($8, ''), short_description),
+          full_description = COALESCE(NULLIF($9, ''), full_description),
+          policies = COALESCE(NULLIF($10, ''), policies),
+          directions = COALESCE(NULLIF($11, ''), directions),
+          check_in_time = COALESCE(NULLIF($12, ''), check_in_time),
+          check_out_time = COALESCE(NULLIF($13, ''), check_out_time),
+          contact_email = COALESCE(NULLIF($14, ''), contact_email),
+          contact_phone = COALESCE(NULLIF($15, ''), contact_phone),
+          website = COALESCE(NULLIF($16, ''), website),
+          latitude = COALESCE($17, latitude),
+          longitude = COALESCE($18, longitude),
+          account_id = $19,
           updated_at = NOW()
-        WHERE id = $6
+        WHERE id = $20
       `, [
         prop.name || 'Unnamed Property',
         rawData.address || '',
         rawData.city || '',
+        rawData.state || rawData.region || '',
         rawData.country || '',
+        rawData.postcode || rawData.postalCode || '',
+        rawData.propertyType || '',
+        propShortDesc || '',
+        propDescription || '',
+        propPolicies || '',
+        propDirections || '',
+        rawData.checkInStart || rawData.checkInTime || '',
+        rawData.checkOutEnd || rawData.checkOutTime || '',
+        rawData.email || '',
+        rawData.phone || '',
+        rawData.web || rawData.website || '',
+        rawData.latitude ? parseFloat(rawData.latitude) : null,
+        rawData.longitude ? parseFloat(rawData.longitude) : null,
         accountId,
         gasPropertyId
       ]);
@@ -1665,22 +1693,18 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         const adapterColumn = prop.adapter_code === 'beds24' ? 'beds24_property_id' :
                               prop.adapter_code === 'smoobu' ? 'smoobu_id' : 'beds24_property_id';
         
-        console.log('link-to-gas: INSERT values:', {
-          accountId,
-          external_id: String(prop.external_id),
-          name: prop.name,
-          address: rawData.address || '',
-          city: rawData.city || '',
-          propShortDesc: propShortDesc?.substring(0,50) || '',
-          propDescription: propDescription?.substring(0,50) || ''
-        });
+        console.log('link-to-gas: Creating property with full data');
         
-        // Simplified INSERT - just essential fields
+        // Full INSERT with all fields
         const propResult = await pool.query(`
           INSERT INTO properties (
             account_id, user_id, ${adapterColumn}, name, 
-            address, city, country, property_type, status, created_at
-          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, 'active', NOW())
+            address, city, state, country, postal_code,
+            property_type, short_description, full_description,
+            policies, directions, check_in_time, check_out_time,
+            contact_email, contact_phone, website, latitude, longitude,
+            cm_source, status, created_at
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, 'active', NOW())
           RETURNING id
         `, [
           accountId,
@@ -1688,8 +1712,22 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           prop.name || 'Unnamed Property',
           rawData.address || '',
           rawData.city || '',
+          rawData.state || rawData.region || '',
           rawData.country || '',
-          rawData.propertyType || 'vacation_rental'
+          rawData.postcode || rawData.postalCode || '',
+          rawData.propertyType || 'vacation_rental',
+          propShortDesc || '',
+          propDescription || '',
+          propPolicies || '',
+          propDirections || '',
+          rawData.checkInStart || rawData.checkInTime || '15:00',
+          rawData.checkOutEnd || rawData.checkOutTime || '11:00',
+          rawData.email || '',
+          rawData.phone || '',
+          rawData.web || rawData.website || '',
+          rawData.latitude ? parseFloat(rawData.latitude) : null,
+          rawData.longitude ? parseFloat(rawData.longitude) : null,
+          prop.adapter_code
         ]);
         gasPropertyId = propResult.rows[0].id;
         console.log('link-to-gas: Created property with ID:', gasPropertyId);
@@ -1759,9 +1797,29 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       );
       const roomShortDesc = extractText(
         texts.auxiliaryText,
+        texts.roomShortDescription,
         roomRawData.description,
         room.description
       );
+      const displayName = extractText(texts.displayName, room.name);
+      const roomType = extractText(texts.accommodationType, roomRawData.accommodationType);
+      
+      // Extract numeric values
+      const maxGuests = room.max_guests || roomRawData.maxPeople || roomRawData.maxAdults || 2;
+      const basePrice = parseFloat(room.base_price || roomRawData.rackRate) || null;
+      const cleaningFee = parseFloat(roomRawData.cleaningFee) || null;
+      const securityDeposit = parseFloat(roomRawData.securityDeposit) || null;
+      const bedrooms = roomRawData.bedrooms || roomRawData.numBedrooms || null;
+      const beds = roomRawData.beds || roomRawData.numBeds || null;
+      const bathrooms = roomRawData.bathrooms || roomRawData.numBathrooms || null;
+      const sizeSqm = roomRawData.size || roomRawData.sqm || null;
+      
+      // Extract amenities as JSON array
+      let amenitiesJson = null;
+      const amenitiesArray = roomRawData.featureCodes || roomRawData.amenities || room.amenities;
+      if (amenitiesArray && Array.isArray(amenitiesArray)) {
+        amenitiesJson = JSON.stringify(amenitiesArray);
+      }
       
       // Check if room exists (use cm_room_id which should always exist)
       const existingRoom = await pool.query(`
@@ -1773,42 +1831,73 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       if (existingRoom.rows.length > 0) {
         gasRoomId = existingRoom.rows[0].id;
-        // Update existing room - simplified
-        console.log('link-to-gas: Updating existing room', gasRoomId);
+        // Update existing room with full data
+        console.log('link-to-gas: Updating existing room', gasRoomId, room.name);
         await pool.query(`
           UPDATE bookable_units SET
             name = $1,
             max_guests = COALESCE($2, max_guests),
             base_price = COALESCE($3, base_price),
+            short_description = COALESCE(NULLIF($4, ''), short_description),
+            full_description = COALESCE(NULLIF($5, ''), full_description),
+            room_type = COALESCE(NULLIF($6, ''), room_type),
+            bedrooms = COALESCE($7, bedrooms),
+            beds = COALESCE($8, beds),
+            bathrooms = COALESCE($9, bathrooms),
+            size_sqm = COALESCE($10, size_sqm),
+            cleaning_fee = COALESCE($11, cleaning_fee),
+            security_deposit = COALESCE($12, security_deposit),
+            amenities = COALESCE($13::jsonb, amenities),
             updated_at = NOW()
-          WHERE id = $4
+          WHERE id = $14
         `, [
-          room.name || 'Unnamed Room',
-          room.max_guests || roomRawData.maxPeople || 2,
-          room.base_price || parseFloat(roomRawData.rackRate) || 100,
+          displayName || room.name || 'Unnamed Room',
+          maxGuests,
+          basePrice,
+          roomShortDesc || '',
+          roomDescription || '',
+          roomType || '',
+          bedrooms,
+          beds,
+          bathrooms,
+          sizeSqm,
+          cleaningFee,
+          securityDeposit,
+          amenitiesJson,
           gasRoomId
         ]);
         roomsUpdated++;
-        console.log('link-to-gas: Updated room', gasRoomId);
       } else {
-        // Create new room - simplified
+        // Create new room with full data
         console.log('link-to-gas: Creating room', room.name);
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
             property_id, cm_room_id, name,
-            max_guests, base_price, status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, 'available', NOW())
+            max_guests, base_price, short_description, full_description,
+            room_type, bedrooms, beds, bathrooms, size_sqm,
+            cleaning_fee, security_deposit, amenities,
+            status, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, 'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
           String(room.external_id),
-          room.name || 'Unnamed Room',
-          room.max_guests || roomRawData.maxPeople || 2,
-          room.base_price || parseFloat(roomRawData.rackRate) || 100
+          displayName || room.name || 'Unnamed Room',
+          maxGuests,
+          basePrice,
+          roomShortDesc || '',
+          roomDescription || '',
+          roomType || '',
+          bedrooms,
+          beds,
+          bathrooms,
+          sizeSqm,
+          cleaningFee,
+          securityDeposit,
+          amenitiesJson
         ]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
-        console.log('link-to-gas: Created room with ID', gasRoomId);
       }
       
       roomIdMap[String(room.external_id)] = gasRoomId;
