@@ -893,6 +893,38 @@ class CalryAdapter {
     }
   }
   
+  // Incremental sync - only sync changes since last sync
+  async incrementalSync(lastSyncTime) {
+    const stats = {
+      properties: { synced: 0, errors: 0 },
+      roomTypes: { synced: 0, errors: 0 },
+      reservations: { synced: 0, errors: 0 }
+    };
+    
+    try {
+      // For incremental, mainly sync reservations
+      const reservationsResult = await this.getReservations({ 
+        modifiedSince: lastSyncTime,
+        limit: 100 
+      });
+      
+      if (reservationsResult.success) {
+        for (const reservation of reservationsResult.data) {
+          try {
+            await this.syncReservationToDatabase(reservation);
+            stats.reservations.synced++;
+          } catch (e) {
+            stats.reservations.errors++;
+          }
+        }
+      }
+      
+      return { success: true, stats };
+    } catch (error) {
+      return { success: false, error: error.message, stats };
+    }
+  }
+  
   // Database sync helpers (same pattern as Beds24 adapter)
   async syncPropertyToDatabase(property) {
     if (!this.pool) return;
