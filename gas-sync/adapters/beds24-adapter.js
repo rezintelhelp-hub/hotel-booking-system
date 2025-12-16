@@ -16,7 +16,7 @@ const crypto = require('crypto');
 // =====================================================
 
 const BEDS24_V2_BASE = 'https://beds24.com/api/v2';
-const BEDS24_V1_BASE = 'https://beds24.com/api/json';
+const BEDS24_V1_BASE = 'https://api.beds24.com/json';
 
 // =====================================================
 // BEDS24 ADAPTER CLASS
@@ -102,13 +102,24 @@ class Beds24Adapter {
     
     try {
       // V1 uses POST with JSON body containing authentication
+      // propKey is optional - without it, returns data for all properties in account
       const payload = {
         authentication: {
-          apiKey: this.apiKey,
-          propKey: this.propKey
+          apiKey: this.apiKey
         },
         ...data
       };
+      
+      // Only include propKey if specified
+      if (this.propKey) {
+        payload.authentication.propKey = this.propKey;
+      }
+      
+      console.log(`Beds24 V1 Request [${endpoint}]:`, { 
+        hasApiKey: !!this.apiKey, 
+        hasPropKey: !!this.propKey,
+        dataKeys: Object.keys(data)
+      });
       
       const response = await axios.post(
         `${BEDS24_V1_BASE}${endpoint}`,
@@ -118,6 +129,14 @@ class Beds24Adapter {
           timeout: 30000
         }
       );
+      
+      console.log(`Beds24 V1 Response [${endpoint}]:`, { 
+        status: response.status,
+        hasData: !!response.data,
+        keys: response.data ? Object.keys(response.data) : []
+      });
+      
+      return { success: true, data: response.data };
       
       return { success: true, data: response.data };
     } catch (error) {
@@ -321,18 +340,34 @@ class Beds24Adapter {
   // =====================================================
   
   async getRoomTypes(propertyExternalId, options = {}) {
-    // Beds24 v2 uses /rooms with propertyId parameter, not /properties/{id}/rooms
-    const response = await this.v2Request('/rooms', 'GET', null, {
-      params: { propertyId: propertyExternalId }
-    });
+    // Beds24 V2 /rooms endpoint doesn't work reliably
+    // Use V1 /getPropertyContent which includes room data
+    if (!this.apiKey) {
+      console.log('Beds24 getRoomTypes: No V1 API key, skipping rooms');
+      return { success: true, data: [] };
+    }
+    
+    const response = await this.v1Request('/getPropertyContent', {});
     
     if (!response.success) {
       return response;
     }
     
-    const rawData = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || []);
-    const roomsArray = Array.isArray(rawData) ? rawData : [];
-    const roomTypes = roomsArray.map(room => this.mapRoomType(room, propertyExternalId));
+    // Parse room data from getPropertyContent
+    const content = response.data?.getPropertyContent?.[0];
+    if (!content?.roomIds) {
+      console.log('Beds24 getRoomTypes: No roomIds in response');
+      return { success: true, data: [] };
+    }
+    
+    const roomTypes = [];
+    for (const [roomId, roomData] of Object.entries(content.roomIds)) {
+      roomTypes.push(this.mapRoomType({
+        id: roomId,
+        name: roomData.name || `Room ${roomId}`,
+        ...roomData
+      }, propertyExternalId));
+    }
     
     console.log(`Beds24 getRoomTypes for property ${propertyExternalId}: ${roomTypes.length} rooms`);
     
