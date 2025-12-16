@@ -1582,26 +1582,43 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     const rawData = typeof prop.raw_data === 'string' ? JSON.parse(prop.raw_data) : (prop.raw_data || {});
     
-    // Extract nested data
-    const texts = rawData.texts || {};
-    const address = rawData.address || {};
+    // Extract nested data - Beds24 uses texts array with language objects
+    let texts = {};
+    if (rawData.texts && Array.isArray(rawData.texts) && rawData.texts.length > 0) {
+      texts = rawData.texts[0]; // First = default language (usually EN)
+    } else if (rawData.texts && typeof rawData.texts === 'object') {
+      texts = rawData.texts;
+    }
     
-    // Extract text from nested objects (Beds24 uses {EN: "...", DE: "..."} format)
-    const propDescription = extractText(texts.description, rawData.description);
-    const propShortDesc = extractText(texts.shortDescription, rawData.shortDescription);
-    const propPolicies = extractText(texts.policies, rawData.policies);
-    const propDirections = extractText(texts.directions, rawData.directions);
-    console.log('link-to-gas: Extracted texts - desc:', propDescription?.substring(0,50), 'shortDesc:', propShortDesc?.substring(0,50));
+    // Extract all text fields from Beds24
+    const propDescription = extractText(texts.propertyDescription, texts.description, rawData.description);
+    const propShortDesc = extractText(texts.propertyShortDescription, texts.shortDescription, rawData.shortDescription);
+    const propHouseRules = extractText(texts.houseRules, texts.propertyHouseRules, rawData.houseRules);
+    const propCancellation = extractText(texts.cancellationPolicy, texts.cancellation, rawData.cancellationPolicy);
+    const propTerms = extractText(texts.termsConditions, texts.terms, rawData.termsConditions);
+    const propDirections = extractText(texts.directions, texts.howToGetThere, rawData.directions);
+    const propCheckInInstr = extractText(texts.checkInInstructions, rawData.checkInInstructions);
+    const propCheckOutInstr = extractText(texts.checkOutInstructions, rawData.checkOutInstructions);
+    const propAreaInfo = extractText(texts.areaInfo, texts.areaDescription, rawData.areaInfo);
+    const propDamagePolicy = extractText(texts.damagePolicy, rawData.damagePolicy);
+    
+    console.log('link-to-gas: Extracted texts - desc:', propDescription?.substring(0,50), 'houseRules:', propHouseRules?.substring(0,30));
     
     // 2. Check if already linked
     let gasPropertyId = null;
     
-    // Add columns if not exists
+    // Add all necessary columns
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS policies TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS house_rules TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS cancellation_policy TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS terms_conditions TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS directions TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_in_instructions TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_out_instructions TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS area_info TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS damage_policy TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_in_time VARCHAR(10)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_out_time VARCHAR(10)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)');
@@ -1614,7 +1631,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     if (prop.gas_property_id) {
       gasPropertyId = prop.gas_property_id;
-      // Update existing property with all available fields
+      // Update existing property with ALL available fields from Beds24
       console.log('link-to-gas: Updating existing property', gasPropertyId);
       await pool.query(`
         UPDATE properties SET
@@ -1625,16 +1642,26 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           country = COALESCE(NULLIF($5, ''), country),
           postal_code = COALESCE(NULLIF($6, ''), postal_code),
           property_type = COALESCE(NULLIF($7, ''), property_type),
-          check_in_time = COALESCE(NULLIF($8, ''), check_in_time),
-          check_out_time = COALESCE(NULLIF($9, ''), check_out_time),
-          contact_email = COALESCE(NULLIF($10, ''), contact_email),
-          contact_phone = COALESCE(NULLIF($11, ''), contact_phone),
-          website = COALESCE(NULLIF($12, ''), website),
-          latitude = COALESCE($13, latitude),
-          longitude = COALESCE($14, longitude),
-          account_id = $15,
+          short_description = COALESCE(NULLIF($8, ''), short_description),
+          full_description = COALESCE(NULLIF($9, ''), full_description),
+          house_rules = COALESCE(NULLIF($10, ''), house_rules),
+          cancellation_policy = COALESCE(NULLIF($11, ''), cancellation_policy),
+          terms_conditions = COALESCE(NULLIF($12, ''), terms_conditions),
+          directions = COALESCE(NULLIF($13, ''), directions),
+          check_in_instructions = COALESCE(NULLIF($14, ''), check_in_instructions),
+          check_out_instructions = COALESCE(NULLIF($15, ''), check_out_instructions),
+          area_info = COALESCE(NULLIF($16, ''), area_info),
+          damage_policy = COALESCE(NULLIF($17, ''), damage_policy),
+          check_in_time = COALESCE(NULLIF($18, ''), check_in_time),
+          check_out_time = COALESCE(NULLIF($19, ''), check_out_time),
+          contact_email = COALESCE(NULLIF($20, ''), contact_email),
+          contact_phone = COALESCE(NULLIF($21, ''), contact_phone),
+          website = COALESCE(NULLIF($22, ''), website),
+          latitude = COALESCE($23, latitude),
+          longitude = COALESCE($24, longitude),
+          account_id = $25,
           updated_at = NOW()
-        WHERE id = $16
+        WHERE id = $26
       `, [
         prop.name || 'Unnamed Property',
         rawData.address || '',
@@ -1643,6 +1670,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         rawData.country || '',
         rawData.postcode || rawData.postalCode || '',
         rawData.propertyType || '',
+        propShortDesc || '',
+        propDescription || '',
+        propHouseRules || '',
+        propCancellation || '',
+        propTerms || '',
+        propDirections || '',
+        propCheckInInstr || '',
+        propCheckOutInstr || '',
+        propAreaInfo || '',
+        propDamagePolicy || '',
         rawData.checkInStart || rawData.checkInTime || '',
         rawData.checkOutEnd || rawData.checkOutTime || '',
         rawData.email || '',
@@ -1687,15 +1724,19 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         console.log('link-to-gas: Creating property with full data');
         
-        // Full INSERT with all fields (excluding JSONB columns that cause type issues)
+        // Full INSERT with all Beds24 fields
         const propResult = await pool.query(`
           INSERT INTO properties (
             account_id, user_id, ${adapterColumn}, name, 
             address, city, state, country, postal_code,
-            property_type, check_in_time, check_out_time,
+            property_type, short_description, full_description,
+            house_rules, cancellation_policy, terms_conditions,
+            directions, check_in_instructions, check_out_instructions,
+            area_info, damage_policy,
+            check_in_time, check_out_time,
             contact_email, contact_phone, website, latitude, longitude,
             cm_source, status, created_at
-          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'active', NOW())
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, 'active', NOW())
           RETURNING id
         `, [
           accountId,
@@ -1707,6 +1748,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           rawData.country || '',
           rawData.postcode || rawData.postalCode || '',
           rawData.propertyType || 'vacation_rental',
+          propShortDesc || '',
+          propDescription || '',
+          propHouseRules || '',
+          propCancellation || '',
+          propTerms || '',
+          propDirections || '',
+          propCheckInInstr || '',
+          propCheckOutInstr || '',
+          propAreaInfo || '',
+          propDamagePolicy || '',
           rawData.checkInStart || rawData.checkInTime || '15:00',
           rawData.checkOutEnd || rawData.checkOutTime || '11:00',
           rawData.email || '',
@@ -1909,8 +1960,56 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       roomIdMap[String(room.external_id)] = gasRoomId;
       
-      // Skip updating gas_sync_room_types.gas_room_id for now (FK constraint issue)
-      // TODO: Add back once we verify the relationship is correct
+      // Map feature codes to amenities
+      if (featureCodes && gasRoomId) {
+        const codes = featureCodes.split(',').map(c => c.trim()).filter(c => c);
+        
+        if (codes.length > 0) {
+          // Ensure beds24_code column exists on master_amenities
+          await pool.query('ALTER TABLE master_amenities ADD COLUMN IF NOT EXISTS beds24_code VARCHAR(100)').catch(() => {});
+          
+          // Ensure bookable_unit_amenities table exists
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS bookable_unit_amenities (
+              id SERIAL PRIMARY KEY,
+              bookable_unit_id INTEGER,
+              amenity_id INTEGER,
+              amenity_code VARCHAR(100),
+              amenity_name VARCHAR(255),
+              category VARCHAR(100),
+              display_order INTEGER DEFAULT 0,
+              created_at TIMESTAMP DEFAULT NOW()
+            )
+          `).catch(() => {});
+          
+          for (const code of codes) {
+            // Try to find matching master amenity by beds24_code or amenity_code
+            const masterMatch = await pool.query(`
+              SELECT id, amenity_code, amenity_name, category 
+              FROM master_amenities 
+              WHERE beds24_code = $1 OR amenity_code = $1 OR UPPER(amenity_code) = UPPER($1)
+              LIMIT 1
+            `, [code]);
+            
+            if (masterMatch.rows.length > 0) {
+              const ma = masterMatch.rows[0];
+              // Check if already linked
+              const existing = await pool.query(
+                'SELECT id FROM bookable_unit_amenities WHERE bookable_unit_id = $1 AND amenity_id = $2',
+                [gasRoomId, ma.id]
+              );
+              
+              if (existing.rows.length === 0) {
+                await pool.query(`
+                  INSERT INTO bookable_unit_amenities (bookable_unit_id, amenity_id, amenity_code, amenity_name, category)
+                  VALUES ($1, $2, $3, $4, $5)
+                `, [gasRoomId, ma.id, ma.amenity_code, ma.amenity_name, ma.category]);
+              }
+            }
+            // If no match, the feature code is stored in feature_codes column for manual mapping later
+          }
+        }
+      }
     }
     
     // 4. Sync images to room_images
