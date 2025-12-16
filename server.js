@@ -1553,6 +1553,38 @@ function extractText(obj, ...paths) {
   return '';
 }
 
+// Debug endpoint to see room raw_data from Beds24
+app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
+  try {
+    const { propertyId } = req.query;
+    
+    const result = await pool.query(`
+      SELECT rt.id, rt.external_id, rt.name, rt.raw_data 
+      FROM gas_sync_room_types rt
+      WHERE rt.sync_property_id = $1
+      LIMIT 3
+    `, [propertyId]);
+    
+    const rooms = result.rows.map(r => {
+      const rawData = typeof r.raw_data === 'string' ? JSON.parse(r.raw_data) : r.raw_data;
+      return {
+        id: r.id,
+        external_id: r.external_id,
+        name: r.name,
+        raw_data_keys: Object.keys(rawData || {}),
+        texts: rawData?.texts,
+        displayName: rawData?.displayName,
+        description: rawData?.description,
+        auxiliaryText: rawData?.auxiliaryText
+      };
+    });
+    
+    res.json({ success: true, rooms });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Link synced property to GAS system - creates property, rooms, and images
 app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res) => {
   try {
