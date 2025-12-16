@@ -1227,11 +1227,13 @@ app.get('/api/gas-sync/gas-fields', async (req, res) => {
         { field: 'check_out_time', type: 'string' },
         { field: 'contact_email', type: 'string' },
         { field: 'contact_phone', type: 'string' },
+        { field: 'website', type: 'string' },
         { field: 'latitude', type: 'number' },
         { field: 'longitude', type: 'number' }
       ],
       room: [
         { field: 'name', type: 'string', required: true },
+        { field: 'display_name', type: 'string' },
         { field: 'short_description', type: 'text' },
         { field: 'full_description', type: 'text' },
         { field: 'max_guests', type: 'number' },
@@ -1240,7 +1242,10 @@ app.get('/api/gas-sync/gas-fields', async (req, res) => {
         { field: 'beds', type: 'number' },
         { field: 'bathrooms', type: 'number' },
         { field: 'size_sqm', type: 'number' },
-        { field: 'amenities', type: 'json' }
+        { field: 'amenities', type: 'json' },
+        { field: 'room_type', type: 'string' },
+        { field: 'cleaning_fee', type: 'number' },
+        { field: 'security_deposit', type: 'number' }
       ],
       reservation: [
         { field: 'guest_first_name', type: 'string' },
@@ -1391,27 +1396,23 @@ function getDefaultMappings(adapterCode) {
     { source_entity: 'property', source_field: 'country', target_entity: 'properties', target_field: 'country' },
     { source_entity: 'property', source_field: 'postcode', target_entity: 'properties', target_field: 'postal_code' },
     { source_entity: 'property', source_field: 'propertyType', target_entity: 'properties', target_field: 'property_type' },
-    { source_entity: 'property', source_field: 'texts.description', target_entity: 'properties', target_field: 'full_description' },
-    { source_entity: 'property', source_field: 'texts.shortDescription', target_entity: 'properties', target_field: 'short_description' },
-    { source_entity: 'property', source_field: 'texts.policies', target_entity: 'properties', target_field: 'policies' },
-    { source_entity: 'property', source_field: 'texts.directions', target_entity: 'properties', target_field: 'directions' },
     { source_entity: 'property', source_field: 'checkInStart', target_entity: 'properties', target_field: 'check_in_time' },
     { source_entity: 'property', source_field: 'checkOutEnd', target_entity: 'properties', target_field: 'check_out_time' },
     { source_entity: 'property', source_field: 'email', target_entity: 'properties', target_field: 'contact_email' },
     { source_entity: 'property', source_field: 'phone', target_entity: 'properties', target_field: 'contact_phone' },
+    { source_entity: 'property', source_field: 'web', target_entity: 'properties', target_field: 'website' },
     { source_entity: 'property', source_field: 'latitude', target_entity: 'properties', target_field: 'latitude' },
     { source_entity: 'property', source_field: 'longitude', target_entity: 'properties', target_field: 'longitude' },
-    // Room mappings
+    // Room mappings - based on actual Beds24 V1 API response
     { source_entity: 'room', source_field: 'name', target_entity: 'bookable_units', target_field: 'name' },
+    { source_entity: 'room', source_field: 'texts.displayName.EN', target_entity: 'bookable_units', target_field: 'display_name' },
+    { source_entity: 'room', source_field: 'texts.roomDescription1.EN', target_entity: 'bookable_units', target_field: 'full_description' },
     { source_entity: 'room', source_field: 'description', target_entity: 'bookable_units', target_field: 'short_description' },
-    { source_entity: 'room', source_field: 'fullDescription', target_entity: 'bookable_units', target_field: 'full_description' },
-    { source_entity: 'room', source_field: 'maxPeople', target_entity: 'bookable_units', target_field: 'max_guests' },
-    { source_entity: 'room', source_field: 'price', target_entity: 'bookable_units', target_field: 'base_price' },
-    { source_entity: 'room', source_field: 'bedrooms', target_entity: 'bookable_units', target_field: 'bedrooms' },
-    { source_entity: 'room', source_field: 'beds', target_entity: 'bookable_units', target_field: 'beds' },
-    { source_entity: 'room', source_field: 'bathrooms', target_entity: 'bookable_units', target_field: 'bathrooms' },
-    { source_entity: 'room', source_field: 'size', target_entity: 'bookable_units', target_field: 'size_sqm' },
-    { source_entity: 'room', source_field: 'amenities', target_entity: 'bookable_units', target_field: 'amenities' }
+    { source_entity: 'room', source_field: 'rackRate', target_entity: 'bookable_units', target_field: 'base_price' },
+    { source_entity: 'room', source_field: 'texts.accommodationType.EN', target_entity: 'bookable_units', target_field: 'room_type' },
+    { source_entity: 'room', source_field: 'featureCodes', target_entity: 'bookable_units', target_field: 'amenities' },
+    { source_entity: 'room', source_field: 'cleaningFee', target_entity: 'bookable_units', target_field: 'cleaning_fee' },
+    { source_entity: 'room', source_field: 'securityDeposit', target_entity: 'bookable_units', target_field: 'security_deposit' }
   ];
   
   // Add more adapters as needed
@@ -1426,7 +1427,7 @@ function getDefaultMappings(adapterCode) {
 }
 
 // Reset gas sync connection data (clear rooms, images, reservations but keep connection)
-app.get('/api/gas-sync/connections/:id/reset', async (req, res) => {
+app.post('/api/gas-sync/connections/:id/reset', async (req, res) => {
   try {
     const { id } = req.params;
     
@@ -1498,7 +1499,7 @@ app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) =
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count,
              gp.name as gas_property_name,
-             a.company_name as account_name
+             a.name as account_name
       FROM gas_sync_properties p
       LEFT JOIN properties gp ON p.gas_property_id = gp.id
       LEFT JOIN accounts a ON gp.account_id = a.id
@@ -1554,6 +1555,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_out_time VARCHAR(10)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS website VARCHAR(255)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)');
@@ -1671,6 +1673,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bathrooms DECIMAL(3,1)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS size_sqm INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS amenities JSONB');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS room_type VARCHAR(100)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cleaning_fee DECIMAL(10,2)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS security_deposit DECIMAL(10,2)');
     
     let roomsCreated = 0;
     let roomsUpdated = 0;
