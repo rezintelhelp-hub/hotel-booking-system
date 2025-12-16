@@ -719,60 +719,70 @@ class Beds24Adapter {
       return { success: false, error: 'V1 API key required for images' };
     }
     
-    const response = await this.v1Request('/getPropertyPhotos', {
-      propId: propertyExternalId
+    // V1 uses /getPropertyContent with images: true
+    const response = await this.v1Request('/getPropertyContent', {
+      images: true
     });
     
     if (!response.success) {
       return response;
     }
     
-    const images = (response.data?.photos || response.data || []).map((img, index) => ({
-      externalId: img.id || `${propertyExternalId}-${index}`,
-      originalUrl: img.url || img.image,
-      thumbnailUrl: img.thumb || img.thumbnail,
-      caption: img.caption || img.description || '',
-      sortOrder: img.order || img.sortOrder || index,
-      imageType: 'property',
-      width: img.width || null,
-      height: img.height || null,
-      metadata: img
-    }));
+    // Parse the getPropertyContent response structure
+    const content = response.data?.getPropertyContent?.[0];
+    if (!content?.images?.hosted) {
+      return { success: true, data: [] };
+    }
+    
+    const images = [];
+    const hosted = content.images.hosted;
+    
+    // Extract all hosted images
+    for (const [key, img] of Object.entries(hosted)) {
+      if (img.url) {
+        // Determine if this is a property or room image based on mapping
+        const mapping = img.map?.[0] || {};
+        const roomId = mapping.roomId || null;
+        const position = parseInt(mapping.position) || parseInt(key);
+        
+        images.push({
+          externalId: `${propertyExternalId}-img-${key}`,
+          originalUrl: img.url,
+          thumbnailUrl: img.url, // Beds24 doesn't provide separate thumbnails
+          caption: '',
+          sortOrder: position,
+          imageType: roomId ? 'room' : 'property',
+          roomId: roomId,
+          width: null,
+          height: null,
+          metadata: img
+        });
+      }
+    }
+    
+    // Sort by position
+    images.sort((a, b) => a.sortOrder - b.sortOrder);
     
     return {
       success: true,
-      data: images
+      data: images,
+      roomIds: content.roomIds || {}
     };
   }
   
   async getRoomImages(roomExternalId) {
-    if (!this.apiKey) {
-      return { success: false, error: 'V1 API key required for images' };
+    // Get all images and filter by room
+    const allImages = await this.getImages(null);
+    
+    if (!allImages.success) {
+      return allImages;
     }
     
-    const response = await this.v1Request('/getRoomPhotos', {
-      roomId: roomExternalId
-    });
-    
-    if (!response.success) {
-      return response;
-    }
-    
-    const images = (response.data?.photos || response.data || []).map((img, index) => ({
-      externalId: img.id || `room-${roomExternalId}-${index}`,
-      originalUrl: img.url || img.image,
-      thumbnailUrl: img.thumb || img.thumbnail,
-      caption: img.caption || img.description || '',
-      sortOrder: img.order || img.sortOrder || index,
-      imageType: 'room',
-      width: img.width || null,
-      height: img.height || null,
-      metadata: img
-    }));
+    const roomImages = allImages.data.filter(img => img.roomId === roomExternalId);
     
     return {
       success: true,
-      data: images
+      data: roomImages
     };
   }
   
