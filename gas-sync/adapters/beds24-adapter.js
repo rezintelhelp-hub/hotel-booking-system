@@ -321,7 +321,10 @@ class Beds24Adapter {
   // =====================================================
   
   async getRoomTypes(propertyExternalId, options = {}) {
-    const response = await this.v2Request(`/properties/${propertyExternalId}/rooms`);
+    // Beds24 v2 uses /rooms with propertyId parameter, not /properties/{id}/rooms
+    const response = await this.v2Request('/rooms', 'GET', null, {
+      params: { propertyId: propertyExternalId }
+    });
     
     if (!response.success) {
       return response;
@@ -330,6 +333,8 @@ class Beds24Adapter {
     const rawData = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || []);
     const roomsArray = Array.isArray(rawData) ? rawData : [];
     const roomTypes = roomsArray.map(room => this.mapRoomType(room, propertyExternalId));
+    
+    console.log(`Beds24 getRoomTypes for property ${propertyExternalId}: ${roomTypes.length} rooms`);
     
     return {
       success: true,
