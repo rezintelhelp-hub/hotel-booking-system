@@ -342,26 +342,42 @@ class Beds24Adapter {
   async getRoomTypes(propertyExternalId, options = {}) {
     // Beds24 V2 /rooms endpoint doesn't work reliably
     // Use V1 /getPropertyContent which includes room data
+    // Note: We call WITHOUT propKey to get ALL properties' rooms
     if (!this.apiKey) {
       console.log('Beds24 getRoomTypes: No V1 API key, skipping rooms');
       return { success: true, data: [] };
     }
     
+    // Make request without propKey to get all properties
+    const savedPropKey = this.propKey;
+    this.propKey = null;  // Temporarily clear to get all properties
+    
     const response = await this.v1Request('/getPropertyContent', {});
+    
+    this.propKey = savedPropKey;  // Restore
     
     if (!response.success) {
       return response;
     }
     
-    // Parse room data from getPropertyContent
-    const content = response.data?.getPropertyContent?.[0];
-    if (!content?.roomIds) {
-      console.log('Beds24 getRoomTypes: No roomIds in response');
+    // getPropertyContent returns array of all properties
+    // Find the one matching our propertyExternalId
+    const allProperties = response.data?.getPropertyContent || [];
+    console.log(`Beds24 getRoomTypes: Got ${allProperties.length} properties from V1`);
+    
+    // Find property by ID - getPropertyContent returns propId field
+    const property = allProperties.find(p => 
+      String(p.propId) === String(propertyExternalId) || 
+      String(p.id) === String(propertyExternalId)
+    );
+    
+    if (!property?.roomIds) {
+      console.log(`Beds24 getRoomTypes: No roomIds found for property ${propertyExternalId}`);
       return { success: true, data: [] };
     }
     
     const roomTypes = [];
-    for (const [roomId, roomData] of Object.entries(content.roomIds)) {
+    for (const [roomId, roomData] of Object.entries(property.roomIds)) {
       roomTypes.push(this.mapRoomType({
         id: roomId,
         name: roomData.name || `Room ${roomId}`,
@@ -783,23 +799,34 @@ class Beds24Adapter {
       return { success: false, error: 'V1 API key required for images' };
     }
     
-    // V1 uses /getPropertyContent with images: true
+    // Make request without propKey to get all properties
+    const savedPropKey = this.propKey;
+    this.propKey = null;
+    
     const response = await this.v1Request('/getPropertyContent', {
       images: true
     });
+    
+    this.propKey = savedPropKey;
     
     if (!response.success) {
       return response;
     }
     
-    // Parse the getPropertyContent response structure
-    const content = response.data?.getPropertyContent?.[0];
-    if (!content?.images?.hosted) {
+    // Find the property matching our propertyExternalId
+    const allProperties = response.data?.getPropertyContent || [];
+    const property = allProperties.find(p => 
+      String(p.propId) === String(propertyExternalId) || 
+      String(p.id) === String(propertyExternalId)
+    );
+    
+    if (!property?.images?.hosted) {
+      console.log(`Beds24 getImages: No images found for property ${propertyExternalId}`);
       return { success: true, data: [] };
     }
     
     const images = [];
-    const hosted = content.images.hosted;
+    const hosted = property.images.hosted;
     
     // Extract all hosted images
     for (const [key, img] of Object.entries(hosted)) {
@@ -827,10 +854,12 @@ class Beds24Adapter {
     // Sort by position
     images.sort((a, b) => a.sortOrder - b.sortOrder);
     
+    console.log(`Beds24 getImages for property ${propertyExternalId}: ${images.length} images`);
+    
     return {
       success: true,
       data: images,
-      roomIds: content.roomIds || {}
+      roomIds: property.roomIds || {}
     };
   }
   
