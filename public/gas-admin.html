@@ -18806,7 +18806,11 @@ Local honey and preserves"></textarea>
 
         // Modal Functions
         function openModal(modalId) {
-            document.getElementById(modalId).classList.add('active');
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = '';  // Reset display in case it was set to 'none'
+                modal.classList.add('active');
+            }
         }
 
         function closeModal(modalId) {
@@ -18819,7 +18823,7 @@ Local honey and preserves"></textarea>
                     modal.remove();
                 } else {
                     modal.classList.remove('active');
-                    modal.style.display = 'none';
+                    // Don't set display:none - let CSS handle visibility via .active class
                 }
             }
         }
