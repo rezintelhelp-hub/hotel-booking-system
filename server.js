@@ -1631,7 +1631,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     if (prop.gas_property_id) {
       gasPropertyId = prop.gas_property_id;
-      // Update existing property with ALL available fields from Beds24
+      // Update existing property - only update text fields, skip JSONB columns to avoid type mismatch
       console.log('link-to-gas: Updating existing property', gasPropertyId);
       await pool.query(`
         UPDATE properties SET
@@ -1642,26 +1642,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           country = COALESCE(NULLIF($5, ''), country),
           postal_code = COALESCE(NULLIF($6, ''), postal_code),
           property_type = COALESCE(NULLIF($7, ''), property_type),
-          short_description = COALESCE(NULLIF($8, ''), short_description),
-          full_description = COALESCE(NULLIF($9, ''), full_description),
-          house_rules = COALESCE(NULLIF($10, ''), house_rules),
-          cancellation_policy = COALESCE(NULLIF($11, ''), cancellation_policy),
-          terms_conditions = COALESCE(NULLIF($12, ''), terms_conditions),
-          directions = COALESCE(NULLIF($13, ''), directions),
-          check_in_instructions = COALESCE(NULLIF($14, ''), check_in_instructions),
-          check_out_instructions = COALESCE(NULLIF($15, ''), check_out_instructions),
-          area_info = COALESCE(NULLIF($16, ''), area_info),
-          damage_policy = COALESCE(NULLIF($17, ''), damage_policy),
-          check_in_time = COALESCE(NULLIF($18, ''), check_in_time),
-          check_out_time = COALESCE(NULLIF($19, ''), check_out_time),
-          contact_email = COALESCE(NULLIF($20, ''), contact_email),
-          contact_phone = COALESCE(NULLIF($21, ''), contact_phone),
-          website = COALESCE(NULLIF($22, ''), website),
-          latitude = COALESCE($23, latitude),
-          longitude = COALESCE($24, longitude),
-          account_id = $25,
+          check_in_time = COALESCE(NULLIF($8, ''), check_in_time),
+          check_out_time = COALESCE(NULLIF($9, ''), check_out_time),
+          contact_email = COALESCE(NULLIF($10, ''), contact_email),
+          contact_phone = COALESCE(NULLIF($11, ''), contact_phone),
+          website = COALESCE(NULLIF($12, ''), website),
+          latitude = COALESCE($13, latitude),
+          longitude = COALESCE($14, longitude),
+          account_id = $15,
           updated_at = NOW()
-        WHERE id = $26
+        WHERE id = $16
       `, [
         prop.name || 'Unnamed Property',
         rawData.address || '',
@@ -1670,16 +1660,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         rawData.country || '',
         rawData.postcode || rawData.postalCode || '',
         rawData.propertyType || '',
-        propShortDesc || '',
-        propDescription || '',
-        propHouseRules || '',
-        propCancellation || '',
-        propTerms || '',
-        propDirections || '',
-        propCheckInInstr || '',
-        propCheckOutInstr || '',
-        propAreaInfo || '',
-        propDamagePolicy || '',
         rawData.checkInStart || rawData.checkInTime || '',
         rawData.checkOutEnd || rawData.checkOutTime || '',
         rawData.email || '',
@@ -1690,6 +1670,40 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         accountId,
         gasPropertyId
       ]);
+      
+      // Update text description fields separately (these may be JSONB or TEXT depending on schema)
+      // Only update if we have data from Beds24
+      if (propShortDesc) {
+        await pool.query('UPDATE properties SET short_description = $1 WHERE id = $2', [propShortDesc, gasPropertyId]).catch(() => {});
+      }
+      if (propDescription) {
+        await pool.query('UPDATE properties SET full_description = $1 WHERE id = $2', [propDescription, gasPropertyId]).catch(() => {});
+      }
+      if (propHouseRules) {
+        await pool.query('UPDATE properties SET house_rules = $1 WHERE id = $2', [propHouseRules, gasPropertyId]).catch(() => {});
+      }
+      if (propCancellation) {
+        await pool.query('UPDATE properties SET cancellation_policy = $1 WHERE id = $2', [propCancellation, gasPropertyId]).catch(() => {});
+      }
+      if (propTerms) {
+        await pool.query('UPDATE properties SET terms_conditions = $1 WHERE id = $2', [propTerms, gasPropertyId]).catch(() => {});
+      }
+      if (propDirections) {
+        await pool.query('UPDATE properties SET directions = $1 WHERE id = $2', [propDirections, gasPropertyId]).catch(() => {});
+      }
+      if (propCheckInInstr) {
+        await pool.query('UPDATE properties SET check_in_instructions = $1 WHERE id = $2', [propCheckInInstr, gasPropertyId]).catch(() => {});
+      }
+      if (propCheckOutInstr) {
+        await pool.query('UPDATE properties SET check_out_instructions = $1 WHERE id = $2', [propCheckOutInstr, gasPropertyId]).catch(() => {});
+      }
+      if (propAreaInfo) {
+        await pool.query('UPDATE properties SET area_info = $1 WHERE id = $2', [propAreaInfo, gasPropertyId]).catch(() => {});
+      }
+      if (propDamagePolicy) {
+        await pool.query('UPDATE properties SET damage_policy = $1 WHERE id = $2', [propDamagePolicy, gasPropertyId]).catch(() => {});
+      }
+      
       console.log('link-to-gas: Updated property', gasPropertyId);
     } else {
       // Check if property exists by external ID (only check columns that exist for this adapter)
@@ -1724,19 +1738,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         console.log('link-to-gas: Creating property with full data');
         
-        // Full INSERT with all Beds24 fields
+        // INSERT with basic fields only (avoid JSONB columns)
         const propResult = await pool.query(`
           INSERT INTO properties (
             account_id, user_id, ${adapterColumn}, name, 
             address, city, state, country, postal_code,
-            property_type, short_description, full_description,
-            house_rules, cancellation_policy, terms_conditions,
-            directions, check_in_instructions, check_out_instructions,
-            area_info, damage_policy,
-            check_in_time, check_out_time,
+            property_type, check_in_time, check_out_time,
             contact_email, contact_phone, website, latitude, longitude,
             cm_source, status, created_at
-          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, 'active', NOW())
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'active', NOW())
           RETURNING id
         `, [
           accountId,
@@ -1748,16 +1758,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           rawData.country || '',
           rawData.postcode || rawData.postalCode || '',
           rawData.propertyType || 'vacation_rental',
-          propShortDesc || '',
-          propDescription || '',
-          propHouseRules || '',
-          propCancellation || '',
-          propTerms || '',
-          propDirections || '',
-          propCheckInInstr || '',
-          propCheckOutInstr || '',
-          propAreaInfo || '',
-          propDamagePolicy || '',
           rawData.checkInStart || rawData.checkInTime || '15:00',
           rawData.checkOutEnd || rawData.checkOutTime || '11:00',
           rawData.email || '',
@@ -1769,6 +1769,38 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         ]);
         gasPropertyId = propResult.rows[0].id;
         console.log('link-to-gas: Created property with ID:', gasPropertyId);
+        
+        // Update text description fields separately (handle JSONB/TEXT type differences)
+        if (propShortDesc) {
+          await pool.query('UPDATE properties SET short_description = $1 WHERE id = $2', [propShortDesc, gasPropertyId]).catch(() => {});
+        }
+        if (propDescription) {
+          await pool.query('UPDATE properties SET full_description = $1 WHERE id = $2', [propDescription, gasPropertyId]).catch(() => {});
+        }
+        if (propHouseRules) {
+          await pool.query('UPDATE properties SET house_rules = $1 WHERE id = $2', [propHouseRules, gasPropertyId]).catch(() => {});
+        }
+        if (propCancellation) {
+          await pool.query('UPDATE properties SET cancellation_policy = $1 WHERE id = $2', [propCancellation, gasPropertyId]).catch(() => {});
+        }
+        if (propTerms) {
+          await pool.query('UPDATE properties SET terms_conditions = $1 WHERE id = $2', [propTerms, gasPropertyId]).catch(() => {});
+        }
+        if (propDirections) {
+          await pool.query('UPDATE properties SET directions = $1 WHERE id = $2', [propDirections, gasPropertyId]).catch(() => {});
+        }
+        if (propCheckInInstr) {
+          await pool.query('UPDATE properties SET check_in_instructions = $1 WHERE id = $2', [propCheckInInstr, gasPropertyId]).catch(() => {});
+        }
+        if (propCheckOutInstr) {
+          await pool.query('UPDATE properties SET check_out_instructions = $1 WHERE id = $2', [propCheckOutInstr, gasPropertyId]).catch(() => {});
+        }
+        if (propAreaInfo) {
+          await pool.query('UPDATE properties SET area_info = $1 WHERE id = $2', [propAreaInfo, gasPropertyId]).catch(() => {});
+        }
+        if (propDamagePolicy) {
+          await pool.query('UPDATE properties SET damage_policy = $1 WHERE id = $2', [propDamagePolicy, gasPropertyId]).catch(() => {});
+        }
       }
       
       // Link the synced property to GAS property
@@ -1881,31 +1913,25 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       if (existingRoom.rows.length > 0) {
         gasRoomId = existingRoom.rows[0].id;
-        // Update existing room with full data
+        // Update existing room - basic fields first
         console.log('link-to-gas: Updating existing room', gasRoomId, room.name);
         await pool.query(`
           UPDATE bookable_units SET
             name = $1,
-            display_name = $2,
-            short_description = $3,
-            full_description = $4,
-            max_guests = COALESCE($5, max_guests),
-            base_price = COALESCE($6, base_price),
-            room_type = COALESCE(NULLIF($7, ''), room_type),
-            bedrooms = COALESCE($8, bedrooms),
-            beds = COALESCE($9, beds),
-            bathrooms = COALESCE($10, bathrooms),
-            size_sqm = COALESCE($11, size_sqm),
-            cleaning_fee = COALESCE($12, cleaning_fee),
-            security_deposit = COALESCE($13, security_deposit),
-            feature_codes = COALESCE(NULLIF($14, ''), feature_codes),
+            max_guests = COALESCE($2, max_guests),
+            base_price = COALESCE($3, base_price),
+            room_type = COALESCE(NULLIF($4, ''), room_type),
+            bedrooms = COALESCE($5, bedrooms),
+            beds = COALESCE($6, beds),
+            bathrooms = COALESCE($7, bathrooms),
+            size_sqm = COALESCE($8, size_sqm),
+            cleaning_fee = COALESCE($9, cleaning_fee),
+            security_deposit = COALESCE($10, security_deposit),
+            feature_codes = COALESCE(NULLIF($11, ''), feature_codes),
             updated_at = NOW()
-          WHERE id = $15
+          WHERE id = $12
         `, [
           room.name || 'Unnamed Room',
-          displayName || null,
-          roomShortDesc || null,
-          roomFullDesc || null,
           maxGuests,
           basePrice,
           roomType || '',
@@ -1918,9 +1944,21 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           featureCodes,
           gasRoomId
         ]);
+        
+        // Update text fields separately (handle JSONB/TEXT type differences)
+        if (displayName) {
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId]).catch(() => {});
+        }
+        if (roomShortDesc) {
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId]).catch(() => {});
+        }
+        if (roomFullDesc) {
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId]).catch(() => {});
+        }
+        
         roomsUpdated++;
       } else {
-        // Create new room with full data
+        // Create new room - basic fields first
         console.log('link-to-gas: Creating room', room.name);
         
         // Ensure feature_codes column exists
@@ -1928,21 +1966,17 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
-            property_id, cm_room_id, name, display_name,
-            short_description, full_description,
+            property_id, cm_room_id, name,
             max_guests, base_price,
             room_type, bedrooms, beds, bathrooms, size_sqm,
             cleaning_fee, security_deposit, feature_codes,
             status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, 'available', NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
           String(room.external_id),
           room.name || 'Unnamed Room',
-          displayName || null,
-          roomShortDesc || null,
-          roomFullDesc || null,
           maxGuests,
           basePrice,
           roomType || '',
@@ -1955,6 +1989,18 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           featureCodes
         ]);
         gasRoomId = roomResult.rows[0].id;
+        
+        // Update text fields separately (handle JSONB/TEXT type differences)
+        if (displayName) {
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId]).catch(() => {});
+        }
+        if (roomShortDesc) {
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId]).catch(() => {});
+        }
+        if (roomFullDesc) {
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId]).catch(() => {});
+        }
+        
         roomsCreated++;
       }
       
