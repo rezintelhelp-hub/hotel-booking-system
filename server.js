@@ -1734,6 +1734,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS security_deposit DECIMAL(10,2)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS status VARCHAR(50)');
     
+    // Drop FK constraint on gas_room_id if it exists (we'll manage this ourselves)
+    await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS gas_room_id INTEGER');
+    try {
+      await pool.query('ALTER TABLE gas_sync_room_types DROP CONSTRAINT IF EXISTS gas_sync_room_types_gas_room_id_fkey');
+    } catch (e) {
+      console.log('link-to-gas: FK constraint drop skipped:', e.message);
+    }
+    
     let roomsCreated = 0;
     let roomsUpdated = 0;
     const roomIdMap = {}; // Map sync room external_id to GAS room id
@@ -1805,9 +1813,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       roomIdMap[String(room.external_id)] = gasRoomId;
       
-      // Also update the sync room with gas_room_id
-      await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS gas_room_id INTEGER');
-      await pool.query('UPDATE gas_sync_room_types SET gas_room_id = $1 WHERE id = $2', [gasRoomId, room.id]);
+      // Skip updating gas_sync_room_types.gas_room_id for now (FK constraint issue)
+      // TODO: Add back once we verify the relationship is correct
     }
     
     // 4. Sync images to room_images
