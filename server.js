@@ -15325,10 +15325,14 @@ app.put('/api/admin/units/:id', async (req, res) => {
     const { id } = req.params;
     console.log('PUT /api/admin/units/' + id, 'body:', JSON.stringify(req.body));
     
-    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name } = req.body;
+    const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description } = req.body;
     
     // display_name column is JSON type, so wrap it
     const displayNameJson = display_name ? JSON.stringify({ en: display_name }) : null;
+    
+    // Handle descriptions - store as plain text to avoid JSONB issues
+    const shortDesc = short_description || null;
+    const fullDesc = full_description || null;
     
     const result = await pool.query(`
       UPDATE bookable_units 
@@ -15340,9 +15344,11 @@ app.put('/api/admin/units/:id', async (req, res) => {
         max_adults = $5,
         max_children = $6,
         display_name = $7,
+        short_description = $8,
+        full_description = $9,
         updated_at = NOW()
-      WHERE id = $8
-      RETURNING id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children
+      WHERE id = $10
+      RETURNING id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children, short_description, full_description
     `, [
       quantity || 1, 
       status || 'available', 
@@ -15350,7 +15356,9 @@ app.put('/api/admin/units/:id', async (req, res) => {
       max_guests || 2, 
       max_adults || 2, 
       max_children || 0, 
-      displayNameJson, 
+      displayNameJson,
+      shortDesc,
+      fullDesc,
       id
     ]);
     
@@ -18799,10 +18807,42 @@ app.post('/api/ai/generate-content', async (req, res) => {
         userPrompt = `Write a location description (1-2 paragraphs). ${propertyContext} ${prompt ? `Notes: ${prompt}` : ''}`;
         break;
       case 'room_short':
-        userPrompt = `Write a short room description (1-2 sentences, max 30 words). ${roomContext} ${propertyContext} ${prompt ? `Notes: ${prompt}` : ''}`;
+      case 'room_short_description':
+        const { room_name: shortRoomName, room_type: shortRoomType, max_guests: shortMaxGuests } = req.body;
+        userPrompt = `Write a short room description (1-2 sentences, max 150 characters) for a booking website.
+
+Room: "${shortRoomName}"
+Type: ${shortRoomType || 'room'}
+Sleeps: ${shortMaxGuests || 2} guests
+${propertyContext}
+
+Rules:
+- Brief, punchy tagline for search results
+- Highlight key features
+- No clichés
+- Max 150 characters
+
+Just return the description, nothing else.`;
         break;
       case 'room_full':
-        userPrompt = `Write a detailed room description (2-3 paragraphs). ${roomContext} ${propertyContext} ${prompt ? `Notes: ${prompt}` : ''}`;
+      case 'room_full_description':
+        const { room_name: fullRoomName, short_description: shortDescContext, room_type: fullRoomType, max_guests: fullMaxGuests } = req.body;
+        userPrompt = `Write a detailed room description (2-3 paragraphs) for a booking website.
+
+Room: "${fullRoomName}"
+Type: ${fullRoomType || 'room'}
+Sleeps: ${fullMaxGuests || 2} guests
+${shortDescContext ? `Tagline: ${shortDescContext}` : ''}
+${propertyContext}
+
+Rules:
+- Engaging, warm, professional
+- Describe ambiance, features, view
+- Mention comfort and convenience
+- No clichés like "luxurious", "stunning", "oasis"
+- 2-3 paragraphs
+
+Just return the description, nothing else.`;
         break;
       case 'room_display_name':
         // Get property context for the room
