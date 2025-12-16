@@ -1859,29 +1859,36 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
-      // Extract nested text fields (Beds24 uses texts.roomDescription1.EN format)
-      const texts = roomRawData.texts || {};
+      // DEBUG: Log the raw_data structure to understand what Beds24 sends
+      console.log('link-to-gas: Room raw_data keys:', Object.keys(roomRawData).join(', '));
+      if (roomRawData.texts) {
+        console.log('link-to-gas: texts type:', Array.isArray(roomRawData.texts) ? 'array' : typeof roomRawData.texts);
+        if (Array.isArray(roomRawData.texts) && roomRawData.texts.length > 0) {
+          console.log('link-to-gas: texts[0] keys:', Object.keys(roomRawData.texts[0]).join(', '));
+        }
+      }
+      
+      // Extract nested text fields - Beds24 uses texts array: [{language: 'EN', displayName: '...', description: '...', auxiliaryText: '...'}]
+      let texts = {};
+      if (roomRawData.texts && Array.isArray(roomRawData.texts) && roomRawData.texts.length > 0) {
+        texts = roomRawData.texts[0]; // First element is default language (usually EN)
+      } else if (roomRawData.texts && typeof roomRawData.texts === 'object' && !Array.isArray(roomRawData.texts)) {
+        texts = roomRawData.texts;
+      }
       
       // Beds24 Display Name → GAS display_name (overrides room name)
-      const displayName = extractText(texts.displayName, roomRawData.displayName);
+      const displayName = texts.displayName || texts.roomDisplayName || roomRawData.displayName || '';
       
       // Beds24 Room Description → GAS short_description (for listings)
-      const roomShortDesc = extractText(
-        texts.description,
-        texts.roomDescription,
-        roomRawData.description,
-        room.description
-      );
+      const roomShortDesc = texts.description || texts.roomDescription || roomRawData.description || '';
       
       // Beds24 Auxiliary Text → GAS full_description (long description)
-      const roomFullDesc = extractText(
-        texts.auxiliaryText,
-        texts.roomDescription1,
-        roomRawData.auxiliaryText,
-        roomRawData.fullDescription
-      );
+      const roomFullDesc = texts.auxiliaryText || texts.roomAuxiliaryText || roomRawData.auxiliaryText || '';
       
-      const roomType = extractText(texts.accommodationType, roomRawData.accommodationType);
+      // Log what we found for debugging
+      console.log('link-to-gas: Room', room.name, '- displayName:', displayName?.substring(0,30), 'shortDesc:', roomShortDesc?.substring(0,30), 'fullDesc:', roomFullDesc?.substring(0,30));
+      
+      const roomType = texts.accommodationType || roomRawData.accommodationType || '';
       
       // Extract numeric values
       const maxGuests = room.max_guests || roomRawData.maxPeople || roomRawData.maxAdults || 2;
