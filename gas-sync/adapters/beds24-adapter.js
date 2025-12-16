@@ -241,7 +241,14 @@ class Beds24Adapter {
       return response;
     }
     
-    const properties = (response.data || []).map(prop => this.mapProperty(prop));
+    // Beds24 returns { data: [...] } or just [...] depending on endpoint
+    const rawData = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || []);
+    const propertiesArray = Array.isArray(rawData) ? rawData : [];
+    
+    console.log('Beds24 getProperties raw response:', JSON.stringify(response.data).substring(0, 500));
+    console.log('Beds24 properties count:', propertiesArray.length);
+    
+    const properties = propertiesArray.map(prop => this.mapProperty(prop));
     
     return {
       success: true,
@@ -249,8 +256,8 @@ class Beds24Adapter {
       pagination: {
         page: params.page,
         limit: params.limit,
-        total: response.data?.length || 0,
-        hasMore: (response.data?.length || 0) >= params.limit
+        total: properties.length,
+        hasMore: properties.length >= params.limit
       }
     };
   }
@@ -311,7 +318,9 @@ class Beds24Adapter {
       return response;
     }
     
-    const roomTypes = (response.data || []).map(room => this.mapRoomType(room, propertyExternalId));
+    const rawData = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || []);
+    const roomsArray = Array.isArray(rawData) ? rawData : [];
+    const roomTypes = roomsArray.map(room => this.mapRoomType(room, propertyExternalId));
     
     return {
       success: true,
@@ -373,7 +382,9 @@ class Beds24Adapter {
       return response;
     }
     
-    const availability = (response.data || []).map(day => ({
+    const rawData = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || []);
+    const daysArray = Array.isArray(rawData) ? rawData : [];
+    const availability = daysArray.map(day => ({
       roomTypeId: roomTypeExternalId,
       date: day.date,
       isAvailable: day.available > 0,
@@ -452,7 +463,9 @@ class Beds24Adapter {
       return response;
     }
     
-    const rates = (response.data || []).map(day => ({
+    const rawData = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || []);
+    const ratesArray = Array.isArray(rawData) ? rawData : [];
+    const rates = ratesArray.map(day => ({
       roomTypeId: roomTypeExternalId,
       date: day.date,
       price: parseFloat(day.price) || 0,
@@ -516,7 +529,9 @@ class Beds24Adapter {
       return response;
     }
     
-    const reservations = (response.data || []).map(booking => this.mapReservation(booking));
+    const rawData = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || []);
+    const bookingsArray = Array.isArray(rawData) ? rawData : [];
+    const reservations = bookingsArray.map(booking => this.mapReservation(booking));
     
     return {
       success: true,
@@ -524,8 +539,8 @@ class Beds24Adapter {
       pagination: {
         page: params.page,
         limit: params.limit,
-        total: response.data?.length || 0,
-        hasMore: (response.data?.length || 0) >= params.limit
+        total: reservations.length,
+        hasMore: reservations.length >= params.limit
       }
     };
   }
@@ -818,7 +833,9 @@ class Beds24Adapter {
     }
     
     // Transform to standard format
-    const messages = (response.data || []).map(msg => ({
+    const rawData = Array.isArray(response.data) ? response.data : (response.data?.data || response.data || []);
+    const messagesArray = Array.isArray(rawData) ? rawData : [];
+    const messages = messagesArray.map(msg => ({
       id: msg.id,
       sender: msg.direction === 'incoming' ? 'guest' : 'host',
       content: msg.message || msg.text,
