@@ -1289,6 +1289,130 @@
         .website-selector-banner {
             transition: all 0.3s ease;
         }
+        
+        /* GasSync Styles */
+        .connections-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+        .connection-card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #10b981;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .connection-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+        .connection-card.status-error { border-left-color: #ef4444; }
+        .connection-card.status-syncing { border-left-color: #f59e0b; }
+        .connection-card.status-disabled { border-left-color: #9ca3af; opacity: 0.7; }
+        .connection-card-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        .connection-logo {
+            width: 48px;
+            height: 48px;
+            border-radius: 8px;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 24px;
+        }
+        .connection-info h4 { margin: 0; font-size: 16px; }
+        .connection-info .adapter-name { color: #6b7280; font-size: 13px; }
+        .connection-status-badge {
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            margin-left: auto;
+        }
+        .connection-status-badge.connected { background: #d1fae5; color: #047857; }
+        .connection-status-badge.error { background: #fee2e2; color: #dc2626; }
+        .connection-status-badge.syncing { background: #fef3c7; color: #d97706; }
+        .connection-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin: 15px 0;
+            padding: 15px 0;
+            border-top: 1px solid #e5e7eb;
+            border-bottom: 1px solid #e5e7eb;
+        }
+        .connection-stat { text-align: center; }
+        .connection-stat-value { font-size: 20px; font-weight: 600; color: #111827; }
+        .connection-stat-label { font-size: 11px; color: #6b7280; text-transform: uppercase; }
+        .connection-meta { font-size: 12px; color: #6b7280; margin-bottom: 15px; }
+        .connection-actions { display: flex; gap: 8px; }
+        .connection-actions .btn { flex: 1; padding: 8px; font-size: 13px; }
+        .adapter-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+            gap: 12px;
+        }
+        .adapter-card {
+            background: #f9fafb;
+            border: 2px solid #e5e7eb;
+            border-radius: 10px;
+            padding: 15px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .adapter-card:hover { border-color: #3b82f6; background: #eff6ff; }
+        .adapter-card.selected { border-color: #3b82f6; background: #dbeafe; }
+        .adapter-card-logo { font-size: 32px; margin-bottom: 8px; }
+        .adapter-card-name { font-weight: 500; font-size: 13px; }
+        .adapter-card-via { font-size: 10px; color: #6b7280; margin-top: 4px; }
+        .connection-status-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 12px;
+            background: #f9fafb;
+            border-radius: 8px;
+            margin-bottom: 10px;
+        }
+        .connection-status-item .status-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .connection-status-item .status-dot.connected { background: #10b981; }
+        .connection-status-item .status-dot.error { background: #ef4444; }
+        .connection-status-item .status-dot.syncing { background: #f59e0b; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .gas-sync-tabs {
+            display: flex;
+            border-bottom: 1px solid #e5e7eb;
+            background: #f9fafb;
+        }
+        .gas-sync-tab {
+            padding: 12px 20px;
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            cursor: pointer;
+            font-weight: 500;
+            color: #6b7280;
+        }
+        .gas-sync-tab:hover { color: #111827; }
+        .gas-sync-tab.active { color: #3b82f6; border-bottom-color: #3b82f6; background: white; }
+        .gas-sync-tab-content { min-height: 250px; }
+        #credentialFields .form-group { margin-bottom: 15px; }
+        #credentialFields label { display: block; margin-bottom: 5px; font-weight: 500; }
+        #credentialFields input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
+        #credentialFields .help-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
     </style>
 </head>
 <body>
@@ -1487,6 +1611,28 @@
                     <a class="nav-item billing-admin-only" style="display:none;" data-view="my-referrals" href="#" onclick="navClick(this, 'my-referrals'); return false;">
                         <span class="nav-icon">💰</span>
                         <span>My Referrals</span>
+                    </a>
+                    </div>
+                </div>
+
+                <div class="nav-section master-only" style="display: none;">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Channel Managers</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="gas-sync-dashboard" href="#" onclick="navClick(this, 'gas-sync-dashboard'); return false;">
+                        <span class="nav-icon">📊</span>
+                        <span>Sync Dashboard</span>
+                    </a>
+                    <a class="nav-item" data-view="gas-sync-connections" href="#" onclick="navClick(this, 'gas-sync-connections'); return false;">
+                        <span class="nav-icon">🔗</span>
+                        <span>Connections</span>
+                    </a>
+                    <a class="nav-item" data-view="gas-sync-properties" href="#" onclick="navClick(this, 'gas-sync-properties'); return false;">
+                        <span class="nav-icon">🏠</span>
+                        <span>Synced Properties</span>
+                    </a>
+                    <a class="nav-item" data-view="gas-sync-logs" href="#" onclick="navClick(this, 'gas-sync-logs'); return false;">
+                        <span class="nav-icon">📋</span>
+                        <span>Sync Logs</span>
                     </a>
                     </div>
                 </div>
@@ -5603,41 +5749,65 @@
 
             <!-- Channel Manager Selection Modal -->
             <div id="channelManagerModal" class="modal" style="display: none;" onclick="if(event.target === this) closeChannelManagerModal()">
-                <div class="modal-content" style="max-width: 600px; border-radius: 16px; overflow: hidden;">
-                    <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 1.25rem 1.5rem; margin: 0;">
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <span style="font-size: 1.25rem;">🔌</span>
-                            <h3 style="margin: 0; font-size: 1.1rem; font-weight: 600;">Add Channel Manager Connection</h3>
-                        </div>
-                        <button onclick="closeChannelManagerModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; transition: background 0.2s;" onmouseover="this.style.background='rgba(255,255,255,0.3)'" onmouseout="this.style.background='rgba(255,255,255,0.2)'">&times;</button>
+                <div class="modal-content" style="max-width: 600px;">
+                    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Select Your Channel Manager</h3>
+                        <button onclick="closeChannelManagerModal()" style="background: #e5e7eb; border: none; color: #374151; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
                     </div>
-                    <div class="modal-body" style="padding: 1.5rem;">
-                        <p style="color: var(--text-secondary); margin-bottom: 1.25rem; font-weight: 500;">Select Channel Manager</p>
+                    <div class="modal-body">
+                        <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Which channel manager do you use to manage your property?</p>
                         
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
-                            <!-- Beds24 -->
-                            <a href="#" onclick="event.preventDefault(); openWizard('beds24')" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.25rem 1rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4'" onmouseout="this.style.borderColor='var(--border)'; this.style.background='transparent'">
-                                <span style="font-size: 2rem;">🛏️</span>
-                                <div style="font-weight: 600; font-size: 0.95rem;">Beds24</div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <!-- Beds24 - Ready -->
+                            <a href="#" onclick="openWizard('beds24')" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Beds24</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">PMS + Channel Manager</div>
                             </a>
                             
-                            <!-- Calry (Unified) -->
-                            <a href="#" onclick="event.preventDefault(); openWizard('calry')" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.25rem 1rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4'" onmouseout="this.style.borderColor='var(--border)'; this.style.background='transparent'">
-                                <span style="font-size: 2rem;">🔄</span>
-                                <div style="font-weight: 600; font-size: 0.95rem;">Calry (Unified)</div>
+                            <!-- Hostaway - Ready -->
+                            <a href="#" onclick="openWizard('hostaway')" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Hostaway</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Vacation Rental Software</div>
                             </a>
                             
-                            <!-- Hostaway -->
-                            <a href="#" onclick="event.preventDefault(); openWizard('hostaway')" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.25rem 1rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4'" onmouseout="this.style.borderColor='var(--border)'; this.style.background='transparent'">
-                                <span style="font-size: 2rem;">🏠</span>
-                                <div style="font-weight: 600; font-size: 0.95rem;">Hostaway</div>
+                            <!-- Smoobu - Ready -->
+                            <a href="#" onclick="openWizard('smoobu')" class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; position: relative;">
+                                <span style="position: absolute; top: 0.5rem; right: 0.5rem; background: #10b981; color: white; font-size: 0.7rem; padding: 0.2rem 0.5rem; border-radius: 4px;">✓ Ready</span>
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Smoobu</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Channel Manager</div>
                             </a>
                             
-                            <!-- Smoobu -->
-                            <a href="#" onclick="event.preventDefault(); openWizard('smoobu')" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.25rem 1rem; text-align: center; text-decoration: none; color: inherit; transition: all 0.2s; display: flex; flex-direction: column; align-items: center; gap: 0.5rem;" onmouseover="this.style.borderColor='#10b981'; this.style.background='#f0fdf4'" onmouseout="this.style.borderColor='var(--border)'; this.style.background='transparent'">
-                                <span style="font-size: 2rem;">📅</span>
-                                <div style="font-weight: 600; font-size: 0.95rem;">Smoobu</div>
-                            </a>
+                            <!-- Guesty - Coming Soon -->
+                            <div class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; opacity: 0.6; cursor: not-allowed;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Guesty</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Property Management</div>
+                            </div>
+                            
+                            <!-- Cloudbeds - Coming Soon -->
+                            <div class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; opacity: 0.6; cursor: not-allowed;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Cloudbeds</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Hotel PMS</div>
+                            </div>
+                            
+                            <!-- Lodgify - Coming Soon -->
+                            <div class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; opacity: 0.6; cursor: not-allowed;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Lodgify</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Vacation Rental</div>
+                            </div>
+                            
+                            <!-- OwnerRez - Coming Soon -->
+                            <div class="channel-option" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; opacity: 0.6; cursor: not-allowed;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">OwnerRez</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Vacation Rental</div>
+                            </div>
+                            
+                            <!-- Other -->
+                            <div class="channel-option" onclick="alert('Contact us for custom integrations!')" style="border: 2px solid var(--border); border-radius: 12px; padding: 1.5rem; text-align: center; cursor: pointer; transition: all 0.2s;">
+                                <div style="font-weight: 700; font-size: 1.1rem; margin-bottom: 0.25rem;">Other</div>
+                                <div style="color: var(--text-secondary); font-size: 0.85rem;">Not listed here</div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -7986,7 +8156,273 @@ Local honey and preserves"></textarea>
                     </div>
                 </div>
             </div>
+
+            <!-- GasSync Dashboard View -->
+            <div id="gas-sync-dashboard" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🔄 Channel Manager Sync Dashboard</h2>
+                            <p>Overview of all channel manager integrations and sync status</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="stats-grid" id="gasSyncStats">
+                    <div class="stat-card">
+                        <div class="stat-header"><span class="stat-icon">🔗</span></div>
+                        <div class="stat-value" id="syncStatConnections">-</div>
+                        <div class="stat-label">Active Connections</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header"><span class="stat-icon">🏠</span></div>
+                        <div class="stat-value" id="syncStatProperties">-</div>
+                        <div class="stat-label">Synced Properties</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header"><span class="stat-icon">🛏️</span></div>
+                        <div class="stat-value" id="syncStatRoomTypes">-</div>
+                        <div class="stat-label">Room Types</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header"><span class="stat-icon">📅</span></div>
+                        <div class="stat-value" id="syncStatReservations">-</div>
+                        <div class="stat-label">Active Reservations</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header"><span class="stat-icon">📷</span></div>
+                        <div class="stat-value" id="syncStatImages">-</div>
+                        <div class="stat-label">Images Synced</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-header"><span class="stat-icon">⚠️</span></div>
+                        <div class="stat-value" id="syncStatErrors">-</div>
+                        <div class="stat-label">Errors</div>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: 20px;">
+                    <h3 style="margin-bottom: 15px;">📡 Connection Status</h3>
+                    <div id="connectionStatusList">
+                        <p style="color: var(--text-secondary);">Loading connections...</p>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-top: 20px;">
+                    <h3 style="margin-bottom: 15px;">📋 Recent Sync Activity</h3>
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Adapter</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Records</th>
+                                    <th>Duration</th>
+                                </tr>
+                            </thead>
+                            <tbody id="recentActivityTable">
+                                <tr><td colspan="6" style="text-align:center; color: var(--text-secondary);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GasSync Connections View -->
+            <div id="gas-sync-connections" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🔗 Channel Manager Connections</h2>
+                            <p>Manage your channel manager integrations</p>
+                        </div>
+                        <div class="header-actions">
+                            <button class="btn btn-primary" onclick="showAddConnectionModal()">
+                                <span>➕</span> Add Connection
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="connectionsGrid" class="connections-grid">
+                    <p style="color: var(--text-secondary);">Loading connections...</p>
+                </div>
+            </div>
+
+            <!-- GasSync Properties View -->
+            <div id="gas-sync-properties" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🏠 Synced Properties</h2>
+                            <p>Properties synchronized from channel managers</p>
+                        </div>
+                        <div class="header-actions">
+                            <select id="syncPropertiesConnectionFilter" class="form-control" style="width: 200px;" onchange="loadSyncedProperties()">
+                                <option value="">All Connections</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Property</th>
+                                    <th>Location</th>
+                                    <th>Room Types</th>
+                                    <th>Images</th>
+                                    <th>Linked</th>
+                                    <th>Last Sync</th>
+                                    <th>Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="syncedPropertiesTable">
+                                <tr><td colspan="7" style="text-align:center; color: var(--text-secondary);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- GasSync Logs View -->
+            <div id="gas-sync-logs" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📋 Sync Logs</h2>
+                            <p>History of synchronization operations</p>
+                        </div>
+                        <div class="header-actions">
+                            <select id="syncLogsConnectionFilter" class="form-control" style="width: 200px;" onchange="loadSyncLogs()">
+                                <option value="">All Connections</option>
+                            </select>
+                            <select id="syncLogsStatusFilter" class="form-control" style="width: 150px;" onchange="loadSyncLogs()">
+                                <option value="">All Status</option>
+                                <option value="success">Success</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="table-responsive">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Connection</th>
+                                    <th>Type</th>
+                                    <th>Status</th>
+                                    <th>Created</th>
+                                    <th>Updated</th>
+                                    <th>Failed</th>
+                                    <th>Duration</th>
+                                    <th>Error</th>
+                                </tr>
+                            </thead>
+                            <tbody id="syncLogsTable">
+                                <tr><td colspan="9" style="text-align:center; color: var(--text-secondary);">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
         </main>
+    </div>
+
+    <!-- GasSync Add Connection Modal -->
+    <div id="addConnectionModal" class="modal" onclick="if(event.target === this) closeModal('addConnectionModal')">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                <h3 style="margin: 0;">➕ Add Channel Manager Connection</h3>
+                <button onclick="closeModal('addConnectionModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <!-- Step 1: Select Adapter -->
+                <div id="connectionStep1">
+                    <h4 style="margin-bottom: 15px;">Select Channel Manager</h4>
+                    <div id="adapterGrid" class="adapter-grid">
+                        <!-- Populated by JS -->
+                    </div>
+                </div>
+                
+                <!-- Step 2: Enter Credentials -->
+                <div id="connectionStep2" style="display: none;">
+                    <div style="display: flex; align-items: center; gap: 15px; margin-bottom: 20px;">
+                        <button class="btn btn-secondary btn-sm" onclick="showConnectionStep(1)">← Back</button>
+                        <h4 id="selectedAdapterName" style="margin: 0;">Configure Connection</h4>
+                    </div>
+                    
+                    <form id="connectionCredentialsForm">
+                        <input type="hidden" id="selectedAdapterCode">
+                        
+                        <div id="credentialFields"></div>
+                        
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Account</label>
+                            <select id="connectionAccountId" class="form-control" required></select>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 15px;">
+                            <label style="display: flex; align-items: center; gap: 8px;">
+                                <input type="checkbox" id="connectionSyncEnabled" checked>
+                                Enable automatic sync
+                            </label>
+                        </div>
+                        
+                        <div class="form-group" style="margin-bottom: 20px;">
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500;">Sync Interval</label>
+                            <select id="connectionSyncInterval" class="form-control">
+                                <option value="5">Every 5 minutes</option>
+                                <option value="15" selected>Every 15 minutes</option>
+                                <option value="30">Every 30 minutes</option>
+                                <option value="60">Every hour</option>
+                            </select>
+                        </div>
+                        
+                        <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                            <button type="button" class="btn btn-secondary" onclick="closeModal('addConnectionModal')">Cancel</button>
+                            <button type="button" class="btn btn-primary" onclick="testAndSaveConnection()">
+                                🔌 Test & Connect
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- GasSync Connection Details Modal -->
+    <div id="connectionDetailsModal" class="modal">
+        <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
+                <button class="close-btn" onclick="closeModal('connectionDetailsModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 0;">
+                <div class="gas-sync-tabs">
+                    <button class="gas-sync-tab active" onclick="showConnectionTab('overview')">Overview</button>
+                    <button class="gas-sync-tab" onclick="showConnectionTab('properties')">Properties</button>
+                    <button class="gas-sync-tab" onclick="showConnectionTab('reservations')">Reservations</button>
+                    <button class="gas-sync-tab" onclick="showConnectionTab('logs')">Logs</button>
+                    <button class="gas-sync-tab" onclick="showConnectionTab('settings')">Settings</button>
+                </div>
+                
+                <div style="padding: 1.5rem;">
+                    <div id="connectionTabOverview" class="gas-sync-tab-content">Loading...</div>
+                    <div id="connectionTabProperties" class="gas-sync-tab-content" style="display:none;">Loading...</div>
+                    <div id="connectionTabReservations" class="gas-sync-tab-content" style="display:none;">Loading...</div>
+                    <div id="connectionTabLogs" class="gas-sync-tab-content" style="display:none;">Loading...</div>
+                    <div id="connectionTabSettings" class="gas-sync-tab-content" style="display:none;">Loading...</div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Knowledge Base Article Modal -->
@@ -12377,6 +12813,12 @@ Local honey and preserves"></textarea>
             
             if (viewName === 'wordpress') loadWordPressView();
             
+            // GasSync views
+            if (viewName === 'gas-sync-dashboard') loadGasSyncDashboard();
+            if (viewName === 'gas-sync-connections') loadGasSyncConnections();
+            if (viewName === 'gas-sync-properties') { loadGasSyncConnections().then(() => loadSyncedProperties()); }
+            if (viewName === 'gas-sync-logs') { loadGasSyncConnections().then(() => loadSyncLogs()); }
+            
             // New sidebar views
             if (viewName === 'app-blog') loadAppBlogPosts();
             if (viewName === 'app-attractions') loadAppAttractions();
@@ -12585,7 +13027,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(`/api/deployed-sites/${selectedDeployedSiteId}/settings/${section}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ settings })
                 });
                 
@@ -12768,7 +13210,7 @@ Local honey and preserves"></textarea>
                 console.log('Pushing to WordPress via /api/admin/push-to-wordpress...');
                 const response = await fetch('/api/admin/push-to-wordpress', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: accountId,
                         section,
@@ -12817,7 +13259,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(`/api/admin/website-builder/page/${pageName}`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: accountId,
                         settings: settings
@@ -14149,7 +14591,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/billing/assign-subscription', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: assignPlanAccountId,
                         plan_id: parseInt(planId),
@@ -14181,7 +14623,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/billing/cancel-subscription', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ account_id: assignPlanAccountId })
                 });
                 
@@ -14317,7 +14759,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/accounts/${accountId}/update-role`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ role: newRole })
                 });
                 const result = await response.json();
@@ -14894,7 +15336,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(agencyData)
                 });
                 
@@ -15018,7 +15460,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/properties/${propertyId}/assign-agency`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ agency_id: null })
                 });
                 const result = await response.json();
@@ -15062,7 +15504,7 @@ Local honey and preserves"></textarea>
                 try {
                     const res = await fetch(`/api/admin/agencies/${agencyId}/assign-client`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ client_id: parseInt(selectedId) })
                     });
                     const result = await res.json();
@@ -15085,7 +15527,7 @@ Local honey and preserves"></textarea>
             try {
                 const res = await fetch(`/api/admin/agencies/${agencyId}/remove-client`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ client_id: clientId })
                 });
                 const result = await res.json();
@@ -15224,7 +15666,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/clients/${clientId}/convert-to-agency`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 const result = await response.json();
                 
@@ -15330,7 +15772,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method: method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(clientData)
                 });
                 
@@ -15439,7 +15881,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Are you sure you want to regenerate the API key? The old key will stop working immediately.')) return;
             
             try {
-                const response = await fetch(`/api/admin/clients/${clientId}/regenerate-api-key`, { method: 'POST' });
+                const response = await fetch(`/api/admin/clients/${clientId}/regenerate-api-key`, { method: 'POST', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -15457,7 +15899,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Are you sure you want to delete this client? This cannot be undone.')) return;
             
             try {
-                const response = await fetch(`/api/admin/clients/${clientId}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/clients/${clientId}`, { method: 'DELETE', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -15489,7 +15931,7 @@ Local honey and preserves"></textarea>
                 if (propertyId) {
                     const assignResponse = await fetch(`/api/admin/clients/${clientId}/assign-property`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ property_id: parseInt(propertyId) })
                     });
                     
@@ -15543,7 +15985,7 @@ Local honey and preserves"></textarea>
                     // Now test POST with simulated webhook data
                     const testResponse = await fetch('/api/webhooks/beds24', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({
                             type: 'test',
                             message: 'GAS Admin test webhook',
@@ -15781,7 +16223,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/properties/${propertyId}/assign-agency`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ agency_id: agencyId || null })
                 });
                 const result = await response.json();
@@ -16226,7 +16668,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/properties/${propertyId}/terms`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ terms, beds })
                 });
                 
@@ -16370,7 +16812,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/units/${roomId}/amenities`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ amenities: selectedAmenities })
                 });
                 
@@ -16988,7 +17430,7 @@ Local honey and preserves"></textarea>
                     ? `/api/admin/properties/images/${imageId}`
                     : `/api/admin/rooms/images/${imageId}`;
                 
-                const response = await fetch(endpoint, { method: 'DELETE' });
+                const response = await fetch(endpoint, { method: 'DELETE', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -17051,7 +17493,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(endpoint, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ imageIds: newOrder })
                 });
                 
@@ -17440,7 +17882,7 @@ Local honey and preserves"></textarea>
                 
                 await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(taskData)
                 });
             } catch (error) {
@@ -17469,7 +17911,7 @@ Local honey and preserves"></textarea>
                 try {
                     const response = await fetch(`/api/admin/tasks/${taskId}`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({ status: 'done', completed: new Date().toISOString().split('T')[0] })
                     });
                     
@@ -17509,7 +17951,7 @@ Local honey and preserves"></textarea>
             // Try database first
             if (!isNaN(taskId)) {
                 try {
-                    const response = await fetch(`/api/admin/tasks/${taskId}`, { method: 'DELETE' });
+                    const response = await fetch(`/api/admin/tasks/${taskId}`, { method: 'DELETE', headers: authHeaders() });
                     const data = await response.json();
                     
                     if (data.success) {
@@ -17721,7 +18163,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/deployed-sites/${siteId}/status`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ status: newStatus })
                 });
                 const data = await response.json();
@@ -17969,7 +18411,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/deploy/create', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         site_name: siteName,
                         property_ids: propertyIds,
@@ -18467,7 +18909,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/amenities', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ name, category, icon })
                 });
                 
@@ -18502,7 +18944,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/amenities', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         name: categoryName + ' (default)', 
                         category: categoryCode, 
@@ -19020,7 +19462,7 @@ Local honey and preserves"></textarea>
                 try {
                     const response = await fetch('/api/admin/availability', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(payload)
                     });
                     const result = await response.json();
@@ -19048,7 +19490,7 @@ Local honey and preserves"></textarea>
             try {
                 // First sync prices/availability
                 btn.textContent = '⏳ Syncing prices...';
-                const priceResponse = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST' });
+                const priceResponse = await fetch('/api/admin/sync-all-availability-quick', { method: 'POST', headers: authHeaders() });
                 const priceResult = await priceResponse.json();
                 
                 if (priceResult.success) {
@@ -19059,7 +19501,7 @@ Local honey and preserves"></textarea>
                 
                 // Sync bookings
                 btn.textContent = '⏳ Syncing bookings...';
-                const bookingResponse = await fetch('/api/admin/sync-beds24-bookings', { method: 'POST' });
+                const bookingResponse = await fetch('/api/admin/sync-beds24-bookings', { method: 'POST', headers: authHeaders() });
                 const bookingResult = await bookingResponse.json();
                 
                 if (bookingResult.success) {
@@ -19089,7 +19531,7 @@ Local honey and preserves"></textarea>
             btn.textContent = '⏳ Full sync (1-2 min)...';
             
             try {
-                const response = await fetch('/api/admin/sync-beds24-inventory', { method: 'POST' });
+                const response = await fetch('/api/admin/sync-beds24-inventory', { method: 'POST', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -19114,7 +19556,7 @@ Local honey and preserves"></textarea>
             btn.textContent = '⏳ Syncing...';
             
             try {
-                const response = await fetch('/api/admin/sync-hostaway-availability', { method: 'POST' });
+                const response = await fetch('/api/admin/sync-hostaway-availability', { method: 'POST', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -19139,7 +19581,7 @@ Local honey and preserves"></textarea>
             btn.textContent = '⏳ Syncing...';
             
             try {
-                const response = await fetch('/api/admin/sync-smoobu-availability', { method: 'POST' });
+                const response = await fetch('/api/admin/sync-smoobu-availability', { method: 'POST', headers: authHeaders() });
                 const result = await response.json();
                 
                 if (result.success) {
@@ -19457,7 +19899,7 @@ Local honey and preserves"></textarea>
                 try {
                     const response = await fetch('/api/admin/availability', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify({
                             room_id: change.roomId,
                             from_date: change.date,
@@ -19696,7 +20138,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(endpoint, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ features, property_id: propertyId })
                 });
                 
@@ -19829,7 +20271,7 @@ Local honey and preserves"></textarea>
                 // Call the AI API with a special type for marketing features
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         type: 'marketing_features', 
                         property_id: propertyId, 
@@ -20325,7 +20767,7 @@ Local honey and preserves"></textarea>
                             
                             const response = await fetch(`/api/rooms/${room.roomId}/daily-rates`, {
                                 method: 'POST',
-                                headers: { 'Content-Type': 'application/json' },
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
                                 body: JSON.stringify(payload)
                             });
                             
@@ -20539,7 +20981,7 @@ Local honey and preserves"></textarea>
                         // Update existing
                         const response = await fetch(`/api/admin/offers/${existingStdOffer.id}`, {
                             method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 ...existingStdOffer,
                                 min_nights: standardRestrictions.min_nights,
@@ -20554,7 +20996,7 @@ Local honey and preserves"></textarea>
                         // Create new Standard Price offer for this room
                         const response = await fetch('/api/admin/offers', {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify({
                                 name: 'Standard Price',
                                 description: 'Standard website price with restrictions',
@@ -20601,7 +21043,7 @@ Local honey and preserves"></textarea>
                         
                         const response = await fetch(`/api/admin/offers/${offerId}`, {
                             method: 'PUT',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
                             body: JSON.stringify(updateData)
                         });
                         const result = await response.json();
@@ -20689,7 +21131,7 @@ Local honey and preserves"></textarea>
                 const field = channel === 'website' ? 'available_website' : 'available_agents';
                 await fetch(`/api/admin/offers/${offerId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ [field]: enabled })
                 });
             } catch (error) {
@@ -20847,7 +21289,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(offerData)
                 });
                 
@@ -20869,7 +21311,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this offer?')) return;
             
             try {
-                const response = await fetch(`/api/admin/offers/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/offers/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -21153,7 +21595,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/bookings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         property_id: propertyId,
                         room_id: roomId,
@@ -21398,7 +21840,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/bookings/${bookingId}/refund`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ amount: amount || null })
                 });
                 const data = await response.json();
@@ -21544,7 +21986,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(`/api/bookings/${bookingId}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(updates)
                 });
                 
@@ -21967,7 +22409,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(voucherData)
                 });
                 
@@ -21989,7 +22431,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this voucher?')) return;
             
             try {
-                const response = await fetch(`/api/admin/vouchers/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/vouchers/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -22343,7 +22785,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(upsellData)
                 });
                 
@@ -22364,7 +22806,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this upsell?')) return;
             
             try {
-                const response = await fetch(`/api/admin/upsells/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/upsells/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -22561,7 +23003,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(feeData)
                 });
                 
@@ -22582,7 +23024,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this fee?')) return;
             
             try {
-                const response = await fetch(`/api/admin/fees/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/fees/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -23156,7 +23598,7 @@ Local honey and preserves"></textarea>
                 try {
                     const response = await fetch(`/api/properties/${propertyId}/deposit-rules`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(data)
                     });
                     const result = await response.json();
@@ -23230,20 +23672,20 @@ Local honey and preserves"></textarea>
                 if (ruleId) {
                     response = await fetch(`/api/deposit-rules/${ruleId}`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(data)
                     });
                 } else if (isAccountLevel) {
                     const accountId = selectedAccountId || 1;
                     response = await fetch(`/api/accounts/${accountId}/deposit-rules`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(data)
                     });
                 } else {
                     response = await fetch(`/api/properties/${selectValue}/deposit-rules`, {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
                         body: JSON.stringify(data)
                     });
                 }
@@ -23586,7 +24028,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(taxData)
                 });
                 
@@ -23607,7 +24049,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this tax?')) return;
             
             try {
-                const response = await fetch(`/api/admin/taxes/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/taxes/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -23678,7 +24120,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/db/properties/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(data)
                 });
                 
@@ -23925,7 +24367,7 @@ Local honey and preserves"></textarea>
                 // Update room fields
                 const response = await fetch(`/api/admin/units/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(data)
                 });
                 
@@ -23960,7 +24402,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         type: type === 'short' ? 'room_short' : 'room_full',
                         room_id: roomId,
@@ -24004,7 +24446,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         type: 'room_display_name',
                         room_id: roomId,
@@ -24044,7 +24486,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
                         type: type === 'short' ? 'property_short' : 'property_description',
                         property_id: propertyId,
@@ -24170,7 +24612,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/cleanup-duplicates', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 
                 const result = await response.json();
@@ -24336,7 +24778,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         type: 'page_content',
                         page_type: currentPageType,
@@ -24528,7 +24970,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/ai/generate-content', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         type: 'seo',
                         page_type: currentPageType,
@@ -24684,7 +25126,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/pages', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(pageData)
                 });
                 
@@ -24806,7 +25248,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/contact-info', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(contactData)
                 });
                 
@@ -25201,7 +25643,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/branding', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(brandData)
                 });
                 
@@ -25313,14 +25755,14 @@ Local honey and preserves"></textarea>
             document.getElementById('channelManagerModal').style.display = 'flex';
             document.addEventListener('keydown', handleChannelManagerEscape);
         }
+        
+        function handleChannelManagerEscape(e) {
+            if (e.key === 'Escape') closeChannelManagerModal();
+        }
 
         function closeChannelManagerModal() {
             document.getElementById('channelManagerModal').style.display = 'none';
             document.removeEventListener('keydown', handleChannelManagerEscape);
-        }
-        
-        function handleChannelManagerEscape(e) {
-            if (e.key === 'Escape') closeChannelManagerModal();
         }
 
         function openApiKeyModal() {
@@ -25369,7 +25811,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/api-keys', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(keyData)
                 });
                 
@@ -25393,7 +25835,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/admin/api-keys/${id}`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ is_active: newState })
                 });
                 
@@ -25634,7 +26076,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/kb/articles', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(articleData)
                 });
                 
@@ -25656,7 +26098,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this article? This cannot be undone.')) return;
             
             try {
-                const response = await fetch('/api/kb/articles/' + id, { method: 'DELETE' });
+                const response = await fetch('/api/kb/articles/' + id, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -25696,7 +26138,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch('/api/kb/import', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ articles })
                 });
                 
@@ -25775,7 +26217,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Dismiss this question?')) return;
             
             try {
-                const response = await fetch('/api/kb/unanswered/' + id, { method: 'DELETE' });
+                const response = await fetch('/api/kb/unanswered/' + id, { method: 'DELETE', headers: authHeaders() });
                 if (response.ok) {
                     showNotification('Question dismissed', 'success');
                     loadKBUnanswered();
@@ -26027,7 +26469,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/vps/settings', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         api_url: document.getElementById('vps-api-url')?.value || 'https://sites.gas.travel/gas-api.php',
                         api_key: document.getElementById('vps-api-key').value,
@@ -26145,7 +26587,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/vps/create-site', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         account_id: accountId,
                         site_name: siteName,
@@ -26284,7 +26726,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/property/${propertyId}/payment-settings`, {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(settings)
                 });
                 
@@ -26689,7 +27131,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/admin/billing/plans', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(planData)
                 });
                 
@@ -26710,7 +27152,7 @@ Local honey and preserves"></textarea>
             if (!confirm('Delete this plan?')) return;
             
             try {
-                const response = await fetch('/api/admin/billing/plans/' + id, { method: 'DELETE' });
+                const response = await fetch('/api/admin/billing/plans/' + id, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Plan deleted', 'success');
@@ -26801,7 +27243,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(productData)
                 });
                 
@@ -26821,7 +27263,7 @@ Local honey and preserves"></textarea>
         async function deleteProduct(id) {
             if (!confirm('Delete this product?')) return;
             try {
-                const response = await fetch(`/api/admin/billing/products/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/billing/products/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Product deleted', 'success');
@@ -26908,7 +27350,7 @@ Local honey and preserves"></textarea>
                 
                 const response = await fetch(url, {
                     method,
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify(addonData)
                 });
                 
@@ -26928,7 +27370,7 @@ Local honey and preserves"></textarea>
         async function deleteAddon(id) {
             if (!confirm('Delete this add-on?')) return;
             try {
-                const response = await fetch(`/api/admin/billing/addons/${id}`, { method: 'DELETE' });
+                const response = await fetch(`/api/admin/billing/addons/${id}`, { method: 'DELETE', headers: authHeaders() });
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Add-on deleted', 'success');
@@ -27136,7 +27578,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/affiliate/join', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 const data = await response.json();
                 
@@ -27164,7 +27606,7 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch('/api/affiliate/payout', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 const data = await response.json();
                 
@@ -27218,6 +27660,655 @@ Local honey and preserves"></textarea>
         loadClientSelector();
         loadDashboard();
         handleUrlParams();
+
+        // =====================================================
+        // GASSYNC JAVASCRIPT FUNCTIONS
+        // =====================================================
+
+        let gasSyncConnections = [];
+        let gasSyncAdapters = [];
+        let selectedConnectionId = null;
+
+        // Dashboard
+        async function loadGasSyncDashboard() {
+            try {
+                const response = await fetch('/api/gas-sync/status', { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('syncStatConnections').textContent = data.stats.active_connections || 0;
+                    document.getElementById('syncStatProperties').textContent = data.stats.total_properties || 0;
+                    document.getElementById('syncStatRoomTypes').textContent = data.stats.total_room_types || 0;
+                    document.getElementById('syncStatReservations').textContent = data.stats.active_reservations || 0;
+                    document.getElementById('syncStatImages').textContent = data.stats.total_images || 0;
+                    document.getElementById('syncStatErrors').textContent = data.stats.error_connections || 0;
+                    
+                    const tbody = document.getElementById('recentActivityTable');
+                    if (data.recent_activity && data.recent_activity.length > 0) {
+                        tbody.innerHTML = data.recent_activity.map(activity => `
+                            <tr>
+                                <td>${formatDateTime(activity.started_at)}</td>
+                                <td><span class="badge">${activity.adapter_code}</span></td>
+                                <td>${activity.sync_type}</td>
+                                <td><span class="status-badge status-${activity.status}">${activity.status}</span></td>
+                                <td>${activity.records_processed || 0}</td>
+                                <td>${activity.duration_ms ? (activity.duration_ms / 1000).toFixed(1) + 's' : '-'}</td>
+                            </tr>
+                        `).join('');
+                    } else {
+                        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center; color: var(--text-secondary);">No recent activity</td></tr>';
+                    }
+                }
+                
+                await loadConnectionStatus();
+            } catch (error) {
+                console.error('Error loading GasSync dashboard:', error);
+            }
+        }
+
+        async function loadConnectionStatus() {
+            try {
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                const data = await response.json();
+                
+                const container = document.getElementById('connectionStatusList');
+                
+                if (data.success && data.connections.length > 0) {
+                    container.innerHTML = data.connections.map(conn => `
+                        <div class="connection-status-item">
+                            <div class="status-dot ${conn.status}"></div>
+                            <div style="flex: 1;">
+                                <strong>${conn.external_account_name || conn.adapter_name}</strong>
+                                <div style="font-size: 12px; color: #6b7280;">
+                                    ${conn.adapter_name} • ${conn.property_count} properties
+                                </div>
+                            </div>
+                            <div style="text-align: right; font-size: 12px; color: #6b7280;">
+                                ${conn.last_sync_at ? 'Synced ' + formatTimeAgo(conn.last_sync_at) : 'Never synced'}
+                            </div>
+                            <button class="btn btn-sm btn-secondary" onclick="triggerSync(${conn.id})">🔄</button>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 40px;">
+                            <div style="font-size: 48px; margin-bottom: 15px;">🔌</div>
+                            <h4>No Connections Yet</h4>
+                            <p style="color: var(--text-secondary);">Connect your first channel manager</p>
+                            <button class="btn btn-primary" onclick="showView('gas-sync-connections'); setTimeout(showAddConnectionModal, 100);">
+                                ➕ Add Connection
+                            </button>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading connection status:', error);
+            }
+        }
+
+        // Connections
+        async function loadGasSyncConnections() {
+            try {
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                const data = await response.json();
+                
+                gasSyncConnections = data.connections || [];
+                
+                const grid = document.getElementById('connectionsGrid');
+                
+                if (gasSyncConnections.length > 0) {
+                    grid.innerHTML = gasSyncConnections.map(conn => `
+                        <div class="connection-card status-${conn.status}">
+                            <div class="connection-card-header">
+                                <div class="connection-logo">${getAdapterEmoji(conn.adapter_code)}</div>
+                                <div class="connection-info">
+                                    <h4>${conn.external_account_name || 'Unnamed'}</h4>
+                                    <div class="adapter-name">${conn.adapter_name}</div>
+                                </div>
+                                <span class="connection-status-badge ${conn.status}">${conn.status}</span>
+                            </div>
+                            
+                            <div class="connection-stats">
+                                <div class="connection-stat">
+                                    <div class="connection-stat-value">${conn.property_count || 0}</div>
+                                    <div class="connection-stat-label">Properties</div>
+                                </div>
+                                <div class="connection-stat">
+                                    <div class="connection-stat-value">${conn.room_type_count || 0}</div>
+                                    <div class="connection-stat-label">Room Types</div>
+                                </div>
+                                <div class="connection-stat">
+                                    <div class="connection-stat-value">${conn.reservation_count || 0}</div>
+                                    <div class="connection-stat-label">Reservations</div>
+                                </div>
+                            </div>
+                            
+                            <div class="connection-meta">
+                                ${conn.last_sync_at ? 'Last sync: ' + formatTimeAgo(conn.last_sync_at) : 'Never synced'}
+                                ${conn.last_error ? '<br><span style="color: #ef4444;">Error: ' + conn.last_error.substring(0, 50) + '...</span>' : ''}
+                            </div>
+                            
+                            <div class="connection-actions">
+                                <button class="btn btn-secondary btn-sm" onclick="triggerSync(${conn.id})">🔄 Sync</button>
+                                <button class="btn btn-secondary btn-sm" onclick="showConnectionDetails(${conn.id})">⚙️ Details</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})">🗑️</button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    grid.innerHTML = `
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                            <div style="font-size: 64px; margin-bottom: 20px;">🔌</div>
+                            <h3>No Channel Managers Connected</h3>
+                            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                                Connect your channel managers to sync properties, availability, and reservations
+                            </p>
+                            <button class="btn btn-primary btn-lg" onclick="showAddConnectionModal()">
+                                ➕ Add Your First Connection
+                            </button>
+                        </div>
+                    `;
+                }
+                
+                populateConnectionFilters();
+            } catch (error) {
+                console.error('Error loading connections:', error);
+            }
+        }
+
+        function populateConnectionFilters() {
+            const filters = ['syncPropertiesConnectionFilter', 'syncLogsConnectionFilter'];
+            filters.forEach(filterId => {
+                const select = document.getElementById(filterId);
+                if (select) {
+                    const currentValue = select.value;
+                    select.innerHTML = '<option value="">All Connections</option>' +
+                        gasSyncConnections.map(c => `<option value="${c.id}">${c.external_account_name || c.adapter_name}</option>`).join('');
+                    select.value = currentValue;
+                }
+            });
+        }
+
+        function getAdapterEmoji(code) {
+            const emojis = { beds24: '🛏️', hostaway: '🏠', smoobu: '📅', calry: '🔄', guesty: '👥', hostfully: '✨', hospitable: '🏡' };
+            return emojis[code] || '📡';
+        }
+
+        async function triggerSync(connectionId, type = 'incremental') {
+            try {
+                showNotification('Starting sync...', 'info');
+                const response = await fetch(`/api/gas-sync/connections/${connectionId}/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ type })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Sync started in background', 'success');
+                    setTimeout(() => loadGasSyncConnections(), 3000);
+                } else {
+                    showNotification(data.error || 'Sync failed', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to start sync', 'error');
+            }
+        }
+
+        async function deleteConnection(connectionId) {
+            if (!confirm('Delete this connection? All synced data will be removed.')) return;
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${connectionId}`, { method: 'DELETE', headers: authHeaders() });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Connection deleted', 'success');
+                    loadGasSyncConnections();
+                } else {
+                    showNotification(data.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to delete connection', 'error');
+            }
+        }
+
+        // Add Connection Modal
+        async function showAddConnectionModal() {
+            try {
+                const response = await fetch('/api/gas-sync/adapters', { headers: authHeaders() });
+                const data = await response.json();
+                gasSyncAdapters = data.adapters || [];
+                
+                const grid = document.getElementById('adapterGrid');
+                grid.innerHTML = gasSyncAdapters.map(adapter => `
+                    <div class="adapter-card" onclick="selectAdapter('${adapter.code}', '${adapter.name}')">
+                        <div class="adapter-card-logo">${getAdapterEmoji(adapter.code)}</div>
+                        <div class="adapter-card-name">${adapter.name}</div>
+                    </div>
+                `).join('');
+                
+                const accountsResponse = await fetch('/api/accounts');
+                const accountsData = await accountsResponse.json();
+                const accountSelect = document.getElementById('connectionAccountId');
+                accountSelect.innerHTML = (accountsData.accounts || []).map(a => `<option value="${a.id}">${a.name}</option>`).join('');
+            } catch (error) {
+                console.error('Error loading adapters:', error);
+            }
+            
+            showConnectionStep(1);
+            document.getElementById('addConnectionModal').style.display = 'flex';
+        }
+
+        function showConnectionStep(step) {
+            document.getElementById('connectionStep1').style.display = step === 1 ? 'block' : 'none';
+            document.getElementById('connectionStep2').style.display = step === 2 ? 'block' : 'none';
+        }
+
+        function selectAdapter(code, name) {
+            document.getElementById('selectedAdapterCode').value = code;
+            document.getElementById('selectedAdapterName').textContent = `Configure ${name}`;
+            
+            const fieldsContainer = document.getElementById('credentialFields');
+            let fieldsHtml = '';
+            
+            if (code === 'beds24') {
+                fieldsHtml = `
+                    <div class="form-group"><label>API Token (V2)</label>
+                        <input type="password" id="credToken" placeholder="Enter your Beds24 API token" required>
+                        <div class="help-text">Get this from Beds24 → Settings → API</div></div>
+                    <div class="form-group"><label>API Key (V1 - for images)</label>
+                        <input type="password" id="credApiKey" placeholder="Optional: V1 API key for image sync">
+                        <div class="help-text">Optional: Enables image download</div></div>
+                    <div class="form-group"><label>Property Key (V1)</label>
+                        <input type="text" id="credPropKey" placeholder="Optional: V1 property key"></div>
+                `;
+            } else if (code === 'calry') {
+                fieldsHtml = `
+                    <div class="form-group"><label>Calry API Token</label>
+                        <input type="password" id="credToken" placeholder="Enter your Calry API token" required></div>
+                    <div class="form-group"><label>Workspace ID</label>
+                        <input type="text" id="credWorkspaceId" placeholder="Your Calry workspace ID" required></div>
+                    <div class="form-group"><label>Integration Account ID</label>
+                        <input type="text" id="credIntegrationAccountId" placeholder="The connected PMS account ID" required></div>
+                `;
+            } else {
+                fieldsHtml = `<div class="form-group"><label>API Token</label>
+                    <input type="password" id="credToken" placeholder="Enter API token" required></div>`;
+            }
+            
+            fieldsContainer.innerHTML = fieldsHtml;
+            showConnectionStep(2);
+        }
+
+        async function testAndSaveConnection() {
+            const adapterCode = document.getElementById('selectedAdapterCode').value;
+            const accountId = document.getElementById('connectionAccountId').value;
+            const syncEnabled = document.getElementById('connectionSyncEnabled').checked;
+            const syncInterval = document.getElementById('connectionSyncInterval').value;
+            
+            const credentials = {};
+            const tokenEl = document.getElementById('credToken');
+            const apiKeyEl = document.getElementById('credApiKey');
+            const propKeyEl = document.getElementById('credPropKey');
+            const workspaceIdEl = document.getElementById('credWorkspaceId');
+            const integrationAccountIdEl = document.getElementById('credIntegrationAccountId');
+            
+            if (tokenEl?.value) credentials.token = tokenEl.value;
+            if (apiKeyEl?.value) credentials.apiKey = apiKeyEl.value;
+            if (propKeyEl?.value) credentials.propKey = propKeyEl.value;
+            if (workspaceIdEl?.value) credentials.workspaceId = workspaceIdEl.value;
+            if (integrationAccountIdEl?.value) credentials.integrationAccountId = integrationAccountIdEl.value;
+            
+            try {
+                showNotification('Testing connection...', 'info');
+                const response = await fetch('/api/gas-sync/connections', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        account_id: accountId,
+                        adapter_code: adapterCode,
+                        credentials,
+                        sync_enabled: syncEnabled,
+                        sync_interval_minutes: parseInt(syncInterval)
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Connection created! Initial sync starting...', 'success');
+                    closeModal('addConnectionModal');
+                    loadGasSyncConnections();
+                } else {
+                    showNotification(data.error || 'Connection failed', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to create connection', 'error');
+            }
+        }
+
+        // Connection Details Modal
+        async function showConnectionDetails(connectionId) {
+            selectedConnectionId = connectionId;
+            document.getElementById('connectionDetailsModal').style.display = 'flex';
+            showConnectionTab('overview');
+        }
+
+        async function showConnectionTab(tab) {
+            document.querySelectorAll('.gas-sync-tab').forEach(btn => btn.classList.remove('active'));
+            document.querySelector(`.gas-sync-tab[onclick*="${tab}"]`)?.classList.add('active');
+            document.querySelectorAll('.gas-sync-tab-content').forEach(el => el.style.display = 'none');
+            document.getElementById(`connectionTab${tab.charAt(0).toUpperCase() + tab.slice(1)}`).style.display = 'block';
+            
+            if (tab === 'overview') await loadConnectionOverview();
+            else if (tab === 'properties') await loadConnectionPropertiesTab();
+            else if (tab === 'reservations') await loadConnectionReservationsTab();
+            else if (tab === 'logs') await loadConnectionLogsTab();
+            else if (tab === 'settings') loadConnectionSettingsTab();
+        }
+
+        async function loadConnectionOverview() {
+            const container = document.getElementById('connectionTabOverview');
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}`, { headers: authHeaders() });
+                const data = await response.json();
+                if (data.success) {
+                    const conn = data.connection;
+                    container.innerHTML = `
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4>Connection Info</h4>
+                                <table style="width: 100%;"><tbody>
+                                    <tr><td style="padding: 8px 0; color: #6b7280;">Adapter:</td><td>${conn.adapter_name}</td></tr>
+                                    <tr><td style="padding: 8px 0; color: #6b7280;">Status:</td><td><span class="status-badge status-${conn.status}">${conn.status}</span></td></tr>
+                                    <tr><td style="padding: 8px 0; color: #6b7280;">External Account:</td><td>${conn.external_account_name || '-'}</td></tr>
+                                    <tr><td style="padding: 8px 0; color: #6b7280;">Last Sync:</td><td>${conn.last_sync_at ? formatTimeAgo(conn.last_sync_at) : 'Never'}</td></tr>
+                                </tbody></table>
+                            </div>
+                            <div>
+                                <h4>Quick Actions</h4>
+                                <div style="display: flex; flex-direction: column; gap: 10px;">
+                                    <button class="btn btn-primary" onclick="triggerSync(${conn.id}, 'full')">🔄 Full Sync</button>
+                                    <button class="btn btn-secondary" onclick="triggerSync(${conn.id}, 'incremental')">⚡ Incremental Sync</button>
+                                </div>
+                                ${conn.last_error ? `<div style="margin-top: 15px; padding: 12px; background: #fee2e2; border-radius: 8px; color: #dc2626;"><strong>Last Error:</strong><br>${conn.last_error}</div>` : ''}
+                            </div>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                container.innerHTML = '<p style="color: #ef4444;">Error loading details</p>';
+            }
+        }
+
+        async function loadConnectionPropertiesTab() {
+            const container = document.getElementById('connectionTabProperties');
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/properties`, { headers: authHeaders() });
+                const data = await response.json();
+                if (data.success && data.properties.length > 0) {
+                    container.innerHTML = `<table class="data-table"><thead><tr><th>Property</th><th>Location</th><th>Room Types</th><th>Images</th><th>Linked</th><th>Actions</th></tr></thead><tbody>
+                        ${data.properties.map(p => `<tr>
+                            <td><strong>${p.name}</strong><br><small style="color: #6b7280;">${p.external_id}</small></td>
+                            <td>${p.city || ''}, ${p.country || ''}</td>
+                            <td>${p.room_type_count}</td>
+                            <td>${p.image_count}</td>
+                            <td>${p.gas_property_id ? '✅' : '❌'}</td>
+                            <td>${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
+                                <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})">📷</button></td>
+                        </tr>`).join('')}
+                    </tbody></table>`;
+                } else {
+                    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No properties synced yet</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p style="color: #ef4444;">Error loading properties</p>';
+            }
+        }
+
+        async function loadConnectionReservationsTab() {
+            const container = document.getElementById('connectionTabReservations');
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/reservations?limit=20`, { headers: authHeaders() });
+                const data = await response.json();
+                if (data.success && data.reservations.length > 0) {
+                    container.innerHTML = `<table class="data-table"><thead><tr><th>Guest</th><th>Property</th><th>Dates</th><th>Channel</th><th>Total</th><th>Status</th></tr></thead><tbody>
+                        ${data.reservations.map(r => `<tr>
+                            <td>${r.guest_first_name} ${r.guest_last_name}</td>
+                            <td>${r.property_name || r.room_type_name || '-'}</td>
+                            <td>${formatDate(r.check_in)} → ${formatDate(r.check_out)}</td>
+                            <td><span class="badge">${r.channel || 'Direct'}</span></td>
+                            <td>${r.currency} ${r.total || 0}</td>
+                            <td><span class="status-badge status-${r.status}">${r.status}</span></td>
+                        </tr>`).join('')}
+                    </tbody></table>`;
+                } else {
+                    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No reservations synced yet</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p style="color: #ef4444;">Error loading reservations</p>';
+            }
+        }
+
+        async function loadConnectionLogsTab() {
+            const container = document.getElementById('connectionTabLogs');
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/logs?limit=20`, { headers: authHeaders() });
+                const data = await response.json();
+                if (data.success && data.logs.length > 0) {
+                    container.innerHTML = `<table class="data-table"><thead><tr><th>Time</th><th>Type</th><th>Status</th><th>Records</th><th>Duration</th><th>Error</th></tr></thead><tbody>
+                        ${data.logs.map(log => `<tr>
+                            <td>${formatDateTime(log.started_at)}</td>
+                            <td>${log.sync_type}</td>
+                            <td><span class="status-badge status-${log.status}">${log.status}</span></td>
+                            <td>${log.records_created || 0} / ${log.records_updated || 0} / ${log.records_failed || 0}</td>
+                            <td>${log.duration_ms ? (log.duration_ms / 1000).toFixed(1) + 's' : '-'}</td>
+                            <td style="max-width: 200px; overflow: hidden; text-overflow: ellipsis;">${log.error_message || '-'}</td>
+                        </tr>`).join('')}
+                    </tbody></table>`;
+                } else {
+                    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No sync logs yet</p>';
+                }
+            } catch (error) {
+                container.innerHTML = '<p style="color: #ef4444;">Error loading logs</p>';
+            }
+        }
+
+        function loadConnectionSettingsTab() {
+            const conn = gasSyncConnections.find(c => c.id === selectedConnectionId);
+            if (!conn) return;
+            const container = document.getElementById('connectionTabSettings');
+            container.innerHTML = `
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: flex; align-items: center; gap: 8px;">
+                        <input type="checkbox" id="settingSyncEnabled" ${conn.sync_enabled ? 'checked' : ''}>
+                        Enable automatic sync
+                    </label>
+                </div>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px;">Sync Interval</label>
+                    <select id="settingSyncInterval" class="form-control">
+                        <option value="5" ${conn.sync_interval_minutes == 5 ? 'selected' : ''}>Every 5 minutes</option>
+                        <option value="15" ${conn.sync_interval_minutes == 15 ? 'selected' : ''}>Every 15 minutes</option>
+                        <option value="30" ${conn.sync_interval_minutes == 30 ? 'selected' : ''}>Every 30 minutes</option>
+                        <option value="60" ${conn.sync_interval_minutes == 60 ? 'selected' : ''}>Every hour</option>
+                    </select>
+                </div>
+                <div class="form-group" style="margin-bottom: 20px;">
+                    <label style="display: block; margin-bottom: 5px;">Account Name</label>
+                    <input type="text" id="settingAccountName" class="form-control" value="${conn.external_account_name || ''}" placeholder="Display name">
+                </div>
+                <button class="btn btn-primary" onclick="saveConnectionSettings()">Save Settings</button>
+                <hr style="margin: 30px 0;">
+                <h4 style="color: #ef4444;">Danger Zone</h4>
+                <button class="btn btn-danger" onclick="deleteConnection(${conn.id}); closeModal('connectionDetailsModal');">🗑️ Delete Connection</button>
+            `;
+        }
+
+        async function saveConnectionSettings() {
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        sync_enabled: document.getElementById('settingSyncEnabled').checked,
+                        sync_interval_minutes: parseInt(document.getElementById('settingSyncInterval').value),
+                        external_account_name: document.getElementById('settingAccountName').value
+                    })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Settings saved', 'success');
+                    loadGasSyncConnections();
+                } else {
+                    showNotification(data.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to save settings', 'error');
+            }
+        }
+
+        async function importSyncedProperty(syncPropertyId) {
+            const accountId = selectedAccountId || currentAccount.id;
+            try {
+                showNotification('Importing property...', 'info');
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/import`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ account_id: accountId })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    loadConnectionPropertiesTab();
+                } else {
+                    showNotification(data.error || 'Import failed', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to import property', 'error');
+            }
+        }
+
+        async function downloadPropertyImages(syncPropertyId) {
+            try {
+                showNotification('Downloading images...', 'info');
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/download-images`, { method: 'POST', headers: authHeaders() });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification(data.message, 'success');
+                    loadConnectionPropertiesTab();
+                } else {
+                    showNotification(data.error || 'Download failed', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to download images', 'error');
+            }
+        }
+
+        // Synced Properties View
+        async function loadSyncedProperties() {
+            const connectionId = document.getElementById('syncPropertiesConnectionFilter')?.value;
+            try {
+                let properties = [];
+                if (connectionId) {
+                    const response = await fetch(`/api/gas-sync/connections/${connectionId}/properties`, { headers: authHeaders() });
+                    const data = await response.json();
+                    properties = data.properties || [];
+                } else {
+                    for (const conn of gasSyncConnections) {
+                        const response = await fetch(`/api/gas-sync/connections/${conn.id}/properties`, { headers: authHeaders() });
+                        const data = await response.json();
+                        if (data.properties) {
+                            properties = properties.concat(data.properties.map(p => ({...p, connection: conn})));
+                        }
+                    }
+                }
+                
+                const tbody = document.getElementById('syncedPropertiesTable');
+                if (properties.length > 0) {
+                    tbody.innerHTML = properties.map(p => `<tr>
+                        <td><strong>${p.name}</strong><br><small style="color: #6b7280;">${p.connection?.adapter_name || ''}</small></td>
+                        <td>${p.city || ''}, ${p.country || ''}</td>
+                        <td>${p.room_type_count || 0}</td>
+                        <td>${p.image_count || 0}</td>
+                        <td>${p.gas_property_id ? '<span class="badge" style="background:#d1fae5;color:#047857;">Linked</span>' : '<span class="badge" style="background:#fef3c7;color:#92400e;">Not Linked</span>'}</td>
+                        <td>${formatTimeAgo(p.synced_at)}</td>
+                        <td>${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
+                            <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})">📷</button></td>
+                    </tr>`).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-secondary);">No synced properties</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading synced properties:', error);
+            }
+        }
+
+        // Sync Logs View
+        async function loadSyncLogs() {
+            const connectionId = document.getElementById('syncLogsConnectionFilter')?.value;
+            const status = document.getElementById('syncLogsStatusFilter')?.value;
+            try {
+                let allLogs = [];
+                if (connectionId) {
+                    const response = await fetch(`/api/gas-sync/connections/${connectionId}/logs?limit=50`, { headers: authHeaders() });
+                    const data = await response.json();
+                    allLogs = (data.logs || []).map(l => ({...l, connection: gasSyncConnections.find(c => c.id == connectionId)}));
+                } else {
+                    for (const conn of gasSyncConnections) {
+                        const response = await fetch(`/api/gas-sync/connections/${conn.id}/logs?limit=20`, { headers: authHeaders() });
+                        const data = await response.json();
+                        if (data.logs) {
+                            allLogs = allLogs.concat(data.logs.map(l => ({...l, connection: conn})));
+                        }
+                    }
+                    allLogs.sort((a, b) => new Date(b.started_at) - new Date(a.started_at));
+                }
+                
+                if (status) allLogs = allLogs.filter(l => l.status === status);
+                
+                const tbody = document.getElementById('syncLogsTable');
+                if (allLogs.length > 0) {
+                    tbody.innerHTML = allLogs.slice(0, 100).map(log => `<tr>
+                        <td>${formatDateTime(log.started_at)}</td>
+                        <td>${log.connection?.adapter_name || '-'}</td>
+                        <td>${log.sync_type}</td>
+                        <td><span class="status-badge status-${log.status}">${log.status}</span></td>
+                        <td>${log.records_created || 0}</td>
+                        <td>${log.records_updated || 0}</td>
+                        <td>${log.records_failed || 0}</td>
+                        <td>${log.duration_ms ? (log.duration_ms / 1000).toFixed(1) + 's' : '-'}</td>
+                        <td style="max-width: 150px; overflow: hidden; text-overflow: ellipsis;" title="${log.error_message || ''}">${log.error_message || '-'}</td>
+                    </tr>`).join('');
+                } else {
+                    tbody.innerHTML = '<tr><td colspan="9" style="text-align:center; color: var(--text-secondary);">No logs found</td></tr>';
+                }
+            } catch (error) {
+                console.error('Error loading sync logs:', error);
+            }
+        }
+
+        // Helper functions
+        function formatTimeAgo(dateString) {
+            if (!dateString) return 'Never';
+            const date = new Date(dateString);
+            const now = new Date();
+            const diffMs = now - date;
+            const diffMins = Math.floor(diffMs / 60000);
+            const diffHours = Math.floor(diffMins / 60);
+            const diffDays = Math.floor(diffHours / 24);
+            if (diffMins < 1) return 'Just now';
+            if (diffMins < 60) return `${diffMins}m ago`;
+            if (diffHours < 24) return `${diffHours}h ago`;
+            if (diffDays < 7) return `${diffDays}d ago`;
+            return formatDate(dateString);
+        }
+
+        function formatDate(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleDateString();
+        }
+
+        function formatDateTime(dateString) {
+            if (!dateString) return '-';
+            return new Date(dateString).toLocaleString();
+        }
     </script>
 </body>
 </html>
