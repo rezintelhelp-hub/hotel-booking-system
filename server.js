@@ -1077,7 +1077,11 @@ app.get('/api/fix-gas-sync-tables', async (req, res) => {
       "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0",
       "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS width INTEGER",
       "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS height INTEGER",
-      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS metadata JSONB"
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS metadata JSONB",
+      // Properties table - add prop_key column
+      "ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key TEXT",
+      // Add unique constraint for images (ignore if exists)
+      "CREATE UNIQUE INDEX IF NOT EXISTS gas_sync_images_conn_ext_idx ON gas_sync_images(connection_id, external_id)"
     ];
     
     const results = [];
@@ -1119,6 +1123,58 @@ app.get('/api/gas-sync/connections/:id/reset', async (req, res) => {
     `, [id]);
     
     res.json({ success: true, message: 'Connection data reset. Ready for fresh sync.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Set property key for a synced property (Beds24 V1 API)
+app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const { propKey } = req.body;
+    
+    if (!propKey) {
+      return res.status(400).json({ success: false, error: 'propKey is required' });
+    }
+    
+    // Add prop_key column if it doesn't exist
+    await pool.query(`
+      ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key TEXT
+    `);
+    
+    // Update the property with the prop key
+    const result = await pool.query(`
+      UPDATE gas_sync_properties SET prop_key = $1, updated_at = NOW() 
+      WHERE id = $2 
+      RETURNING id, external_id, name, prop_key
+    `, [propKey, propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get synced properties with their prop keys
+app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT p.id, p.external_id, p.name, p.prop_key,
+             (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_count,
+             (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
+      FROM gas_sync_properties p
+      WHERE p.connection_id = $1
+      ORDER BY p.name
+    `, [id]);
+    
+    res.json({ success: true, properties: result.rows });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
