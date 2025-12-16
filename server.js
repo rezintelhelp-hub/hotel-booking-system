@@ -1610,8 +1610,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     } else {
       // Check if property exists by external ID
       const existing = await pool.query(`
-        SELECT id FROM properties WHERE beds24_property_id = $1 OR smoobu_id = $1 OR hostaway_id::text = $1
-      `, [prop.external_id]);
+        SELECT id FROM properties WHERE beds24_property_id::text = $1 OR smoobu_id::text = $1 OR hostaway_id::text = $1
+      `, [String(prop.external_id)]);
       
       if (existing.rows.length > 0) {
         gasPropertyId = existing.rows[0].id;
@@ -1634,7 +1634,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           RETURNING id
         `, [
           accountId,
-          prop.external_id,
+          String(prop.external_id),
           prop.name,
           rawData.address || '',
           rawData.city || '',
@@ -1684,11 +1684,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
-      // Check if room exists
+      // Check if room exists (cast to text for comparison)
       const existingRoom = await pool.query(`
         SELECT id FROM bookable_units 
-        WHERE property_id = $1 AND (beds24_room_id = $2 OR cm_room_id = $2)
-      `, [gasPropertyId, room.external_id]);
+        WHERE property_id = $1 AND (beds24_room_id::text = $2 OR cm_room_id::text = $2)
+      `, [gasPropertyId, String(room.external_id)]);
       
       let gasRoomId;
       
@@ -1735,8 +1735,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           RETURNING id
         `, [
           gasPropertyId,
-          room.external_id,
-          room.external_id,
+          String(room.external_id),
+          String(room.external_id),
           room.name,
           room.max_guests || 2,
           room.base_price || 100,
@@ -1752,7 +1752,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         roomsCreated++;
       }
       
-      roomIdMap[room.external_id] = gasRoomId;
+      roomIdMap[String(room.external_id)] = gasRoomId;
       
       // Also update the sync room with gas_room_id
       await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS gas_room_id INTEGER');
@@ -1768,7 +1768,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     for (const img of syncImages.rows) {
       // Find the GAS room ID for this image
-      const gasRoomId = roomIdMap[img.room_type_external_id];
+      const gasRoomId = roomIdMap[String(img.room_type_external_id)];
       
       if (!gasRoomId) {
         console.log(`Skipping image ${img.external_id} - no matching room for ${img.room_type_external_id}`);
