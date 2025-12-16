@@ -1608,19 +1608,33 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         gasPropertyId
       ]);
     } else {
-      // Check if property exists by external ID
-      const existing = await pool.query(`
-        SELECT id FROM properties WHERE beds24_property_id::text = $1 OR smoobu_id::text = $1 OR hostaway_id::text = $1
-      `, [String(prop.external_id)]);
+      // Check if property exists by external ID (only check columns that exist for this adapter)
+      let existingQuery;
+      if (prop.adapter_code === 'beds24') {
+        existingQuery = await pool.query(`SELECT id FROM properties WHERE beds24_property_id::text = $1`, [String(prop.external_id)]);
+      } else if (prop.adapter_code === 'smoobu') {
+        existingQuery = await pool.query(`SELECT id FROM properties WHERE smoobu_id::text = $1`, [String(prop.external_id)]);
+      } else {
+        // Generic check using cm_external_id if we add it later
+        existingQuery = { rows: [] };
+      }
+      const existing = existingQuery;
       
       if (existing.rows.length > 0) {
         gasPropertyId = existing.rows[0].id;
         await pool.query('UPDATE properties SET account_id = $1, updated_at = NOW() WHERE id = $2', [accountId, gasPropertyId]);
       } else {
         // Create new property with all fields
+        // Ensure the adapter-specific column exists
+        if (prop.adapter_code === 'beds24') {
+          await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS beds24_property_id VARCHAR(50)');
+        } else if (prop.adapter_code === 'smoobu') {
+          await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)');
+        }
+        await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS cm_source VARCHAR(50)');
+        
         const adapterColumn = prop.adapter_code === 'beds24' ? 'beds24_property_id' :
-                              prop.adapter_code === 'smoobu' ? 'smoobu_id' :
-                              prop.adapter_code === 'hostaway' ? 'hostaway_id' : 'beds24_property_id';
+                              prop.adapter_code === 'smoobu' ? 'smoobu_id' : 'beds24_property_id';
         
         const propResult = await pool.query(`
           INSERT INTO properties (
@@ -1666,7 +1680,22 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       SELECT * FROM gas_sync_room_types WHERE sync_property_id = $1
     `, [syncPropertyId]);
     
+    // Ensure bookable_units table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS bookable_units (
+        id SERIAL PRIMARY KEY,
+        property_id INTEGER,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
     // Add more columns to bookable_units
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cm_room_id VARCHAR(50)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS name VARCHAR(255)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS max_guests INTEGER');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS base_price DECIMAL(10,2)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bedrooms INTEGER');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS beds INTEGER');
@@ -1676,6 +1705,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS room_type VARCHAR(100)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS cleaning_fee DECIMAL(10,2)');
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS security_deposit DECIMAL(10,2)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS status VARCHAR(50)');
     
     let roomsCreated = 0;
     let roomsUpdated = 0;
@@ -1684,10 +1714,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
-      // Check if room exists (cast to text for comparison)
+      // Check if room exists (use cm_room_id which should always exist)
       const existingRoom = await pool.query(`
         SELECT id FROM bookable_units 
-        WHERE property_id = $1 AND (beds24_room_id::text = $2 OR cm_room_id::text = $2)
+        WHERE property_id = $1 AND cm_room_id::text = $2
       `, [gasPropertyId, String(room.external_id)]);
       
       let gasRoomId;
@@ -1727,15 +1757,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         // Create new room with all fields
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
-            property_id, beds24_room_id, cm_room_id, name,
+            property_id, cm_room_id, name,
             max_guests, base_price, short_description, full_description,
             bedrooms, beds, bathrooms, size_sqm, amenities,
             status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'available', NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
-          String(room.external_id),
           String(room.external_id),
           room.name,
           room.max_guests || 2,
@@ -1760,6 +1789,22 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     }
     
     // 4. Sync images to room_images
+    // Ensure room_images table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_images (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER,
+        image_key VARCHAR(500),
+        image_url TEXT,
+        thumbnail_url TEXT,
+        caption TEXT,
+        display_order INTEGER DEFAULT 0,
+        upload_source VARCHAR(50),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
     const syncImages = await pool.query(`
       SELECT * FROM gas_sync_images WHERE sync_property_id = $1
     `, [syncPropertyId]);
