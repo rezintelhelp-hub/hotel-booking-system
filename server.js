@@ -24132,13 +24132,16 @@ app.post('/api/gas-sync/connections/:id/test', async (req, res) => {
 app.post('/api/gas-sync/connections/:id/sync', async (req, res) => {
   try {
     const { id } = req.params;
-    const { type = 'incremental' } = req.body;
+    const { type = 'full', syncType } = req.body;  // Default to full, accept both type and syncType
+    const actualType = syncType || type;
+    
+    console.log(`Starting ${actualType} sync for connection ${id}`);
     
     await pool.query(`
       UPDATE gas_sync_connections SET status = 'syncing', updated_at = NOW() WHERE id = $1
     `, [id]);
     
-    syncManager.syncConnection(id, type)
+    syncManager.syncConnection(id, actualType)
       .then(async (result) => {
         await pool.query(`
           UPDATE gas_sync_connections SET status = 'connected', updated_at = NOW() WHERE id = $1
@@ -24157,7 +24160,7 @@ app.post('/api/gas-sync/connections/:id/sync', async (req, res) => {
         console.error(`Sync failed for connection ${id}:`, error);
       });
     
-    res.json({ success: true, message: `${type} sync started` });
+    res.json({ success: true, message: `${actualType} sync started` });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
