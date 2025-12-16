@@ -1847,7 +1847,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             size_sqm = COALESCE($10, size_sqm),
             cleaning_fee = COALESCE($11, cleaning_fee),
             security_deposit = COALESCE($12, security_deposit),
-            amenities = COALESCE($13::jsonb, amenities),
+            amenities = CASE WHEN $13::text IS NOT NULL AND $13::text != '' THEN $13::jsonb ELSE amenities END,
             updated_at = NOW()
           WHERE id = $14
         `, [
@@ -1863,7 +1863,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           sizeSqm,
           cleaningFee,
           securityDeposit,
-          amenitiesJson,
+          amenitiesJson || '',
           gasRoomId
         ]);
         roomsUpdated++;
@@ -1877,7 +1877,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             room_type, bedrooms, beds, bathrooms, size_sqm,
             cleaning_fee, security_deposit, amenities,
             status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15::jsonb, 'available', NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 
+            CASE WHEN $15::text IS NOT NULL AND $15::text != '' THEN $15::jsonb ELSE NULL END, 
+            'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
@@ -1894,7 +1896,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           sizeSqm,
           cleaningFee,
           securityDeposit,
-          amenitiesJson
+          amenitiesJson || ''
         ]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
