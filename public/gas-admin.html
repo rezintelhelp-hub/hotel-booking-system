@@ -27886,7 +27886,7 @@ Local honey and preserves"></textarea>
                     </div>
                 `).join('');
                 
-                const accountsResponse = await fetch('/api/accounts');
+                const accountsResponse = await fetch('/api/admin/accounts', { headers: authHeaders() });
                 const accountsData = await accountsResponse.json();
                 const accountSelect = document.getElementById('connectionAccountId');
                 accountSelect.innerHTML = (accountsData.accounts || []).map(a => `<option value="${a.id}">${a.name}</option>`).join('');
