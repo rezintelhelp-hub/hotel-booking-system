@@ -1056,6 +1056,7 @@ app.get('/api/health', (req, res) => {
 app.get('/api/fix-gas-sync-tables', async (req, res) => {
   try {
     const migrations = [
+      // Reservations table fixes
       "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS channel_reservation_id TEXT",
       "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS infants INTEGER DEFAULT 0",
       "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS subtotal DECIMAL(10,2)",
@@ -1067,7 +1068,16 @@ app.get('/api/fix-gas-sync-tables', async (req, res) => {
       "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS special_requests TEXT",
       "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS arrival_time TEXT",
       "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS property_external_id TEXT",
-      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS room_type_external_id TEXT"
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS room_type_external_id TEXT",
+      // Images table fixes
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS sync_property_id INTEGER",
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS room_type_external_id TEXT",
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS image_type TEXT DEFAULT 'property'",
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS caption TEXT",
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS sort_order INTEGER DEFAULT 0",
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS width INTEGER",
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS height INTEGER",
+      "ALTER TABLE gas_sync_images ADD COLUMN IF NOT EXISTS metadata JSONB"
     ];
     
     const results = [];
@@ -1081,6 +1091,34 @@ app.get('/api/fix-gas-sync-tables', async (req, res) => {
     }
     
     res.json({ success: true, message: 'Gas sync tables fixed', results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reset gas sync connection data (clear rooms, images, reservations but keep connection)
+app.get('/api/gas-sync/connections/:id/reset', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete synced data but keep the connection
+    await pool.query('DELETE FROM gas_sync_images WHERE connection_id = $1', [id]);
+    await pool.query('DELETE FROM gas_sync_room_types WHERE connection_id = $1', [id]);
+    await pool.query('DELETE FROM gas_sync_reservations WHERE connection_id = $1', [id]);
+    await pool.query('DELETE FROM gas_sync_properties WHERE connection_id = $1', [id]);
+    await pool.query('DELETE FROM gas_sync_log WHERE connection_id = $1', [id]);
+    
+    // Reset connection status
+    await pool.query(`
+      UPDATE gas_sync_connections SET 
+        last_sync_at = NULL, 
+        last_error = NULL, 
+        last_error_at = NULL,
+        status = 'connected'
+      WHERE id = $1
+    `, [id]);
+    
+    res.json({ success: true, message: 'Connection data reset. Ready for fresh sync.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
