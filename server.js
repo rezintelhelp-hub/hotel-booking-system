@@ -1052,6 +1052,40 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', database: !!process.env.DATABASE_URL, beds24: !!BEDS24_TOKEN });
 });
 
+// Fix gas_sync_reservations table - add missing columns
+app.get('/api/fix-gas-sync-tables', async (req, res) => {
+  try {
+    const migrations = [
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS channel_reservation_id TEXT",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS infants INTEGER DEFAULT 0",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS subtotal DECIMAL(10,2)",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS cleaning_fee DECIMAL(10,2)",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS taxes DECIMAL(10,2)",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS fees DECIMAL(10,2)",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS discount DECIMAL(10,2)",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS currency TEXT DEFAULT 'GBP'",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS special_requests TEXT",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS arrival_time TEXT",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS property_external_id TEXT",
+      "ALTER TABLE gas_sync_reservations ADD COLUMN IF NOT EXISTS room_type_external_id TEXT"
+    ];
+    
+    const results = [];
+    for (const sql of migrations) {
+      try {
+        await pool.query(sql);
+        results.push({ sql: sql.substring(0, 60) + '...', success: true });
+      } catch (err) {
+        results.push({ sql: sql.substring(0, 60) + '...', success: false, error: err.message });
+      }
+    }
+    
+    res.json({ success: true, message: 'Gas sync tables fixed', results });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Run clients migration manually
 // =====================================================
 // ACCOUNTS SYSTEM - New unified account structure
