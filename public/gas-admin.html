@@ -14012,7 +14012,7 @@ Local honey and preserves"></textarea>
             if (viewMode === 'all') {
                 headers = '<th>Account</th><th>Agency</th><th>Properties</th><th>Status</th><th>Requested</th><th>Actions</th>';
             } else if (viewMode === 'requester') {
-                headers = '<th>Agency</th><th>Status</th><th>Requested</th><th>Response</th>';
+                headers = '<th>Agency</th><th>Status</th><th>Requested</th><th>Response</th><th>Actions</th>';
             } else {
                 headers = '<th>Account</th><th>Properties</th><th>Status</th><th>Requested</th><th>Actions</th>';
             }
@@ -14052,6 +14052,10 @@ Local honey and preserves"></textarea>
                                                         <button class="btn btn-small" onclick="respondToRequest(${req.id}, 'approved')" style="background: #10b981;">✓</button>
                                                         <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')">✕</button>
                                                     </div>
+                                                ` : req.status === 'approved' ? `
+                                                    <button class="btn btn-secondary btn-small" onclick="endManagement(${req.requesting_account_id}, '${(req.requester_business || req.requester_name || '').replace(/'/g, "\\'")}')">
+                                                        ⛔ End
+                                                    </button>
                                                 ` : '-'}
                                             </td>
                                         </tr>
@@ -14075,6 +14079,17 @@ Local honey and preserves"></textarea>
                                             <td>${new Date(req.requested_at).toLocaleDateString()}</td>
                                             <td style="color: var(--text-secondary); font-size: 0.85rem;">
                                                 ${req.response_message || '-'}
+                                            </td>
+                                            <td>
+                                                ${req.status === 'pending' ? `
+                                                    <button class="btn btn-secondary btn-small" onclick="cancelMyRequest(${req.id})">
+                                                        Cancel
+                                                    </button>
+                                                ` : req.status === 'approved' ? `
+                                                    <button class="btn btn-secondary btn-small" onclick="removeMyAgency()">
+                                                        ⛔ Remove
+                                                    </button>
+                                                ` : '-'}
                                             </td>
                                         </tr>
                                     `;
@@ -14109,6 +14124,10 @@ Local honey and preserves"></textarea>
                                                             ✕ Decline
                                                         </button>
                                                     </div>
+                                                ` : req.status === 'approved' ? `
+                                                    <button class="btn btn-secondary btn-small" onclick="endManagement(${req.requesting_account_id}, '${(req.requester_business || req.requester_name || '').replace(/'/g, "\\'")}')">
+                                                        ⛔ End Management
+                                                    </button>
                                                 ` : `
                                                     <span style="color: var(--text-secondary); font-size: 0.85rem;">
                                                         ${req.responded_at ? new Date(req.responded_at).toLocaleDateString() : '-'}
@@ -14150,6 +14169,91 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error responding to request:', error);
                 showNotification('Error responding to request', 'error');
+            }
+        }
+        
+        // End management relationship (called by agency or master admin)
+        async function endManagement(accountId, accountName) {
+            if (!confirm(`Are you sure you want to stop managing "${accountName}"?\n\nThey will become self-managed.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}/remove-management`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Management ended', 'success');
+                    loadManagementRequests(); // Refresh the list
+                } else {
+                    showNotification(data.error || 'Error ending management', 'error');
+                }
+            } catch (error) {
+                console.error('Error ending management:', error);
+                showNotification('Error ending management', 'error');
+            }
+        }
+        
+        // Cancel a pending request (called by requester)
+        async function cancelMyRequest(requestId) {
+            if (!confirm('Cancel this management request?')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/management-requests/${requestId}/respond`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status: 'cancelled' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Request cancelled', 'success');
+                    loadManagementRequests();
+                } else {
+                    showNotification(data.error || 'Error cancelling request', 'error');
+                }
+            } catch (error) {
+                showNotification('Error cancelling request', 'error');
+            }
+        }
+        
+        // Remove agency from my account (called by requester from Management Requests view)
+        async function removeMyAgency() {
+            if (!confirm('Remove agency management? You will manage your own account again.')) {
+                return;
+            }
+            
+            try {
+                const meRes = await fetch('/api/accounts/me', { headers: authHeaders() });
+                const meData = await meRes.json();
+                
+                if (!meData.success) {
+                    showNotification('Could not verify account', 'error');
+                    return;
+                }
+                
+                const response = await fetch(`/api/accounts/${meData.account.id}/remove-management`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Now self-managed', 'success');
+                    loadManagementRequests();
+                } else {
+                    showNotification(data.error || 'Error removing management', 'error');
+                }
+            } catch (error) {
+                showNotification('Error removing management', 'error');
             }
         }
         
@@ -14810,21 +14914,21 @@ Local honey and preserves"></textarea>
                     <div class="modal active" id="assignAgencyModal">
                         <div class="modal-content" style="max-width: 450px;">
                             <div class="modal-header">
-                                <h3 class="modal-title">🏢 Assign Agency</h3>
+                                <h3 class="modal-title">🏢 Request Agency Management</h3>
                                 <button class="modal-close" onclick="closeModal('assignAgencyModal')">&times;</button>
                             </div>
                             <div style="padding: 0.5rem 0;">
-                                <p style="margin-bottom: 1rem;">Assign an agency to manage <strong>${accountName}</strong>:</p>
+                                <p style="margin-bottom: 1rem;">Request an agency to manage <strong>${accountName}</strong>:</p>
                                 <select id="agencySelectModal" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
                                     <option value="">Select agency...</option>
                                     ${options}
                                 </select>
-                                <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
-                                    ℹ️ The agency will be able to view and manage this account's properties and bookings.
+                                <div style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-radius: 6px; font-size: 0.85rem; color: #92400e;">
+                                    ⏳ The agency must approve this request before they can manage this account.
                                 </div>
                                 <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
                                     <button class="btn btn-secondary" onclick="closeModal('assignAgencyModal')" style="flex: 1;">Cancel</button>
-                                    <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">Assign</button>
+                                    <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">📤 Send Request</button>
                                 </div>
                             </div>
                         </div>
@@ -14847,16 +14951,21 @@ Local honey and preserves"></textarea>
             }
             
             try {
-                const response = await fetch(`/api/admin/accounts/${accountId}/assign-agency`, {
+                // Create a pending management request instead of auto-assigning
+                const response = await fetch('/api/management-requests', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ agency_id: parseInt(agencyId) })
+                    body: JSON.stringify({ 
+                        requesting_account_id: accountId,
+                        agency_id: parseInt(agencyId),
+                        message: 'Management request from Admin'
+                    })
                 });
                 const result = await response.json();
                 
                 if (result.success) {
                     closeModal('assignAgencyModal');
-                    showNotification('Agency assigned successfully', 'success');
+                    showNotification('Request sent to agency for approval', 'success');
                     loadAccounts();
                 } else {
                     alert('Error: ' + result.error);
@@ -15055,7 +15164,7 @@ Local honey and preserves"></textarea>
                                         <div style="font-size: 0.85rem; color: var(--text-secondary);">No agency assigned</div>
                                     </div>
                                     <button type="button" class="btn" onclick="assignAgencyFromModal(${account.id}, '${(account.name || '').replace(/'/g, '')}')">
-                                        + Assign Agency
+                                        📤 Request Agency
                                     </button>
                                 </div>
                             `;
