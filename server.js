@@ -1513,6 +1513,42 @@ app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) =
   }
 });
 
+// Helper function to format amenities as JSON
+function formatAmenities(amenities) {
+  if (!amenities) return null;
+  if (typeof amenities === 'string') {
+    // Already a string - try to parse it to validate it's JSON, then return as-is
+    try {
+      JSON.parse(amenities);
+      return amenities;
+    } catch (e) {
+      // Not valid JSON string, wrap it as array
+      return JSON.stringify([amenities]);
+    }
+  }
+  if (Array.isArray(amenities)) {
+    return JSON.stringify(amenities);
+  }
+  if (typeof amenities === 'object') {
+    return JSON.stringify(amenities);
+  }
+  return null;
+}
+
+// Helper to extract text from nested Beds24 structures like texts.roomDescription1.EN
+function extractText(obj, ...paths) {
+  for (const path of paths) {
+    if (!path) continue;
+    if (typeof path === 'string' && path.trim()) return path;
+    if (typeof path === 'object') {
+      // Try common language keys
+      const text = path.EN || path.en || path.DE || path.de || path.FR || path.fr || Object.values(path).find(v => typeof v === 'string' && v);
+      if (text) return text;
+    }
+  }
+  return '';
+}
+
 // Link synced property to GAS system - creates property, rooms, and images
 app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res) => {
   try {
@@ -1714,6 +1750,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
+      // Extract nested text fields (Beds24 uses texts.roomDescription1.EN format)
+      const texts = roomRawData.texts || {};
+      const roomDescription = extractText(
+        texts.roomDescription1,
+        roomRawData.fullDescription,
+        roomRawData.description,
+        room.description
+      );
+      const roomShortDesc = extractText(
+        texts.auxiliaryText,
+        roomRawData.description,
+        room.description
+      );
+      
       // Check if room exists (use cm_room_id which should always exist)
       const existingRoom = await pool.query(`
         SELECT id FROM bookable_units 
@@ -1741,15 +1791,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           WHERE id = $11
         `, [
           room.name,
-          room.max_guests,
-          room.base_price,
-          room.description,
-          roomRawData.fullDescription || roomRawData.description,
+          room.max_guests || roomRawData.maxPeople,
+          room.base_price || parseFloat(roomRawData.rackRate) || null,
+          roomShortDesc || null,
+          roomDescription || null,
           room.bedrooms || roomRawData.bedrooms,
           room.beds || roomRawData.beds,
           room.bathrooms || roomRawData.bathrooms,
           room.size_value || roomRawData.size,
-          room.amenities ? JSON.stringify(room.amenities) : null,
+          formatAmenities(room.amenities || roomRawData.amenities || roomRawData.featureCodes),
           gasRoomId
         ]);
         roomsUpdated++;
@@ -1767,15 +1817,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           gasPropertyId,
           String(room.external_id),
           room.name,
-          room.max_guests || 2,
-          room.base_price || 100,
-          room.description || '',
-          roomRawData.fullDescription || roomRawData.description || '',
-          room.bedrooms || roomRawData.bedrooms || 1,
-          room.beds || roomRawData.beds || 1,
-          room.bathrooms || roomRawData.bathrooms || 1,
-          room.size_value || roomRawData.size,
-          room.amenities ? JSON.stringify(room.amenities) : null
+          room.max_guests || roomRawData.maxPeople || 2,
+          room.base_price || parseFloat(roomRawData.rackRate) || 100,
+          roomShortDesc || '',
+          roomDescription || '',
+          room.bedrooms || roomRawData.bedrooms || null,
+          room.beds || roomRawData.beds || null,
+          room.bathrooms || roomRawData.bathrooms || null,
+          room.size_value || roomRawData.size || null,
+          formatAmenities(room.amenities || roomRawData.amenities || roomRawData.featureCodes)
         ]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
