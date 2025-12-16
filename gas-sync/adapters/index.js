@@ -134,10 +134,10 @@ class SyncManager {
    * Get adapter for a connection
    */
   async getAdapterForConnection(connectionId) {
+    // Don't JOIN on gas_sync_adapters - it might not exist or have entries
     const result = await this.pool.query(`
-      SELECT c.*, a.code as adapter_code
+      SELECT c.*
       FROM gas_sync_connections c
-      JOIN gas_sync_adapters a ON c.adapter_code = a.code
       WHERE c.id = $1
     `, [connectionId]);
     
@@ -146,7 +146,18 @@ class SyncManager {
     }
     
     const connection = result.rows[0];
-    const credentials = connection.credentials || {};
+    const credentials = typeof connection.credentials === 'string' 
+      ? JSON.parse(connection.credentials) 
+      : (connection.credentials || {});
+    
+    console.log('getAdapterForConnection:', {
+      connectionId,
+      adapter_code: connection.adapter_code,
+      hasAccessToken: !!connection.access_token,
+      accessTokenLength: connection.access_token?.length || 0,
+      hasRefreshToken: !!connection.refresh_token,
+      credentialsKeys: Object.keys(credentials)
+    });
     
     return getAdapter(connection.adapter_code, {
       token: connection.access_token || credentials.token,
