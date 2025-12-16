@@ -812,34 +812,54 @@ class Beds24Adapter {
       return { success: true, data: [] };
     }
     
-    const images = [];
     const hosted = content.images.hosted;
+    const roomImages = [];      // Room pictures (no offerId or offerId=0)
+    const offer1Images = [];    // Offer 1 pictures (offerId=1)
     
-    // Extract all hosted images
+    // Extract images - only those mapped to rooms
     for (const [key, img] of Object.entries(hosted)) {
-      if (img.url) {
-        const mapping = img.map?.[0] || {};
-        const roomId = mapping.roomId || null;
+      if (!img.url) continue;
+      
+      // Check all mappings for this image
+      const mappings = img.map || [];
+      for (const mapping of mappings) {
+        const roomId = mapping.roomId;
+        const offerId = mapping.offerId;
         const position = parseInt(mapping.position) || parseInt(key);
         
-        images.push({
-          externalId: `${propertyExternalId}-img-${key}`,
+        // Skip property-level images (no roomId)
+        if (!roomId) continue;
+        
+        const imageData = {
+          externalId: `${propertyExternalId}-img-${key}-${roomId}`,
           originalUrl: img.url,
           thumbnailUrl: img.url,
           caption: '',
           sortOrder: position,
-          imageType: roomId ? 'room' : 'property',
-          roomId: roomId,
+          imageType: 'room',
+          roomId: String(roomId),
+          offerId: offerId,
           width: null,
           height: null,
           metadata: img
-        });
+        };
+        
+        // Categorize: room picture vs offer picture
+        if (!offerId || offerId === 0) {
+          roomImages.push(imageData);
+        } else if (offerId === 1) {
+          offer1Images.push(imageData);
+        }
+        // Skip offer 2+ images
       }
     }
     
+    // Use room images if available, otherwise fall back to offer 1 images
+    let images = roomImages.length > 0 ? roomImages : offer1Images;
+    
     images.sort((a, b) => a.sortOrder - b.sortOrder);
     
-    console.log(`Beds24 getImages for property ${propertyExternalId}: ${images.length} images`);
+    console.log(`Beds24 getImages for property ${propertyExternalId}: ${roomImages.length} room pics, ${offer1Images.length} offer1 pics, using ${images.length}`);
     
     return {
       success: true,
@@ -1016,6 +1036,23 @@ class Beds24Adapter {
             await this.syncPropertyToDatabase(property);
             stats.properties.synced++;
             
+            // Look up property-specific propKey from database
+            let propertyPropKey = this.propKey; // Default to connection-level propKey
+            if (this.pool && this.connectionId) {
+              const propKeyResult = await this.pool.query(
+                'SELECT prop_key FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2',
+                [this.connectionId, property.externalId]
+              );
+              if (propKeyResult.rows.length > 0 && propKeyResult.rows[0].prop_key) {
+                propertyPropKey = propKeyResult.rows[0].prop_key;
+                console.log(`Beds24 fullSync: Using property-specific propKey for ${property.name}`);
+              }
+            }
+            
+            // Temporarily set propKey for this property
+            const savedPropKey = this.propKey;
+            this.propKey = propertyPropKey;
+            
             // 2. Sync room types for each property
             const roomTypesResult = await this.getRoomTypes(property.externalId);
             if (roomTypesResult.success) {
@@ -1030,7 +1067,7 @@ class Beds24Adapter {
             }
             
             // 3. Sync images (V1 API)
-            if (this.apiKey) {
+            if (this.apiKey && this.propKey) {
               const imagesResult = await this.getImages(property.externalId);
               if (imagesResult.success) {
                 for (const image of imagesResult.data) {
@@ -1043,6 +1080,9 @@ class Beds24Adapter {
                 }
               }
             }
+            
+            // Restore original propKey
+            this.propKey = savedPropKey;
           } catch (e) {
             console.error('Beds24 fullSync: property error:', e.message);
             stats.properties.errors++;
@@ -1295,33 +1335,67 @@ class Beds24Adapter {
       [this.connectionId, propertyExternalId]
     );
     
-    if (propResult.rows.length === 0) return;
+    if (propResult.rows.length === 0) {
+      console.log(`Beds24 syncImageToDatabase: Property ${propertyExternalId} not found`);
+      return;
+    }
     
     const syncPropertyId = propResult.rows[0].id;
     
-    await this.pool.query(`
-      INSERT INTO gas_sync_images (
-        connection_id, sync_property_id, external_id, original_url, thumbnail_url,
-        caption, sort_order, image_type, width, height, synced_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-      ON CONFLICT (connection_id, sync_property_id, external_id) DO UPDATE SET
-        original_url = EXCLUDED.original_url,
-        thumbnail_url = EXCLUDED.thumbnail_url,
-        caption = EXCLUDED.caption,
-        sort_order = EXCLUDED.sort_order,
-        synced_at = NOW()
-    `, [
-      this.connectionId,
-      syncPropertyId,
-      image.externalId,
-      image.originalUrl,
-      image.thumbnailUrl,
-      image.caption,
-      image.sortOrder,
-      image.imageType,
-      image.width,
-      image.height
-    ]);
+    try {
+      // Try upsert first
+      await this.pool.query(`
+        INSERT INTO gas_sync_images (
+          connection_id, sync_property_id, external_id, original_url, thumbnail_url,
+          caption, sort_order, image_type, room_type_external_id, width, height, synced_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        ON CONFLICT (connection_id, external_id) DO UPDATE SET
+          sync_property_id = EXCLUDED.sync_property_id,
+          original_url = EXCLUDED.original_url,
+          thumbnail_url = EXCLUDED.thumbnail_url,
+          caption = EXCLUDED.caption,
+          sort_order = EXCLUDED.sort_order,
+          image_type = EXCLUDED.image_type,
+          room_type_external_id = EXCLUDED.room_type_external_id,
+          synced_at = NOW()
+      `, [
+        this.connectionId,
+        syncPropertyId,
+        image.externalId,
+        image.originalUrl,
+        image.thumbnailUrl,
+        image.caption || '',
+        image.sortOrder || 0,
+        image.imageType || 'room',
+        image.roomId,
+        image.width,
+        image.height
+      ]);
+    } catch (e) {
+      // If unique constraint doesn't exist, just insert
+      if (e.message.includes('no unique or exclusion constraint')) {
+        await this.pool.query(`
+          INSERT INTO gas_sync_images (
+            connection_id, sync_property_id, external_id, original_url, thumbnail_url,
+            caption, sort_order, image_type, room_type_external_id, width, height, synced_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+        `, [
+          this.connectionId,
+          syncPropertyId,
+          image.externalId,
+          image.originalUrl,
+          image.thumbnailUrl,
+          image.caption || '',
+          image.sortOrder || 0,
+          image.imageType || 'room',
+          image.roomId,
+          image.width,
+          image.height
+        ]);
+      } else {
+        throw e;
+      }
+    }
   }
   
   hashData(data) {
