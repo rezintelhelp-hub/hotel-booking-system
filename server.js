@@ -1537,14 +1537,18 @@ function formatAmenities(amenities) {
 
 // Helper to extract text from nested Beds24 structures like texts.roomDescription1.EN
 function extractText(obj, ...paths) {
-  for (const path of paths) {
-    if (!path) continue;
-    if (typeof path === 'string' && path.trim()) return path;
-    if (typeof path === 'object') {
-      // Try common language keys
-      const text = path.EN || path.en || path.DE || path.de || path.FR || path.fr || Object.values(path).find(v => typeof v === 'string' && v);
-      if (text) return text;
+  try {
+    for (const path of paths) {
+      if (!path) continue;
+      if (typeof path === 'string' && path.trim()) return path;
+      if (typeof path === 'object' && !Array.isArray(path)) {
+        // Try common language keys
+        const text = path.EN || path.en || path.DE || path.de || path.FR || path.fr || Object.values(path).find(v => typeof v === 'string' && v);
+        if (text && typeof text === 'string') return text;
+      }
     }
+  } catch (e) {
+    console.log('extractText error:', e);
   }
   return '';
 }
@@ -1554,6 +1558,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
   try {
     const { syncPropertyId } = req.params;
     const { accountId } = req.body;
+    
+    console.log('link-to-gas: Starting for syncPropertyId:', syncPropertyId, 'accountId:', accountId);
     
     if (!accountId) {
       return res.status(400).json({ success: false, error: 'accountId is required' });
@@ -1572,11 +1578,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     }
     
     const prop = syncProp.rows[0];
+    console.log('link-to-gas: Property found:', prop.name, 'adapter:', prop.adapter_code);
+    
     const rawData = typeof prop.raw_data === 'string' ? JSON.parse(prop.raw_data) : (prop.raw_data || {});
     
     // Extract nested data
     const texts = rawData.texts || {};
     const address = rawData.address || {};
+    
+    // Extract text from nested objects (Beds24 uses {EN: "...", DE: "..."} format)
+    const propDescription = extractText(texts.description, rawData.description);
+    const propShortDesc = extractText(texts.shortDescription, rawData.shortDescription);
+    const propPolicies = extractText(texts.policies, rawData.policies);
+    const propDirections = extractText(texts.directions, rawData.directions);
+    console.log('link-to-gas: Extracted texts - desc:', propDescription?.substring(0,50), 'shortDesc:', propShortDesc?.substring(0,50));
     
     // 2. Check if already linked
     let gasPropertyId = null;
@@ -1599,50 +1614,26 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     if (prop.gas_property_id) {
       gasPropertyId = prop.gas_property_id;
-      // Update existing property with all fields
+      // Update existing property - simplified
+      console.log('link-to-gas: Updating existing property', gasPropertyId);
       await pool.query(`
         UPDATE properties SET
           name = $1,
           address = COALESCE($2, address),
           city = COALESCE($3, city),
-          state = COALESCE($4, state),
-          country = COALESCE($5, country),
-          postal_code = COALESCE($6, postal_code),
-          property_type = COALESCE($7, property_type),
-          short_description = COALESCE($8, short_description),
-          full_description = COALESCE($9, full_description),
-          policies = COALESCE($10, policies),
-          directions = COALESCE($11, directions),
-          check_in_time = COALESCE($12, check_in_time),
-          check_out_time = COALESCE($13, check_out_time),
-          contact_email = COALESCE($14, contact_email),
-          contact_phone = COALESCE($15, contact_phone),
-          latitude = COALESCE($16, latitude),
-          longitude = COALESCE($17, longitude),
-          account_id = $18,
+          country = COALESCE($4, country),
+          account_id = $5,
           updated_at = NOW()
-        WHERE id = $19
+        WHERE id = $6
       `, [
-        prop.name,
-        rawData.address || typeof address === 'string' ? rawData.address : address.street,
-        rawData.city,
-        rawData.state || rawData.region,
-        rawData.country,
-        rawData.postcode || rawData.postalCode,
-        rawData.propertyType || 'vacation_rental',
-        texts.shortDescription || rawData.shortDescription,
-        texts.description || rawData.description,
-        texts.policies || rawData.policies,
-        texts.directions || rawData.directions,
-        rawData.checkInStart || rawData.checkInTime,
-        rawData.checkOutEnd || rawData.checkOutTime,
-        rawData.email,
-        rawData.phone,
-        rawData.latitude ? parseFloat(rawData.latitude) : null,
-        rawData.longitude ? parseFloat(rawData.longitude) : null,
+        prop.name || 'Unnamed Property',
+        rawData.address || '',
+        rawData.city || '',
+        rawData.country || '',
         accountId,
         gasPropertyId
       ]);
+      console.log('link-to-gas: Updated property', gasPropertyId);
     } else {
       // Check if property exists by external ID (only check columns that exist for this adapter)
       let existingQuery;
@@ -1659,8 +1650,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       if (existing.rows.length > 0) {
         gasPropertyId = existing.rows[0].id;
         await pool.query('UPDATE properties SET account_id = $1, updated_at = NOW() WHERE id = $2', [accountId, gasPropertyId]);
+        console.log('link-to-gas: Updated existing property', gasPropertyId);
       } else {
         // Create new property with all fields
+        console.log('link-to-gas: Creating new property');
         // Ensure the adapter-specific column exists
         if (prop.adapter_code === 'beds24') {
           await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS beds24_property_id VARCHAR(50)');
@@ -1672,49 +1665,47 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         const adapterColumn = prop.adapter_code === 'beds24' ? 'beds24_property_id' :
                               prop.adapter_code === 'smoobu' ? 'smoobu_id' : 'beds24_property_id';
         
+        console.log('link-to-gas: INSERT values:', {
+          accountId,
+          external_id: String(prop.external_id),
+          name: prop.name,
+          address: rawData.address || '',
+          city: rawData.city || '',
+          propShortDesc: propShortDesc?.substring(0,50) || '',
+          propDescription: propDescription?.substring(0,50) || ''
+        });
+        
+        // Simplified INSERT - just essential fields
         const propResult = await pool.query(`
           INSERT INTO properties (
             account_id, user_id, ${adapterColumn}, name, 
-            address, city, state, country, postal_code,
-            property_type, short_description, full_description,
-            policies, directions, check_in_time, check_out_time,
-            contact_email, contact_phone, latitude, longitude,
-            cm_source, status, created_at
-          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, 'active', NOW())
+            address, city, country, property_type, status, created_at
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, 'active', NOW())
           RETURNING id
         `, [
           accountId,
           String(prop.external_id),
-          prop.name,
+          prop.name || 'Unnamed Property',
           rawData.address || '',
           rawData.city || '',
-          rawData.state || rawData.region || '',
           rawData.country || '',
-          rawData.postcode || '',
-          rawData.propertyType || 'vacation_rental',
-          texts.shortDescription || rawData.shortDescription || '',
-          texts.description || rawData.description || '',
-          texts.policies || '',
-          texts.directions || '',
-          rawData.checkInStart || '15:00',
-          rawData.checkOutEnd || '11:00',
-          rawData.email || '',
-          rawData.phone || '',
-          rawData.latitude ? parseFloat(rawData.latitude) : null,
-          rawData.longitude ? parseFloat(rawData.longitude) : null,
-          prop.adapter_code
+          rawData.propertyType || 'vacation_rental'
         ]);
         gasPropertyId = propResult.rows[0].id;
+        console.log('link-to-gas: Created property with ID:', gasPropertyId);
       }
       
       // Link the synced property to GAS property
       await pool.query('UPDATE gas_sync_properties SET gas_property_id = $1 WHERE id = $2', [gasPropertyId, syncPropertyId]);
+      console.log('link-to-gas: Linked sync property to GAS property');
     }
     
     // 3. Sync room types to bookable_units
+    console.log('link-to-gas: Starting room sync');
     const syncRooms = await pool.query(`
       SELECT * FROM gas_sync_room_types WHERE sync_property_id = $1
     `, [syncPropertyId]);
+    console.log('link-to-gas: Found', syncRooms.rows.length, 'rooms to sync');
     
     // Ensure bookable_units table exists
     await pool.query(`
@@ -1774,61 +1765,42 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       if (existingRoom.rows.length > 0) {
         gasRoomId = existingRoom.rows[0].id;
-        // Update existing room with all fields
+        // Update existing room - simplified
+        console.log('link-to-gas: Updating existing room', gasRoomId);
         await pool.query(`
           UPDATE bookable_units SET
             name = $1,
             max_guests = COALESCE($2, max_guests),
             base_price = COALESCE($3, base_price),
-            short_description = COALESCE($4, short_description),
-            full_description = COALESCE($5, full_description),
-            bedrooms = COALESCE($6, bedrooms),
-            beds = COALESCE($7, beds),
-            bathrooms = COALESCE($8, bathrooms),
-            size_sqm = COALESCE($9, size_sqm),
-            amenities = COALESCE($10, amenities),
             updated_at = NOW()
-          WHERE id = $11
+          WHERE id = $4
         `, [
-          room.name,
-          room.max_guests || roomRawData.maxPeople,
-          room.base_price || parseFloat(roomRawData.rackRate) || null,
-          roomShortDesc || null,
-          roomDescription || null,
-          room.bedrooms || roomRawData.bedrooms,
-          room.beds || roomRawData.beds,
-          room.bathrooms || roomRawData.bathrooms,
-          room.size_value || roomRawData.size,
-          formatAmenities(room.amenities || roomRawData.amenities || roomRawData.featureCodes),
+          room.name || 'Unnamed Room',
+          room.max_guests || roomRawData.maxPeople || 2,
+          room.base_price || parseFloat(roomRawData.rackRate) || 100,
           gasRoomId
         ]);
         roomsUpdated++;
+        console.log('link-to-gas: Updated room', gasRoomId);
       } else {
-        // Create new room with all fields
+        // Create new room - simplified
+        console.log('link-to-gas: Creating room', room.name);
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
             property_id, cm_room_id, name,
-            max_guests, base_price, short_description, full_description,
-            bedrooms, beds, bathrooms, size_sqm, amenities,
-            status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'available', NOW())
+            max_guests, base_price, status, created_at
+          ) VALUES ($1, $2, $3, $4, $5, 'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
           String(room.external_id),
-          room.name,
+          room.name || 'Unnamed Room',
           room.max_guests || roomRawData.maxPeople || 2,
-          room.base_price || parseFloat(roomRawData.rackRate) || 100,
-          roomShortDesc || '',
-          roomDescription || '',
-          room.bedrooms || roomRawData.bedrooms || null,
-          room.beds || roomRawData.beds || null,
-          room.bathrooms || roomRawData.bathrooms || null,
-          room.size_value || roomRawData.size || null,
-          formatAmenities(room.amenities || roomRawData.amenities || roomRawData.featureCodes)
+          room.base_price || parseFloat(roomRawData.rackRate) || 100
         ]);
         gasRoomId = roomResult.rows[0].id;
         roomsCreated++;
+        console.log('link-to-gas: Created room with ID', gasRoomId);
       }
       
       roomIdMap[String(room.external_id)] = gasRoomId;
@@ -1855,9 +1827,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       )
     `);
     
+    console.log('link-to-gas: Starting image sync');
     const syncImages = await pool.query(`
       SELECT * FROM gas_sync_images WHERE sync_property_id = $1
     `, [syncPropertyId]);
+    console.log('link-to-gas: Found', syncImages.rows.length, 'images to sync');
     
     let imagesCreated = 0;
     
