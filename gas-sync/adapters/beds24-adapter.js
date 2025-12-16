@@ -260,7 +260,10 @@ class Beds24Adapter {
   async getProperties(options = {}) {
     const params = {
       limit: options.limit || 100,
-      page: options.page || 1
+      page: options.page || 1,
+      includeAllRooms: true,       // Include room types
+      includeTexts: true,          // Include descriptions
+      includePriceRules: true      // Include pricing setup
     };
     
     const response = await this.v2Request('/properties', 'GET', null, { params });
@@ -304,15 +307,21 @@ class Beds24Adapter {
   }
   
   mapProperty(raw) {
+    // Extract texts if available
+    const texts = raw.texts || {};
+    
     return {
       externalId: String(raw.id),
       name: raw.name,
-      description: raw.description || '',
-      propertyType: raw.type || 'vacation_rental',
+      description: texts.description || raw.description || '',
+      shortDescription: texts.shortDescription || '',
+      policies: texts.policies || '',
+      directions: texts.directions || '',
+      propertyType: raw.propertyType || raw.type || 'vacation_rental',
       address: {
         street: raw.address || '',
         city: raw.city || '',
-        state: raw.region || '',
+        state: raw.state || raw.region || '',
         country: raw.country || '',
         postalCode: raw.postcode || '',
         coordinates: {
@@ -320,18 +329,88 @@ class Beds24Adapter {
           lng: parseFloat(raw.longitude) || null
         }
       },
+      contact: {
+        email: raw.email || '',
+        phone: raw.phone || '',
+        mobile: raw.mobile || '',
+        website: raw.web || ''
+      },
       timezone: raw.timezone || 'UTC',
       currency: raw.currency || 'GBP',
       checkInTime: raw.checkInStart || '15:00',
       checkOutTime: raw.checkOutEnd || '11:00',
       amenities: raw.amenities || [],
-      roomTypes: [], // Populated separately
+      roomTypes: raw.roomTypes || [], // V2 includes this with includeAllRooms
       metadata: {
         beds24Id: raw.id,
+        ownerId: raw.account?.ownerId,
         status: raw.status,
         url: raw.url
       },
       raw: raw
+    };
+  }
+  
+  // Get detailed property content from V1 API (texts, descriptions, facilities)
+  async getPropertyContent(propertyExternalId) {
+    if (!this.apiKey || !this.propKey) {
+      return { success: false, error: 'V1 API key required' };
+    }
+    
+    const response = await this.v1Request('/getPropertyContent', {
+      texts: true,
+      roomIds: true,
+      images: true
+    });
+    
+    if (!response.success) {
+      return response;
+    }
+    
+    const content = response.data?.getPropertyContent?.[0];
+    if (!content) {
+      return { success: true, data: null };
+    }
+    
+    // Check if this is the right property
+    const responsePropId = String(content.propId || '');
+    if (responsePropId && responsePropId !== String(propertyExternalId)) {
+      return { success: true, data: null, message: 'Property mismatch' };
+    }
+    
+    return {
+      success: true,
+      data: {
+        propId: content.propId,
+        texts: content.texts || {},
+        roomIds: content.roomIds || {},
+        images: content.images || {},
+        facilities: content.facilities || [],
+        raw: content
+      }
+    };
+  }
+  
+  // Get availability calendar from V2 API
+  async getAvailabilityCalendar(roomIds, options = {}) {
+    const startDate = options.startDate || new Date().toISOString().split('T')[0];
+    const endDate = options.endDate || new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const params = {
+      roomId: roomIds.join(','),
+      startDate,
+      endDate
+    };
+    
+    const response = await this.v2Request('/inventory/rooms/calendar', 'GET', null, { params });
+    
+    if (!response.success) {
+      return response;
+    }
+    
+    return {
+      success: true,
+      data: response.data?.data || response.data || []
     };
   }
   
@@ -346,7 +425,11 @@ class Beds24Adapter {
       return { success: true, data: [] };
     }
     
-    const response = await this.v1Request('/getPropertyContent', {});
+    // Request with texts and roomIds for full room data
+    const response = await this.v1Request('/getPropertyContent', {
+      roomIds: true,
+      texts: true
+    });
     
     if (!response.success) {
       return response;
@@ -366,11 +449,19 @@ class Beds24Adapter {
       return { success: true, data: [] };
     }
     
+    // Get texts for room descriptions
+    const texts = content.texts || {};
+    
     const roomTypes = [];
     for (const [roomId, roomData] of Object.entries(content.roomIds)) {
+      // Merge any room-specific texts
+      const roomTexts = texts[`room_${roomId}`] || {};
+      
       roomTypes.push(this.mapRoomType({
         id: roomId,
         name: roomData.name || `Room ${roomId}`,
+        description: roomTexts.description || roomData.description || '',
+        fullDescription: roomTexts.fullDescription || roomData.fullDescription || '',
         ...roomData
       }, propertyExternalId));
     }
