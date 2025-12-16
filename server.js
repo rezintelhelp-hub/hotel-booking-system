@@ -1818,30 +1818,26 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       if (existingRoom.rows.length > 0) {
         gasRoomId = existingRoom.rows[0].id;
-        // Update existing room with full data
+        // Update existing room with full data (excluding JSONB columns)
         console.log('link-to-gas: Updating existing room', gasRoomId, room.name);
         await pool.query(`
           UPDATE bookable_units SET
             name = $1,
             max_guests = COALESCE($2, max_guests),
             base_price = COALESCE($3, base_price),
-            short_description = COALESCE(NULLIF($4, ''), short_description),
-            full_description = COALESCE(NULLIF($5, ''), full_description),
-            room_type = COALESCE(NULLIF($6, ''), room_type),
-            bedrooms = COALESCE($7, bedrooms),
-            beds = COALESCE($8, beds),
-            bathrooms = COALESCE($9, bathrooms),
-            size_sqm = COALESCE($10, size_sqm),
-            cleaning_fee = COALESCE($11, cleaning_fee),
-            security_deposit = COALESCE($12, security_deposit),
+            room_type = COALESCE(NULLIF($4, ''), room_type),
+            bedrooms = COALESCE($5, bedrooms),
+            beds = COALESCE($6, beds),
+            bathrooms = COALESCE($7, bathrooms),
+            size_sqm = COALESCE($8, size_sqm),
+            cleaning_fee = COALESCE($9, cleaning_fee),
+            security_deposit = COALESCE($10, security_deposit),
             updated_at = NOW()
-          WHERE id = $13
+          WHERE id = $11
         `, [
           displayName || room.name || 'Unnamed Room',
           maxGuests,
           basePrice,
-          roomShortDesc || '',
-          roomDescription || '',
           roomType || '',
           bedrooms,
           beds,
@@ -1853,16 +1849,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         ]);
         roomsUpdated++;
       } else {
-        // Create new room with full data
+        // Create new room with full data (excluding JSONB columns)
         console.log('link-to-gas: Creating room', room.name);
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
             property_id, cm_room_id, name,
-            max_guests, base_price, short_description, full_description,
+            max_guests, base_price,
             room_type, bedrooms, beds, bathrooms, size_sqm,
             cleaning_fee, security_deposit,
             status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'available', NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, 'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
@@ -1870,8 +1866,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           displayName || room.name || 'Unnamed Room',
           maxGuests,
           basePrice,
-          roomShortDesc || '',
-          roomDescription || '',
           roomType || '',
           bedrooms,
           beds,
