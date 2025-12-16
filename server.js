@@ -1100,6 +1100,331 @@ app.get('/api/fix-gas-sync-tables', async (req, res) => {
   }
 });
 
+// =====================================================
+// GAS SYNC FIELD MAPPINGS
+// =====================================================
+
+// Create field mappings table
+app.get('/api/gas-sync/setup-mappings', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gas_sync_field_mappings (
+        id SERIAL PRIMARY KEY,
+        connection_id INTEGER REFERENCES gas_sync_connections(id) ON DELETE CASCADE,
+        adapter_code VARCHAR(50),
+        source_entity VARCHAR(50) NOT NULL,
+        source_field VARCHAR(200) NOT NULL,
+        target_entity VARCHAR(50) NOT NULL,
+        target_field VARCHAR(100),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(connection_id, source_entity, source_field)
+      )
+    `);
+    
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_field_mappings_connection ON gas_sync_field_mappings(connection_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_field_mappings_adapter ON gas_sync_field_mappings(adapter_code)`);
+    
+    res.json({ success: true, message: 'Field mappings table created' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Discover available fields from synced data
+app.get('/api/gas-sync/connections/:id/discover-fields', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get a sample property with raw_data
+    const propResult = await pool.query(`
+      SELECT raw_data FROM gas_sync_properties WHERE connection_id = $1 LIMIT 1
+    `, [id]);
+    
+    // Get a sample room with raw_data
+    const roomResult = await pool.query(`
+      SELECT rt.raw_data FROM gas_sync_room_types rt
+      JOIN gas_sync_properties p ON rt.sync_property_id = p.id
+      WHERE p.connection_id = $1 LIMIT 1
+    `, [id]);
+    
+    // Get a sample reservation with raw_data
+    const resResult = await pool.query(`
+      SELECT raw_data FROM gas_sync_reservations WHERE connection_id = $1 LIMIT 1
+    `, [id]);
+    
+    // Helper to flatten nested object keys
+    const flattenKeys = (obj, prefix = '') => {
+      const keys = [];
+      if (!obj || typeof obj !== 'object') return keys;
+      
+      for (const [key, value] of Object.entries(obj)) {
+        const fullKey = prefix ? `${prefix}.${key}` : key;
+        keys.push({ 
+          field: fullKey, 
+          type: Array.isArray(value) ? 'array' : typeof value,
+          sample: typeof value === 'object' ? '[object]' : String(value).substring(0, 100)
+        });
+        
+        // Recurse into objects (but not arrays)
+        if (value && typeof value === 'object' && !Array.isArray(value)) {
+          keys.push(...flattenKeys(value, fullKey));
+        }
+      }
+      return keys;
+    };
+    
+    const propertyFields = propResult.rows[0] 
+      ? flattenKeys(typeof propResult.rows[0].raw_data === 'string' 
+          ? JSON.parse(propResult.rows[0].raw_data) 
+          : propResult.rows[0].raw_data)
+      : [];
+    
+    const roomFields = roomResult.rows[0]
+      ? flattenKeys(typeof roomResult.rows[0].raw_data === 'string'
+          ? JSON.parse(roomResult.rows[0].raw_data)
+          : roomResult.rows[0].raw_data)
+      : [];
+    
+    const reservationFields = resResult.rows[0]
+      ? flattenKeys(typeof resResult.rows[0].raw_data === 'string'
+          ? JSON.parse(resResult.rows[0].raw_data)
+          : resResult.rows[0].raw_data)
+      : [];
+    
+    res.json({
+      success: true,
+      fields: {
+        property: propertyFields,
+        room: roomFields,
+        reservation: reservationFields
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get available GAS target fields
+app.get('/api/gas-sync/gas-fields', async (req, res) => {
+  try {
+    // These are the GAS fields we support mapping to
+    const gasFields = {
+      property: [
+        { field: 'name', type: 'string', required: true },
+        { field: 'address', type: 'string' },
+        { field: 'city', type: 'string' },
+        { field: 'state', type: 'string' },
+        { field: 'country', type: 'string' },
+        { field: 'postal_code', type: 'string' },
+        { field: 'property_type', type: 'string' },
+        { field: 'short_description', type: 'text' },
+        { field: 'full_description', type: 'text' },
+        { field: 'policies', type: 'text' },
+        { field: 'directions', type: 'text' },
+        { field: 'check_in_time', type: 'string' },
+        { field: 'check_out_time', type: 'string' },
+        { field: 'contact_email', type: 'string' },
+        { field: 'contact_phone', type: 'string' },
+        { field: 'latitude', type: 'number' },
+        { field: 'longitude', type: 'number' }
+      ],
+      room: [
+        { field: 'name', type: 'string', required: true },
+        { field: 'short_description', type: 'text' },
+        { field: 'full_description', type: 'text' },
+        { field: 'max_guests', type: 'number' },
+        { field: 'base_price', type: 'number' },
+        { field: 'bedrooms', type: 'number' },
+        { field: 'beds', type: 'number' },
+        { field: 'bathrooms', type: 'number' },
+        { field: 'size_sqm', type: 'number' },
+        { field: 'amenities', type: 'json' }
+      ],
+      reservation: [
+        { field: 'guest_first_name', type: 'string' },
+        { field: 'guest_last_name', type: 'string' },
+        { field: 'guest_email', type: 'string' },
+        { field: 'guest_phone', type: 'string' },
+        { field: 'check_in', type: 'date' },
+        { field: 'check_out', type: 'date' },
+        { field: 'adults', type: 'number' },
+        { field: 'children', type: 'number' },
+        { field: 'total_price', type: 'number' },
+        { field: 'status', type: 'string' },
+        { field: 'notes', type: 'text' },
+        { field: 'special_requests', type: 'text' }
+      ]
+    };
+    
+    res.json({ success: true, fields: gasFields });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get current mappings for a connection (or defaults)
+app.get('/api/gas-sync/connections/:id/mappings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Ensure table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS gas_sync_field_mappings (
+        id SERIAL PRIMARY KEY,
+        connection_id INTEGER,
+        adapter_code VARCHAR(50),
+        source_entity VARCHAR(50) NOT NULL,
+        source_field VARCHAR(200) NOT NULL,
+        target_entity VARCHAR(50) NOT NULL,
+        target_field VARCHAR(100),
+        is_active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Get connection's adapter code
+    const connResult = await pool.query('SELECT adapter_code FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    const adapterCode = connResult.rows[0].adapter_code;
+    
+    // Check for custom mappings first
+    const customMappings = await pool.query(`
+      SELECT * FROM gas_sync_field_mappings 
+      WHERE connection_id = $1 AND is_active = true
+      ORDER BY source_entity, source_field
+    `, [id]);
+    
+    if (customMappings.rows.length > 0) {
+      return res.json({ 
+        success: true, 
+        source: 'custom',
+        mappings: customMappings.rows 
+      });
+    }
+    
+    // Return defaults based on adapter
+    const defaults = getDefaultMappings(adapterCode);
+    
+    res.json({ 
+      success: true, 
+      source: 'defaults',
+      adapterCode,
+      mappings: defaults 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Save mappings for a connection
+app.post('/api/gas-sync/connections/:id/mappings', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { mappings } = req.body;
+    
+    if (!mappings || !Array.isArray(mappings)) {
+      return res.status(400).json({ success: false, error: 'mappings array required' });
+    }
+    
+    // Get adapter code
+    const connResult = await pool.query('SELECT adapter_code FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    const adapterCode = connResult.rows[0].adapter_code;
+    
+    // Clear existing mappings for this connection
+    await pool.query('DELETE FROM gas_sync_field_mappings WHERE connection_id = $1', [id]);
+    
+    // Insert new mappings
+    for (const mapping of mappings) {
+      if (mapping.source_field && mapping.target_field) {
+        await pool.query(`
+          INSERT INTO gas_sync_field_mappings 
+          (connection_id, adapter_code, source_entity, source_field, target_entity, target_field, is_active)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [
+          id,
+          adapterCode,
+          mapping.source_entity,
+          mapping.source_field,
+          mapping.target_entity,
+          mapping.target_field,
+          mapping.is_active !== false
+        ]);
+      }
+    }
+    
+    res.json({ success: true, message: `Saved ${mappings.length} mappings` });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Reset to default mappings
+app.post('/api/gas-sync/connections/:id/mappings/reset', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Delete custom mappings - will fall back to defaults
+    await pool.query('DELETE FROM gas_sync_field_mappings WHERE connection_id = $1', [id]);
+    
+    res.json({ success: true, message: 'Mappings reset to defaults' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Helper function for default mappings
+function getDefaultMappings(adapterCode) {
+  const beds24Defaults = [
+    // Property mappings
+    { source_entity: 'property', source_field: 'name', target_entity: 'properties', target_field: 'name' },
+    { source_entity: 'property', source_field: 'address', target_entity: 'properties', target_field: 'address' },
+    { source_entity: 'property', source_field: 'city', target_entity: 'properties', target_field: 'city' },
+    { source_entity: 'property', source_field: 'state', target_entity: 'properties', target_field: 'state' },
+    { source_entity: 'property', source_field: 'country', target_entity: 'properties', target_field: 'country' },
+    { source_entity: 'property', source_field: 'postcode', target_entity: 'properties', target_field: 'postal_code' },
+    { source_entity: 'property', source_field: 'propertyType', target_entity: 'properties', target_field: 'property_type' },
+    { source_entity: 'property', source_field: 'texts.description', target_entity: 'properties', target_field: 'full_description' },
+    { source_entity: 'property', source_field: 'texts.shortDescription', target_entity: 'properties', target_field: 'short_description' },
+    { source_entity: 'property', source_field: 'texts.policies', target_entity: 'properties', target_field: 'policies' },
+    { source_entity: 'property', source_field: 'texts.directions', target_entity: 'properties', target_field: 'directions' },
+    { source_entity: 'property', source_field: 'checkInStart', target_entity: 'properties', target_field: 'check_in_time' },
+    { source_entity: 'property', source_field: 'checkOutEnd', target_entity: 'properties', target_field: 'check_out_time' },
+    { source_entity: 'property', source_field: 'email', target_entity: 'properties', target_field: 'contact_email' },
+    { source_entity: 'property', source_field: 'phone', target_entity: 'properties', target_field: 'contact_phone' },
+    { source_entity: 'property', source_field: 'latitude', target_entity: 'properties', target_field: 'latitude' },
+    { source_entity: 'property', source_field: 'longitude', target_entity: 'properties', target_field: 'longitude' },
+    // Room mappings
+    { source_entity: 'room', source_field: 'name', target_entity: 'bookable_units', target_field: 'name' },
+    { source_entity: 'room', source_field: 'description', target_entity: 'bookable_units', target_field: 'short_description' },
+    { source_entity: 'room', source_field: 'fullDescription', target_entity: 'bookable_units', target_field: 'full_description' },
+    { source_entity: 'room', source_field: 'maxPeople', target_entity: 'bookable_units', target_field: 'max_guests' },
+    { source_entity: 'room', source_field: 'price', target_entity: 'bookable_units', target_field: 'base_price' },
+    { source_entity: 'room', source_field: 'bedrooms', target_entity: 'bookable_units', target_field: 'bedrooms' },
+    { source_entity: 'room', source_field: 'beds', target_entity: 'bookable_units', target_field: 'beds' },
+    { source_entity: 'room', source_field: 'bathrooms', target_entity: 'bookable_units', target_field: 'bathrooms' },
+    { source_entity: 'room', source_field: 'size', target_entity: 'bookable_units', target_field: 'size_sqm' },
+    { source_entity: 'room', source_field: 'amenities', target_entity: 'bookable_units', target_field: 'amenities' }
+  ];
+  
+  // Add more adapters as needed
+  const mappings = {
+    beds24: beds24Defaults,
+    smoobu: beds24Defaults, // Similar structure
+    hostaway: beds24Defaults,
+    calry: beds24Defaults
+  };
+  
+  return mappings[adapterCode] || beds24Defaults;
+}
+
 // Reset gas sync connection data (clear rooms, images, reservations but keep connection)
 app.get('/api/gas-sync/connections/:id/reset', async (req, res) => {
   try {
@@ -1165,17 +1490,323 @@ app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) =
   try {
     const { id } = req.params;
     
+    // Add gas_property_id column if not exists
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
+    
     const result = await pool.query(`
-      SELECT p.id, p.external_id, p.name, p.prop_key,
+      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_count,
-             (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
+             (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count,
+             gp.name as gas_property_name,
+             a.company_name as account_name
       FROM gas_sync_properties p
+      LEFT JOIN properties gp ON p.gas_property_id = gp.id
+      LEFT JOIN accounts a ON gp.account_id = a.id
       WHERE p.connection_id = $1
       ORDER BY p.name
     `, [id]);
     
     res.json({ success: true, properties: result.rows });
   } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Link synced property to GAS system - creates property, rooms, and images
+app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res) => {
+  try {
+    const { syncPropertyId } = req.params;
+    const { accountId } = req.body;
+    
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+    
+    // 1. Get synced property data
+    const syncProp = await pool.query(`
+      SELECT sp.*, c.adapter_code 
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [syncPropertyId]);
+    
+    if (syncProp.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Synced property not found' });
+    }
+    
+    const prop = syncProp.rows[0];
+    const rawData = typeof prop.raw_data === 'string' ? JSON.parse(prop.raw_data) : (prop.raw_data || {});
+    
+    // Extract nested data
+    const texts = rawData.texts || {};
+    const address = rawData.address || {};
+    
+    // 2. Check if already linked
+    let gasPropertyId = null;
+    
+    // Add columns if not exists
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS policies TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS directions TEXT');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_in_time VARCHAR(10)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS check_out_time VARCHAR(10)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS state VARCHAR(100)');
+    
+    if (prop.gas_property_id) {
+      gasPropertyId = prop.gas_property_id;
+      // Update existing property with all fields
+      await pool.query(`
+        UPDATE properties SET
+          name = $1,
+          address = COALESCE($2, address),
+          city = COALESCE($3, city),
+          state = COALESCE($4, state),
+          country = COALESCE($5, country),
+          postal_code = COALESCE($6, postal_code),
+          property_type = COALESCE($7, property_type),
+          short_description = COALESCE($8, short_description),
+          full_description = COALESCE($9, full_description),
+          policies = COALESCE($10, policies),
+          directions = COALESCE($11, directions),
+          check_in_time = COALESCE($12, check_in_time),
+          check_out_time = COALESCE($13, check_out_time),
+          contact_email = COALESCE($14, contact_email),
+          contact_phone = COALESCE($15, contact_phone),
+          latitude = COALESCE($16, latitude),
+          longitude = COALESCE($17, longitude),
+          account_id = $18,
+          updated_at = NOW()
+        WHERE id = $19
+      `, [
+        prop.name,
+        rawData.address || typeof address === 'string' ? rawData.address : address.street,
+        rawData.city,
+        rawData.state || rawData.region,
+        rawData.country,
+        rawData.postcode || rawData.postalCode,
+        rawData.propertyType || 'vacation_rental',
+        texts.shortDescription || rawData.shortDescription,
+        texts.description || rawData.description,
+        texts.policies || rawData.policies,
+        texts.directions || rawData.directions,
+        rawData.checkInStart || rawData.checkInTime,
+        rawData.checkOutEnd || rawData.checkOutTime,
+        rawData.email,
+        rawData.phone,
+        rawData.latitude ? parseFloat(rawData.latitude) : null,
+        rawData.longitude ? parseFloat(rawData.longitude) : null,
+        accountId,
+        gasPropertyId
+      ]);
+    } else {
+      // Check if property exists by external ID
+      const existing = await pool.query(`
+        SELECT id FROM properties WHERE beds24_property_id = $1 OR smoobu_id = $1 OR hostaway_id::text = $1
+      `, [prop.external_id]);
+      
+      if (existing.rows.length > 0) {
+        gasPropertyId = existing.rows[0].id;
+        await pool.query('UPDATE properties SET account_id = $1, updated_at = NOW() WHERE id = $2', [accountId, gasPropertyId]);
+      } else {
+        // Create new property with all fields
+        const adapterColumn = prop.adapter_code === 'beds24' ? 'beds24_property_id' :
+                              prop.adapter_code === 'smoobu' ? 'smoobu_id' :
+                              prop.adapter_code === 'hostaway' ? 'hostaway_id' : 'beds24_property_id';
+        
+        const propResult = await pool.query(`
+          INSERT INTO properties (
+            account_id, user_id, ${adapterColumn}, name, 
+            address, city, state, country, postal_code,
+            property_type, short_description, full_description,
+            policies, directions, check_in_time, check_out_time,
+            contact_email, contact_phone, latitude, longitude,
+            cm_source, status, created_at
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, 'active', NOW())
+          RETURNING id
+        `, [
+          accountId,
+          prop.external_id,
+          prop.name,
+          rawData.address || '',
+          rawData.city || '',
+          rawData.state || rawData.region || '',
+          rawData.country || '',
+          rawData.postcode || '',
+          rawData.propertyType || 'vacation_rental',
+          texts.shortDescription || rawData.shortDescription || '',
+          texts.description || rawData.description || '',
+          texts.policies || '',
+          texts.directions || '',
+          rawData.checkInStart || '15:00',
+          rawData.checkOutEnd || '11:00',
+          rawData.email || '',
+          rawData.phone || '',
+          rawData.latitude ? parseFloat(rawData.latitude) : null,
+          rawData.longitude ? parseFloat(rawData.longitude) : null,
+          prop.adapter_code
+        ]);
+        gasPropertyId = propResult.rows[0].id;
+      }
+      
+      // Link the synced property to GAS property
+      await pool.query('UPDATE gas_sync_properties SET gas_property_id = $1 WHERE id = $2', [gasPropertyId, syncPropertyId]);
+    }
+    
+    // 3. Sync room types to bookable_units
+    const syncRooms = await pool.query(`
+      SELECT * FROM gas_sync_room_types WHERE sync_property_id = $1
+    `, [syncPropertyId]);
+    
+    // Add more columns to bookable_units
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS full_description TEXT');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bedrooms INTEGER');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS beds INTEGER');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS bathrooms DECIMAL(3,1)');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS size_sqm INTEGER');
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS amenities JSONB');
+    
+    let roomsCreated = 0;
+    let roomsUpdated = 0;
+    const roomIdMap = {}; // Map sync room external_id to GAS room id
+    
+    for (const room of syncRooms.rows) {
+      const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
+      
+      // Check if room exists
+      const existingRoom = await pool.query(`
+        SELECT id FROM bookable_units 
+        WHERE property_id = $1 AND (beds24_room_id = $2 OR cm_room_id = $2)
+      `, [gasPropertyId, room.external_id]);
+      
+      let gasRoomId;
+      
+      if (existingRoom.rows.length > 0) {
+        gasRoomId = existingRoom.rows[0].id;
+        // Update existing room with all fields
+        await pool.query(`
+          UPDATE bookable_units SET
+            name = $1,
+            max_guests = COALESCE($2, max_guests),
+            base_price = COALESCE($3, base_price),
+            short_description = COALESCE($4, short_description),
+            full_description = COALESCE($5, full_description),
+            bedrooms = COALESCE($6, bedrooms),
+            beds = COALESCE($7, beds),
+            bathrooms = COALESCE($8, bathrooms),
+            size_sqm = COALESCE($9, size_sqm),
+            amenities = COALESCE($10, amenities),
+            updated_at = NOW()
+          WHERE id = $11
+        `, [
+          room.name,
+          room.max_guests,
+          room.base_price,
+          room.description,
+          roomRawData.fullDescription || roomRawData.description,
+          room.bedrooms || roomRawData.bedrooms,
+          room.beds || roomRawData.beds,
+          room.bathrooms || roomRawData.bathrooms,
+          room.size_value || roomRawData.size,
+          room.amenities ? JSON.stringify(room.amenities) : null,
+          gasRoomId
+        ]);
+        roomsUpdated++;
+      } else {
+        // Create new room with all fields
+        const roomResult = await pool.query(`
+          INSERT INTO bookable_units (
+            property_id, beds24_room_id, cm_room_id, name,
+            max_guests, base_price, short_description, full_description,
+            bedrooms, beds, bathrooms, size_sqm, amenities,
+            status, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'available', NOW())
+          RETURNING id
+        `, [
+          gasPropertyId,
+          room.external_id,
+          room.external_id,
+          room.name,
+          room.max_guests || 2,
+          room.base_price || 100,
+          room.description || '',
+          roomRawData.fullDescription || roomRawData.description || '',
+          room.bedrooms || roomRawData.bedrooms || 1,
+          room.beds || roomRawData.beds || 1,
+          room.bathrooms || roomRawData.bathrooms || 1,
+          room.size_value || roomRawData.size,
+          room.amenities ? JSON.stringify(room.amenities) : null
+        ]);
+        gasRoomId = roomResult.rows[0].id;
+        roomsCreated++;
+      }
+      
+      roomIdMap[room.external_id] = gasRoomId;
+      
+      // Also update the sync room with gas_room_id
+      await pool.query('ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS gas_room_id INTEGER');
+      await pool.query('UPDATE gas_sync_room_types SET gas_room_id = $1 WHERE id = $2', [gasRoomId, room.id]);
+    }
+    
+    // 4. Sync images to room_images
+    const syncImages = await pool.query(`
+      SELECT * FROM gas_sync_images WHERE sync_property_id = $1
+    `, [syncPropertyId]);
+    
+    let imagesCreated = 0;
+    
+    for (const img of syncImages.rows) {
+      // Find the GAS room ID for this image
+      const gasRoomId = roomIdMap[img.room_type_external_id];
+      
+      if (!gasRoomId) {
+        console.log(`Skipping image ${img.external_id} - no matching room for ${img.room_type_external_id}`);
+        continue;
+      }
+      
+      // Check if image already exists
+      const existingImg = await pool.query(`
+        SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2
+      `, [gasRoomId, img.original_url]);
+      
+      if (existingImg.rows.length === 0) {
+        await pool.query(`
+          INSERT INTO room_images (
+            room_id, image_key, image_url, thumbnail_url,
+            caption, display_order, upload_source, is_active, created_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'gas_sync', true, NOW())
+        `, [
+          gasRoomId,
+          img.external_id,
+          img.original_url,
+          img.thumbnail_url || img.original_url,
+          img.caption || '',
+          img.sort_order || 0
+        ]);
+        imagesCreated++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      message: 'Property linked to GAS',
+      gasPropertyId,
+      stats: {
+        roomsCreated,
+        roomsUpdated,
+        imagesCreated,
+        totalRooms: syncRooms.rows.length,
+        totalImages: syncImages.rows.length
+      }
+    });
+  } catch (error) {
+    console.error('Link to GAS error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
