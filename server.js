@@ -26038,7 +26038,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
     const newProp = await pool.query(`
       INSERT INTO properties (
         account_id, name, description, property_type,
-        street_address, city, state, country, postal_code,
+        address, city, state, country, postcode,
         latitude, longitude, timezone, currency,
         check_in_time, check_out_time, status
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active')
@@ -26073,21 +26073,20 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
     
     for (const rt of roomTypes.rows) {
       const newRoom = await pool.query(`
-        INSERT INTO rooms (
-          property_id, name, description, max_guests,
-          bedrooms, beds, bathrooms, base_price, currency
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        INSERT INTO bookable_units (
+          property_id, name, short_description, max_guests,
+          base_price, display_name, full_description, feature_codes
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
         RETURNING id
       `, [
         gasPropertyId,
         rt.name,
         rt.description,
-        rt.max_guests,
-        rt.bedrooms,
-        rt.beds,
-        rt.bathrooms,
+        rt.max_guests || 2,
         rt.base_price,
-        rt.currency
+        rt.display_name || rt.name,
+        rt.full_description || '',
+        rt.feature_codes || ''
       ]);
       
       await pool.query(`
