@@ -26035,19 +26035,29 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
     
     const sp = syncProp.rows[0];
     
+    // Wrap description in JSON if it's a plain string
+    let descriptionJson = null;
+    if (sp.description) {
+      if (typeof sp.description === 'string') {
+        descriptionJson = JSON.stringify({ en: sp.description });
+      } else {
+        descriptionJson = JSON.stringify(sp.description);
+      }
+    }
+    
     const newProp = await pool.query(`
       INSERT INTO properties (
         account_id, name, description, property_type,
         address, city, state, country, postcode,
         latitude, longitude, timezone, currency,
-        check_in_time, check_out_time, status
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active')
+        check_in_time, check_out_time, status, beds24_property_id
+      ) VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active', $16)
       RETURNING id
     `, [
       account_id,
       sp.name,
-      sp.description,
-      sp.property_type || 'vacation_rental',
+      descriptionJson,
+      sp.property_type || 'hotel',
       sp.street,
       sp.city,
       sp.state,
@@ -26058,7 +26068,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
       sp.timezone || 'UTC',
       sp.currency || 'GBP',
       sp.check_in_time || '15:00',
-      sp.check_out_time || '11:00'
+      sp.check_out_time || '11:00',
+      sp.external_id
     ]);
     
     const gasPropertyId = newProp.rows[0].id;
