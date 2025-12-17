@@ -1591,13 +1591,48 @@ app.get('/api/gas-sync/debug/gas-room-data', async (req, res) => {
     const { propertyId } = req.query;
     
     const result = await pool.query(`
-      SELECT id, name, display_name, short_description, full_description, cm_room_id
+      SELECT id, name, display_name, short_description, full_description, cm_room_id, beds24_room_id
       FROM bookable_units
       WHERE property_id = $1
       LIMIT 5
     `, [propertyId]);
     
     res.json({ success: true, rooms: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to see relationship between individual rooms and room types
+app.get('/api/gas-sync/debug/room-mapping', async (req, res) => {
+  try {
+    const { propertyId } = req.query;
+    
+    // Get GAS rooms (individual)
+    const gasRooms = await pool.query(`
+      SELECT id, name, cm_room_id, beds24_room_id 
+      FROM bookable_units 
+      WHERE property_id = $1
+    `, [propertyId]);
+    
+    // Get sync room types
+    const syncRoomTypes = await pool.query(`
+      SELECT rt.id, rt.external_id, rt.name, 
+             rt.raw_data->>'texts' as texts_json
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      WHERE sp.gas_property_id = $1
+    `, [propertyId]);
+    
+    res.json({ 
+      success: true, 
+      gasRooms: gasRooms.rows,
+      syncRoomTypes: syncRoomTypes.rows.map(r => ({
+        id: r.id,
+        external_id: r.external_id,
+        name: r.name
+      }))
+    });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -2095,9 +2130,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
               created_at TIMESTAMP DEFAULT NOW()
             )
           `).catch(() => {});
-          
-          // Add amenity_id column if it doesn't exist (for older tables)
-          await pool.query('ALTER TABLE bookable_unit_amenities ADD COLUMN IF NOT EXISTS amenity_id INTEGER').catch(() => {});
           
           for (const code of codes) {
             // Try to find matching master amenity by beds24_code or amenity_code
@@ -6006,9 +6038,6 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
-    
-    // Ensure bookable_unit_amenities has amenity_id column
-    await pool.query(`ALTER TABLE bookable_unit_amenities ADD COLUMN IF NOT EXISTS amenity_id INTEGER`).catch(() => {});
     
     // Add group booking column
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS group_booking_id VARCHAR(50)`);
@@ -25859,8 +25888,9 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
   try {
     const { propertyId } = req.params;
     
+    // Fetch property with prop_key AND connection credentials
     const propResult = await pool.query(`
-      SELECT p.connection_id, p.external_id, c.adapter_code
+      SELECT p.connection_id, p.external_id, p.prop_key, c.adapter_code, c.credentials
       FROM gas_sync_properties p
       JOIN gas_sync_connections c ON p.connection_id = c.id
       WHERE p.id = $1
@@ -25870,7 +25900,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     
-    const { connection_id, external_id, adapter_code } = propResult.rows[0];
+    const { connection_id, external_id, prop_key, adapter_code, credentials } = propResult.rows[0];
     
     if (adapter_code !== 'beds24') {
       return res.status(400).json({ 
@@ -25879,7 +25909,33 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       });
     }
     
-    const adapter = await syncManager.getAdapterForConnection(connection_id);
+    // Check we have the required V1 credentials
+    if (!prop_key) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Property prop_key not set. Set it via /api/gas-sync/properties/:id/set-prop-key' 
+      });
+    }
+    
+    const creds = typeof credentials === 'string' ? JSON.parse(credentials) : credentials;
+    if (!creds?.apiKey) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Connection apiKey not set. Update connection credentials to include V1 API key.' 
+      });
+    }
+    
+    // Create Beds24Adapter with property-specific propKey
+    const { Beds24Adapter } = require('./gas-sync/adapters/beds24-adapter');
+    const adapter = new Beds24Adapter({
+      token: creds.token,
+      refreshToken: creds.refreshToken,
+      apiKey: creds.apiKey,
+      propKey: prop_key,
+      pool: pool,
+      connectionId: connection_id
+    });
+    
     const imagesResult = await adapter.getImages(external_id);
     
     if (!imagesResult.success) {
@@ -25891,13 +25947,14 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       await pool.query(`
         INSERT INTO gas_sync_images (
           connection_id, sync_property_id, external_id, original_url, thumbnail_url,
-          caption, sort_order, image_type, width, height, synced_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+          caption, sort_order, image_type, room_type_external_id, width, height, synced_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
         ON CONFLICT (connection_id, external_id) DO UPDATE SET
           original_url = EXCLUDED.original_url,
           thumbnail_url = EXCLUDED.thumbnail_url,
           caption = EXCLUDED.caption,
           sort_order = EXCLUDED.sort_order,
+          room_type_external_id = EXCLUDED.room_type_external_id,
           synced_at = NOW()
       `, [
         connection_id,
@@ -25908,6 +25965,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
         image.caption,
         image.sortOrder,
         image.imageType,
+        image.roomId,
         image.width,
         image.height
       ]);
