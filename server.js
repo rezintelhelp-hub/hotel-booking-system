@@ -555,6 +555,35 @@ async function runMigrations() {
       console.log('ℹ️  Constraint check:', constraintError.message);
     }
     
+    // Fix: Ensure gas_sync_logs table exists (required by SyncManager)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS gas_sync_logs (
+          id SERIAL PRIMARY KEY,
+          connection_id INTEGER,
+          sync_type VARCHAR(50),
+          status VARCHAR(50),
+          records_synced INTEGER DEFAULT 0,
+          error_message TEXT,
+          started_at TIMESTAMP DEFAULT NOW(),
+          completed_at TIMESTAMP,
+          duration_seconds NUMERIC
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_gas_sync_logs_connection ON gas_sync_logs(connection_id)`);
+      console.log('✅ gas_sync_logs table ensured');
+    } catch (logsTableError) {
+      console.log('ℹ️  gas_sync_logs:', logsTableError.message);
+    }
+    
+    // Fix: Ensure gas_sync_properties has prop_key column
+    try {
+      await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key TEXT`);
+      console.log('✅ gas_sync_properties.prop_key ensured');
+    } catch (propKeyError) {
+      console.log('ℹ️  prop_key column:', propKeyError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
