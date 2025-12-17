@@ -26038,7 +26038,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
     const { propertyId } = req.params;
     
     const propResult = await pool.query(`
-      SELECT p.connection_id, p.external_id, c.adapter_code
+      SELECT p.connection_id, p.external_id, p.prop_key, c.adapter_code
       FROM gas_sync_properties p
       JOIN gas_sync_connections c ON p.connection_id = c.id
       WHERE p.id = $1
@@ -26048,7 +26048,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     
-    const { connection_id, external_id, adapter_code } = propResult.rows[0];
+    const { connection_id, external_id, prop_key, adapter_code } = propResult.rows[0];
     
     if (adapter_code !== 'beds24') {
       return res.status(400).json({ 
@@ -26057,7 +26057,18 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       });
     }
     
+    if (!prop_key) {
+      return res.status(400).json({
+        success: false,
+        error: 'Property has no prop_key set. Use /set-prop-key first.'
+      });
+    }
+    
     const adapter = await syncManager.getAdapterForConnection(connection_id);
+    
+    // Set the property-specific propKey on the adapter
+    adapter.propKey = prop_key;
+    
     const imagesResult = await adapter.getImages(external_id);
     
     if (!imagesResult.success) {
