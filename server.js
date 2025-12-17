@@ -2268,11 +2268,21 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     
     const credentials = typeof conn.credentials === 'string' 
       ? JSON.parse(conn.credentials) 
-      : conn.credentials;
+      : (conn.credentials || {});
+    
+    // Get refresh token - check column first, then credentials JSON
+    const refreshToken = conn.refresh_token || credentials.refreshToken || credentials.refresh_token;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No refresh token found for this connection. Please reconnect.' 
+      });
+    }
     
     // Get fresh access token
     const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-      refreshToken: credentials.refreshToken
+      refreshToken: refreshToken
     });
     const accessToken = tokenResponse.data.token;
     
