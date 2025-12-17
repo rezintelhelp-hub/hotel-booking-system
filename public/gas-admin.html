@@ -14040,7 +14040,7 @@ Local honey and preserves"></textarea>
             if (viewMode === 'all') {
                 headers = '<th>Account</th><th>Agency</th><th>Properties</th><th>Status</th><th>Requested</th><th>Actions</th>';
             } else if (viewMode === 'requester') {
-                headers = '<th>Agency</th><th>Status</th><th>Requested</th><th>Actions</th>';
+                headers = '<th>Agency</th><th>Status</th><th>Requested</th><th>Response</th>';
             } else {
                 headers = '<th>Account</th><th>Properties</th><th>Status</th><th>Requested</th><th>Actions</th>';
             }
@@ -14081,14 +14081,8 @@ Local honey and preserves"></textarea>
                                                         <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')">✕</button>
                                                         <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;">🗑</button>
                                                     </div>
-                                                ` : req.status === 'approved' ? `
-                                                    <div style="display: flex; gap: 0.5rem;">
-                                                        <button class="btn btn-small" onclick="endManagement(${req.id}, ${req.requesting_account_id})" style="background: #ef4444;">
-                                                            ⛔ End
-                                                        </button>
-                                                    </div>
                                                 ` : `
-                                                    <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;">🗑</button>
+                                                    <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;">🗑 Delete</button>
                                                 `}
                                             </td>
                                         </tr>
@@ -14110,18 +14104,8 @@ Local honey and preserves"></textarea>
                                             </td>
                                             <td>${getRequestStatusBadge(req.status)}</td>
                                             <td>${new Date(req.requested_at).toLocaleDateString()}</td>
-                                            <td>
-                                                ${req.status === 'pending' ? `
-                                                    <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'cancelled')">
-                                                        ✕ Cancel
-                                                    </button>
-                                                ` : req.status === 'approved' ? `
-                                                    <button class="btn btn-small" onclick="endManagement(${req.id}, ${req.requesting_account_id})" style="background: #ef4444;">
-                                                        ⛔ Remove
-                                                    </button>
-                                                ` : `
-                                                    <span style="color: var(--text-secondary); font-size: 0.85rem;">${req.response_message || '-'}</span>
-                                                `}
+                                            <td style="color: var(--text-secondary); font-size: 0.85rem;">
+                                                ${req.response_message || '-'}
                                             </td>
                                         </tr>
                                     `;
@@ -14156,10 +14140,6 @@ Local honey and preserves"></textarea>
                                                             ✕ Decline
                                                         </button>
                                                     </div>
-                                                ` : req.status === 'approved' ? `
-                                                    <button class="btn btn-small" onclick="endManagement(${req.id}, ${req.requesting_account_id})" style="background: #ef4444;">
-                                                        ⛔ End Management
-                                                    </button>
                                                 ` : `
                                                     <span style="color: var(--text-secondary); font-size: 0.85rem;">
                                                         ${req.responded_at ? new Date(req.responded_at).toLocaleDateString() : '-'}
@@ -14226,32 +14206,6 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error deleting request:', error);
                 showNotification('Error deleting request', 'error');
-            }
-        }
-        
-        async function endManagement(requestId, accountId) {
-            if (!confirm('Are you sure you want to end this management relationship? The account will become self-managed.')) {
-                return;
-            }
-            
-            try {
-                // Remove managed_by_id from the account (this also cancels the request)
-                const response = await fetch(`/api/accounts/${accountId}/remove-management`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Management ended successfully', 'success');
-                    loadManagementRequests(); // Refresh
-                } else {
-                    showNotification(data.error || 'Error ending management', 'error');
-                }
-            } catch (error) {
-                console.error('Error ending management:', error);
-                showNotification('Error ending management', 'error');
             }
         }
         
@@ -14912,21 +14866,21 @@ Local honey and preserves"></textarea>
                     <div class="modal active" id="assignAgencyModal">
                         <div class="modal-content" style="max-width: 450px;">
                             <div class="modal-header">
-                                <h3 class="modal-title">🏢 Request Agency Management</h3>
+                                <h3 class="modal-title">🏢 Assign Agency</h3>
                                 <button class="modal-close" onclick="closeModal('assignAgencyModal')">&times;</button>
                             </div>
                             <div style="padding: 0.5rem 0;">
-                                <p style="margin-bottom: 1rem;">Request an agency to manage <strong>${accountName}</strong>:</p>
+                                <p style="margin-bottom: 1rem;">Assign an agency to manage <strong>${accountName}</strong>:</p>
                                 <select id="agencySelectModal" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
                                     <option value="">Select agency...</option>
                                     ${options}
                                 </select>
-                                <div style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-radius: 6px; font-size: 0.85rem; color: #92400e;">
-                                    ⏳ The agency must approve this request before they can manage this account.
+                                <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
+                                    ℹ️ The agency will be able to view and manage this account's properties and bookings.
                                 </div>
                                 <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
                                     <button class="btn btn-secondary" onclick="closeModal('assignAgencyModal')" style="flex: 1;">Cancel</button>
-                                    <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">📤 Send Request</button>
+                                    <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">Assign</button>
                                 </div>
                             </div>
                         </div>
@@ -14949,21 +14903,16 @@ Local honey and preserves"></textarea>
             }
             
             try {
-                // Create a management request instead of auto-assigning
-                const response = await fetch('/api/management-requests', {
+                const response = await fetch(`/api/admin/accounts/${accountId}/assign-agency`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({
-                        requesting_account_id: accountId,
-                        agency_id: parseInt(agencyId),
-                        message: 'Requested via Admin'
-                    })
+                    body: JSON.stringify({ agency_id: parseInt(agencyId) })
                 });
                 const result = await response.json();
                 
                 if (result.success) {
                     closeModal('assignAgencyModal');
-                    showNotification('Management request sent - awaiting agency approval', 'success');
+                    showNotification('Agency assigned successfully', 'success');
                     loadAccounts();
                 } else {
                     alert('Error: ' + result.error);
@@ -15162,7 +15111,7 @@ Local honey and preserves"></textarea>
                                         <div style="font-size: 0.85rem; color: var(--text-secondary);">No agency assigned</div>
                                     </div>
                                     <button type="button" class="btn" onclick="assignAgencyFromModal(${account.id}, '${(account.name || '').replace(/'/g, '')}')">
-                                        📤 Request Agency
+                                        + Assign Agency
                                     </button>
                                 </div>
                             `;
@@ -28129,14 +28078,15 @@ Local honey and preserves"></textarea>
             
             if (code === 'beds24') {
                 fieldsHtml = `
-                    <div class="form-group"><label>API Token (V2)</label>
-                        <input type="password" id="credToken" placeholder="Enter your Beds24 API token" required>
-                        <div class="help-text">Get this from Beds24 → Settings → API</div></div>
+                    <div class="form-group"><label>Invite Code</label>
+                        <input type="text" id="credToken" placeholder="Enter Beds24 invite code" required>
+                        <div class="help-text">Generate at: Beds24 → Settings → Account Access → Invite Codes → Create</div></div>
                     <div class="form-group"><label>API Key (V1 - for images)</label>
                         <input type="password" id="credApiKey" placeholder="Optional: V1 API key for image sync">
-                        <div class="help-text">Optional: Enables image download</div></div>
+                        <div class="help-text">Beds24 → Settings → Account Access → API - enables full image URLs</div></div>
                     <div class="form-group"><label>Property Key (V1)</label>
-                        <input type="text" id="credPropKey" placeholder="Optional: V1 property key"></div>
+                        <input type="text" id="credPropKey" placeholder="Optional: V1 property key">
+                        <div class="help-text">Leave blank to sync all properties in the account</div></div>
                 `;
             } else if (code === 'calry') {
                 fieldsHtml = `
@@ -28383,23 +28333,65 @@ Local honey and preserves"></textarea>
         }
 
         async function importSyncedProperty(syncPropertyId) {
-            const accountId = selectedAccountId || currentAccount.id;
+            // Show account selection modal for linking
+            const accountsRes = await fetch('/api/admin/accounts', { headers: authHeaders() });
+            const accountsData = await accountsRes.json();
+            const accounts = accountsData.accounts || [];
+            
+            const modal = document.createElement('div');
+            modal.className = 'modal';
+            modal.id = 'linkPropertyModal';
+            modal.style.display = 'flex';
+            modal.innerHTML = `
+                <div class="modal-content" style="max-width: 400px; border-radius: 12px;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 12px 12px 0 0; padding: 1rem;">
+                        <h3 style="margin: 0;">🔗 Link Property to GAS Account</h3>
+                    </div>
+                    <div style="padding: 1.5rem;">
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="display: block; margin-bottom: 0.5rem; font-weight: 500;">Select Account</label>
+                            <select id="linkAccountSelect" class="form-control" style="width: 100%; padding: 0.75rem; border-radius: 8px;">
+                                ${accounts.map(a => `<option value="${a.id}">${a.name}${a.business_name ? ' (' + a.business_name + ')' : ''}</option>`).join('')}
+                            </select>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem;">
+                                <input type="checkbox" id="linkSkipImages">
+                                Skip images (faster import)
+                            </label>
+                        </div>
+                        <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('linkPropertyModal').remove()">Cancel</button>
+                            <button class="btn btn-primary" onclick="executeLinkToGas(${syncPropertyId})">🚀 Import</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+        }
+        
+        async function executeLinkToGas(syncPropertyId) {
+            const accountId = document.getElementById('linkAccountSelect').value;
+            const skipImages = document.getElementById('linkSkipImages').checked;
+            
+            document.getElementById('linkPropertyModal').remove();
+            
             try {
-                showNotification('Importing property...', 'info');
-                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/import`, {
+                showNotification('Importing property with rooms and images...', 'info');
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/link-to-gas`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ account_id: accountId })
+                    body: JSON.stringify({ accountId: parseInt(accountId), skipImages })
                 });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification(data.message, 'success');
+                    showNotification(`✅ Property imported! ${data.roomCount || 0} rooms, ${data.imageCount || 0} images`, 'success');
                     loadConnectionPropertiesTab();
                 } else {
                     showNotification(data.error || 'Import failed', 'error');
                 }
             } catch (error) {
-                showNotification('Failed to import property', 'error');
+                showNotification('Failed to import property: ' + error.message, 'error');
             }
         }
 
