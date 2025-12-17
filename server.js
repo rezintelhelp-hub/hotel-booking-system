@@ -26174,7 +26174,7 @@ app.post('/api/gas-sync/cron/sync', async (req, res) => {
 
 // Serve the wizard HTML page
 app.get('/beds24-wizard', (req, res) => {
-  res.sendFile(path.join(__dirname, 'beds24-wizard.html'));
+  res.sendFile(path.join(__dirname, 'public', 'beds24-wizard.html'));
 });
 
 // Step 1: Test API key and fetch properties
