@@ -993,7 +993,7 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        inviteCode: wizardData.inviteCode,
+                        token: wizardData.v2Token,
                         propId: wizardData.selectedProperty.id,
                         propCode: wizardData.propCode
                     })
