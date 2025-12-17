@@ -4310,6 +4310,55 @@ app.put('/api/accounts/:id', async (req, res) => {
   }
 });
 
+// Delete account and all related data
+app.delete('/api/accounts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`Deleting account ${id} and all related data...`);
+    
+    // Get all properties for this account
+    const props = await pool.query('SELECT id FROM properties WHERE account_id = $1', [id]);
+    const propIds = props.rows.map(p => p.id);
+    
+    if (propIds.length > 0) {
+      // Get all rooms for these properties
+      const rooms = await pool.query('SELECT id FROM bookable_units WHERE property_id = ANY($1)', [propIds]);
+      const roomIds = rooms.rows.map(r => r.id);
+      
+      if (roomIds.length > 0) {
+        // Delete room-related data
+        await pool.query('DELETE FROM room_images WHERE room_id = ANY($1)', [roomIds]);
+        await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = ANY($1)', [roomIds]);
+        await pool.query('DELETE FROM bookable_units WHERE id = ANY($1)', [roomIds]);
+      }
+      
+      // Delete property-related data
+      await pool.query('DELETE FROM property_images WHERE property_id = ANY($1)', [propIds]);
+      await pool.query('DELETE FROM property_amenity_selections WHERE property_id = ANY($1)', [propIds]).catch(() => {});
+      await pool.query('DELETE FROM reservations WHERE property_id = ANY($1)', [propIds]).catch(() => {});
+      await pool.query('DELETE FROM properties WHERE id = ANY($1)', [propIds]);
+    }
+    
+    // Delete account-related data
+    await pool.query('DELETE FROM gas_sync_connections WHERE account_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM management_requests WHERE requester_account_id = $1 OR target_account_id = $1', [id]).catch(() => {});
+    
+    // Delete the account
+    const result = await pool.query('DELETE FROM accounts WHERE id = $1 RETURNING id, name', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    
+    console.log(`Account ${id} (${result.rows[0].name}) deleted successfully`);
+    res.json({ success: true, message: `Account ${result.rows[0].name} deleted`, deletedProperties: propIds.length });
+  } catch (error) {
+    console.error('Delete account error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // STRIPE CONNECT INTEGRATION
 // =====================================================
@@ -26171,6 +26220,49 @@ app.post('/api/gas-sync/cron/sync', async (req, res) => {
 // =====================================================
 // BEDS24 WIZARD - Clean import process
 // =====================================================
+
+// Delete a property and ALL related data (for testing/cleanup)
+app.delete('/api/admin/properties/:id/full-delete', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    console.log(`Full delete of property ${id} starting...`);
+    
+    // Get room IDs first
+    const rooms = await pool.query('SELECT id FROM bookable_units WHERE property_id = $1', [id]);
+    const roomIds = rooms.rows.map(r => r.id);
+    
+    if (roomIds.length > 0) {
+      // Delete room-related data
+      await pool.query('DELETE FROM room_images WHERE room_id = ANY($1)', [roomIds]);
+      await pool.query('DELETE FROM bookable_unit_amenities WHERE bookable_unit_id = ANY($1)', [roomIds]);
+      await pool.query('DELETE FROM room_availability WHERE room_id = ANY($1)', [roomIds]).catch(() => {});
+      
+      // Delete rooms
+      await pool.query('DELETE FROM bookable_units WHERE property_id = $1', [id]);
+      console.log(`  Deleted ${roomIds.length} rooms`);
+    }
+    
+    // Delete property-related data
+    await pool.query('DELETE FROM property_images WHERE property_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM property_amenity_selections WHERE property_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM property_policies WHERE property_id = $1', [id]).catch(() => {});
+    await pool.query('DELETE FROM reservations WHERE property_id = $1', [id]).catch(() => {});
+    
+    // Unlink from gas_sync
+    await pool.query('UPDATE gas_sync_properties SET gas_property_id = NULL WHERE gas_property_id = $1', [id]).catch(() => {});
+    
+    // Delete the property
+    await pool.query('DELETE FROM properties WHERE id = $1', [id]);
+    
+    console.log(`  Property ${id} fully deleted`);
+    
+    res.json({ success: true, message: `Property ${id} and all related data deleted`, roomsDeleted: roomIds.length });
+  } catch (error) {
+    console.error('Full delete error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
 
 // Serve the wizard HTML page
 app.get('/beds24-wizard', (req, res) => {
