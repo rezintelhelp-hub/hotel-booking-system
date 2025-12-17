@@ -1585,6 +1585,24 @@ app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
   }
 });
 
+// Debug endpoint to check GAS room data after sync
+app.get('/api/gas-sync/debug/gas-room-data', async (req, res) => {
+  try {
+    const { propertyId } = req.query;
+    
+    const result = await pool.query(`
+      SELECT id, name, display_name, short_description, full_description, cm_room_id
+      FROM bookable_units
+      WHERE property_id = $1
+      LIMIT 5
+    `, [propertyId]);
+    
+    res.json({ success: true, rooms: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Link synced property to GAS system - creates property, rooms, and images
 app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res) => {
   try {
@@ -1894,6 +1912,12 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       // Beds24 texts is an OBJECT with nested language keys: texts.displayName.EN
       const texts = roomRawData.texts || {};
       
+      // Debug: log texts keys
+      console.log('link-to-gas: texts keys:', Object.keys(texts).filter(k => k !== 'offers').join(', '));
+      console.log('link-to-gas: texts.displayName:', JSON.stringify(texts.displayName));
+      console.log('link-to-gas: texts.roomDescription1:', JSON.stringify(texts.roomDescription1));
+      console.log('link-to-gas: texts.auxiliaryText:', JSON.stringify(texts.auxiliaryText));
+      
       // Helper to extract text from Beds24 format: {EN: "...", DE: "...", NL: "..."}
       function getText(val) {
         if (!val) return '';
@@ -1985,13 +2009,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
+            .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
+            .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId])
+            .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
         
         roomsUpdated++;
@@ -2030,13 +2057,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
+            .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
+            .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId])
+            .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
         
         roomsCreated++;
