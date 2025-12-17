@@ -14525,6 +14525,7 @@ Local honey and preserves"></textarea>
                                             <button class="btn btn-secondary btn-small" onclick="viewAccount(${account.id})">View</button>
                                             ${currentAccount && currentAccount.role === 'master_admin' ? `
                                                 <button class="btn btn-secondary btn-small" onclick="editAccount(${account.id})">Edit</button>
+                                                <button class="btn btn-secondary btn-small" onclick="deleteAccount(${account.id}, \`${account.name.replace(/`/g, "'")}\`)" style="color: #dc2626;">Delete</button>
                                             ` : ''}
                                         </div>
                                     </td>
@@ -15300,6 +15301,40 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 alert('Error removing agency');
+            }
+        }
+        
+        async function deleteAccount(accountId, accountName) {
+            if (!confirm(`⚠️ DELETE ACCOUNT "${accountName}"?\n\nThis will permanently delete:\n• The account\n• All properties\n• All rooms\n• All reservations\n• All related data\n\nThis action cannot be undone!`)) {
+                return;
+            }
+            
+            // Double confirm for safety
+            if (!confirm(`FINAL CONFIRMATION\n\nType "DELETE" in the next prompt to confirm deletion of "${accountName}".`)) {
+                return;
+            }
+            
+            const confirmText = prompt(`Type DELETE to confirm deletion of "${accountName}":`);
+            if (confirmText !== 'DELETE') {
+                showNotification('Deletion cancelled', 'info');
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/accounts/${accountId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Account "${accountName}" deleted successfully`, 'success');
+                    loadAccounts();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error deleting account: ' + error.message);
             }
         }
         
