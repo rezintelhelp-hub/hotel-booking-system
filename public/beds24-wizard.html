@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connect Beds24 - GAS Booking</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <title>Connect to Beds24 - GAS</title>
     <style>
         * {
             margin: 0;
@@ -13,59 +12,67 @@
         }
         
         body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
+            padding: 2rem;
         }
         
         .wizard-container {
+            max-width: 800px;
+            margin: 0 auto;
             background: white;
-            border-radius: 24px;
-            box-shadow: 0 25px 80px rgba(0,0,0,0.15);
-            max-width: 600px;
-            width: 100%;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
             overflow: hidden;
         }
         
         .wizard-header {
-            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-            padding: 40px;
-            text-align: center;
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
             color: white;
+            padding: 2rem;
+            text-align: center;
         }
         
         .wizard-header h1 {
             font-size: 1.75rem;
-            font-weight: 700;
-            margin-bottom: 8px;
+            margin-bottom: 0.5rem;
         }
         
         .wizard-header p {
             opacity: 0.9;
-            font-size: 1rem;
+            font-size: 0.95rem;
         }
         
-        .channel-logo {
-            width: 80px;
-            height: 80px;
-            background: white;
-            border-radius: 20px;
+        .steps-indicator {
             display: flex;
-            align-items: center;
             justify-content: center;
-            margin: 0 auto 20px;
-            font-weight: bold;
-            font-size: 0.9rem;
-            color: #7c3aed;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
         }
         
-        .wizard-body {
-            padding: 40px;
+        .step-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dee2e6;
+            margin: 0 0.5rem;
+            transition: all 0.3s;
+        }
+        
+        .step-dot.active {
+            background: #667eea;
+            transform: scale(1.3);
+        }
+        
+        .step-dot.completed {
+            background: #28a745;
+        }
+        
+        .wizard-content {
+            padding: 2rem;
+            min-height: 400px;
         }
         
         .step {
@@ -74,863 +81,696 @@
         
         .step.active {
             display: block;
+            animation: fadeIn 0.3s ease;
         }
         
-        .step-indicators {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 32px;
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
         }
         
-        .step-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #e2e8f0;
-            transition: all 0.3s;
-        }
-        
-        .step-dot.active {
-            background: #7c3aed;
-            transform: scale(1.2);
-        }
-        
-        .step-dot.completed {
-            background: #22c55e;
-        }
-        
-        .step-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 8px;
+        .step h2 {
+            color: #1e3a5f;
+            margin-bottom: 0.5rem;
+            font-size: 1.4rem;
         }
         
         .step-description {
-            color: #64748b;
-            margin-bottom: 24px;
-            line-height: 1.6;
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
         }
         
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 1.25rem;
         }
         
         .form-group label {
             display: block;
             font-weight: 600;
-            color: #374151;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+            color: #495057;
         }
         
-        .form-group input {
+        .form-group input, .form-group select {
             width: 100%;
-            padding: 14px 16px;
-            border: 2px solid #e5e7eb;
-            border-radius: 12px;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
             font-size: 1rem;
-            transition: all 0.2s;
+            transition: border-color 0.2s;
         }
         
-        .form-group input:focus {
+        .form-group input:focus, .form-group select:focus {
             outline: none;
-            border-color: #7c3aed;
-            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
+            border-color: #667eea;
         }
         
-        .help-text {
-            background: #f5f3ff;
-            border: 1px solid #c4b5fd;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 24px;
-            font-size: 0.9rem;
-            color: #5b21b6;
-        }
-        
-        .help-text a {
-            color: #7c3aed;
-            font-weight: 600;
+        .form-hint {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
         }
         
         .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 14px 28px;
-            border-radius: 12px;
-            font-weight: 600;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
             font-size: 1rem;
+            font-weight: 600;
             cursor: pointer;
             transition: all 0.2s;
-            border: none;
         }
         
         .btn-primary {
-            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            width: 100%;
         }
         
         .btn-primary:hover {
             transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
         }
         
         .btn-primary:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
-            box-shadow: none;
         }
         
         .btn-secondary {
-            background: #f1f5f9;
-            color: #475569;
+            background: #e9ecef;
+            color: #495057;
         }
         
         .btn-secondary:hover {
-            background: #e2e8f0;
+            background: #dee2e6;
         }
         
-        .error-message {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #dc2626;
-            padding: 14px 16px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            display: none;
-        }
-        
-        .success-message {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            color: #16a34a;
-            padding: 14px 16px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            display: none;
-        }
-        
-        .property-list {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 2px solid #e5e7eb;
-            border-radius: 16px;
-            margin-bottom: 24px;
-        }
-        
-        .property-item {
+        .wizard-footer {
             display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 16px 20px;
-            border-bottom: 1px solid #f1f5f9;
+            justify-content: space-between;
+            padding: 1.5rem 2rem;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .property-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
             cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .property-item:last-child {
-            border-bottom: none;
-        }
-        
-        .property-item:hover {
-            background: #f8fafc;
-        }
-        
-        .property-item.selected {
-            background: #f5f3ff;
-            border-color: #c4b5fd;
-        }
-        
-        .property-checkbox {
-            width: 22px;
-            height: 22px;
-            border: 2px solid #d1d5db;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
             transition: all 0.2s;
         }
         
-        .property-item.selected .property-checkbox {
-            background: #7c3aed;
-            border-color: #7c3aed;
+        .property-card:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
         }
         
-        .property-checkbox svg {
-            width: 14px;
-            height: 14px;
-            stroke: white;
-            stroke-width: 3;
-            opacity: 0;
-            transition: opacity 0.2s;
+        .property-card.selected {
+            border-color: #667eea;
+            background: #f0f3ff;
         }
         
-        .property-item.selected .property-checkbox svg {
-            opacity: 1;
+        .property-card h3 {
+            color: #1e3a5f;
+            margin-bottom: 0.25rem;
         }
         
-        .property-info {
-            flex: 1;
-            min-width: 0;
+        .property-card .meta {
+            color: #6c757d;
+            font-size: 0.9rem;
         }
         
-        .property-name {
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
+        .property-card .room-count {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
         }
         
-        .property-details {
-            font-size: 0.85rem;
-            color: #64748b;
-        }
-        
-        .selection-controls {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        
-        .selection-controls button {
-            padding: 8px 16px;
-            font-size: 0.85rem;
-            background: #f1f5f9;
-            border: none;
+        .room-type-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
             border-radius: 8px;
-            color: #475569;
-            cursor: pointer;
-            transition: background 0.2s;
         }
         
-        .selection-controls button:hover {
-            background: #e2e8f0;
+        .room-type-item {
+            padding: 1rem;
+            border-bottom: 1px solid #e9ecef;
         }
         
-        .progress-container {
-            margin-bottom: 32px;
+        .room-type-item:last-child {
+            border-bottom: none;
         }
         
-        .progress-bar {
-            height: 12px;
-            background: #e5e7eb;
-            border-radius: 100px;
-            overflow: hidden;
-            margin-bottom: 12px;
+        .room-type-item h4 {
+            color: #1e3a5f;
+            margin-bottom: 0.25rem;
         }
         
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-            border-radius: 100px;
-            transition: width 0.3s ease;
-            width: 0%;
+        .room-type-item .description {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
         }
         
-        .progress-text {
+        .room-type-item .badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+        }
+        
+        .loading {
             text-align: center;
-            color: #64748b;
-            font-size: 0.9rem;
-        }
-        
-        .completion-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 24px;
-        }
-        
-        .completion-icon svg {
-            width: 40px;
-            height: 40px;
-            stroke: white;
-            stroke-width: 3;
-        }
-        
-        .completion-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #1e293b;
-            text-align: center;
-            margin-bottom: 8px;
-        }
-        
-        .completion-description {
-            color: #64748b;
-            text-align: center;
-            margin-bottom: 32px;
-        }
-        
-        .back-link {
-            display: block;
-            text-align: center;
-            margin-top: 20px;
-            color: #64748b;
-            text-decoration: none;
-            font-size: 0.9rem;
-        }
-        
-        .back-link:hover {
-            color: #7c3aed;
+            padding: 3rem;
         }
         
         .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: white;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e9ecef;
+            border-top-color: #667eea;
             border-radius: 50%;
-            animation: spin 0.8s linear infinite;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
         }
         
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
         
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
+        .success-screen {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .success-screen .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        .success-screen h2 {
+            color: #28a745;
+            margin-bottom: 0.5rem;
+        }
+        
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+        
+        .summary-table th, .summary-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .summary-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .help-link {
+            display: inline-block;
+            color: #667eea;
+            text-decoration: none;
+            font-size: 0.85rem;
+            margin-top: 0.5rem;
+        }
+        
+        .help-link:hover {
+            text-decoration: underline;
+        }
+        
+        .checkbox-group {
             display: flex;
             align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            display: none;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
         }
         
-        .loading-card {
-            background: white;
-            padding: 40px;
-            border-radius: 16px;
-            text-align: center;
-        }
-        
-        .loading-spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid #e5e7eb;
-            border-top-color: #7c3aed;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px;
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
         }
     </style>
 </head>
 <body>
     <div class="wizard-container">
         <div class="wizard-header">
-            <div class="channel-logo">Beds24</div>
-            <h1>Connect Beds24</h1>
-            <p>Import your properties from Beds24</p>
+            <h1>🏨 Connect to Beds24</h1>
+            <p>Import your properties from Beds24 channel manager</p>
         </div>
         
-        <div class="wizard-body">
-            <div class="step-indicators">
-                <div class="step-dot active" data-step="1"></div>
-                <div class="step-dot" data-step="2"></div>
-                <div class="step-dot" data-step="3"></div>
-                <div class="step-dot" data-step="4"></div>
-            </div>
-            
-            <!-- Step 1: Enter Invite Code -->
+        <div class="steps-indicator">
+            <div class="step-dot active" data-step="1"></div>
+            <div class="step-dot" data-step="2"></div>
+            <div class="step-dot" data-step="3"></div>
+            <div class="step-dot" data-step="4"></div>
+        </div>
+        
+        <div class="wizard-content">
+            <!-- Step 1: API Credentials -->
             <div class="step active" id="step1">
-                <h2 class="step-title">Enter Your Invite Code</h2>
-                <p class="step-description">Connect your Beds24 account using an API invite code.</p>
+                <h2>Step 1: Enter Your Beds24 API Key</h2>
+                <p class="step-description">You can find your API key in Beds24 under Settings → Apps & Integrations → API</p>
                 
-                <div class="help-text">
-                    <strong>How to get your Invite Code:</strong><br>
-                    1. Log in to <a href="https://www.beds24.com" target="_blank">Beds24</a><br>
-                    2. Go to Settings → Apps & Integrations → API<br>
-                    3. Click "Create Invite Code"<br>
-                    4. Copy and paste the code below
-                </div>
-                
-                <div class="error-message" id="error1"></div>
-                <div class="success-message" id="success1"></div>
+                <div id="step1-error"></div>
                 
                 <div class="form-group">
-                    <label for="inviteCode">Beds24 Invite Code</label>
-                    <input type="text" id="inviteCode" placeholder="Enter your Beds24 invite code">
+                    <label for="apiKey">API Key (Invite Code)</label>
+                    <input type="text" id="apiKey" placeholder="Enter your Beds24 API key">
+                    <p class="form-hint">This is your account-level API key from Beds24</p>
                 </div>
                 
-                <button class="btn btn-primary" id="connectBtn" onclick="connectBeds24()">
-                    <span>Connect to Beds24</span>
-                </button>
-                
-                <a href="/gas-admin.html" class="back-link">← Back to Dashboard</a>
+                <a href="https://beds24.com/control2.php?pagetype=apiv2" target="_blank" class="help-link">
+                    📖 How to find your API key in Beds24
+                </a>
             </div>
             
-            <!-- Step 2: Select Properties -->
+            <!-- Step 2: Select Property -->
             <div class="step" id="step2">
-                <h2 class="step-title">Select Properties to Import</h2>
-                <p class="step-description">Choose which properties you want to import from Beds24.</p>
+                <h2>Step 2: Select Property</h2>
+                <p class="step-description">Choose which property you want to import to GAS</p>
                 
-                <div class="error-message" id="error2"></div>
-                
-                <div class="selection-controls">
-                    <button onclick="selectAll()">Select All</button>
-                    <button onclick="deselectAll()">Deselect All</button>
+                <div id="step2-error"></div>
+                <div id="properties-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Fetching your properties from Beds24...</p>
                 </div>
-                
-                <div class="property-list" id="propertyList">
-                    <!-- Properties will be loaded here -->
-                </div>
-                
-                <button class="btn btn-primary" id="importBtn" onclick="importProperties()" disabled>
-                    <span>Import Selected Properties</span>
-                </button>
-                
-                <a href="#" class="back-link" onclick="goToStep(1); return false;">← Back to Invite Code</a>
+                <div id="properties-list"></div>
             </div>
             
-            <!-- Step 3: Account Name & Import Progress / Complete -->
+            <!-- Step 3: Review Room Types -->
             <div class="step" id="step3">
-                <!-- Account Name Input -->
-                <div id="accountNameInput">
-                    <h2 class="step-title">Name Your Account</h2>
-                    <p class="step-description">Enter your company/account name. All selected properties will be imported under this account.</p>
-                    
-                    <div style="margin-bottom: 24px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #334155;">Account Name *</label>
-                        <input type="text" id="accountName" placeholder="e.g., Hostvana, Beach Rentals LLC" 
-                               style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
-                    </div>
-                    
-                    <div style="margin-bottom: 24px;">
-                        <label style="display: block; margin-bottom: 8px; font-weight: 600; color: #334155;">Account Email *</label>
-                        <input type="email" id="accountEmail" placeholder="your@email.com" 
-                               style="width: 100%; padding: 12px 16px; border: 2px solid #e2e8f0; border-radius: 8px; font-size: 1rem;">
-                        <p style="font-size: 0.8rem; color: #64748b; margin-top: 4px;">This email will be used to log in to GAS Admin</p>
-                    </div>
-                    
-                    <button class="btn btn-primary" onclick="startImport()">
-                        <span>Start Import →</span>
-                    </button>
-                </div>
+                <h2>Step 3: Review Room Types</h2>
+                <p class="step-description">These room types will be imported with their descriptions</p>
                 
-                <div id="importProgress" style="display: none;">
-                    <h2 class="step-title">Importing Properties</h2>
-                    <p class="step-description">Please wait while we import your properties...</p>
-                    
-                    <div class="progress-container">
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progressFill"></div>
-                        </div>
-                        <div class="progress-text" id="progressText">Preparing import...</div>
-                    </div>
+                <div id="step3-error"></div>
+                <div id="roomtypes-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Fetching room types...</p>
                 </div>
+                <div id="roomtypes-list"></div>
                 
-                <div id="importComplete" style="display: none;">
-                    <div class="completion-icon">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </div>
-                    <h2 class="completion-title">Import Complete!</h2>
-                    <p class="completion-description" id="completionText">Your properties have been imported successfully.</p>
-                    
-                    <button class="btn btn-primary" onclick="goToStep(4)">
-                        <span>Continue to Webhook Setup →</span>
-                    </button>
-                    
-                    <a href="/gas-admin.html" class="back-link">Skip and go to Dashboard</a>
+                <div class="checkbox-group">
+                    <input type="checkbox" id="importImages" checked>
+                    <label for="importImages">Import room images from Beds24</label>
                 </div>
             </div>
             
-            <!-- Step 4: Webhook Setup -->
+            <!-- Step 4: Complete -->
             <div class="step" id="step4">
-                <h2 class="step-title">🔔 Setup Real-time Sync</h2>
-                <p class="step-description">Get instant updates when guests book via Airbnb, Booking.com, etc.</p>
+                <h2>Step 4: Import to GAS</h2>
+                <p class="step-description">Review and confirm the import</p>
                 
-                <div class="help-text" style="background: #f0fdf4; border-color: #86efac; color: #166534;">
-                    <strong>Why set up webhooks?</strong><br>
-                    Without webhooks, bookings sync every 15 minutes. With webhooks, they sync in ~1 minute — reducing double-booking risk!
+                <div id="step4-error"></div>
+                <div id="import-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Importing property to GAS...</p>
                 </div>
                 
-                <div style="background: #f8fafc; border: 2px solid #e2e8f0; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-                    <p style="font-size: 0.85rem; color: #64748b; margin-bottom: 8px;"><strong>Your Webhook URL:</strong></p>
-                    <code id="webhookUrl" style="display: block; background: #1e293b; color: #22c55e; padding: 12px 16px; border-radius: 8px; font-size: 0.9rem; word-break: break-all;"></code>
-                    <button onclick="copyWebhookUrl()" class="btn btn-secondary" style="margin-top: 12px; width: auto; padding: 10px 20px;">
-                        📋 Copy URL
-                    </button>
-                </div>
-                
-                <div style="background: #eff6ff; border: 1px solid #93c5fd; border-radius: 12px; padding: 20px; margin-bottom: 24px;">
-                    <p style="font-size: 0.95rem; color: #1e40af; margin-bottom: 12px;"><strong>⚠️ Setup for EACH property in Beds24:</strong></p>
-                    <ol style="font-size: 0.9rem; color: #1e40af; margin: 0; padding-left: 1.25rem; line-height: 2;">
-                        <li>Log in to <a href="https://www.beds24.com" target="_blank" style="color: #3b82f6; font-weight: 600;">Beds24</a></li>
-                        <li>Go to <strong>Settings → Properties</strong></li>
-                        <li>Select your <strong>first property</strong></li>
-                        <li>Click the <strong>Access</strong> tab</li>
-                        <li>Find <strong>"Booking Webhooks"</strong> section</li>
-                        <li>Set <strong>Webhook Version</strong> to: <code style="background: white; padding: 2px 6px; border-radius: 4px;">2 - with personal data</code></li>
-                        <li>Paste the webhook URL above</li>
-                        <li>Leave "Custom Header" and "Additional Data" empty</li>
-                        <li>Click <strong>Save</strong></li>
-                        <li style="color: #10b981; font-weight: 600;">💡 Use the <strong>multi-select button</strong> (bottom right) to apply these settings to all your other properties at once!</li>
-                    </ol>
-                </div>
-                
-                <div style="background: #fefce8; border: 1px solid #fde047; border-radius: 12px; padding: 16px; margin-bottom: 24px;">
-                    <p style="font-size: 0.85rem; color: #854d0e; margin: 0;">
-                        <strong>💡 Don't worry:</strong> Even without webhooks, your bookings will still sync automatically every 15 minutes. Webhooks just make it faster!
-                    </p>
-                </div>
-                
-                <button class="btn btn-primary" onclick="window.location.href='/gas-admin.html'">
-                    <span>Done - Go to Dashboard</span>
-                </button>
+                <div id="import-summary"></div>
+                <div id="import-success" style="display: none;"></div>
             </div>
         </div>
-    </div>
-    
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-card">
-            <div class="loading-spinner"></div>
-            <p>Connecting to Beds24...</p>
+        
+        <div class="wizard-footer">
+            <button class="btn btn-secondary" id="prevBtn" onclick="prevStep()" style="visibility: hidden;">← Back</button>
+            <button class="btn btn-primary" id="nextBtn" onclick="nextStep()">Next →</button>
         </div>
     </div>
     
     <script>
-        let apiToken = '';
-        let refreshToken = '';
-        let properties = [];
-        let selectedProperties = [];
+        let currentStep = 1;
+        const totalSteps = 4;
         
-        // Get client ID from URL if present
+        // Wizard data
+        let wizardData = {
+            apiKey: '',
+            properties: [],
+            selectedProperty: null,
+            roomTypes: [],
+            importImages: true,
+            importResult: null
+        };
+        
+        // Get account ID from URL or use default
         const urlParams = new URLSearchParams(window.location.search);
-        const clientPublicId = urlParams.get('c');
+        const accountId = urlParams.get('account_id') || 1;
         
-        function showError(stepNum, message) {
-            const errorEl = document.getElementById('error' + stepNum);
-            errorEl.textContent = message;
-            errorEl.style.display = 'block';
-        }
-        
-        function hideError(stepNum) {
-            document.getElementById('error' + stepNum).style.display = 'none';
-        }
-        
-        function showSuccess(stepNum, message) {
-            const successEl = document.getElementById('success' + stepNum);
-            successEl.textContent = message;
-            successEl.style.display = 'block';
-        }
-        
-        function showLoading(show) {
-            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
-        }
-        
-        function goToStep(step) {
-            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-            document.getElementById('step' + step).classList.add('active');
-            
-            document.querySelectorAll('.step-dot').forEach((dot, i) => {
+        function updateStepIndicators() {
+            document.querySelectorAll('.step-dot').forEach((dot, index) => {
                 dot.classList.remove('active', 'completed');
-                if (i + 1 < step) dot.classList.add('completed');
-                if (i + 1 === step) dot.classList.add('active');
+                if (index + 1 === currentStep) {
+                    dot.classList.add('active');
+                } else if (index + 1 < currentStep) {
+                    dot.classList.add('completed');
+                }
             });
         }
         
-        async function connectBeds24() {
-            const inviteCode = document.getElementById('inviteCode').value.trim();
+        function showStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById(`step${step}`).classList.add('active');
             
-            if (!inviteCode) {
-                showError(1, 'Please enter your invite code');
-                return;
+            // Update buttons
+            document.getElementById('prevBtn').style.visibility = step === 1 ? 'hidden' : 'visible';
+            
+            if (step === 4 && wizardData.importResult) {
+                document.getElementById('nextBtn').textContent = 'Go to Dashboard';
+            } else if (step === 4) {
+                document.getElementById('nextBtn').textContent = 'Import Now 🚀';
+            } else {
+                document.getElementById('nextBtn').textContent = 'Next →';
             }
             
-            hideError(1);
-            showLoading(true);
+            updateStepIndicators();
+        }
+        
+        async function nextStep() {
+            // Validate current step
+            if (currentStep === 1) {
+                const apiKey = document.getElementById('apiKey').value.trim();
+                if (!apiKey) {
+                    showError('step1-error', 'Please enter your Beds24 API key');
+                    return;
+                }
+                wizardData.apiKey = apiKey;
+                
+                // Test connection and fetch properties
+                await fetchProperties();
+                
+            } else if (currentStep === 2) {
+                if (!wizardData.selectedProperty) {
+                    showError('step2-error', 'Please select a property');
+                    return;
+                }
+                
+                // Fetch room types for selected property
+                await fetchRoomTypes();
+                
+            } else if (currentStep === 3) {
+                wizardData.importImages = document.getElementById('importImages').checked;
+                showImportSummary();
+                currentStep++;
+                showStep(currentStep);
+                
+            } else if (currentStep === 4) {
+                if (wizardData.importResult) {
+                    // Go to dashboard
+                    window.location.href = `/gas-admin.html?property_id=${wizardData.importResult.gasPropertyId}`;
+                } else {
+                    // Do the import
+                    await doImport();
+                }
+            }
+        }
+        
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        }
+        
+        function showError(containerId, message) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = `<div class="alert alert-error">${message}</div>`;
+        }
+        
+        function clearError(containerId) {
+            document.getElementById(containerId).innerHTML = '';
+        }
+        
+        async function fetchProperties() {
+            clearError('step1-error');
+            document.getElementById('properties-loading').style.display = 'block';
+            document.getElementById('nextBtn').disabled = true;
             
             try {
-                const response = await fetch('/api/beds24/setup-connection', {
+                const response = await fetch('/api/beds24-wizard/properties', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ inviteCode, clientPublicId })
+                    body: JSON.stringify({ apiKey: wizardData.apiKey })
                 });
                 
                 const data = await response.json();
                 
                 if (!data.success) {
-                    throw new Error(data.error || 'Failed to connect');
+                    throw new Error(data.error || 'Failed to fetch properties');
                 }
                 
-                apiToken = data.token;
-                refreshToken = data.refreshToken;
-                
-                showSuccess(1, 'Connected to Beds24 successfully!');
-                
-                // Load properties
-                await loadProperties();
-                
-                setTimeout(() => {
-                    showLoading(false);
-                    goToStep(2);
-                }, 500);
+                wizardData.properties = data.properties;
+                renderProperties();
+                currentStep++;
+                showStep(currentStep);
                 
             } catch (error) {
-                showLoading(false);
-                showError(1, error.message || 'Failed to connect to Beds24');
+                showError('step1-error', `Connection failed: ${error.message}`);
+            } finally {
+                document.getElementById('properties-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
             }
         }
         
-        async function loadProperties() {
-            const response = await fetch('/api/beds24/list-properties', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ token: apiToken })
-            });
+        function renderProperties() {
+            const container = document.getElementById('properties-list');
             
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to load properties');
-            }
-            
-            properties = data.properties;
-            renderPropertyList();
-        }
-        
-        function renderPropertyList() {
-            const listEl = document.getElementById('propertyList');
-            
-            if (properties.length === 0) {
-                listEl.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No properties found in your Beds24 account.</div>';
+            if (wizardData.properties.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info">
+                        No properties found in your Beds24 account. Make sure you have at least one property set up.
+                    </div>
+                `;
                 return;
             }
             
-            listEl.innerHTML = properties.map(prop => `
-                <div class="property-item" data-id="${prop.propId}" onclick="toggleProperty(${prop.propId})">
-                    <div class="property-checkbox">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </div>
-                    <div class="property-info">
-                        <div class="property-name">${prop.name}</div>
-                        <div class="property-details">
-                            ${prop.city || ''} ${prop.country || ''}
-                            · ${(prop.rooms?.length || prop.roomTypes?.length || 0)} room${(prop.rooms?.length || prop.roomTypes?.length || 0) !== 1 ? 's' : ''}
-                        </div>
-                    </div>
+            container.innerHTML = wizardData.properties.map(prop => `
+                <div class="property-card" onclick="selectProperty(${prop.id})" data-id="${prop.id}">
+                    <h3>${prop.name || 'Unnamed Property'}</h3>
+                    <div class="meta">${prop.city || ''} ${prop.country || ''}</div>
+                    <span class="room-count">🛏️ ${prop.roomTypeCount || 0} room types</span>
                 </div>
             `).join('');
-            
-            updateImportButton();
         }
         
-        function toggleProperty(id) {
-            const item = document.querySelector(`.property-item[data-id="${id}"]`);
-            item.classList.toggle('selected');
+        function selectProperty(propId) {
+            wizardData.selectedProperty = wizardData.properties.find(p => p.id === propId);
             
-            if (item.classList.contains('selected')) {
-                selectedProperties.push(id);
-            } else {
-                selectedProperties = selectedProperties.filter(p => p !== id);
-            }
-            
-            updateImportButton();
-        }
-        
-        function selectAll() {
-            document.querySelectorAll('.property-item').forEach(item => {
-                item.classList.add('selected');
+            document.querySelectorAll('.property-card').forEach(card => {
+                card.classList.remove('selected');
             });
-            selectedProperties = properties.map(p => p.propId);
-            updateImportButton();
+            document.querySelector(`.property-card[data-id="${propId}"]`).classList.add('selected');
         }
         
-        function deselectAll() {
-            document.querySelectorAll('.property-item').forEach(item => {
-                item.classList.remove('selected');
-            });
-            selectedProperties = [];
-            updateImportButton();
-        }
-        
-        function updateImportButton() {
-            const btn = document.getElementById('importBtn');
-            const count = selectedProperties.length;
-            btn.disabled = count === 0;
-            btn.querySelector('span').textContent = count === 0 ? 'Select Properties to Import' : `Import ${count} Propert${count === 1 ? 'y' : 'ies'}`;
-        }
-        
-        // Initialize webhook URL
-        function initWebhookUrl() {
-            const urlEl = document.getElementById('webhookUrl');
-            if (urlEl) {
-                urlEl.textContent = window.location.origin + '/api/webhooks/beds24';
-            }
-        }
-        
-        // Call on page load
-        document.addEventListener('DOMContentLoaded', initWebhookUrl);
-        
-        function copyWebhookUrl() {
-            const url = window.location.origin + '/api/webhooks/beds24';
-            navigator.clipboard.writeText(url).then(() => {
-                const notification = document.createElement('div');
-                notification.textContent = '✅ Webhook URL copied!';
-                notification.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: #22c55e; color: white; padding: 12px 24px; border-radius: 8px; font-weight: 600; z-index: 9999; animation: fadeIn 0.2s;';
-                document.body.appendChild(notification);
-                setTimeout(() => notification.remove(), 2000);
-            });
-        }
-        
-        async function importProperties() {
-            goToStep(3);
-            // Show account name input first, import starts after startImport() is called
-        }
-        
-        async function startImport() {
-            const accountName = document.getElementById('accountName').value.trim();
-            const accountEmail = document.getElementById('accountEmail').value.trim();
+        async function fetchRoomTypes() {
+            clearError('step2-error');
+            document.getElementById('roomtypes-loading').style.display = 'block';
+            document.getElementById('nextBtn').disabled = true;
             
-            if (!accountName) {
-                alert('Please enter an account name');
-                return;
-            }
-            if (!accountEmail) {
-                alert('Please enter an email address');
-                return;
-            }
-            
-            // Hide account input, show progress
-            document.getElementById('accountNameInput').style.display = 'none';
-            document.getElementById('importProgress').style.display = 'block';
-            
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            
-            let imported = 0;
-            let failed = 0;
-            
-            for (let i = 0; i < selectedProperties.length; i++) {
-                const propId = selectedProperties[i];
-                const prop = properties.find(p => p.propId === propId);
+            try {
+                const response = await fetch('/api/beds24-wizard/room-types', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        apiKey: wizardData.apiKey,
+                        propId: wizardData.selectedProperty.id
+                    })
+                });
                 
-                progressText.textContent = `Importing "${prop.name}"...`;
+                const data = await response.json();
                 
-                try {
-                    const response = await fetch('/api/beds24/import-property', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ 
-                            token: apiToken, 
-                            propId,
-                            accountName,
-                            accountEmail
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        imported++;
-                    } else {
-                        failed++;
-                    }
-                } catch (error) {
-                    failed++;
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch room types');
                 }
                 
-                const progress = ((i + 1) / selectedProperties.length) * 100;
-                progressFill.style.width = progress + '%';
+                wizardData.roomTypes = data.roomTypes;
+                renderRoomTypes();
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step2-error', `Failed to fetch room types: ${error.message}`);
+            } finally {
+                document.getElementById('roomtypes-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function renderRoomTypes() {
+            const container = document.getElementById('roomtypes-list');
+            
+            if (wizardData.roomTypes.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info">
+                        No room types found for this property.
+                    </div>
+                `;
+                return;
             }
             
-            // Show completion
-            document.getElementById('importProgress').style.display = 'none';
-            document.getElementById('importComplete').style.display = 'block';
-            document.getElementById('completionText').textContent = `Successfully imported ${imported} propert${imported === 1 ? 'y' : 'ies'}${failed > 0 ? ` (${failed} failed)` : ''}.`;
-        }
-    </script>
-
-    <!-- Chat Widget -->
-    <style>
-        .chat-widget { position: fixed; bottom: 20px; right: 20px; z-index: 1000; }
-        .chat-widget-window { display: none; width: 340px; max-height: 420px; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); overflow: hidden; margin-bottom: 10px; flex-direction: column; }
-        .chat-widget-window.open { display: flex; }
-        .chat-widget-header { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
-        .chat-widget-header h4 { font-size: 0.95rem; font-weight: 600; margin: 0; }
-        .chat-widget-header p { font-size: 0.75rem; opacity: 0.9; margin: 0; }
-        .chat-widget-body { flex: 1; padding: 14px; overflow-y: auto; max-height: 260px; background: #f8fafc; }
-        .chat-widget-msg { margin-bottom: 10px; max-width: 85%; font-size: 0.85rem; line-height: 1.4; }
-        .chat-widget-msg.bot { background: white; border-radius: 12px 12px 12px 4px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .chat-widget-msg.user { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 12px 12px 4px 12px; padding: 10px 12px; margin-left: auto; }
-        .chat-widget-input { padding: 10px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; background: white; }
-        .chat-widget-input input { flex: 1; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 20px; font-size: 0.85rem; outline: none; }
-        .chat-widget-input input:focus { border-color: #6366f1; }
-        .chat-widget-input button { padding: 8px 14px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border: none; border-radius: 20px; font-size: 0.85rem; cursor: pointer; }
-        .chat-widget-toggle { width: 54px; height: 54px; border-radius: 50%; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border: none; font-size: 1.4rem; cursor: pointer; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); }
-        .chat-widget-toggle:hover { transform: scale(1.1); }
-        .chat-typing { display: flex; gap: 4px; padding: 10px 12px; background: white; border-radius: 12px; width: fit-content; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .chat-typing span { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; animation: typing 1.4s infinite ease-in-out; }
-        .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
-        .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typing { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
-        .chat-quick-btn { display: block; width: 100%; padding: 8px 10px; margin-top: 6px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; cursor: pointer; text-align: left; }
-        .chat-quick-btn:hover { border-color: #6366f1; background: #f8f7ff; }
-    </style>
-
-    <div class="chat-widget">
-        <div class="chat-widget-window" id="chatWindow">
-            <div class="chat-widget-header">
-                <span style="font-size: 1.2rem;">🤖</span>
-                <div><h4>GAS Assistant</h4><p>Here to help</p></div>
-            </div>
-            <div class="chat-widget-body" id="chatBody">
-                <div class="chat-widget-msg bot">
-                    👋 Need help with Beds24 setup?
-                    <button class="chat-quick-btn" onclick="sendQuick('Where do I find my Beds24 invite code?')">🔑 Where's my invite code?</button>
-                    <button class="chat-quick-btn" onclick="sendQuick('What gets imported from Beds24?')">📦 What gets imported?</button>
-                    <button class="chat-quick-btn" onclick="sendQuick('How do I setup the webhook?')">🔔 Webhook setup help</button>
-                    <button class="chat-quick-btn" onclick="sendQuick('I got an error connecting')">⚠️ Connection error help</button>
+            container.innerHTML = `
+                <div class="room-type-list">
+                    ${wizardData.roomTypes.map(rt => `
+                        <div class="room-type-item">
+                            <h4>${rt.displayName || rt.name}</h4>
+                            <div>
+                                ${rt.maxGuests ? `<span class="badge">👥 ${rt.maxGuests} guests</span>` : ''}
+                                ${rt.basePrice ? `<span class="badge">💰 ${rt.basePrice}</span>` : ''}
+                            </div>
+                            ${rt.shortDescription ? `<div class="description"><strong>Description:</strong> ${rt.shortDescription}</div>` : ''}
+                            ${rt.fullDescription ? `<div class="description"><strong>Details:</strong> ${rt.fullDescription}</div>` : ''}
+                        </div>
+                    `).join('')}
                 </div>
-            </div>
-            <div class="chat-widget-input">
-                <input type="text" id="chatInput" placeholder="Ask a question..." onkeypress="if(event.key==='Enter')sendChat()">
-                <button onclick="sendChat()">Send</button>
-            </div>
-        </div>
-        <button class="chat-widget-toggle" id="chatToggle" onclick="toggleChat()">💬</button>
-    </div>
-
-    <script>
-        let chatOpen = false, chatHistory = [], sending = false;
-        function toggleChat() { chatOpen = !chatOpen; document.getElementById('chatWindow').classList.toggle('open', chatOpen); document.getElementById('chatToggle').textContent = chatOpen ? '✕' : '💬'; }
-        function sendQuick(msg) { document.getElementById('chatInput').value = msg; sendChat(); }
-        async function sendChat() {
-            const input = document.getElementById('chatInput'), msg = input.value.trim();
-            if (!msg || sending) return;
-            sending = true; input.value = ''; addMsg(msg, 'user'); chatHistory.push({ role: 'user', content: msg });
-            const typing = document.createElement('div'); typing.className = 'chat-typing'; typing.id = 'typing'; typing.innerHTML = '<span></span><span></span><span></span>'; document.getElementById('chatBody').appendChild(typing); scrollChat();
-            try {
-                const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg, conversationHistory: chatHistory.slice(-10) }) });
-                const data = await res.json(); document.getElementById('typing')?.remove();
-                if (data.success) { addMsg(data.message, 'bot'); chatHistory.push({ role: 'assistant', content: data.message }); } 
-                else { addMsg(data.error || 'Sorry, something went wrong.', 'bot'); }
-            } catch (e) { document.getElementById('typing')?.remove(); addMsg('Connection error. Please try again.', 'bot'); }
-            sending = false;
+            `;
         }
-        function addMsg(text, type) { const body = document.getElementById('chatBody'), div = document.createElement('div'); div.className = 'chat-widget-msg ' + type; div.innerHTML = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #6366f1;">$1</a>'); body.appendChild(div); scrollChat(); }
-        function scrollChat() { const body = document.getElementById('chatBody'); body.scrollTop = body.scrollHeight; }
+        
+        function showImportSummary() {
+            const container = document.getElementById('import-summary');
+            const prop = wizardData.selectedProperty;
+            
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    Ready to import this property to GAS
+                </div>
+                
+                <table class="summary-table">
+                    <tr>
+                        <th>Property Name</th>
+                        <td>${prop.name || 'Unnamed'}</td>
+                    </tr>
+                    <tr>
+                        <th>Location</th>
+                        <td>${prop.city || ''} ${prop.country || ''}</td>
+                    </tr>
+                    <tr>
+                        <th>Room Types</th>
+                        <td>${wizardData.roomTypes.length}</td>
+                    </tr>
+                    <tr>
+                        <th>Import Images</th>
+                        <td>${wizardData.importImages ? 'Yes' : 'No'}</td>
+                    </tr>
+                    <tr>
+                        <th>GAS Account</th>
+                        <td>Account #${accountId}</td>
+                    </tr>
+                </table>
+            `;
+        }
+        
+        async function doImport() {
+            clearError('step4-error');
+            document.getElementById('import-loading').style.display = 'block';
+            document.getElementById('import-summary').style.display = 'none';
+            document.getElementById('nextBtn').disabled = true;
+            document.getElementById('prevBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/beds24-wizard/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        apiKey: wizardData.apiKey,
+                        propId: wizardData.selectedProperty.id,
+                        accountId: parseInt(accountId),
+                        importImages: wizardData.importImages,
+                        roomTypes: wizardData.roomTypes
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Import failed');
+                }
+                
+                wizardData.importResult = data;
+                showImportSuccess(data);
+                
+            } catch (error) {
+                showError('step4-error', `Import failed: ${error.message}`);
+                document.getElementById('import-summary').style.display = 'block';
+                document.getElementById('prevBtn').disabled = false;
+            } finally {
+                document.getElementById('import-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function showImportSuccess(result) {
+            const container = document.getElementById('import-success');
+            container.style.display = 'block';
+            
+            container.innerHTML = `
+                <div class="success-screen">
+                    <div class="icon">🎉</div>
+                    <h2>Import Successful!</h2>
+                    <p>Your property has been imported to GAS</p>
+                    
+                    <table class="summary-table">
+                        <tr>
+                            <th>GAS Property ID</th>
+                            <td>#${result.gasPropertyId}</td>
+                        </tr>
+                        <tr>
+                            <th>Room Types Created</th>
+                            <td>${result.stats?.roomsCreated || 0}</td>
+                        </tr>
+                        <tr>
+                            <th>Images Imported</th>
+                            <td>${result.stats?.imagesCreated || 0}</td>
+                        </tr>
+                    </table>
+                </div>
+            `;
+            
+            document.getElementById('nextBtn').textContent = 'Go to Dashboard →';
+        }
+        
+        // Initialize
+        showStep(1);
     </script>
 </body>
 </html>
