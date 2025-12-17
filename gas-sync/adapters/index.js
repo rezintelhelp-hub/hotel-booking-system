@@ -6,19 +6,31 @@
  */
 
 const { Beds24Adapter } = require('./beds24-adapter');
-const { CalryAdapter, CALRY_SUPPORTED_PMS } = require('./calry-adapter');
+
+// Try to load Calry adapter (optional)
+let CalryAdapter = null;
+let CALRY_SUPPORTED_PMS = [];
+try {
+  const calryModule = require('./calry-adapter');
+  CalryAdapter = calryModule.CalryAdapter;
+  CALRY_SUPPORTED_PMS = calryModule.CALRY_SUPPORTED_PMS || [];
+  console.log('Calry adapter loaded successfully');
+} catch (e) {
+  console.log('Calry adapter not available:', e.message);
+}
 
 // =====================================================
 // ADAPTER REGISTRY
 // =====================================================
 
 const adapters = {
-  beds24: Beds24Adapter,
-  calry: CalryAdapter
-  // Future direct adapters:
-  // hostaway: HostawayAdapter,
-  // smoobu: SmoobuAdapter,
+  beds24: Beds24Adapter
 };
+
+// Add Calry if available
+if (CalryAdapter) {
+  adapters.calry = CalryAdapter;
+}
 
 // PMS types that should route through Calry
 const calryRoutedPMS = CALRY_SUPPORTED_PMS;
@@ -43,7 +55,7 @@ function getAdapter(type, config) {
   }
   
   // Check if this should route through Calry
-  if (calryRoutedPMS.includes(normalizedType)) {
+  if (CalryAdapter && calryRoutedPMS.includes(normalizedType)) {
     return new CalryAdapter({
       ...config,
       pmsType: normalizedType
@@ -134,7 +146,6 @@ class SyncManager {
    * Get adapter for a connection
    */
   async getAdapterForConnection(connectionId) {
-    // Don't JOIN on gas_sync_adapters - it might not exist or have entries
     const result = await this.pool.query(`
       SELECT c.*
       FROM gas_sync_connections c
@@ -233,8 +244,8 @@ class SyncManager {
   // Helper methods
   async startSyncLog(connectionId, syncType) {
     const result = await this.pool.query(`
-      INSERT INTO gas_sync_log (connection_id, sync_type, direction, status, started_at)
-      VALUES ($1, $2, 'pull', 'started', NOW())
+      INSERT INTO gas_sync_logs (connection_id, sync_type, status, started_at)
+      VALUES ($1, $2, 'started', NOW())
       RETURNING id
     `, [connectionId, syncType]);
     return result.rows[0].id;
@@ -242,23 +253,17 @@ class SyncManager {
   
   async completeSyncLog(logId, status, stats, errorMessage = null) {
     await this.pool.query(`
-      UPDATE gas_sync_log SET
+      UPDATE gas_sync_logs SET
         status = $2,
-        records_processed = $3,
-        records_created = $4,
-        records_updated = $5,
-        records_failed = $6,
-        error_message = $7,
+        records_synced = $3,
+        error_message = $4,
         completed_at = NOW(),
-        duration_ms = EXTRACT(EPOCH FROM (NOW() - started_at)) * 1000
+        duration_seconds = EXTRACT(EPOCH FROM (NOW() - started_at))
       WHERE id = $1
     `, [
       logId,
       status,
-      stats?.processed || 0,
-      stats?.created || 0,
-      stats?.updated || 0,
-      stats?.failed || 0,
+      (stats?.properties?.synced || 0) + (stats?.roomTypes?.synced || 0),
       errorMessage
     ]);
   }
@@ -320,6 +325,5 @@ module.exports = {
   SyncManager,
   // Re-export individual adapters
   Beds24Adapter,
-  CalryAdapter,
-  CALRY_SUPPORTED_PMS
+  ...(CalryAdapter ? { CalryAdapter, CALRY_SUPPORTED_PMS } : {})
 };
