@@ -26047,11 +26047,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
     
     const newProp = await pool.query(`
       INSERT INTO properties (
-        account_id, name, description, property_type,
+        account_id, user_id, name, description, property_type,
         address, city, state, country, postcode,
         latitude, longitude, timezone, currency,
         check_in_time, check_out_time, status, beds24_property_id
-      ) VALUES ($1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active', $16)
+      ) VALUES ($1, $1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active', $16)
       RETURNING id
     `, [
       account_id,
