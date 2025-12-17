@@ -18028,11 +18028,39 @@ app.post('/api/admin/rooms/:id/images', upload.array('images', 10), async (req, 
 app.get('/api/admin/properties/:id/images', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // First check property_images table
     const result = await pool.query(
       'SELECT * FROM property_images WHERE property_id = $1 AND is_active = true ORDER BY is_primary DESC, display_order ASC',
       [id]
     );
-    res.json({ success: true, images: result.rows });
+    
+    let images = result.rows;
+    
+    // If no images, also check gas_sync_images (for synced properties)
+    if (images.length === 0) {
+      const syncResult = await pool.query(`
+        SELECT 
+          gsi.id, 
+          gsi.original_url as url, 
+          gsi.thumbnail_url,
+          gsi.caption,
+          gsi.sort_order as display_order,
+          gsi.image_type,
+          gsi.width,
+          gsi.height,
+          true as is_active,
+          CASE WHEN gsi.sort_order = 0 THEN true ELSE false END as is_primary
+        FROM gas_sync_images gsi
+        JOIN gas_sync_properties gsp ON gsi.sync_property_id = gsp.id
+        WHERE gsp.gas_property_id = $1
+        ORDER BY gsi.sort_order, gsi.id
+      `, [id]);
+      
+      images = syncResult.rows;
+    }
+    
+    res.json({ success: true, images });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
