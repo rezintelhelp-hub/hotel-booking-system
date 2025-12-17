@@ -18037,7 +18037,7 @@ app.get('/api/admin/properties/:id/images', async (req, res) => {
     
     let images = result.rows;
     
-    // If no images, also check gas_sync_images (for synced properties)
+    // If no images, check gas_sync_images for PROPERTY-level images only (not room images)
     if (images.length === 0) {
       const syncResult = await pool.query(`
         SELECT 
@@ -18054,6 +18054,7 @@ app.get('/api/admin/properties/:id/images', async (req, res) => {
         FROM gas_sync_images gsi
         JOIN gas_sync_properties gsp ON gsi.sync_property_id = gsp.id
         WHERE gsp.gas_property_id = $1
+          AND (gsi.room_type_external_id IS NULL OR gsi.image_type = 'property')
         ORDER BY gsi.sort_order, gsi.id
       `, [id]);
       
@@ -18069,12 +18070,54 @@ app.get('/api/admin/properties/:id/images', async (req, res) => {
 // Get room images
 app.get('/api/admin/rooms/:id/images', async (req, res) => {
   try {
-    const { id} = req.params;
+    const { id } = req.params;
+    
+    // First check room_images table
     const result = await pool.query(
       'SELECT * FROM room_images WHERE room_id = $1 AND is_active = true ORDER BY is_primary DESC, display_order ASC',
       [id]
     );
-    res.json({ success: true, images: result.rows });
+    
+    let images = result.rows;
+    
+    // If no images, check gas_sync_images (for synced rooms)
+    if (images.length === 0) {
+      // Get the room name and property_id to find matching gas_sync_room_type
+      const roomResult = await pool.query(
+        'SELECT name, property_id FROM bookable_units WHERE id = $1',
+        [id]
+      );
+      
+      if (roomResult.rows.length > 0) {
+        const { name: roomName, property_id } = roomResult.rows[0];
+        
+        // Find images by matching room name through gas_sync_room_types
+        const syncResult = await pool.query(`
+          SELECT 
+            gsi.id,
+            gsi.original_url as url,
+            gsi.thumbnail_url,
+            gsi.caption,
+            gsi.sort_order as display_order,
+            gsi.image_type,
+            gsi.width,
+            gsi.height,
+            true as is_active,
+            CASE WHEN gsi.sort_order = 0 THEN true ELSE false END as is_primary
+          FROM gas_sync_images gsi
+          JOIN gas_sync_room_types gsrt ON gsi.room_type_external_id = gsrt.external_id 
+            AND gsi.connection_id = gsrt.connection_id
+          JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+          WHERE gsp.gas_property_id = $1 
+            AND gsrt.name = $2
+          ORDER BY gsi.sort_order, gsi.id
+        `, [property_id, roomName]);
+        
+        images = syncResult.rows;
+      }
+    }
+    
+    res.json({ success: true, images });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -26023,29 +26066,8 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
     
     let downloadedCount = 0;
     for (const image of imagesResult.data) {
-      await pool.query(`
-        INSERT INTO gas_sync_images (
-          connection_id, sync_property_id, external_id, original_url, thumbnail_url,
-          caption, sort_order, image_type, width, height, synced_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
-        ON CONFLICT (connection_id, external_id) DO UPDATE SET
-          original_url = EXCLUDED.original_url,
-          thumbnail_url = EXCLUDED.thumbnail_url,
-          caption = EXCLUDED.caption,
-          sort_order = EXCLUDED.sort_order,
-          synced_at = NOW()
-      `, [
-        connection_id,
-        propertyId,
-        image.externalId,
-        image.originalUrl,
-        image.thumbnailUrl,
-        image.caption,
-        image.sortOrder,
-        image.imageType,
-        image.width,
-        image.height
-      ]);
+      // Use adapter's method to properly save room_type_external_id
+      await adapter.syncImageToDatabase(image, external_id);
       downloadedCount++;
     }
     
