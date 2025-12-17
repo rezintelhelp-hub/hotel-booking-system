@@ -25650,10 +25650,17 @@ app.put('/api/gas-sync/connections/:id', async (req, res) => {
       updates.push(`credentials = $${paramCount}`);
       values.push(JSON.stringify(credentials));
       
-      if (credentials.token) {
+      if (credentials.token || credentials.access_token) {
         paramCount++;
         updates.push(`access_token = $${paramCount}`);
-        values.push(credentials.token);
+        values.push(credentials.token || credentials.access_token);
+      }
+      
+      // Also update refresh_token column
+      if (credentials.refreshToken || credentials.refresh_token) {
+        paramCount++;
+        updates.push(`refresh_token = $${paramCount}`);
+        values.push(credentials.refreshToken || credentials.refresh_token);
       }
     }
     
