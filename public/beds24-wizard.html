@@ -50,6 +50,7 @@
             padding: 1.5rem;
             background: #f8f9fa;
             border-bottom: 1px solid #e9ecef;
+            gap: 0.5rem;
         }
         
         .step-dot {
@@ -57,7 +58,6 @@
             height: 12px;
             border-radius: 50%;
             background: #dee2e6;
-            margin: 0 0.5rem;
             transition: all 0.3s;
         }
         
@@ -199,6 +199,12 @@
             border: 1px solid #bee5eb;
         }
         
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
         .property-card {
             border: 2px solid #e9ecef;
             border-radius: 12px;
@@ -235,6 +241,7 @@
             border-radius: 20px;
             font-size: 0.8rem;
             margin-top: 0.5rem;
+            margin-right: 0.5rem;
         }
         
         .room-type-list {
@@ -352,6 +359,78 @@
             width: 18px;
             height: 18px;
         }
+        
+        .credentials-box {
+            background: #f8f9fa;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .credentials-box h4 {
+            color: #1e3a5f;
+            margin-bottom: 0.5rem;
+            font-size: 0.95rem;
+        }
+        
+        .credentials-box p {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-bottom: 0.75rem;
+        }
+        
+        .api-section {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .api-section.v2 {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .api-section.v1 {
+            border-color: #28a745;
+            background: #f8fff9;
+        }
+        
+        .api-section h3 {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .api-section h3 .version-badge {
+            background: #667eea;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+        }
+        
+        .api-section.v1 h3 .version-badge {
+            background: #28a745;
+        }
+        
+        .status-icon {
+            font-size: 1.2rem;
+        }
+        
+        .status-icon.success {
+            color: #28a745;
+        }
+        
+        .status-icon.pending {
+            color: #ffc107;
+        }
+        
+        .status-icon.error {
+            color: #dc3545;
+        }
     </style>
 </head>
 <body>
@@ -366,24 +445,49 @@
             <div class="step-dot" data-step="2"></div>
             <div class="step-dot" data-step="3"></div>
             <div class="step-dot" data-step="4"></div>
+            <div class="step-dot" data-step="5"></div>
         </div>
         
         <div class="wizard-content">
             <!-- Step 1: API Credentials -->
             <div class="step active" id="step1">
-                <h2>Step 1: Enter Your Beds24 API Key</h2>
-                <p class="step-description">You can find your API key in Beds24 under Settings → Apps & Integrations → API</p>
+                <h2>Step 1: Enter Your Beds24 API Credentials</h2>
+                <p class="step-description">You'll need both V2 and V1 API keys from your Beds24 account</p>
                 
                 <div id="step1-error"></div>
                 
-                <div class="form-group">
-                    <label for="apiKey">API Key (Invite Code)</label>
-                    <input type="text" id="apiKey" placeholder="Enter your Beds24 API key">
-                    <p class="form-hint">This is your account-level API key from Beds24</p>
+                <div class="api-section v2">
+                    <h3>
+                        <span class="version-badge">V2 API</span>
+                        Invite Code
+                        <span id="v2-status" class="status-icon pending">⏳</span>
+                    </h3>
+                    <p style="color: #6c757d; font-size: 0.9rem; margin-bottom: 1rem;">
+                        Required for property data, room types, and descriptions
+                    </p>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" id="inviteCode" placeholder="Enter your V2 Invite Code">
+                        <p class="form-hint">Settings → Apps & Integrations → API → Invite Code</p>
+                    </div>
                 </div>
                 
-                <a href="https://beds24.com/control2.php?pagetype=apiv2" target="_blank" class="help-link">
-                    📖 How to find your API key in Beds24
+                <div class="api-section v1">
+                    <h3>
+                        <span class="version-badge">V1 API</span>
+                        API Key
+                        <span id="v1-status" class="status-icon pending">⏳</span>
+                    </h3>
+                    <p style="color: #6c757d; font-size: 0.9rem; margin-bottom: 1rem;">
+                        Required for downloading property images
+                    </p>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" id="v1ApiKey" placeholder="Enter your V1 API Key">
+                        <p class="form-hint">Settings → Apps & Integrations → API (V1 section)</p>
+                    </div>
+                </div>
+                
+                <a href="https://wiki.beds24.com/index.php/API_V2_Authentication" target="_blank" class="help-link">
+                    📖 Beds24 API Documentation
                 </a>
             </div>
             
@@ -400,12 +504,36 @@
                 <div id="properties-list"></div>
             </div>
             
-            <!-- Step 3: Review Room Types -->
+            <!-- Step 3: Property Code -->
             <div class="step" id="step3">
-                <h2>Step 3: Review Room Types</h2>
-                <p class="step-description">These room types will be imported with their descriptions</p>
+                <h2>Step 3: Property Code</h2>
+                <p class="step-description">Enter the property-specific code for the selected property</p>
                 
                 <div id="step3-error"></div>
+                
+                <div class="credentials-box">
+                    <h4>Selected Property: <span id="selected-property-name">-</span></h4>
+                    <p>Beds24 Property ID: <strong id="selected-property-id">-</strong></p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="propCode">Property Code (Prop Key)</label>
+                    <input type="text" id="propCode" placeholder="Enter property-specific code">
+                    <p class="form-hint">This is the per-property API key found in: Property → Settings → API</p>
+                </div>
+                
+                <div class="alert alert-info">
+                    <strong>💡 Where to find this:</strong><br>
+                    In Beds24, go to the specific property → Settings → API → Property Key/Code
+                </div>
+            </div>
+            
+            <!-- Step 4: Review Room Types -->
+            <div class="step" id="step4">
+                <h2>Step 4: Review Room Types</h2>
+                <p class="step-description">These room types will be imported with their descriptions</p>
+                
+                <div id="step4-error"></div>
                 <div id="roomtypes-loading" class="loading" style="display: none;">
                     <div class="spinner"></div>
                     <p>Fetching room types...</p>
@@ -414,16 +542,16 @@
                 
                 <div class="checkbox-group">
                     <input type="checkbox" id="importImages" checked>
-                    <label for="importImages">Import room images from Beds24</label>
+                    <label for="importImages">Import room images from Beds24 (uses V1 API)</label>
                 </div>
             </div>
             
-            <!-- Step 4: Complete -->
-            <div class="step" id="step4">
-                <h2>Step 4: Import to GAS</h2>
+            <!-- Step 5: Complete -->
+            <div class="step" id="step5">
+                <h2>Step 5: Import to GAS</h2>
                 <p class="step-description">Review and confirm the import</p>
                 
-                <div id="step4-error"></div>
+                <div id="step5-error"></div>
                 <div id="import-loading" class="loading" style="display: none;">
                     <div class="spinner"></div>
                     <p>Importing property to GAS...</p>
@@ -442,14 +570,18 @@
     
     <script>
         let currentStep = 1;
-        const totalSteps = 4;
+        const totalSteps = 5;
         
         // Wizard data
         let wizardData = {
-            apiKey: '',
+            inviteCode: '',      // V2 API
+            v1ApiKey: '',        // V1 API
+            propCode: '',        // Property-specific code
+            v2Token: '',         // Token from V2 auth
             properties: [],
             selectedProperty: null,
             roomTypes: [],
+            propertyData: null,
             importImages: true,
             importResult: null
         };
@@ -476,9 +608,9 @@
             // Update buttons
             document.getElementById('prevBtn').style.visibility = step === 1 ? 'hidden' : 'visible';
             
-            if (step === 4 && wizardData.importResult) {
+            if (step === 5 && wizardData.importResult) {
                 document.getElementById('nextBtn').textContent = 'Go to Dashboard';
-            } else if (step === 4) {
+            } else if (step === 5) {
                 document.getElementById('nextBtn').textContent = 'Import Now 🚀';
             } else {
                 document.getElementById('nextBtn').textContent = 'Next →';
@@ -490,12 +622,20 @@
         async function nextStep() {
             // Validate current step
             if (currentStep === 1) {
-                const apiKey = document.getElementById('apiKey').value.trim();
-                if (!apiKey) {
-                    showError('step1-error', 'Please enter your Beds24 API key');
+                const inviteCode = document.getElementById('inviteCode').value.trim();
+                const v1ApiKey = document.getElementById('v1ApiKey').value.trim();
+                
+                if (!inviteCode) {
+                    showError('step1-error', 'Please enter your V2 Invite Code');
                     return;
                 }
-                wizardData.apiKey = apiKey;
+                if (!v1ApiKey) {
+                    showError('step1-error', 'Please enter your V1 API Key (needed for images)');
+                    return;
+                }
+                
+                wizardData.inviteCode = inviteCode;
+                wizardData.v1ApiKey = v1ApiKey;
                 
                 // Test connection and fetch properties
                 await fetchProperties();
@@ -506,16 +646,33 @@
                     return;
                 }
                 
+                // Show selected property info
+                document.getElementById('selected-property-name').textContent = wizardData.selectedProperty.name;
+                document.getElementById('selected-property-id').textContent = wizardData.selectedProperty.id;
+                
+                currentStep++;
+                showStep(currentStep);
+                
+            } else if (currentStep === 3) {
+                const propCode = document.getElementById('propCode').value.trim();
+                
+                if (!propCode) {
+                    showError('step3-error', 'Please enter the Property Code');
+                    return;
+                }
+                
+                wizardData.propCode = propCode;
+                
                 // Fetch room types for selected property
                 await fetchRoomTypes();
                 
-            } else if (currentStep === 3) {
+            } else if (currentStep === 4) {
                 wizardData.importImages = document.getElementById('importImages').checked;
                 showImportSummary();
                 currentStep++;
                 showStep(currentStep);
                 
-            } else if (currentStep === 4) {
+            } else if (currentStep === 5) {
                 if (wizardData.importResult) {
                     // Go to dashboard
                     window.location.href = `/gas-admin.html?property_id=${wizardData.importResult.gasPropertyId}`;
@@ -547,20 +704,36 @@
             document.getElementById('properties-loading').style.display = 'block';
             document.getElementById('nextBtn').disabled = true;
             
+            // Update status icons
+            document.getElementById('v2-status').innerHTML = '⏳';
+            document.getElementById('v2-status').className = 'status-icon pending';
+            
             try {
                 const response = await fetch('/api/beds24-wizard/properties', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ apiKey: wizardData.apiKey })
+                    body: JSON.stringify({ 
+                        inviteCode: wizardData.inviteCode,
+                        v1ApiKey: wizardData.v1ApiKey
+                    })
                 });
                 
                 const data = await response.json();
                 
                 if (!data.success) {
+                    document.getElementById('v2-status').innerHTML = '❌';
+                    document.getElementById('v2-status').className = 'status-icon error';
                     throw new Error(data.error || 'Failed to fetch properties');
                 }
                 
+                // Success
+                document.getElementById('v2-status').innerHTML = '✓';
+                document.getElementById('v2-status').className = 'status-icon success';
+                document.getElementById('v1-status').innerHTML = '✓';
+                document.getElementById('v1-status').className = 'status-icon success';
+                
                 wizardData.properties = data.properties;
+                wizardData.v2Token = data.token;
                 renderProperties();
                 currentStep++;
                 showStep(currentStep);
@@ -590,6 +763,7 @@
                     <h3>${prop.name || 'Unnamed Property'}</h3>
                     <div class="meta">${prop.city || ''} ${prop.country || ''}</div>
                     <span class="room-count">🛏️ ${prop.roomTypeCount || 0} room types</span>
+                    <span class="room-count">🔑 ID: ${prop.id}</span>
                 </div>
             `).join('');
         }
@@ -604,7 +778,7 @@
         }
         
         async function fetchRoomTypes() {
-            clearError('step2-error');
+            clearError('step3-error');
             document.getElementById('roomtypes-loading').style.display = 'block';
             document.getElementById('nextBtn').disabled = true;
             
@@ -613,8 +787,9 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ 
-                        apiKey: wizardData.apiKey,
-                        propId: wizardData.selectedProperty.id
+                        inviteCode: wizardData.inviteCode,
+                        propId: wizardData.selectedProperty.id,
+                        propCode: wizardData.propCode
                     })
                 });
                 
@@ -625,12 +800,13 @@
                 }
                 
                 wizardData.roomTypes = data.roomTypes;
+                wizardData.propertyData = data.property;
                 renderRoomTypes();
                 currentStep++;
                 showStep(currentStep);
                 
             } catch (error) {
-                showError('step2-error', `Failed to fetch room types: ${error.message}`);
+                showError('step3-error', `Failed to fetch room types: ${error.message}`);
             } finally {
                 document.getElementById('roomtypes-loading').style.display = 'none';
                 document.getElementById('nextBtn').disabled = false;
@@ -642,8 +818,8 @@
             
             if (wizardData.roomTypes.length === 0) {
                 container.innerHTML = `
-                    <div class="alert alert-info">
-                        No room types found for this property.
+                    <div class="alert alert-warning">
+                        No room types found for this property. The property will still be imported.
                     </div>
                 `;
                 return;
@@ -657,6 +833,7 @@
                             <div>
                                 ${rt.maxGuests ? `<span class="badge">👥 ${rt.maxGuests} guests</span>` : ''}
                                 ${rt.basePrice ? `<span class="badge">💰 ${rt.basePrice}</span>` : ''}
+                                ${rt.imageCount ? `<span class="badge">📷 ${rt.imageCount} images</span>` : ''}
                             </div>
                             ${rt.shortDescription ? `<div class="description"><strong>Description:</strong> ${rt.shortDescription}</div>` : ''}
                             ${rt.fullDescription ? `<div class="description"><strong>Details:</strong> ${rt.fullDescription}</div>` : ''}
@@ -681,6 +858,10 @@
                         <td>${prop.name || 'Unnamed'}</td>
                     </tr>
                     <tr>
+                        <th>Beds24 Property ID</th>
+                        <td>${prop.id}</td>
+                    </tr>
+                    <tr>
                         <th>Location</th>
                         <td>${prop.city || ''} ${prop.country || ''}</td>
                     </tr>
@@ -690,18 +871,28 @@
                     </tr>
                     <tr>
                         <th>Import Images</th>
-                        <td>${wizardData.importImages ? 'Yes' : 'No'}</td>
+                        <td>${wizardData.importImages ? 'Yes (using V1 API)' : 'No'}</td>
                     </tr>
                     <tr>
                         <th>GAS Account</th>
                         <td>Account #${accountId}</td>
                     </tr>
                 </table>
+                
+                <div class="credentials-box" style="margin-top: 1.5rem;">
+                    <h4>Stored Credentials</h4>
+                    <p style="margin: 0;">The following will be saved for future syncs:</p>
+                    <ul style="margin: 0.5rem 0 0 1.5rem; color: #495057; font-size: 0.9rem;">
+                        <li>V2 Invite Code: ✓</li>
+                        <li>V1 API Key: ✓</li>
+                        <li>Property Code: ✓</li>
+                    </ul>
+                </div>
             `;
         }
         
         async function doImport() {
-            clearError('step4-error');
+            clearError('step5-error');
             document.getElementById('import-loading').style.display = 'block';
             document.getElementById('import-summary').style.display = 'none';
             document.getElementById('nextBtn').disabled = true;
@@ -712,11 +903,14 @@
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        apiKey: wizardData.apiKey,
+                        inviteCode: wizardData.inviteCode,
+                        v1ApiKey: wizardData.v1ApiKey,
+                        propCode: wizardData.propCode,
                         propId: wizardData.selectedProperty.id,
                         accountId: parseInt(accountId),
                         importImages: wizardData.importImages,
-                        roomTypes: wizardData.roomTypes
+                        roomTypes: wizardData.roomTypes,
+                        propertyData: wizardData.propertyData
                     })
                 });
                 
@@ -730,7 +924,7 @@
                 showImportSuccess(data);
                 
             } catch (error) {
-                showError('step4-error', `Import failed: ${error.message}`);
+                showError('step5-error', `Import failed: ${error.message}`);
                 document.getElementById('import-summary').style.display = 'block';
                 document.getElementById('prevBtn').disabled = false;
             } finally {
@@ -761,6 +955,10 @@
                         <tr>
                             <th>Images Imported</th>
                             <td>${result.stats?.imagesCreated || 0}</td>
+                        </tr>
+                        <tr>
+                            <th>Connection Saved</th>
+                            <td>✓ All credentials stored</td>
                         </tr>
                     </table>
                 </div>
