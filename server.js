@@ -1553,91 +1553,6 @@ function extractText(obj, ...paths) {
   return '';
 }
 
-// Debug endpoint to see room raw_data from Beds24
-app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
-  try {
-    const { propertyId } = req.query;
-    
-    const result = await pool.query(`
-      SELECT rt.id, rt.external_id, rt.name, rt.raw_data 
-      FROM gas_sync_room_types rt
-      WHERE rt.sync_property_id = $1
-      LIMIT 3
-    `, [propertyId]);
-    
-    const rooms = result.rows.map(r => {
-      const rawData = typeof r.raw_data === 'string' ? JSON.parse(r.raw_data) : r.raw_data;
-      return {
-        id: r.id,
-        external_id: r.external_id,
-        name: r.name,
-        raw_data_keys: Object.keys(rawData || {}),
-        texts: rawData?.texts,
-        displayName: rawData?.displayName,
-        description: rawData?.description,
-        auxiliaryText: rawData?.auxiliaryText
-      };
-    });
-    
-    res.json({ success: true, rooms });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Debug endpoint to check GAS room data after sync
-app.get('/api/gas-sync/debug/gas-room-data', async (req, res) => {
-  try {
-    const { propertyId } = req.query;
-    
-    const result = await pool.query(`
-      SELECT id, name, display_name, short_description, full_description, cm_room_id, beds24_room_id
-      FROM bookable_units
-      WHERE property_id = $1
-      LIMIT 5
-    `, [propertyId]);
-    
-    res.json({ success: true, rooms: result.rows });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Debug endpoint to see relationship between individual rooms and room types
-app.get('/api/gas-sync/debug/room-mapping', async (req, res) => {
-  try {
-    const { propertyId } = req.query;
-    
-    // Get GAS rooms (individual)
-    const gasRooms = await pool.query(`
-      SELECT id, name, cm_room_id, beds24_room_id 
-      FROM bookable_units 
-      WHERE property_id = $1
-    `, [propertyId]);
-    
-    // Get sync room types
-    const syncRoomTypes = await pool.query(`
-      SELECT rt.id, rt.external_id, rt.name, 
-             rt.raw_data->>'texts' as texts_json
-      FROM gas_sync_room_types rt
-      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
-      WHERE sp.gas_property_id = $1
-    `, [propertyId]);
-    
-    res.json({ 
-      success: true, 
-      gasRooms: gasRooms.rows,
-      syncRoomTypes: syncRoomTypes.rows.map(r => ({
-        id: r.id,
-        external_id: r.external_id,
-        name: r.name
-      }))
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
 // Link synced property to GAS system - creates property, rooms, and images
 app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res) => {
   try {
@@ -1944,41 +1859,36 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
-      // Beds24 texts is an OBJECT with nested language keys: texts.displayName.EN
-      const texts = roomRawData.texts || {};
-      
-      // Debug: log texts keys
-      console.log('link-to-gas: texts keys:', Object.keys(texts).filter(k => k !== 'offers').join(', '));
-      console.log('link-to-gas: texts.displayName:', JSON.stringify(texts.displayName));
-      console.log('link-to-gas: texts.roomDescription1:', JSON.stringify(texts.roomDescription1));
-      console.log('link-to-gas: texts.auxiliaryText:', JSON.stringify(texts.auxiliaryText));
-      
-      // Helper to extract text from Beds24 format: {EN: "...", DE: "...", NL: "..."}
-      function getText(val) {
-        if (!val) return '';
-        if (typeof val === 'string') return val;
-        if (typeof val === 'object') {
-          return val.EN || val.en || val.DE || val.de || val.FR || val.fr || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
+      // DEBUG: Log the raw_data structure to understand what Beds24 sends
+      console.log('link-to-gas: Room raw_data keys:', Object.keys(roomRawData).join(', '));
+      if (roomRawData.texts) {
+        console.log('link-to-gas: texts type:', Array.isArray(roomRawData.texts) ? 'array' : typeof roomRawData.texts);
+        if (Array.isArray(roomRawData.texts) && roomRawData.texts.length > 0) {
+          console.log('link-to-gas: texts[0] keys:', Object.keys(roomRawData.texts[0]).join(', '));
         }
-        return '';
       }
       
-      // Beds24 Display Name → GAS display_name
-      const displayName = getText(texts.displayName) || '';
+      // Extract nested text fields - Beds24 uses texts array: [{language: 'EN', displayName: '...', description: '...', auxiliaryText: '...'}]
+      let texts = {};
+      if (roomRawData.texts && Array.isArray(roomRawData.texts) && roomRawData.texts.length > 0) {
+        texts = roomRawData.texts[0]; // First element is default language (usually EN)
+      } else if (roomRawData.texts && typeof roomRawData.texts === 'object' && !Array.isArray(roomRawData.texts)) {
+        texts = roomRawData.texts;
+      }
       
-      // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
-      const roomShortDesc = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
+      // Beds24 Display Name → GAS display_name (overrides room name)
+      const displayName = texts.displayName || texts.roomDisplayName || roomRawData.displayName || '';
       
-      // Beds24 auxiliaryText (Auxiliary Text) → GAS full_description (long description)
-      const roomFullDesc = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
+      // Beds24 Room Description → GAS short_description (for listings)
+      const roomShortDesc = texts.description || texts.roomDescription || roomRawData.description || '';
       
-      // Log what we found
-      console.log('link-to-gas: Room', room.name);
-      console.log('  - displayName:', displayName || '(empty)');
-      console.log('  - shortDesc (roomDescription1):', roomShortDesc || '(empty)');
-      console.log('  - fullDesc (auxiliaryText):', roomFullDesc || '(empty)');
+      // Beds24 Auxiliary Text → GAS full_description (long description)
+      const roomFullDesc = texts.auxiliaryText || texts.roomAuxiliaryText || roomRawData.auxiliaryText || '';
       
-      const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
+      // Log what we found for debugging
+      console.log('link-to-gas: Room', room.name, '- displayName:', displayName?.substring(0,30), 'shortDesc:', roomShortDesc?.substring(0,30), 'fullDesc:', roomFullDesc?.substring(0,30));
+      
+      const roomType = texts.accommodationType || roomRawData.accommodationType || '';
       
       // Extract numeric values
       const maxGuests = room.max_guests || roomRawData.maxPeople || roomRawData.maxAdults || 2;
@@ -2042,27 +1952,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           gasRoomId
         ]);
         
-        // Also set adapter-specific room ID for backwards compatibility
-        if (prop.adapter_code === 'beds24') {
-          await pool.query('UPDATE bookable_units SET beds24_room_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
-        } else if (prop.adapter_code === 'smoobu') {
-          await pool.query('UPDATE bookable_units SET smoobu_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
-        } else if (prop.adapter_code === 'hostaway') {
-          await pool.query('UPDATE bookable_units SET hostaway_listing_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
-        }
-        
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
-            .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId]).catch(() => {});
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
-            .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId]).catch(() => {});
         }
         if (roomFullDesc) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId])
-            .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId]).catch(() => {});
         }
         
         roomsUpdated++;
@@ -2099,27 +1997,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         ]);
         gasRoomId = roomResult.rows[0].id;
         
-        // Also set adapter-specific room ID for backwards compatibility
-        if (prop.adapter_code === 'beds24') {
-          await pool.query('UPDATE bookable_units SET beds24_room_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
-        } else if (prop.adapter_code === 'smoobu') {
-          await pool.query('UPDATE bookable_units SET smoobu_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
-        } else if (prop.adapter_code === 'hostaway') {
-          await pool.query('UPDATE bookable_units SET hostaway_listing_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
-        }
-        
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
-            .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId]).catch(() => {});
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
-            .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId]).catch(() => {});
         }
         if (roomFullDesc) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId])
-            .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId]).catch(() => {});
         }
         
         roomsCreated++;
@@ -2286,51 +2172,13 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     
     const credentials = typeof conn.credentials === 'string' 
       ? JSON.parse(conn.credentials) 
-      : (conn.credentials || {});
+      : conn.credentials;
     
-    // Get refresh token - check column first, then credentials JSON
-    const refreshToken = conn.refresh_token || credentials.refreshToken || credentials.refresh_token;
-    const storedAccessToken = conn.access_token || credentials.token || credentials.access_token;
-    
-    let accessToken = storedAccessToken;
-    
-    // Try to use stored access token first, refresh only if needed or expired
-    // For now, always refresh to ensure fresh token (access tokens expire in 24h)
-    if (refreshToken) {
-      try {
-        // IMPORTANT: Beds24 uses GET with header, NOT POST with body
-        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
-          headers: {
-            'refreshToken': refreshToken
-          }
-        });
-        accessToken = tokenResponse.data.token;
-        
-        // Save the new access token
-        await pool.query(
-          'UPDATE gas_sync_connections SET access_token = $1, updated_at = NOW() WHERE id = $2',
-          [accessToken, connectionId]
-        );
-        console.log('Got fresh Beds24 access token for connection', connectionId);
-      } catch (refreshError) {
-        console.error('Token refresh failed:', refreshError.response?.data || refreshError.message);
-        // If refresh fails but we have a stored access token, try using it
-        if (!storedAccessToken) {
-          return res.status(401).json({ 
-            success: false, 
-            error: 'Token refresh failed. Please reconnect with a new invite code.' 
-          });
-        }
-        accessToken = storedAccessToken;
-      }
-    }
-    
-    if (!accessToken) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No access token available. Please reconnect with a new invite code.' 
-      });
-    }
+    // Get fresh access token
+    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+      refreshToken: credentials.refreshToken
+    });
+    const accessToken = tokenResponse.data.token;
     
     // Get all synced properties with prop_keys
     const propsResult = await pool.query(`
@@ -2387,86 +2235,63 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           continue;
         }
         
-        // Use offers API for each room (like working sync code)
-        for (const room of roomsResult.rows) {
-          const beds24RoomId = room.beds24_room_id;
-          const gasRoomId = room.gas_room_id;
-          
-          console.log(`  Syncing room ${room.name} (Beds24: ${beds24RoomId})`);
-          
-          let roomDaysSynced = 0;
-          
-          // Fetch offers for each day (limited to 30 days to avoid rate limits)
-          const syncDays = Math.min(days, 30);
-          
-          for (let i = 0; i < syncDays; i++) {
-            const arrivalDate = new Date();
-            arrivalDate.setDate(arrivalDate.getDate() + i);
-            const departDate = new Date(arrivalDate);
-            departDate.setDate(departDate.getDate() + 1);
+        // Fetch calendar from Beds24 V2 API
+        // Rate limit: wait between requests
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        const calendarResponse = await axios.post('https://beds24.com/api/v2/inventory/rooms/calendar', {
+          propertyId: parseInt(prop.external_id),
+          startDate,
+          endDate
+        }, {
+          headers: {
+            'token': accessToken,
+            'Content-Type': 'application/json'
+          }
+        });
+        
+        const calendarData = calendarResponse.data;
+        
+        // Calendar data is organized by room
+        if (calendarData && Array.isArray(calendarData)) {
+          for (const roomCal of calendarData) {
+            const beds24RoomId = roomCal.roomId?.toString();
+            const matchedRoom = roomsResult.rows.find(r => r.beds24_room_id?.toString() === beds24RoomId);
             
-            const arrival = arrivalDate.toISOString().split('T')[0];
-            const departure = departDate.toISOString().split('T')[0];
+            if (!matchedRoom) {
+              continue; // Skip rooms we haven't linked
+            }
             
-            try {
-              // Rate limit: wait between requests
-              await new Promise(resolve => setTimeout(resolve, 300));
-              
-              const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
-                headers: { 'token': accessToken },
-                params: { 
-                  roomId: beds24RoomId, 
-                  arrival: arrival,
-                  departure: departure,
-                  numAdults: 2
-                }
-              });
-              
-              const offerData = offerResponse.data;
-              
-              // Find offer 1 (Standard Price) from the response
-              let price = null;
-              let unitsAvailable = 0;
-              
-              if (offerData.data && offerData.data.length > 0) {
-                const roomOffers = offerData.data[0];
-                if (roomOffers.offers && roomOffers.offers.length > 0) {
-                  // Get offer 1 (Standard Price) or first available offer
-                  const offer1 = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
-                  price = offer1.price;
-                  unitsAvailable = offer1.unitsAvailable || 0;
-                }
-              }
-              
-              const isAvailable = unitsAvailable > 0;
-              const isBlocked = !isAvailable && price === null;
+            // Process each day
+            const days = roomCal.days || roomCal.calendar || [];
+            for (const day of days) {
+              const dateStr = day.date;
+              const price = parseFloat(day.price) || parseFloat(day.price1) || null;
+              const isAvailable = day.numAvail > 0 || day.available === true || day.available === 1;
+              const isBlocked = day.closed === true || day.closed === 1 || day.numAvail === 0;
+              const minStay = day.minStay || day.minimumStay || 1;
+              const maxStay = day.maxStay || day.maximumStay || null;
               
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, source, updated_at)
-                VALUES ($1, $2, $3, $4, $5, 'beds24', NOW())
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, max_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $4, $5, $6, $7, 'beds24', NOW())
                 ON CONFLICT (room_id, date) 
                 DO UPDATE SET 
-                  cm_price = COALESCE(EXCLUDED.cm_price, room_availability.cm_price),
+                  cm_price = EXCLUDED.cm_price,
                   is_available = EXCLUDED.is_available,
                   is_blocked = EXCLUDED.is_blocked,
+                  min_stay = EXCLUDED.min_stay,
+                  max_stay = EXCLUDED.max_stay,
                   source = 'beds24',
                   updated_at = NOW()
-              `, [gasRoomId, arrival, price, isAvailable, isBlocked]);
+              `, [matchedRoom.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay, maxStay]);
               
               totalDaysUpdated++;
-              roomDaysSynced++;
-              
-            } catch (dayError) {
-              if (dayError.response?.status === 429) {
-                console.log('    Rate limited, waiting 5 seconds...');
-                await new Promise(resolve => setTimeout(resolve, 5000));
-              }
-              // Continue with next day even if one fails
             }
+            
+            roomsSynced++;
+            console.log(`  ✓ Synced ${days.length} days for ${matchedRoom.name}`);
           }
-          
-          roomsSynced++;
-          console.log(`    ✓ Synced ${roomDaysSynced} days for ${room.name}`);
         }
         
       } catch (propError) {
@@ -2494,7 +2319,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
         propertiesChecked: propsResult.rows.length,
         roomsSynced,
         totalDaysUpdated,
-        dateRange: { startDate, endDate: new Date(Date.now() + Math.min(days, 30) * 24 * 60 * 60 * 1000).toISOString().split('T')[0] }
+        dateRange: { startDate, endDate }
       },
       errors: errors.length > 0 ? errors : undefined
     });
@@ -3905,34 +3730,6 @@ app.post('/api/management-requests/:id/respond', async (req, res) => {
     }
     
     res.json({ success: true, message: `Request ${status}` });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Delete a management request (Master Admin only)
-app.delete('/api/management-requests/:id', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Get the request to check if it was approved
-    const request = await pool.query('SELECT * FROM management_requests WHERE id = $1', [id]);
-    if (request.rows.length === 0) {
-      return res.json({ success: false, error: 'Request not found' });
-    }
-    
-    // If request was approved, also remove the managed_by_id relationship
-    if (request.rows[0].status === 'approved') {
-      await pool.query(`
-        UPDATE accounts SET managed_by_id = NULL, updated_at = NOW()
-        WHERE id = $1 AND managed_by_id = $2
-      `, [request.rows[0].requesting_account_id, request.rows[0].agency_id]);
-    }
-    
-    // Delete the request
-    await pool.query('DELETE FROM management_requests WHERE id = $1', [id]);
-    
-    res.json({ success: true, message: 'Request deleted' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -11127,34 +10924,14 @@ app.post('/api/beds24/save-token', async (req, res) => {
 async function getBeds24AccessToken(pool) {
   let refreshToken = null;
   
-  // Try channel_connections FIRST (old wizard)
+  // Try database FIRST (this is set per-user via wizard)
   const tokenResult = await pool.query(
     "SELECT refresh_token, account_id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') ORDER BY updated_at DESC LIMIT 1"
   );
   
   if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
     refreshToken = tokenResult.rows[0].refresh_token;
-    console.log('Using refresh token from channel_connections, account_id:', tokenResult.rows[0].account_id);
-  }
-  
-  // Try gas_sync_connections SECOND (new GasSync)
-  if (!refreshToken) {
-    const gasSyncResult = await pool.query(
-      "SELECT refresh_token, credentials FROM gas_sync_connections WHERE adapter_code = 'beds24' AND status = 'connected' ORDER BY updated_at DESC LIMIT 1"
-    );
-    
-    if (gasSyncResult.rows.length > 0) {
-      refreshToken = gasSyncResult.rows[0].refresh_token;
-      if (!refreshToken && gasSyncResult.rows[0].credentials) {
-        const creds = typeof gasSyncResult.rows[0].credentials === 'string' 
-          ? JSON.parse(gasSyncResult.rows[0].credentials) 
-          : gasSyncResult.rows[0].credentials;
-        refreshToken = creds.refreshToken || creds.refresh_token;
-      }
-      if (refreshToken) {
-        console.log('Using refresh token from gas_sync_connections');
-      }
-    }
+    console.log('Using refresh token from database, account_id:', tokenResult.rows[0].account_id);
   }
   
   // Fallback to environment variable
@@ -25729,17 +25506,10 @@ app.put('/api/gas-sync/connections/:id', async (req, res) => {
       updates.push(`credentials = $${paramCount}`);
       values.push(JSON.stringify(credentials));
       
-      if (credentials.token || credentials.access_token) {
+      if (credentials.token) {
         paramCount++;
         updates.push(`access_token = $${paramCount}`);
-        values.push(credentials.token || credentials.access_token);
-      }
-      
-      // Also update refresh_token column
-      if (credentials.refreshToken || credentials.refresh_token) {
-        paramCount++;
-        updates.push(`refresh_token = $${paramCount}`);
-        values.push(credentials.refreshToken || credentials.refresh_token);
+        values.push(credentials.token);
       }
     }
     
@@ -25994,9 +25764,8 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
   try {
     const { propertyId } = req.params;
     
-    // Fetch property with prop_key AND connection credentials
     const propResult = await pool.query(`
-      SELECT p.connection_id, p.external_id, p.prop_key, c.adapter_code, c.credentials
+      SELECT p.connection_id, p.external_id, c.adapter_code
       FROM gas_sync_properties p
       JOIN gas_sync_connections c ON p.connection_id = c.id
       WHERE p.id = $1
@@ -26006,7 +25775,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     
-    const { connection_id, external_id, prop_key, adapter_code, credentials } = propResult.rows[0];
+    const { connection_id, external_id, adapter_code } = propResult.rows[0];
     
     if (adapter_code !== 'beds24') {
       return res.status(400).json({ 
@@ -26015,33 +25784,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       });
     }
     
-    // Check we have the required V1 credentials
-    if (!prop_key) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Property prop_key not set. Set it via /api/gas-sync/properties/:id/set-prop-key' 
-      });
-    }
-    
-    const creds = typeof credentials === 'string' ? JSON.parse(credentials) : credentials;
-    if (!creds?.apiKey) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Connection apiKey not set. Update connection credentials to include V1 API key.' 
-      });
-    }
-    
-    // Create Beds24Adapter with property-specific propKey
-    const { Beds24Adapter } = require('./gas-sync/adapters/beds24-adapter');
-    const adapter = new Beds24Adapter({
-      token: creds.token,
-      refreshToken: creds.refreshToken,
-      apiKey: creds.apiKey,
-      propKey: prop_key,
-      pool: pool,
-      connectionId: connection_id
-    });
-    
+    const adapter = await syncManager.getAdapterForConnection(connection_id);
     const imagesResult = await adapter.getImages(external_id);
     
     if (!imagesResult.success) {
@@ -26053,14 +25796,13 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       await pool.query(`
         INSERT INTO gas_sync_images (
           connection_id, sync_property_id, external_id, original_url, thumbnail_url,
-          caption, sort_order, image_type, room_type_external_id, width, height, synced_at
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+          caption, sort_order, image_type, width, height, synced_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
         ON CONFLICT (connection_id, external_id) DO UPDATE SET
           original_url = EXCLUDED.original_url,
           thumbnail_url = EXCLUDED.thumbnail_url,
           caption = EXCLUDED.caption,
           sort_order = EXCLUDED.sort_order,
-          room_type_external_id = EXCLUDED.room_type_external_id,
           synced_at = NOW()
       `, [
         connection_id,
@@ -26071,7 +25813,6 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
         image.caption,
         image.sortOrder,
         image.imageType,
-        image.roomId,
         image.width,
         image.height
       ]);
