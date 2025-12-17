@@ -26941,9 +26941,25 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
   }
 });
 
-// Serve wizard HTML
+// Serve wizard HTML - try multiple locations
 app.get('/beds24-wizard', (req, res) => {
-  res.sendFile(__dirname + '/beds24-wizard-v2.html');
+  const path = require('path');
+  const fs = require('fs');
+  
+  // Try root first, then public
+  const rootPath = path.join(__dirname, 'beds24-wizard-v2.html');
+  const publicPath = path.join(__dirname, 'public', 'beds24-wizard.html');
+  const publicV2Path = path.join(__dirname, 'public', 'beds24-wizard-v2.html');
+  
+  if (fs.existsSync(rootPath)) {
+    res.sendFile(rootPath);
+  } else if (fs.existsSync(publicV2Path)) {
+    res.sendFile(publicV2Path);
+  } else if (fs.existsSync(publicPath)) {
+    res.sendFile(publicPath);
+  } else {
+    res.status(404).send('Wizard file not found. Please ensure beds24-wizard-v2.html exists.');
+  }
 });
 
 app.listen(PORT, '0.0.0.0', () => {
