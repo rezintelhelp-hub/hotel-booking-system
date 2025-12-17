@@ -11387,6 +11387,34 @@ Local honey and preserves"></textarea>
                     </div>
                 </div>
                 
+                <!-- Short Description -->
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">📝 Short Description</label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" class="form-input" id="edit-room-short-description" placeholder="Brief tagline for listings" style="flex: 1;" maxlength="150">
+                        <button type="button" class="btn" onclick="generateRoomShortDescription()" style="white-space: nowrap; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                            🪄 Generate
+                        </button>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Short tagline shown in search results (max 150 chars)
+                    </div>
+                </div>
+                
+                <!-- Full Description -->
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">📄 Full Description</label>
+                    <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                        <textarea class="form-input" id="edit-room-full-description" rows="4" placeholder="Detailed room description for the booking page"></textarea>
+                        <button type="button" class="btn" onclick="generateRoomFullDescription()" style="align-self: flex-end; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
+                            🪄 Generate Full Description
+                        </button>
+                    </div>
+                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                        Detailed description shown on the room booking page
+                    </div>
+                </div>
+                
                 <!-- GAS Controls -->
                 <div style="font-size: 0.75rem; color: var(--accent); margin-bottom: 0.5rem;">🎛️ GAS Controls</div>
                 
@@ -14051,12 +14079,20 @@ Local honey and preserves"></textarea>
                                                     <div style="display: flex; gap: 0.5rem;">
                                                         <button class="btn btn-small" onclick="respondToRequest(${req.id}, 'approved')" style="background: #10b981;">✓</button>
                                                         <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')">✕</button>
+                                                        <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;">🗑</button>
                                                     </div>
                                                 ` : req.status === 'approved' ? `
-                                                    <button class="btn btn-secondary btn-small" onclick="endManagement(${req.requesting_account_id}, '${(req.requester_business || req.requester_name || '').replace(/'/g, "\\'")}')">
-                                                        ⛔ End
-                                                    </button>
-                                                ` : '-'}
+                                                    <div style="display: flex; gap: 0.5rem;">
+                                                        <button class="btn btn-small" onclick="endManagementFromRequest(${req.id}, ${req.requesting_account_id})" style="background: #f59e0b;" title="End Management">
+                                                            ⏹ End
+                                                        </button>
+                                                        <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;" title="Delete Request">
+                                                            🗑
+                                                        </button>
+                                                    </div>
+                                                ` : `
+                                                    <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;">🗑 Delete</button>
+                                                `}
                                             </td>
                                         </tr>
                                     `;
@@ -14082,12 +14118,12 @@ Local honey and preserves"></textarea>
                                             </td>
                                             <td>
                                                 ${req.status === 'pending' ? `
-                                                    <button class="btn btn-secondary btn-small" onclick="cancelMyRequest(${req.id})">
-                                                        Cancel
+                                                    <button class="btn btn-secondary btn-small" onclick="cancelOwnRequest(${req.id})">
+                                                        Cancel Request
                                                     </button>
                                                 ` : req.status === 'approved' ? `
-                                                    <button class="btn btn-secondary btn-small" onclick="removeMyAgency()">
-                                                        ⛔ Remove
+                                                    <button class="btn btn-small" onclick="requestEndManagement(${req.id})" style="background: #f59e0b;">
+                                                        End Management
                                                     </button>
                                                 ` : '-'}
                                             </td>
@@ -14125,13 +14161,18 @@ Local honey and preserves"></textarea>
                                                         </button>
                                                     </div>
                                                 ` : req.status === 'approved' ? `
-                                                    <button class="btn btn-secondary btn-small" onclick="endManagement(${req.requesting_account_id}, '${(req.requester_business || req.requester_name || '').replace(/'/g, "\\'")}')">
-                                                        ⛔ End Management
-                                                    </button>
+                                                    <div style="display: flex; gap: 0.5rem;">
+                                                        <button class="btn btn-small" onclick="endManagementFromRequest(${req.id}, ${req.requesting_account_id})" style="background: #f59e0b;">
+                                                            End Management
+                                                        </button>
+                                                        <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;">
+                                                            🗑
+                                                        </button>
+                                                    </div>
                                                 ` : `
-                                                    <span style="color: var(--text-secondary); font-size: 0.85rem;">
-                                                        ${req.responded_at ? new Date(req.responded_at).toLocaleDateString() : '-'}
-                                                    </span>
+                                                    <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;">
+                                                        🗑 Delete
+                                                    </button>
                                                 `}
                                             </td>
                                         </tr>
@@ -14172,25 +14213,57 @@ Local honey and preserves"></textarea>
             }
         }
         
-        // End management relationship (called by agency or master admin)
-        async function endManagement(accountId, accountName) {
-            if (!confirm(`Are you sure you want to stop managing "${accountName}"?\n\nThey will become self-managed.`)) {
+        async function deleteManagementRequest(requestId) {
+            if (!confirm('Are you sure you want to delete this management request? This will also remove any agency relationship.')) {
                 return;
             }
             
             try {
-                const response = await fetch(`/api/accounts/${accountId}/remove-management`, {
-                    method: 'POST',
+                const response = await fetch(`/api/management-requests/${requestId}`, {
+                    method: 'DELETE',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification('Management ended', 'success');
-                    loadManagementRequests(); // Refresh the list
+                    showNotification('Request deleted', 'success');
+                    loadManagementRequests(); // Refresh
                 } else {
-                    showNotification(data.error || 'Error ending management', 'error');
+                    showNotification(data.error || 'Error deleting request', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting request:', error);
+                showNotification('Error deleting request', 'error');
+            }
+        }
+        
+        async function endManagementFromRequest(requestId, accountId) {
+            if (!confirm('Are you sure you want to end management of this account? They will become self-managed.')) {
+                return;
+            }
+            
+            try {
+                // First remove management
+                const removeRes = await fetch(`/api/accounts/${accountId}/remove-management`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                
+                const removeData = await removeRes.json();
+                
+                if (removeData.success) {
+                    // Then update the request status to cancelled
+                    await fetch(`/api/management-requests/${requestId}/respond`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ status: 'cancelled', response_message: 'Management ended by agency' })
+                    });
+                    
+                    showNotification('Management ended', 'success');
+                    loadManagementRequests(); // Refresh
+                } else {
+                    showNotification(removeData.error || 'Error ending management', 'error');
                 }
             } catch (error) {
                 console.error('Error ending management:', error);
@@ -14198,9 +14271,8 @@ Local honey and preserves"></textarea>
             }
         }
         
-        // Cancel a pending request (called by requester)
-        async function cancelMyRequest(requestId) {
-            if (!confirm('Cancel this management request?')) {
+        async function cancelOwnRequest(requestId) {
+            if (!confirm('Are you sure you want to cancel this request?')) {
                 return;
             }
             
@@ -14208,7 +14280,7 @@ Local honey and preserves"></textarea>
                 const response = await fetch(`/api/management-requests/${requestId}/respond`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ status: 'cancelled' })
+                    body: JSON.stringify({ status: 'cancelled', response_message: 'Cancelled by requester' })
                 });
                 
                 const data = await response.json();
@@ -14216,21 +14288,23 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     showNotification('Request cancelled', 'success');
                     loadManagementRequests();
+                    loadMyAccount(); // Refresh My Account view too
                 } else {
                     showNotification(data.error || 'Error cancelling request', 'error');
                 }
             } catch (error) {
+                console.error('Error cancelling request:', error);
                 showNotification('Error cancelling request', 'error');
             }
         }
         
-        // Remove agency from my account (called by requester from Management Requests view)
-        async function removeMyAgency() {
-            if (!confirm('Remove agency management? You will manage your own account again.')) {
+        async function requestEndManagement(requestId) {
+            if (!confirm('Are you sure you want to end this management relationship? You will become self-managed.')) {
                 return;
             }
             
             try {
+                // Get current account
                 const meRes = await fetch('/api/accounts/me', { headers: authHeaders() });
                 const meData = await meRes.json();
                 
@@ -14239,6 +14313,7 @@ Local honey and preserves"></textarea>
                     return;
                 }
                 
+                // Remove management
                 const response = await fetch(`/api/accounts/${meData.account.id}/remove-management`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() }
@@ -14247,13 +14322,22 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification('Now self-managed', 'success');
+                    // Update request status
+                    await fetch(`/api/management-requests/${requestId}/respond`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ status: 'cancelled', response_message: 'Ended by account owner' })
+                    });
+                    
+                    showNotification('Management ended - you are now self-managed', 'success');
                     loadManagementRequests();
+                    loadMyAccount();
                 } else {
-                    showNotification(data.error || 'Error removing management', 'error');
+                    showNotification(data.error || 'Error ending management', 'error');
                 }
             } catch (error) {
-                showNotification('Error removing management', 'error');
+                console.error('Error ending management:', error);
+                showNotification('Error ending management', 'error');
             }
         }
         
@@ -14914,21 +14998,21 @@ Local honey and preserves"></textarea>
                     <div class="modal active" id="assignAgencyModal">
                         <div class="modal-content" style="max-width: 450px;">
                             <div class="modal-header">
-                                <h3 class="modal-title">🏢 Request Agency Management</h3>
+                                <h3 class="modal-title">🏢 Assign Agency</h3>
                                 <button class="modal-close" onclick="closeModal('assignAgencyModal')">&times;</button>
                             </div>
                             <div style="padding: 0.5rem 0;">
-                                <p style="margin-bottom: 1rem;">Request an agency to manage <strong>${accountName}</strong>:</p>
+                                <p style="margin-bottom: 1rem;">Assign an agency to manage <strong>${accountName}</strong>:</p>
                                 <select id="agencySelectModal" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
                                     <option value="">Select agency...</option>
                                     ${options}
                                 </select>
-                                <div style="margin-top: 1rem; padding: 0.75rem; background: #fef3c7; border-radius: 6px; font-size: 0.85rem; color: #92400e;">
-                                    ⏳ The agency must approve this request before they can manage this account.
+                                <div style="margin-top: 1rem; padding: 0.75rem; background: #f0f9ff; border-radius: 6px; font-size: 0.85rem; color: #0369a1;">
+                                    ℹ️ The agency will be able to view and manage this account's properties and bookings.
                                 </div>
                                 <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
                                     <button class="btn btn-secondary" onclick="closeModal('assignAgencyModal')" style="flex: 1;">Cancel</button>
-                                    <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">📤 Send Request</button>
+                                    <button class="btn" onclick="saveAgencyAssignment(${accountId})" style="flex: 1;">Assign</button>
                                 </div>
                             </div>
                         </div>
@@ -14951,21 +15035,16 @@ Local honey and preserves"></textarea>
             }
             
             try {
-                // Create a pending management request instead of auto-assigning
-                const response = await fetch('/api/management-requests', {
+                const response = await fetch(`/api/admin/accounts/${accountId}/assign-agency`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ 
-                        requesting_account_id: accountId,
-                        agency_id: parseInt(agencyId),
-                        message: 'Management request from Admin'
-                    })
+                    body: JSON.stringify({ agency_id: parseInt(agencyId) })
                 });
                 const result = await response.json();
                 
                 if (result.success) {
                     closeModal('assignAgencyModal');
-                    showNotification('Request sent to agency for approval', 'success');
+                    showNotification('Agency assigned successfully', 'success');
                     loadAccounts();
                 } else {
                     alert('Error: ' + result.error);
@@ -15164,7 +15243,7 @@ Local honey and preserves"></textarea>
                                         <div style="font-size: 0.85rem; color: var(--text-secondary);">No agency assigned</div>
                                     </div>
                                     <button type="button" class="btn" onclick="assignAgencyFromModal(${account.id}, '${(account.name || '').replace(/'/g, '')}')">
-                                        📤 Request Agency
+                                        + Assign Agency
                                     </button>
                                 </div>
                             `;
@@ -18887,7 +18966,11 @@ Local honey and preserves"></textarea>
 
         // Modal Functions
         function openModal(modalId) {
-            document.getElementById(modalId).classList.add('active');
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.style.display = '';  // Reset display in case it was set to 'none'
+                modal.classList.add('active');
+            }
         }
 
         function closeModal(modalId) {
@@ -18900,7 +18983,7 @@ Local honey and preserves"></textarea>
                     modal.remove();
                 } else {
                     modal.classList.remove('active');
-                    modal.style.display = 'none';
+                    // Don't set display:none - let CSS handle visibility via .active class
                 }
             }
         }
@@ -24430,6 +24513,24 @@ Local honey and preserves"></textarea>
                     }
                     document.getElementById('edit-room-display-name').value = displayName;
                     
+                    // Short description - handle JSON format
+                    let shortDesc = room.short_description || '';
+                    if (typeof shortDesc === 'object' && shortDesc !== null) {
+                        shortDesc = shortDesc.en || '';
+                    } else if (typeof shortDesc === 'string' && shortDesc.startsWith('{')) {
+                        try { shortDesc = JSON.parse(shortDesc).en || shortDesc; } catch(e) {}
+                    }
+                    document.getElementById('edit-room-short-description').value = shortDesc;
+                    
+                    // Full description - handle JSON format
+                    let fullDesc = room.full_description || '';
+                    if (typeof fullDesc === 'object' && fullDesc !== null) {
+                        fullDesc = fullDesc.en || '';
+                    } else if (typeof fullDesc === 'string' && fullDesc.startsWith('{')) {
+                        try { fullDesc = JSON.parse(fullDesc).en || fullDesc; } catch(e) {}
+                    }
+                    document.getElementById('edit-room-full-description').value = fullDesc;
+                    
                     // Editable fields
                     document.getElementById('edit-room-type').value = room.unit_type || 'double';
                     document.getElementById('edit-room-maxguests').value = room.max_guests || 2;
@@ -24462,9 +24563,11 @@ Local honey and preserves"></textarea>
             e.preventDefault();
             const id = document.getElementById('edit-room-id').value;
             
-            // Get all editable fields (no descriptions - they cause JSON issues)
+            // Get all editable fields including descriptions
             const data = {
                 display_name: document.getElementById('edit-room-display-name').value || null,
+                short_description: document.getElementById('edit-room-short-description').value || null,
+                full_description: document.getElementById('edit-room-full-description').value || null,
                 room_type: document.getElementById('edit-room-type').value,
                 max_guests: parseInt(document.getElementById('edit-room-maxguests').value) || 2,
                 max_adults: parseInt(document.getElementById('edit-room-maxadults').value) || 2,
@@ -24483,7 +24586,7 @@ Local honey and preserves"></textarea>
                 
                 const result = await response.json();
                 if (result.success) {
-                    alert('Room updated successfully!');
+                    showNotification('Room updated successfully!', 'success');
                     closeModal('editRoomModal');
                     loadRoomsForProperty();
                 } else {
@@ -24575,6 +24678,92 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('AI generation error:', error);
                 alert('Error generating display name');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function generateRoomShortDescription() {
+            const roomId = document.getElementById('edit-room-id').value;
+            const roomName = document.getElementById('edit-room-name').value;
+            const displayName = document.getElementById('edit-room-display-name').value;
+            const roomType = document.getElementById('edit-room-type').value;
+            const maxGuests = document.getElementById('edit-room-maxguests').value;
+            
+            if (!roomName) return alert('No room name to work with');
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/ai/generate-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ 
+                        type: 'room_short_description',
+                        room_id: roomId,
+                        room_name: displayName || roomName,
+                        room_type: roomType,
+                        max_guests: maxGuests
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('edit-room-short-description').value = result.content;
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('AI generation error:', error);
+                alert('Error generating short description');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function generateRoomFullDescription() {
+            const roomId = document.getElementById('edit-room-id').value;
+            const roomName = document.getElementById('edit-room-name').value;
+            const displayName = document.getElementById('edit-room-display-name').value;
+            const shortDesc = document.getElementById('edit-room-short-description').value;
+            const roomType = document.getElementById('edit-room-type').value;
+            const maxGuests = document.getElementById('edit-room-maxguests').value;
+            
+            if (!roomName) return alert('No room name to work with');
+            
+            const btn = event.target;
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/ai/generate-content', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ 
+                        type: 'room_full_description',
+                        room_id: roomId,
+                        room_name: displayName || roomName,
+                        short_description: shortDesc,
+                        room_type: roomType,
+                        max_guests: maxGuests
+                    })
+                });
+                
+                const result = await response.json();
+                if (result.success) {
+                    document.getElementById('edit-room-full-description').value = result.content;
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                console.error('AI generation error:', error);
+                alert('Error generating full description');
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
