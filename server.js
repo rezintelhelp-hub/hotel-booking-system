@@ -2042,6 +2042,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           gasRoomId
         ]);
         
+        // Also set adapter-specific room ID for backwards compatibility
+        if (prop.adapter_code === 'beds24') {
+          await pool.query('UPDATE bookable_units SET beds24_room_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
+        } else if (prop.adapter_code === 'smoobu') {
+          await pool.query('UPDATE bookable_units SET smoobu_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
+        } else if (prop.adapter_code === 'hostaway') {
+          await pool.query('UPDATE bookable_units SET hostaway_listing_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
+        }
+        
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
           await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
@@ -2089,6 +2098,15 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           featureCodes
         ]);
         gasRoomId = roomResult.rows[0].id;
+        
+        // Also set adapter-specific room ID for backwards compatibility
+        if (prop.adapter_code === 'beds24') {
+          await pool.query('UPDATE bookable_units SET beds24_room_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
+        } else if (prop.adapter_code === 'smoobu') {
+          await pool.query('UPDATE bookable_units SET smoobu_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
+        } else if (prop.adapter_code === 'hostaway') {
+          await pool.query('UPDATE bookable_units SET hostaway_listing_id = $1 WHERE id = $2', [String(room.external_id), gasRoomId]).catch(() => {});
+        }
         
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
@@ -2272,28 +2290,46 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     
     // Get refresh token - check column first, then credentials JSON
     const refreshToken = conn.refresh_token || credentials.refreshToken || credentials.refresh_token;
+    const storedAccessToken = conn.access_token || credentials.token || credentials.access_token;
     
-    if (!refreshToken) {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'No refresh token found for this connection. Please reconnect.' 
-      });
+    let accessToken = storedAccessToken;
+    
+    // Try to use stored access token first, refresh only if needed or expired
+    // For now, always refresh to ensure fresh token (access tokens expire in 24h)
+    if (refreshToken) {
+      try {
+        // IMPORTANT: Beds24 uses GET with header, NOT POST with body
+        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: {
+            'refreshToken': refreshToken
+          }
+        });
+        accessToken = tokenResponse.data.token;
+        
+        // Save the new access token
+        await pool.query(
+          'UPDATE gas_sync_connections SET access_token = $1, updated_at = NOW() WHERE id = $2',
+          [accessToken, connectionId]
+        );
+        console.log('Got fresh Beds24 access token for connection', connectionId);
+      } catch (refreshError) {
+        console.error('Token refresh failed:', refreshError.response?.data || refreshError.message);
+        // If refresh fails but we have a stored access token, try using it
+        if (!storedAccessToken) {
+          return res.status(401).json({ 
+            success: false, 
+            error: 'Token refresh failed. Please reconnect with a new invite code.' 
+          });
+        }
+        accessToken = storedAccessToken;
+      }
     }
     
-    // Get fresh access token
-    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-      refreshToken: refreshToken
-    });
-    const accessToken = tokenResponse.data.token;
-    const newRefreshToken = tokenResponse.data.refreshToken;
-    
-    // IMPORTANT: Beds24 rotates refresh tokens - save the new one
-    if (newRefreshToken && newRefreshToken !== refreshToken) {
-      await pool.query(
-        'UPDATE gas_sync_connections SET refresh_token = $1, credentials = credentials || $2, updated_at = NOW() WHERE id = $3',
-        [newRefreshToken, JSON.stringify({ refreshToken: newRefreshToken }), connectionId]
-      );
-      console.log('Saved new Beds24 refresh token for connection', connectionId);
+    if (!accessToken) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'No access token available. Please reconnect with a new invite code.' 
+      });
     }
     
     // Get all synced properties with prop_keys
@@ -2355,22 +2391,24 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
         // Rate limit: wait between requests
         await new Promise(resolve => setTimeout(resolve, 500));
         
-        const calendarResponse = await axios.post('https://beds24.com/api/v2/inventory/rooms/calendar', {
-          propertyId: parseInt(prop.external_id),
-          startDate,
-          endDate
-        }, {
+        const calendarResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+          params: {
+            propertyId: parseInt(prop.external_id),
+            startDate,
+            endDate
+          },
           headers: {
-            'token': accessToken,
-            'Content-Type': 'application/json'
+            'token': accessToken
           }
         });
         
         const calendarData = calendarResponse.data;
         
-        // Calendar data is organized by room
-        if (calendarData && Array.isArray(calendarData)) {
-          for (const roomCal of calendarData) {
+        // Calendar data structure: { success: true, data: [...rooms with calendar arrays...] }
+        const roomsData = calendarData.data || (Array.isArray(calendarData) ? calendarData : []);
+        
+        if (roomsData && Array.isArray(roomsData)) {
+          for (const roomCal of roomsData) {
             const beds24RoomId = roomCal.roomId?.toString();
             const matchedRoom = roomsResult.rows.find(r => r.beds24_room_id?.toString() === beds24RoomId);
             
@@ -2378,8 +2416,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               continue; // Skip rooms we haven't linked
             }
             
-            // Process each day
-            const days = roomCal.days || roomCal.calendar || [];
+            // Process each day - calendar array contains the daily data
+            const days = roomCal.calendar || roomCal.days || [];
             for (const day of days) {
               const dateStr = day.date;
               const price = parseFloat(day.price) || parseFloat(day.price1) || null;
@@ -11068,14 +11106,34 @@ app.post('/api/beds24/save-token', async (req, res) => {
 async function getBeds24AccessToken(pool) {
   let refreshToken = null;
   
-  // Try database FIRST (this is set per-user via wizard)
+  // Try channel_connections FIRST (old wizard)
   const tokenResult = await pool.query(
     "SELECT refresh_token, account_id FROM channel_connections WHERE cm_id = (SELECT id FROM channel_managers WHERE cm_code = 'beds24') ORDER BY updated_at DESC LIMIT 1"
   );
   
   if (tokenResult.rows.length > 0 && tokenResult.rows[0].refresh_token) {
     refreshToken = tokenResult.rows[0].refresh_token;
-    console.log('Using refresh token from database, account_id:', tokenResult.rows[0].account_id);
+    console.log('Using refresh token from channel_connections, account_id:', tokenResult.rows[0].account_id);
+  }
+  
+  // Try gas_sync_connections SECOND (new GasSync)
+  if (!refreshToken) {
+    const gasSyncResult = await pool.query(
+      "SELECT refresh_token, credentials FROM gas_sync_connections WHERE adapter_code = 'beds24' AND status = 'connected' ORDER BY updated_at DESC LIMIT 1"
+    );
+    
+    if (gasSyncResult.rows.length > 0) {
+      refreshToken = gasSyncResult.rows[0].refresh_token;
+      if (!refreshToken && gasSyncResult.rows[0].credentials) {
+        const creds = typeof gasSyncResult.rows[0].credentials === 'string' 
+          ? JSON.parse(gasSyncResult.rows[0].credentials) 
+          : gasSyncResult.rows[0].credentials;
+        refreshToken = creds.refreshToken || creds.refresh_token;
+      }
+      if (refreshToken) {
+        console.log('Using refresh token from gas_sync_connections');
+      }
+    }
   }
   
   // Fallback to environment variable
