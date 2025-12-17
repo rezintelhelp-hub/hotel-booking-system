@@ -26695,19 +26695,23 @@ app.post('/api/beds24-wizard/properties', async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invite code required' });
     }
     
-    // Exchange invite code for token
+    // Exchange invite code for token - code goes in HEADER not body
     const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/setup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: inviteCode })
+      method: 'GET',
+      headers: { 
+        'accept': 'application/json',
+        'code': inviteCode 
+      }
     });
     
     const tokenData = await tokenResponse.json();
+    console.log('Beds24 auth response:', JSON.stringify(tokenData));
     
     if (!tokenData.token) {
       return res.status(400).json({ 
         success: false, 
-        error: 'Invalid V2 Invite Code - could not authenticate with Beds24' 
+        error: 'Invalid V2 Invite Code - could not authenticate with Beds24',
+        beds24Response: tokenData
       });
     }
     
@@ -26719,6 +26723,7 @@ app.post('/api/beds24-wizard/properties', async (req, res) => {
     });
     
     const propsData = await propsResponse.json();
+    console.log('Beds24 properties response:', JSON.stringify(propsData).substring(0, 500));
     
     if (!propsData.success && propsData.error) {
       return res.status(400).json({ success: false, error: propsData.error });
@@ -26739,6 +26744,7 @@ app.post('/api/beds24-wizard/properties', async (req, res) => {
     });
     
   } catch (error) {
+    console.log('Beds24 wizard error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -26746,43 +26752,37 @@ app.post('/api/beds24-wizard/properties', async (req, res) => {
 // Wizard Step 4: Fetch room types with property code
 app.post('/api/beds24-wizard/room-types', async (req, res) => {
   try {
-    const { inviteCode, propId, propCode } = req.body;
+    const { propId, propCode, token } = req.body;
     
     if (!propId) {
       return res.status(400).json({ success: false, error: 'Property ID required' });
     }
     
-    // Re-authenticate if needed
-    let v2Token = req.body.token;
-    if (!v2Token && inviteCode) {
-      const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/setup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code: inviteCode })
-      });
-      const tokenData = await tokenResponse.json();
-      v2Token = tokenData.token;
+    if (!token) {
+      return res.status(400).json({ success: false, error: 'Token required - please go back and re-authenticate' });
     }
     
     // Fetch property details with room types
     const propResponse = await fetch(`https://beds24.com/api/v2/properties/${propId}`, {
       headers: { 
-        'token': v2Token,
+        'token': token,
         'propKey': propCode || ''
       }
     });
     
     const propData = await propResponse.json();
+    console.log('Beds24 property response:', JSON.stringify(propData).substring(0, 500));
     
     // Fetch room types separately
     const roomsResponse = await fetch(`https://beds24.com/api/v2/properties/${propId}/rooms`, {
       headers: { 
-        'token': v2Token,
+        'token': token,
         'propKey': propCode || ''
       }
     });
     
     const roomsData = await roomsResponse.json();
+    console.log('Beds24 rooms response:', JSON.stringify(roomsData).substring(0, 500));
     
     const roomTypes = (roomsData.data || roomsData || []).map(rt => ({
       id: rt.id || rt.roomId,
@@ -26801,6 +26801,7 @@ app.post('/api/beds24-wizard/room-types', async (req, res) => {
     });
     
   } catch (error) {
+    console.log('Room types error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
