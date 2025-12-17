@@ -1,0 +1,1164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect to Beds24 - GAS</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem;
+        }
+        
+        .wizard-container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .wizard-header {
+            background: linear-gradient(135deg, #1e3a5f 0%, #2d5a87 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+        
+        .wizard-header h1 {
+            font-size: 1.75rem;
+            margin-bottom: 0.5rem;
+        }
+        
+        .wizard-header p {
+            opacity: 0.9;
+            font-size: 0.95rem;
+        }
+        
+        .steps-indicator {
+            display: flex;
+            justify-content: center;
+            padding: 1.5rem;
+            background: #f8f9fa;
+            border-bottom: 1px solid #e9ecef;
+            gap: 0.5rem;
+        }
+        
+        .step-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #dee2e6;
+            transition: all 0.3s;
+        }
+        
+        .step-dot.active {
+            background: #667eea;
+            transform: scale(1.3);
+        }
+        
+        .step-dot.completed {
+            background: #28a745;
+        }
+        
+        .wizard-content {
+            padding: 2rem;
+            min-height: 400px;
+        }
+        
+        .step {
+            display: none;
+        }
+        
+        .step.active {
+            display: block;
+            animation: fadeIn 0.3s ease;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .step h2 {
+            color: #1e3a5f;
+            margin-bottom: 0.5rem;
+            font-size: 1.4rem;
+        }
+        
+        .step-description {
+            color: #6c757d;
+            margin-bottom: 1.5rem;
+            font-size: 0.95rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.25rem;
+        }
+        
+        .form-group label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #495057;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        .form-hint {
+            font-size: 0.8rem;
+            color: #6c757d;
+            margin-top: 0.25rem;
+        }
+        
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-primary:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .btn-secondary {
+            background: #e9ecef;
+            color: #495057;
+        }
+        
+        .btn-secondary:hover {
+            background: #dee2e6;
+        }
+        
+        .wizard-footer {
+            display: flex;
+            justify-content: space-between;
+            padding: 1.5rem 2rem;
+            background: #f8f9fa;
+            border-top: 1px solid #e9ecef;
+        }
+        
+        .alert {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+        }
+        
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .alert-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        
+        .alert-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeeba;
+        }
+        
+        .property-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .property-card:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .property-card.selected {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+        
+        .property-card h3 {
+            color: #1e3a5f;
+            margin-bottom: 0.25rem;
+        }
+        
+        .property-card .meta {
+            color: #6c757d;
+            font-size: 0.9rem;
+        }
+        
+        .property-card .room-count {
+            display: inline-block;
+            background: #e9ecef;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            margin-right: 0.5rem;
+        }
+        
+        .room-type-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+        }
+        
+        .room-type-item {
+            padding: 1rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .room-type-item:last-child {
+            border-bottom: none;
+        }
+        
+        .room-type-item h4 {
+            color: #1e3a5f;
+            margin-bottom: 0.25rem;
+        }
+        
+        .room-type-item .description {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin-top: 0.25rem;
+        }
+        
+        .room-type-item .badge {
+            display: inline-block;
+            background: #667eea;
+            color: white;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            margin-right: 0.5rem;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 3rem;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e9ecef;
+            border-top-color: #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 1rem;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .success-screen {
+            text-align: center;
+            padding: 2rem;
+        }
+        
+        .success-screen .icon {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+        }
+        
+        .success-screen h2 {
+            color: #28a745;
+            margin-bottom: 0.5rem;
+        }
+        
+        .summary-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1.5rem;
+            text-align: left;
+        }
+        
+        .summary-table th, .summary-table td {
+            padding: 0.75rem;
+            border-bottom: 1px solid #e9ecef;
+        }
+        
+        .summary-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #495057;
+        }
+        
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            padding: 1rem;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        
+        .checkbox-group input[type="checkbox"] {
+            width: 18px;
+            height: 18px;
+        }
+        
+        .tab-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        
+        .tab-btn {
+            flex: 1;
+            padding: 1rem;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background: white;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.2s;
+        }
+        
+        .tab-btn:hover {
+            border-color: #667eea;
+        }
+        
+        .tab-btn.active {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+        
+        .tab-btn h4 {
+            color: #1e3a5f;
+            margin-bottom: 0.25rem;
+        }
+        
+        .tab-btn p {
+            color: #6c757d;
+            font-size: 0.8rem;
+            margin: 0;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .role-card {
+            border: 2px solid #e9ecef;
+            border-radius: 12px;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .role-card:hover {
+            border-color: #667eea;
+            background: #f8f9ff;
+        }
+        
+        .role-card.selected {
+            border-color: #667eea;
+            background: #f0f3ff;
+        }
+        
+        .role-card h4 {
+            color: #1e3a5f;
+            margin-bottom: 0.25rem;
+        }
+        
+        .role-card p {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin: 0;
+        }
+        
+        .urgent-box {
+            border: 2px solid #dc3545;
+            background: #fff5f5;
+            border-radius: 12px;
+            padding: 1.5rem;
+        }
+        
+        .urgent-box h3 {
+            color: #dc3545;
+            margin-bottom: 0.5rem;
+        }
+        
+        .user-info-box {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .user-info-box .avatar {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+        
+        .user-info-box .details h4 {
+            color: #1e3a5f;
+            margin-bottom: 0.25rem;
+        }
+        
+        .user-info-box .details p {
+            color: #6c757d;
+            font-size: 0.85rem;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="wizard-container">
+        <div class="wizard-header">
+            <h1>🏨 Connect to Beds24</h1>
+            <p>Import your properties from Beds24 channel manager</p>
+        </div>
+        
+        <div class="steps-indicator">
+            <div class="step-dot active" data-step="1"></div>
+            <div class="step-dot" data-step="2"></div>
+            <div class="step-dot" data-step="3"></div>
+            <div class="step-dot" data-step="4"></div>
+            <div class="step-dot" data-step="5"></div>
+            <div class="step-dot" data-step="6"></div>
+        </div>
+        
+        <div class="wizard-content">
+            <!-- Step 1: Login or Register -->
+            <div class="step active" id="step1">
+                <h2>Step 1: Your Account</h2>
+                <p class="step-description">Login to your existing account or create a new one</p>
+                
+                <div id="step1-error"></div>
+                
+                <div class="tab-buttons">
+                    <div class="tab-btn active" onclick="showAuthTab('login')">
+                        <h4>🔑 Login</h4>
+                        <p>I have an account</p>
+                    </div>
+                    <div class="tab-btn" onclick="showAuthTab('register')">
+                        <h4>✨ Register</h4>
+                        <p>Create new account</p>
+                    </div>
+                </div>
+                
+                <!-- Login Tab -->
+                <div class="tab-content active" id="login-tab">
+                    <div class="form-group">
+                        <label for="login-email">Email</label>
+                        <input type="email" id="login-email" placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="login-password">Password</label>
+                        <input type="password" id="login-password" placeholder="Your password">
+                    </div>
+                </div>
+                
+                <!-- Register Tab -->
+                <div class="tab-content" id="register-tab">
+                    <div class="form-group">
+                        <label>Account Type</label>
+                        <div class="role-card selected" data-role="admin" onclick="selectRole('admin')">
+                            <h4>🏠 Property Admin</h4>
+                            <p>I manage my own properties directly</p>
+                        </div>
+                        <div class="role-card" data-role="submaster_admin" onclick="selectRole('submaster_admin')">
+                            <h4>👥 Sub Master Admin</h4>
+                            <p>I manage properties for multiple owners</p>
+                        </div>
+                        <div class="role-card" data-role="agency_admin" onclick="selectRole('agency_admin')">
+                            <h4>🏢 Agency Admin</h4>
+                            <p>I'm a property management agency</p>
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="reg-name">Business/Account Name</label>
+                        <input type="text" id="reg-name" placeholder="e.g. Belmont Properties">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-email">Email</label>
+                        <input type="email" id="reg-email" placeholder="your@email.com">
+                    </div>
+                    <div class="form-group">
+                        <label for="reg-password">Password</label>
+                        <input type="password" id="reg-password" placeholder="Create a password">
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 2: V2 Invite Code (FAST - expires quickly) -->
+            <div class="step" id="step2">
+                <h2>Step 2: Beds24 V2 Invite Code</h2>
+                <p class="step-description">This code expires quickly - enter it as soon as you generate it</p>
+                
+                <div id="step2-error"></div>
+                
+                <div id="logged-in-user"></div>
+                
+                <div class="urgent-box">
+                    <h3>⚡ Quick! Enter your V2 Invite Code</h3>
+                    <p style="color: #6c757d; margin-bottom: 1rem;">
+                        Generate this in Beds24: Settings → Apps & Integrations → API → Generate Invite Code
+                    </p>
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <input type="text" id="inviteCode" placeholder="Paste your V2 Invite Code here" style="font-size: 1.1rem; padding: 1rem;">
+                    </div>
+                </div>
+                
+                <div id="properties-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Connecting to Beds24 and fetching properties...</p>
+                </div>
+            </div>
+            
+            <!-- Step 3: Select Property -->
+            <div class="step" id="step3">
+                <h2>Step 3: Select Property</h2>
+                <p class="step-description">Choose which property you want to import to GAS</p>
+                
+                <div id="step3-error"></div>
+                <div id="properties-list"></div>
+            </div>
+            
+            <!-- Step 4: V1 API Key + Property Code -->
+            <div class="step" id="step4">
+                <h2>Step 4: Additional Credentials</h2>
+                <p class="step-description">These are needed for images and property-specific access</p>
+                
+                <div id="step4-error"></div>
+                
+                <div id="selected-property-box" class="user-info-box">
+                    <div class="avatar">🏨</div>
+                    <div class="details">
+                        <h4 id="selected-prop-name">-</h4>
+                        <p>Beds24 ID: <span id="selected-prop-id">-</span></p>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label for="v1ApiKey">V1 API Key</label>
+                    <input type="text" id="v1ApiKey" placeholder="Enter your V1 API Key">
+                    <p class="form-hint">Settings → Apps & Integrations → API (V1 section) - for downloading images</p>
+                </div>
+                
+                <div class="form-group">
+                    <label for="propCode">Property Code</label>
+                    <input type="text" id="propCode" placeholder="Enter property-specific code">
+                    <p class="form-hint">Property → Settings → API → Property Key</p>
+                </div>
+                
+                <div id="roomtypes-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Fetching room types...</p>
+                </div>
+            </div>
+            
+            <!-- Step 5: Review Room Types -->
+            <div class="step" id="step5">
+                <h2>Step 5: Review Room Types</h2>
+                <p class="step-description">These room types will be imported with their descriptions</p>
+                
+                <div id="step5-error"></div>
+                <div id="roomtypes-list"></div>
+                
+                <div class="checkbox-group">
+                    <input type="checkbox" id="importImages" checked>
+                    <label for="importImages">Import room images from Beds24 (uses V1 API)</label>
+                </div>
+            </div>
+            
+            <!-- Step 6: Import -->
+            <div class="step" id="step6">
+                <h2>Step 6: Import to GAS</h2>
+                <p class="step-description">Review and confirm the import</p>
+                
+                <div id="step6-error"></div>
+                <div id="import-loading" class="loading" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Importing property to GAS...</p>
+                </div>
+                
+                <div id="import-summary"></div>
+                <div id="import-success" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="wizard-footer">
+            <button class="btn btn-secondary" id="prevBtn" onclick="prevStep()" style="visibility: hidden;">← Back</button>
+            <button class="btn btn-primary" id="nextBtn" onclick="nextStep()">Next →</button>
+        </div>
+    </div>
+    
+    <script>
+        let currentStep = 1;
+        const totalSteps = 6;
+        
+        // Wizard data
+        let wizardData = {
+            // Auth
+            authMode: 'login', // 'login' or 'register'
+            selectedRole: 'admin',
+            account: null,
+            
+            // Beds24
+            inviteCode: '',
+            v1ApiKey: '',
+            propCode: '',
+            v2Token: '',
+            
+            // Properties
+            properties: [],
+            selectedProperty: null,
+            roomTypes: [],
+            propertyData: null,
+            
+            // Import
+            importImages: true,
+            importResult: null
+        };
+        
+        function showAuthTab(tab) {
+            wizardData.authMode = tab;
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            
+            if (tab === 'login') {
+                document.querySelector('.tab-btn:first-child').classList.add('active');
+                document.getElementById('login-tab').classList.add('active');
+            } else {
+                document.querySelector('.tab-btn:last-child').classList.add('active');
+                document.getElementById('register-tab').classList.add('active');
+            }
+        }
+        
+        function selectRole(role) {
+            wizardData.selectedRole = role;
+            document.querySelectorAll('.role-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelector(`.role-card[data-role="${role}"]`).classList.add('selected');
+        }
+        
+        function updateStepIndicators() {
+            document.querySelectorAll('.step-dot').forEach((dot, index) => {
+                dot.classList.remove('active', 'completed');
+                if (index + 1 === currentStep) {
+                    dot.classList.add('active');
+                } else if (index + 1 < currentStep) {
+                    dot.classList.add('completed');
+                }
+            });
+        }
+        
+        function showStep(step) {
+            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+            document.getElementById(`step${step}`).classList.add('active');
+            
+            document.getElementById('prevBtn').style.visibility = step === 1 ? 'hidden' : 'visible';
+            
+            if (step === 6 && wizardData.importResult) {
+                document.getElementById('nextBtn').textContent = 'Go to Dashboard';
+            } else if (step === 6) {
+                document.getElementById('nextBtn').textContent = 'Import Now 🚀';
+            } else {
+                document.getElementById('nextBtn').textContent = 'Next →';
+            }
+            
+            updateStepIndicators();
+        }
+        
+        async function nextStep() {
+            clearAllErrors();
+            
+            if (currentStep === 1) {
+                // Auth step
+                if (wizardData.authMode === 'login') {
+                    await doLogin();
+                } else {
+                    await doRegister();
+                }
+            } else if (currentStep === 2) {
+                // V2 Invite Code
+                const inviteCode = document.getElementById('inviteCode').value.trim();
+                if (!inviteCode) {
+                    showError('step2-error', 'Please enter your V2 Invite Code');
+                    return;
+                }
+                wizardData.inviteCode = inviteCode;
+                await fetchProperties();
+                
+            } else if (currentStep === 3) {
+                // Select Property
+                if (!wizardData.selectedProperty) {
+                    showError('step3-error', 'Please select a property');
+                    return;
+                }
+                document.getElementById('selected-prop-name').textContent = wizardData.selectedProperty.name;
+                document.getElementById('selected-prop-id').textContent = wizardData.selectedProperty.id;
+                currentStep++;
+                showStep(currentStep);
+                
+            } else if (currentStep === 4) {
+                // V1 + Property Code
+                const v1ApiKey = document.getElementById('v1ApiKey').value.trim();
+                const propCode = document.getElementById('propCode').value.trim();
+                
+                if (!v1ApiKey) {
+                    showError('step4-error', 'Please enter your V1 API Key');
+                    return;
+                }
+                if (!propCode) {
+                    showError('step4-error', 'Please enter the Property Code');
+                    return;
+                }
+                
+                wizardData.v1ApiKey = v1ApiKey;
+                wizardData.propCode = propCode;
+                await fetchRoomTypes();
+                
+            } else if (currentStep === 5) {
+                // Review
+                wizardData.importImages = document.getElementById('importImages').checked;
+                showImportSummary();
+                currentStep++;
+                showStep(currentStep);
+                
+            } else if (currentStep === 6) {
+                // Import
+                if (wizardData.importResult) {
+                    window.location.href = `/gas-admin.html?property_id=${wizardData.importResult.gasPropertyId}`;
+                } else {
+                    await doImport();
+                }
+            }
+        }
+        
+        function prevStep() {
+            if (currentStep > 1) {
+                currentStep--;
+                showStep(currentStep);
+            }
+        }
+        
+        function showError(containerId, message) {
+            document.getElementById(containerId).innerHTML = `<div class="alert alert-error">${message}</div>`;
+        }
+        
+        function clearAllErrors() {
+            for (let i = 1; i <= 6; i++) {
+                const el = document.getElementById(`step${i}-error`);
+                if (el) el.innerHTML = '';
+            }
+        }
+        
+        async function doLogin() {
+            const email = document.getElementById('login-email').value.trim();
+            const password = document.getElementById('login-password').value;
+            
+            if (!email || !password) {
+                showError('step1-error', 'Please enter email and password');
+                return;
+            }
+            
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/accounts/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Login failed');
+                }
+                
+                wizardData.account = data.account;
+                showLoggedInUser();
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step1-error', `Login failed: ${error.message}`);
+            } finally {
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        async function doRegister() {
+            const name = document.getElementById('reg-name').value.trim();
+            const email = document.getElementById('reg-email').value.trim();
+            const password = document.getElementById('reg-password').value;
+            
+            if (!name || !email || !password) {
+                showError('step1-error', 'Please fill in all fields');
+                return;
+            }
+            
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/accounts', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        name,
+                        email,
+                        password,
+                        role: wizardData.selectedRole,
+                        business_name: name
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Registration failed');
+                }
+                
+                wizardData.account = data.account;
+                showLoggedInUser();
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step1-error', `Registration failed: ${error.message}`);
+            } finally {
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function showLoggedInUser() {
+            const container = document.getElementById('logged-in-user');
+            if (wizardData.account) {
+                container.innerHTML = `
+                    <div class="user-info-box">
+                        <div class="avatar">${wizardData.account.name.charAt(0).toUpperCase()}</div>
+                        <div class="details">
+                            <h4>${wizardData.account.name}</h4>
+                            <p>${wizardData.account.email} • ${formatRole(wizardData.account.role)}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+        
+        function formatRole(role) {
+            const roles = {
+                'admin': 'Property Admin',
+                'submaster_admin': 'Sub Master Admin',
+                'agency_admin': 'Agency Admin',
+                'master_admin': 'Master Admin'
+            };
+            return roles[role] || role;
+        }
+        
+        async function fetchProperties() {
+            document.getElementById('properties-loading').style.display = 'block';
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/beds24-wizard/properties', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        inviteCode: wizardData.inviteCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch properties');
+                }
+                
+                wizardData.properties = data.properties;
+                wizardData.v2Token = data.token;
+                renderProperties();
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step2-error', `Connection failed: ${error.message}`);
+            } finally {
+                document.getElementById('properties-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function renderProperties() {
+            const container = document.getElementById('properties-list');
+            
+            if (wizardData.properties.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-info">
+                        No properties found in your Beds24 account.
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = wizardData.properties.map(prop => `
+                <div class="property-card" onclick="selectProperty(${prop.id})" data-id="${prop.id}">
+                    <h3>${prop.name || 'Unnamed Property'}</h3>
+                    <div class="meta">${prop.city || ''} ${prop.country || ''}</div>
+                    <span class="room-count">🛏️ ${prop.roomTypeCount || 0} room types</span>
+                    <span class="room-count">🔑 ID: ${prop.id}</span>
+                </div>
+            `).join('');
+        }
+        
+        function selectProperty(propId) {
+            wizardData.selectedProperty = wizardData.properties.find(p => p.id === propId);
+            
+            document.querySelectorAll('.property-card').forEach(card => {
+                card.classList.remove('selected');
+            });
+            document.querySelector(`.property-card[data-id="${propId}"]`).classList.add('selected');
+        }
+        
+        async function fetchRoomTypes() {
+            document.getElementById('roomtypes-loading').style.display = 'block';
+            document.getElementById('nextBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/beds24-wizard/room-types', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ 
+                        inviteCode: wizardData.inviteCode,
+                        propId: wizardData.selectedProperty.id,
+                        propCode: wizardData.propCode
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to fetch room types');
+                }
+                
+                wizardData.roomTypes = data.roomTypes;
+                wizardData.propertyData = data.property;
+                renderRoomTypes();
+                currentStep++;
+                showStep(currentStep);
+                
+            } catch (error) {
+                showError('step4-error', `Failed: ${error.message}`);
+            } finally {
+                document.getElementById('roomtypes-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function renderRoomTypes() {
+            const container = document.getElementById('roomtypes-list');
+            
+            if (wizardData.roomTypes.length === 0) {
+                container.innerHTML = `
+                    <div class="alert alert-warning">
+                        No room types found. The property will still be imported.
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="room-type-list">
+                    ${wizardData.roomTypes.map(rt => `
+                        <div class="room-type-item">
+                            <h4>${rt.displayName || rt.name}</h4>
+                            <div>
+                                ${rt.maxGuests ? `<span class="badge">👥 ${rt.maxGuests} guests</span>` : ''}
+                                ${rt.basePrice ? `<span class="badge">💰 ${rt.basePrice}</span>` : ''}
+                                ${rt.imageCount ? `<span class="badge">📷 ${rt.imageCount} images</span>` : ''}
+                            </div>
+                            ${rt.shortDescription ? `<div class="description"><strong>Description:</strong> ${rt.shortDescription}</div>` : ''}
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        function showImportSummary() {
+            const container = document.getElementById('import-summary');
+            const prop = wizardData.selectedProperty;
+            
+            container.innerHTML = `
+                <div class="alert alert-info">
+                    Ready to import this property to GAS
+                </div>
+                
+                <table class="summary-table">
+                    <tr>
+                        <th>Account</th>
+                        <td>${wizardData.account?.name || '-'}</td>
+                    </tr>
+                    <tr>
+                        <th>Property Name</th>
+                        <td>${prop.name || 'Unnamed'}</td>
+                    </tr>
+                    <tr>
+                        <th>Beds24 ID</th>
+                        <td>${prop.id}</td>
+                    </tr>
+                    <tr>
+                        <th>Location</th>
+                        <td>${prop.city || ''} ${prop.country || ''}</td>
+                    </tr>
+                    <tr>
+                        <th>Room Types</th>
+                        <td>${wizardData.roomTypes.length}</td>
+                    </tr>
+                    <tr>
+                        <th>Import Images</th>
+                        <td>${wizardData.importImages ? 'Yes' : 'No'}</td>
+                    </tr>
+                </table>
+            `;
+        }
+        
+        async function doImport() {
+            document.getElementById('import-loading').style.display = 'block';
+            document.getElementById('import-summary').style.display = 'none';
+            document.getElementById('nextBtn').disabled = true;
+            document.getElementById('prevBtn').disabled = true;
+            
+            try {
+                const response = await fetch('/api/beds24-wizard/import', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        inviteCode: wizardData.inviteCode,
+                        v1ApiKey: wizardData.v1ApiKey,
+                        propCode: wizardData.propCode,
+                        propId: wizardData.selectedProperty.id,
+                        accountId: wizardData.account.id,
+                        importImages: wizardData.importImages,
+                        roomTypes: wizardData.roomTypes,
+                        propertyData: wizardData.propertyData
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Import failed');
+                }
+                
+                wizardData.importResult = data;
+                showImportSuccess(data);
+                
+            } catch (error) {
+                showError('step6-error', `Import failed: ${error.message}`);
+                document.getElementById('import-summary').style.display = 'block';
+                document.getElementById('prevBtn').disabled = false;
+            } finally {
+                document.getElementById('import-loading').style.display = 'none';
+                document.getElementById('nextBtn').disabled = false;
+            }
+        }
+        
+        function showImportSuccess(result) {
+            const container = document.getElementById('import-success');
+            container.style.display = 'block';
+            
+            container.innerHTML = `
+                <div class="success-screen">
+                    <div class="icon">🎉</div>
+                    <h2>Import Successful!</h2>
+                    <p>Your property has been imported to GAS</p>
+                    
+                    <table class="summary-table">
+                        <tr>
+                            <th>GAS Property ID</th>
+                            <td>#${result.gasPropertyId}</td>
+                        </tr>
+                        <tr>
+                            <th>Room Types Created</th>
+                            <td>${result.stats?.roomsCreated || 0}</td>
+                        </tr>
+                        <tr>
+                            <th>Images Imported</th>
+                            <td>${result.stats?.imagesCreated || 0}</td>
+                        </tr>
+                    </table>
+                </div>
+            `;
+            
+            document.getElementById('nextBtn').textContent = 'Go to Dashboard →';
+        }
+        
+        // Initialize
+        showStep(1);
+    </script>
+</body>
+</html>
