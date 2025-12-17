@@ -1553,6 +1553,91 @@ function extractText(obj, ...paths) {
   return '';
 }
 
+// Debug endpoint to see room raw_data from Beds24
+app.get('/api/gas-sync/debug/room-raw-data', async (req, res) => {
+  try {
+    const { propertyId } = req.query;
+    
+    const result = await pool.query(`
+      SELECT rt.id, rt.external_id, rt.name, rt.raw_data 
+      FROM gas_sync_room_types rt
+      WHERE rt.sync_property_id = $1
+      LIMIT 3
+    `, [propertyId]);
+    
+    const rooms = result.rows.map(r => {
+      const rawData = typeof r.raw_data === 'string' ? JSON.parse(r.raw_data) : r.raw_data;
+      return {
+        id: r.id,
+        external_id: r.external_id,
+        name: r.name,
+        raw_data_keys: Object.keys(rawData || {}),
+        texts: rawData?.texts,
+        displayName: rawData?.displayName,
+        description: rawData?.description,
+        auxiliaryText: rawData?.auxiliaryText
+      };
+    });
+    
+    res.json({ success: true, rooms });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to check GAS room data after sync
+app.get('/api/gas-sync/debug/gas-room-data', async (req, res) => {
+  try {
+    const { propertyId } = req.query;
+    
+    const result = await pool.query(`
+      SELECT id, name, display_name, short_description, full_description, cm_room_id, beds24_room_id
+      FROM bookable_units
+      WHERE property_id = $1
+      LIMIT 5
+    `, [propertyId]);
+    
+    res.json({ success: true, rooms: result.rows });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Debug endpoint to see relationship between individual rooms and room types
+app.get('/api/gas-sync/debug/room-mapping', async (req, res) => {
+  try {
+    const { propertyId } = req.query;
+    
+    // Get GAS rooms (individual)
+    const gasRooms = await pool.query(`
+      SELECT id, name, cm_room_id, beds24_room_id 
+      FROM bookable_units 
+      WHERE property_id = $1
+    `, [propertyId]);
+    
+    // Get sync room types
+    const syncRoomTypes = await pool.query(`
+      SELECT rt.id, rt.external_id, rt.name, 
+             rt.raw_data->>'texts' as texts_json
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      WHERE sp.gas_property_id = $1
+    `, [propertyId]);
+    
+    res.json({ 
+      success: true, 
+      gasRooms: gasRooms.rows,
+      syncRoomTypes: syncRoomTypes.rows.map(r => ({
+        id: r.id,
+        external_id: r.external_id,
+        name: r.name
+      }))
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Link synced property to GAS system - creates property, rooms, and images
 app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res) => {
   try {
@@ -1859,36 +1944,41 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     for (const room of syncRooms.rows) {
       const roomRawData = typeof room.raw_data === 'string' ? JSON.parse(room.raw_data) : (room.raw_data || {});
       
-      // DEBUG: Log the raw_data structure to understand what Beds24 sends
-      console.log('link-to-gas: Room raw_data keys:', Object.keys(roomRawData).join(', '));
-      if (roomRawData.texts) {
-        console.log('link-to-gas: texts type:', Array.isArray(roomRawData.texts) ? 'array' : typeof roomRawData.texts);
-        if (Array.isArray(roomRawData.texts) && roomRawData.texts.length > 0) {
-          console.log('link-to-gas: texts[0] keys:', Object.keys(roomRawData.texts[0]).join(', '));
+      // Beds24 texts is an OBJECT with nested language keys: texts.displayName.EN
+      const texts = roomRawData.texts || {};
+      
+      // Debug: log texts keys
+      console.log('link-to-gas: texts keys:', Object.keys(texts).filter(k => k !== 'offers').join(', '));
+      console.log('link-to-gas: texts.displayName:', JSON.stringify(texts.displayName));
+      console.log('link-to-gas: texts.roomDescription1:', JSON.stringify(texts.roomDescription1));
+      console.log('link-to-gas: texts.auxiliaryText:', JSON.stringify(texts.auxiliaryText));
+      
+      // Helper to extract text from Beds24 format: {EN: "...", DE: "...", NL: "..."}
+      function getText(val) {
+        if (!val) return '';
+        if (typeof val === 'string') return val;
+        if (typeof val === 'object') {
+          return val.EN || val.en || val.DE || val.de || val.FR || val.fr || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
         }
+        return '';
       }
       
-      // Extract nested text fields - Beds24 uses texts array: [{language: 'EN', displayName: '...', description: '...', auxiliaryText: '...'}]
-      let texts = {};
-      if (roomRawData.texts && Array.isArray(roomRawData.texts) && roomRawData.texts.length > 0) {
-        texts = roomRawData.texts[0]; // First element is default language (usually EN)
-      } else if (roomRawData.texts && typeof roomRawData.texts === 'object' && !Array.isArray(roomRawData.texts)) {
-        texts = roomRawData.texts;
-      }
+      // Beds24 Display Name → GAS display_name
+      const displayName = getText(texts.displayName) || '';
       
-      // Beds24 Display Name → GAS display_name (overrides room name)
-      const displayName = texts.displayName || texts.roomDisplayName || roomRawData.displayName || '';
+      // Beds24 roomDescription1 (Room Description) → GAS short_description (for listings)
+      const roomShortDesc = getText(texts.roomDescription1) || getText(roomRawData.description) || '';
       
-      // Beds24 Room Description → GAS short_description (for listings)
-      const roomShortDesc = texts.description || texts.roomDescription || roomRawData.description || '';
+      // Beds24 auxiliaryText (Auxiliary Text) → GAS full_description (long description)
+      const roomFullDesc = getText(texts.auxiliaryText) || getText(roomRawData.fullDescription) || '';
       
-      // Beds24 Auxiliary Text → GAS full_description (long description)
-      const roomFullDesc = texts.auxiliaryText || texts.roomAuxiliaryText || roomRawData.auxiliaryText || '';
+      // Log what we found
+      console.log('link-to-gas: Room', room.name);
+      console.log('  - displayName:', displayName || '(empty)');
+      console.log('  - shortDesc (roomDescription1):', roomShortDesc || '(empty)');
+      console.log('  - fullDesc (auxiliaryText):', roomFullDesc || '(empty)');
       
-      // Log what we found for debugging
-      console.log('link-to-gas: Room', room.name, '- displayName:', displayName?.substring(0,30), 'shortDesc:', roomShortDesc?.substring(0,30), 'fullDesc:', roomFullDesc?.substring(0,30));
-      
-      const roomType = texts.accommodationType || roomRawData.accommodationType || '';
+      const roomType = getText(texts.accommodationType) || getText(roomRawData.accommodationType) || '';
       
       // Extract numeric values
       const maxGuests = room.max_guests || roomRawData.maxPeople || roomRawData.maxAdults || 2;
@@ -1954,13 +2044,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
+            .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
+            .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId])
+            .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
         
         roomsUpdated++;
@@ -1999,13 +2092,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Update text fields separately (handle JSONB/TEXT type differences)
         if (displayName) {
-          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET display_name = $1 WHERE id = $2', [displayName, gasRoomId])
+            .catch(e => console.log('link-to-gas: display_name update failed:', e.message));
         }
         if (roomShortDesc) {
-          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET short_description = $1 WHERE id = $2', [roomShortDesc, gasRoomId])
+            .catch(e => console.log('link-to-gas: short_description update failed:', e.message));
         }
         if (roomFullDesc) {
-          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId]).catch(() => {});
+          await pool.query('UPDATE bookable_units SET full_description = $1 WHERE id = $2', [roomFullDesc, gasRoomId])
+            .catch(e => console.log('link-to-gas: full_description update failed:', e.message));
         }
         
         roomsCreated++;
@@ -3730,6 +3826,34 @@ app.post('/api/management-requests/:id/respond', async (req, res) => {
     }
     
     res.json({ success: true, message: `Request ${status}` });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete a management request (Master Admin only)
+app.delete('/api/management-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the request to check if it was approved
+    const request = await pool.query('SELECT * FROM management_requests WHERE id = $1', [id]);
+    if (request.rows.length === 0) {
+      return res.json({ success: false, error: 'Request not found' });
+    }
+    
+    // If request was approved, also remove the managed_by_id relationship
+    if (request.rows[0].status === 'approved') {
+      await pool.query(`
+        UPDATE accounts SET managed_by_id = NULL, updated_at = NOW()
+        WHERE id = $1 AND managed_by_id = $2
+      `, [request.rows[0].requesting_account_id, request.rows[0].agency_id]);
+    }
+    
+    // Delete the request
+    await pool.query('DELETE FROM management_requests WHERE id = $1', [id]);
+    
+    res.json({ success: true, message: 'Request deleted' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -26043,6 +26167,333 @@ app.post('/api/gas-sync/cron/sync', async (req, res) => {
 // =====================================================
 // END GASSYNC ROUTES
 // =====================================================
+
+// =====================================================
+// BEDS24 WIZARD - Clean import process
+// =====================================================
+
+// Serve the wizard HTML page
+app.get('/beds24-wizard', (req, res) => {
+  res.sendFile(path.join(__dirname, 'beds24-wizard.html'));
+});
+
+// Step 1: Test API key and fetch properties
+app.post('/api/beds24-wizard/properties', async (req, res) => {
+  try {
+    const { apiKey } = req.body;
+    
+    if (!apiKey) {
+      return res.json({ success: false, error: 'API key required' });
+    }
+    
+    // Get token from Beds24
+    const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: apiKey })
+    });
+    
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenData.token) {
+      return res.json({ success: false, error: 'Invalid API key - could not authenticate with Beds24' });
+    }
+    
+    const token = tokenData.token;
+    
+    // Fetch properties
+    const propsResponse = await fetch('https://beds24.com/api/v2/properties', {
+      headers: { 
+        'Content-Type': 'application/json',
+        'token': token
+      }
+    });
+    
+    const propsData = await propsResponse.json();
+    
+    if (!propsData.success && propsData.error) {
+      return res.json({ success: false, error: propsData.error });
+    }
+    
+    // Format properties
+    const properties = (Array.isArray(propsData) ? propsData : propsData.data || []).map(p => ({
+      id: p.id,
+      name: p.name,
+      city: p.city,
+      country: p.country,
+      address: p.address,
+      roomTypeCount: p.roomTypes?.length || 0
+    }));
+    
+    res.json({ success: true, properties, token });
+    
+  } catch (error) {
+    console.error('Beds24 wizard properties error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Step 2: Fetch room types for a property
+app.post('/api/beds24-wizard/room-types', async (req, res) => {
+  try {
+    const { apiKey, propId } = req.body;
+    
+    if (!apiKey || !propId) {
+      return res.json({ success: false, error: 'API key and property ID required' });
+    }
+    
+    // Get token
+    const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: apiKey })
+    });
+    
+    const tokenData = await tokenResponse.json();
+    if (!tokenData.token) {
+      return res.json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const token = tokenData.token;
+    
+    // Fetch property with room types
+    const propResponse = await fetch(`https://beds24.com/api/v2/properties/${propId}`, {
+      headers: { 
+        'Content-Type': 'application/json',
+        'token': token
+      }
+    });
+    
+    const propData = await propResponse.json();
+    
+    // Extract room types with their descriptions
+    const rawRoomTypes = propData.roomTypes || [];
+    
+    // Helper to extract text from Beds24 format {EN: "...", DE: "..."}
+    function getText(val) {
+      if (!val) return '';
+      if (typeof val === 'string') return val;
+      if (typeof val === 'object') {
+        return val.EN || val.en || val.DE || val.de || val.FR || val.fr || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
+      }
+      return '';
+    }
+    
+    const roomTypes = rawRoomTypes.map(rt => {
+      const texts = rt.texts || {};
+      return {
+        id: rt.id,
+        name: rt.name,
+        displayName: getText(texts.displayName) || rt.name,
+        shortDescription: getText(texts.roomDescription1) || '',
+        fullDescription: getText(texts.auxiliaryText) || '',
+        maxGuests: rt.maxPeople || rt.maxGuests || 2,
+        basePrice: rt.rackRate || null,
+        featureCodes: rt.featureCodes || '',
+        raw: rt  // Keep raw data for import
+      };
+    });
+    
+    res.json({ success: true, roomTypes, property: propData });
+    
+  } catch (error) {
+    console.error('Beds24 wizard room-types error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Step 3: Import property to GAS
+app.post('/api/beds24-wizard/import', async (req, res) => {
+  try {
+    const { apiKey, propId, accountId, importImages, roomTypes } = req.body;
+    
+    if (!apiKey || !propId || !accountId) {
+      return res.json({ success: false, error: 'Missing required fields' });
+    }
+    
+    // Get token
+    const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/token', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: apiKey })
+    });
+    
+    const tokenData = await tokenResponse.json();
+    if (!tokenData.token) {
+      return res.json({ success: false, error: 'Invalid API key' });
+    }
+    
+    const token = tokenData.token;
+    
+    // Fetch full property data
+    const propResponse = await fetch(`https://beds24.com/api/v2/properties/${propId}`, {
+      headers: { 
+        'Content-Type': 'application/json',
+        'token': token
+      }
+    });
+    
+    const prop = await propResponse.json();
+    
+    // Helper function
+    function getText(val) {
+      if (!val) return '';
+      if (typeof val === 'string') return val;
+      if (typeof val === 'object') {
+        return val.EN || val.en || val.DE || val.de || Object.values(val).find(v => typeof v === 'string' && v.trim()) || '';
+      }
+      return '';
+    }
+    
+    // Extract property texts
+    const propTexts = prop.texts || {};
+    
+    // Create property in GAS
+    const propertyResult = await pool.query(`
+      INSERT INTO properties (
+        account_id, name, property_type, 
+        address, city, state, country, postcode,
+        latitude, longitude,
+        check_in_time, check_out_time,
+        currency, phone, email,
+        short_description, full_description,
+        house_rules, cancellation_policy, terms_conditions,
+        directions, check_in_instructions, check_out_instructions,
+        cm_property_id, cm_type,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3,
+        $4, $5, $6, $7, $8,
+        $9, $10,
+        $11, $12,
+        $13, $14, $15,
+        $16, $17,
+        $18, $19, $20,
+        $21, $22, $23,
+        $24, 'beds24',
+        NOW(), NOW()
+      )
+      RETURNING id
+    `, [
+      accountId,
+      prop.name || 'Unnamed Property',
+      prop.propertyType || 'hotel',
+      prop.address || '',
+      prop.city || '',
+      prop.state || prop.region || '',
+      prop.country || '',
+      prop.postcode || prop.zip || '',
+      prop.latitude || null,
+      prop.longitude || null,
+      prop.checkInStart || '15:00',
+      prop.checkOutEnd || '11:00',
+      prop.currency || 'GBP',
+      prop.phone || '',
+      prop.email || '',
+      getText(propTexts.propertyShortDescription) || '',
+      getText(propTexts.propertyDescription) || '',
+      getText(propTexts.houseRules) || '',
+      getText(propTexts.cancellationPolicy) || '',
+      getText(propTexts.termsConditions) || '',
+      getText(propTexts.directions) || '',
+      getText(propTexts.checkInInstructions) || '',
+      getText(propTexts.checkOutInstructions) || '',
+      String(propId)
+    ]);
+    
+    const gasPropertyId = propertyResult.rows[0].id;
+    
+    // Create room types
+    let roomsCreated = 0;
+    let imagesCreated = 0;
+    const rawRoomTypes = prop.roomTypes || [];
+    
+    for (const rt of rawRoomTypes) {
+      const texts = rt.texts || {};
+      const displayName = getText(texts.displayName) || '';
+      const shortDesc = getText(texts.roomDescription1) || '';
+      const fullDesc = getText(texts.auxiliaryText) || '';
+      
+      // Insert room type as bookable unit
+      const roomResult = await pool.query(`
+        INSERT INTO bookable_units (
+          property_id, name, display_name,
+          short_description, full_description,
+          max_guests, base_price,
+          room_type, feature_codes,
+          cm_room_id,
+          created_at, updated_at
+        ) VALUES (
+          $1, $2, $3,
+          $4, $5,
+          $6, $7,
+          $8, $9,
+          $10,
+          NOW(), NOW()
+        )
+        RETURNING id
+      `, [
+        gasPropertyId,
+        rt.name,
+        displayName || null,
+        shortDesc || null,
+        fullDesc || null,
+        rt.maxPeople || rt.maxGuests || 2,
+        rt.rackRate || null,
+        getText(texts.accommodationType) || 'room',
+        rt.featureCodes || null,
+        String(rt.id)
+      ]);
+      
+      roomsCreated++;
+      const gasRoomId = roomResult.rows[0].id;
+      
+      // Import images if requested
+      if (importImages && rt.images && Array.isArray(rt.images)) {
+        for (let i = 0; i < rt.images.length; i++) {
+          const img = rt.images[i];
+          const imageUrl = img.url || img.imageUrl || img;
+          
+          if (imageUrl && typeof imageUrl === 'string') {
+            try {
+              await pool.query(`
+                INSERT INTO room_images (room_id, image_url, display_order, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT DO NOTHING
+              `, [gasRoomId, imageUrl, i]);
+              imagesCreated++;
+            } catch (imgErr) {
+              console.log('Image insert error:', imgErr.message);
+            }
+          }
+        }
+      }
+    }
+    
+    // Store connection info for future syncs
+    await pool.query(`
+      INSERT INTO gas_sync_connections (
+        account_id, channel_manager, name, api_key, status, created_at
+      ) VALUES ($1, 'beds24', $2, $3, 'active', NOW())
+      ON CONFLICT (account_id, channel_manager) 
+      DO UPDATE SET api_key = $3, status = 'active', updated_at = NOW()
+    `, [accountId, prop.name + ' Connection', apiKey]).catch(e => console.log('Connection save:', e.message));
+    
+    res.json({
+      success: true,
+      message: 'Property imported successfully',
+      gasPropertyId,
+      stats: {
+        roomsCreated,
+        imagesCreated
+      }
+    });
+    
+  } catch (error) {
+    console.error('Beds24 wizard import error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
 
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
