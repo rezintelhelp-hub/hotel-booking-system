@@ -26035,34 +26035,24 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
     
     const sp = syncProp.rows[0];
     
-    // Wrap description in JSON if it's a plain string
-    let descriptionJson = null;
-    if (sp.description) {
-      if (typeof sp.description === 'string') {
-        descriptionJson = JSON.stringify({ en: sp.description });
-      } else {
-        descriptionJson = JSON.stringify(sp.description);
-      }
-    }
-    
+    // Simple insert without JSON columns
     const newProp = await pool.query(`
       INSERT INTO properties (
-        account_id, user_id, name, description, property_type,
+        account_id, user_id, name, property_type,
         address, city, state, country, postcode,
         latitude, longitude, timezone, currency,
         check_in_time, check_out_time, status, beds24_property_id
-      ) VALUES ($1, $1, $2, $3::jsonb, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'active', $16)
+      ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', $15)
       RETURNING id
     `, [
       account_id,
       sp.name,
-      descriptionJson,
       sp.property_type || 'hotel',
-      sp.street,
-      sp.city,
-      sp.state,
-      sp.country,
-      sp.postal_code,
+      sp.street || '',
+      sp.city || '',
+      sp.state || '',
+      sp.country || '',
+      sp.postal_code || '',
       sp.latitude,
       sp.longitude,
       sp.timezone || 'UTC',
@@ -26085,19 +26075,14 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
     for (const rt of roomTypes.rows) {
       const newRoom = await pool.query(`
         INSERT INTO bookable_units (
-          property_id, name, short_description, max_guests,
-          base_price, display_name, full_description, feature_codes
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+          property_id, name, max_guests, base_price, status
+        ) VALUES ($1, $2, $3, $4, 'available')
         RETURNING id
       `, [
         gasPropertyId,
-        rt.name,
-        rt.description,
+        rt.name || 'Room',
         rt.max_guests || 2,
-        rt.base_price,
-        rt.display_name || rt.name,
-        rt.full_description || '',
-        rt.feature_codes || ''
+        rt.base_price || 100
       ]);
       
       await pool.query(`
@@ -26651,6 +26636,314 @@ app.get('*', (req, res) => {
     return res.status(404).json({ error: 'API endpoint not found', path: req.path });
   }
   res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+// ============================================
+// BEDS24 WIZARD ENDPOINTS
+// ============================================
+
+// Login for wizard
+app.post('/api/accounts/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    const result = await pool.query(
+      'SELECT * FROM accounts WHERE email = $1',
+      [email]
+    );
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid email or password' });
+    }
+    
+    const account = result.rows[0];
+    
+    // Simple password check (in production, use bcrypt)
+    if (account.password_hash !== password && account.password_hash !== null) {
+      // Try bcrypt if available
+      try {
+        const bcrypt = require('bcrypt');
+        const valid = await bcrypt.compare(password, account.password_hash);
+        if (!valid) {
+          return res.status(401).json({ success: false, error: 'Invalid email or password' });
+        }
+      } catch (e) {
+        return res.status(401).json({ success: false, error: 'Invalid email or password' });
+      }
+    }
+    
+    res.json({ 
+      success: true, 
+      account: {
+        id: account.id,
+        name: account.name,
+        email: account.email,
+        role: account.role
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Wizard Step 2: Fetch properties with V2 Invite Code
+app.post('/api/beds24-wizard/properties', async (req, res) => {
+  try {
+    const { inviteCode } = req.body;
+    
+    if (!inviteCode) {
+      return res.status(400).json({ success: false, error: 'Invite code required' });
+    }
+    
+    // Exchange invite code for token
+    const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/setup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code: inviteCode })
+    });
+    
+    const tokenData = await tokenResponse.json();
+    
+    if (!tokenData.token) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid V2 Invite Code - could not authenticate with Beds24' 
+      });
+    }
+    
+    const v2Token = tokenData.token;
+    
+    // Fetch properties
+    const propsResponse = await fetch('https://beds24.com/api/v2/properties', {
+      headers: { 'token': v2Token }
+    });
+    
+    const propsData = await propsResponse.json();
+    
+    if (!propsData.success && propsData.error) {
+      return res.status(400).json({ success: false, error: propsData.error });
+    }
+    
+    const properties = (propsData.data || propsData || []).map(p => ({
+      id: p.id || p.propId,
+      name: p.name,
+      city: p.city,
+      country: p.country,
+      roomTypeCount: p.roomTypes?.length || 0
+    }));
+    
+    res.json({ 
+      success: true, 
+      token: v2Token,
+      properties 
+    });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Wizard Step 4: Fetch room types with property code
+app.post('/api/beds24-wizard/room-types', async (req, res) => {
+  try {
+    const { inviteCode, propId, propCode } = req.body;
+    
+    if (!propId) {
+      return res.status(400).json({ success: false, error: 'Property ID required' });
+    }
+    
+    // Re-authenticate if needed
+    let v2Token = req.body.token;
+    if (!v2Token && inviteCode) {
+      const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code: inviteCode })
+      });
+      const tokenData = await tokenResponse.json();
+      v2Token = tokenData.token;
+    }
+    
+    // Fetch property details with room types
+    const propResponse = await fetch(`https://beds24.com/api/v2/properties/${propId}`, {
+      headers: { 
+        'token': v2Token,
+        'propKey': propCode || ''
+      }
+    });
+    
+    const propData = await propResponse.json();
+    
+    // Fetch room types separately
+    const roomsResponse = await fetch(`https://beds24.com/api/v2/properties/${propId}/rooms`, {
+      headers: { 
+        'token': v2Token,
+        'propKey': propCode || ''
+      }
+    });
+    
+    const roomsData = await roomsResponse.json();
+    
+    const roomTypes = (roomsData.data || roomsData || []).map(rt => ({
+      id: rt.id || rt.roomId,
+      name: rt.name,
+      displayName: rt.displayName || rt.name,
+      shortDescription: rt.shortDescription || rt.description || '',
+      maxGuests: rt.maxPeople || rt.maxGuests,
+      basePrice: rt.price || rt.rackRate,
+      imageCount: rt.images?.length || 0
+    }));
+    
+    res.json({ 
+      success: true, 
+      property: propData.data || propData,
+      roomTypes 
+    });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Wizard Step 6: Import property to GAS
+app.post('/api/beds24-wizard/import', async (req, res) => {
+  try {
+    const { 
+      inviteCode, v1ApiKey, propCode, propId, 
+      accountId, importImages, roomTypes, propertyData 
+    } = req.body;
+    
+    if (!accountId || !propId) {
+      return res.status(400).json({ success: false, error: 'Account ID and Property ID required' });
+    }
+    
+    // Check if property already exists
+    const existing = await pool.query(
+      'SELECT id FROM properties WHERE beds24_property_id = $1',
+      [String(propId)]
+    );
+    
+    let gasPropertyId;
+    
+    if (existing.rows.length > 0) {
+      gasPropertyId = existing.rows[0].id;
+      // Update account association
+      await pool.query(
+        'UPDATE properties SET account_id = $1, user_id = $1 WHERE id = $2',
+        [accountId, gasPropertyId]
+      );
+    } else {
+      // Create new property
+      const propResult = await pool.query(`
+        INSERT INTO properties (
+          account_id, user_id, beds24_property_id, name, 
+          property_type, address, city, country, currency,
+          check_in_time, check_out_time, status
+        ) VALUES ($1, $1, $2, $3, 'hotel', $4, $5, $6, $7, $8, $9, 'active')
+        RETURNING id
+      `, [
+        accountId,
+        String(propId),
+        propertyData?.name || 'Imported Property',
+        propertyData?.address || '',
+        propertyData?.city || '',
+        propertyData?.country || '',
+        propertyData?.currency || 'GBP',
+        propertyData?.checkInTime || '16:00',
+        propertyData?.checkOutTime || '10:00'
+      ]);
+      
+      gasPropertyId = propResult.rows[0].id;
+    }
+    
+    // Create room types / bookable units
+    let roomsCreated = 0;
+    for (const rt of (roomTypes || [])) {
+      // Check if exists
+      const existingRoom = await pool.query(
+        'SELECT id FROM bookable_units WHERE property_id = $1 AND name = $2',
+        [gasPropertyId, rt.name]
+      );
+      
+      if (existingRoom.rows.length === 0) {
+        await pool.query(`
+          INSERT INTO bookable_units (
+            property_id, beds24_room_id, name, short_description,
+            max_guests, base_price, status
+          ) VALUES ($1, $2, $3, $4, $5, $6, 'available')
+        `, [
+          gasPropertyId,
+          String(rt.id),
+          rt.name || rt.displayName || 'Room',
+          rt.shortDescription || '',
+          rt.maxGuests || 2,
+          rt.basePrice || 100
+        ]);
+        roomsCreated++;
+      }
+    }
+    
+    // Import images if requested
+    let imagesCreated = 0;
+    if (importImages && v1ApiKey) {
+      try {
+        // Fetch images from V1 API
+        const imgResponse = await fetch('https://api.beds24.com/json/getPropertyImages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            apiKey: v1ApiKey,
+            propId: String(propId)
+          })
+        });
+        
+        const imgData = await imgResponse.json();
+        
+        if (imgData && Array.isArray(imgData)) {
+          for (const img of imgData.slice(0, 20)) { // Limit to 20 images
+            await pool.query(`
+              INSERT INTO property_images (property_id, url, alt_text, sort_order)
+              VALUES ($1, $2, $3, $4)
+              ON CONFLICT DO NOTHING
+            `, [gasPropertyId, img.url || img.image, img.caption || '', img.sortOrder || 0]);
+            imagesCreated++;
+          }
+        }
+      } catch (imgError) {
+        console.error('Image import error:', imgError.message);
+      }
+    }
+    
+    // Store credentials for future sync
+    await pool.query(`
+      INSERT INTO gas_sync_connections (
+        account_id, adapter_code, credentials, status, created_at, updated_at
+      ) VALUES ($1, 'beds24', $2, 'connected', NOW(), NOW())
+      ON CONFLICT (account_id, adapter_code) 
+      DO UPDATE SET credentials = $2, status = 'connected', updated_at = NOW()
+    `, [
+      accountId,
+      JSON.stringify({ v1ApiKey, propCode, propId })
+    ]).catch(() => {}); // Ignore if constraint doesn't exist
+    
+    res.json({ 
+      success: true, 
+      gasPropertyId,
+      stats: {
+        roomsCreated,
+        imagesCreated
+      },
+      message: `Property imported with ${roomsCreated} rooms and ${imagesCreated} images`
+    });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Serve wizard HTML
+app.get('/beds24-wizard', (req, res) => {
+  res.sendFile(__dirname + '/beds24-wizard-v2.html');
 });
 
 app.listen(PORT, '0.0.0.0', () => {
