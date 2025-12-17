@@ -26269,26 +26269,26 @@ app.get('/beds24-wizard', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'beds24-wizard.html'));
 });
 
-// Step 1: Test API key and fetch properties
+// Step 1: Test V2 API key and fetch properties
 app.post('/api/beds24-wizard/properties', async (req, res) => {
   try {
-    const { apiKey } = req.body;
+    const { inviteCode, v1ApiKey } = req.body;
     
-    if (!apiKey) {
-      return res.json({ success: false, error: 'API key required' });
+    if (!inviteCode) {
+      return res.json({ success: false, error: 'V2 Invite Code required' });
     }
     
-    // Get token from Beds24
+    // Get token from Beds24 V2 API
     const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: apiKey })
+      body: JSON.stringify({ code: inviteCode })
     });
     
     const tokenData = await tokenResponse.json();
     
     if (!tokenData.token) {
-      return res.json({ success: false, error: 'Invalid API key - could not authenticate with Beds24' });
+      return res.json({ success: false, error: 'Invalid V2 Invite Code - could not authenticate with Beds24' });
     }
     
     const token = tokenData.token;
@@ -26325,25 +26325,25 @@ app.post('/api/beds24-wizard/properties', async (req, res) => {
   }
 });
 
-// Step 2: Fetch room types for a property
+// Step 2: Fetch room types for a property (with property code)
 app.post('/api/beds24-wizard/room-types', async (req, res) => {
   try {
-    const { apiKey, propId } = req.body;
+    const { inviteCode, propId, propCode } = req.body;
     
-    if (!apiKey || !propId) {
-      return res.json({ success: false, error: 'API key and property ID required' });
+    if (!inviteCode || !propId) {
+      return res.json({ success: false, error: 'V2 Invite Code and property ID required' });
     }
     
     // Get token
     const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: apiKey })
+      body: JSON.stringify({ code: inviteCode })
     });
     
     const tokenData = await tokenResponse.json();
     if (!tokenData.token) {
-      return res.json({ success: false, error: 'Invalid API key' });
+      return res.json({ success: false, error: 'Invalid V2 Invite Code' });
     }
     
     const token = tokenData.token;
@@ -26382,6 +26382,7 @@ app.post('/api/beds24-wizard/room-types', async (req, res) => {
         maxGuests: rt.maxPeople || rt.maxGuests || 2,
         basePrice: rt.rackRate || null,
         featureCodes: rt.featureCodes || '',
+        imageCount: rt.images?.length || 0,
         raw: rt  // Keep raw data for import
       };
     });
@@ -26394,12 +26395,12 @@ app.post('/api/beds24-wizard/room-types', async (req, res) => {
   }
 });
 
-// Step 3: Import property to GAS
+// Step 3: Import property to GAS (with all credentials)
 app.post('/api/beds24-wizard/import', async (req, res) => {
   try {
-    const { apiKey, propId, accountId, importImages, roomTypes } = req.body;
+    const { inviteCode, v1ApiKey, propCode, propId, accountId, importImages, propertyData } = req.body;
     
-    if (!apiKey || !propId || !accountId) {
+    if (!inviteCode || !propId || !accountId) {
       return res.json({ success: false, error: 'Missing required fields' });
     }
     
@@ -26407,12 +26408,12 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
     const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: apiKey })
+      body: JSON.stringify({ code: inviteCode })
     });
     
     const tokenData = await tokenResponse.json();
     if (!tokenData.token) {
-      return res.json({ success: false, error: 'Invalid API key' });
+      return res.json({ success: false, error: 'Invalid V2 Invite Code' });
     }
     
     const token = tokenData.token;
@@ -26451,7 +26452,7 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
         short_description, full_description,
         house_rules, cancellation_policy, terms_conditions,
         directions, check_in_instructions, check_out_instructions,
-        cm_property_id, cm_type,
+        beds24_property_id, cm_source,
         created_at, updated_at
       ) VALUES (
         $1, $2, $3,
@@ -26490,7 +26491,7 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
       getText(propTexts.directions) || '',
       getText(propTexts.checkInInstructions) || '',
       getText(propTexts.checkOutInstructions) || '',
-      String(propId)
+      propId
     ]);
     
     const gasPropertyId = propertyResult.rows[0].id;
@@ -26540,36 +26541,82 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
       roomsCreated++;
       const gasRoomId = roomResult.rows[0].id;
       
-      // Import images if requested
-      if (importImages && rt.images && Array.isArray(rt.images)) {
-        for (let i = 0; i < rt.images.length; i++) {
-          const img = rt.images[i];
-          const imageUrl = img.url || img.imageUrl || img;
+      // Import images using V1 API if requested and we have V1 key
+      if (importImages && v1ApiKey && propCode) {
+        try {
+          // Use V1 API to get images for this room type
+          const v1ImageResponse = await fetch('https://beds24.com/api/json/getPropertyImages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              apiKey: v1ApiKey,
+              propKey: propCode,
+              propId: propId
+            })
+          });
           
-          if (imageUrl && typeof imageUrl === 'string') {
-            try {
-              await pool.query(`
-                INSERT INTO room_images (room_id, image_url, display_order, created_at)
-                VALUES ($1, $2, $3, NOW())
-                ON CONFLICT DO NOTHING
-              `, [gasRoomId, imageUrl, i]);
-              imagesCreated++;
-            } catch (imgErr) {
-              console.log('Image insert error:', imgErr.message);
+          const v1Images = await v1ImageResponse.json();
+          
+          // Filter images for this room type
+          const roomImages = Array.isArray(v1Images) 
+            ? v1Images.filter(img => img.roomId == rt.id || img.room_id == rt.id)
+            : [];
+          
+          for (let i = 0; i < roomImages.length; i++) {
+            const img = roomImages[i];
+            const imageUrl = img.url || img.image || img.imageUrl;
+            
+            if (imageUrl && typeof imageUrl === 'string') {
+              try {
+                await pool.query(`
+                  INSERT INTO room_images (room_id, image_url, display_order, created_at)
+                  VALUES ($1, $2, $3, NOW())
+                  ON CONFLICT DO NOTHING
+                `, [gasRoomId, imageUrl, i]);
+                imagesCreated++;
+              } catch (imgErr) {
+                console.log('Image insert error:', imgErr.message);
+              }
             }
           }
+        } catch (imgFetchErr) {
+          console.log('V1 image fetch error:', imgFetchErr.message);
         }
       }
     }
     
-    // Store connection info for future syncs
+    // Store connection info with ALL credentials for future syncs
+    // Store as JSON to keep all three keys together
+    const credentials = JSON.stringify({
+      inviteCode: inviteCode,
+      v1ApiKey: v1ApiKey || '',
+      propCode: propCode || ''
+    });
+    
     await pool.query(`
       INSERT INTO gas_sync_connections (
         account_id, channel_manager, name, api_key, status, created_at
       ) VALUES ($1, 'beds24', $2, $3, 'active', NOW())
       ON CONFLICT (account_id, channel_manager) 
       DO UPDATE SET api_key = $3, status = 'active', updated_at = NOW()
-    `, [accountId, prop.name + ' Connection', apiKey]).catch(e => console.log('Connection save:', e.message));
+    `, [accountId, prop.name + ' Connection', credentials]).catch(e => console.log('Connection save:', e.message));
+    
+    // Also store property-specific codes in gas_sync_properties if table exists
+    await pool.query(`
+      INSERT INTO gas_sync_properties (
+        connection_id, external_property_id, gas_property_id, name, api_key, status, created_at
+      )
+      SELECT 
+        c.id, $1, $2, $3, $4, 'active', NOW()
+      FROM gas_sync_connections c 
+      WHERE c.account_id = $5 AND c.channel_manager = 'beds24'
+      ON CONFLICT (connection_id, external_property_id) 
+      DO UPDATE SET gas_property_id = $2, api_key = $4, status = 'active', updated_at = NOW()
+    `, [String(propId), gasPropertyId, prop.name, propCode || '', accountId]).catch(e => console.log('Property connection save:', e.message));
+    
+    console.log(`Beds24 wizard: Imported property ${prop.name} (ID ${propId}) -> GAS property ${gasPropertyId}`);
+    console.log(`  - Room types: ${roomsCreated}, Images: ${imagesCreated}`);
+    console.log(`  - Credentials stored: V2 ✓, V1 ${v1ApiKey ? '✓' : '✗'}, PropCode ${propCode ? '✓' : '✗'}`);
     
     res.json({
       success: true,
