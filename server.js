@@ -2096,6 +2096,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             )
           `).catch(() => {});
           
+          // Add amenity_id column if it doesn't exist (for older tables)
+          await pool.query('ALTER TABLE bookable_unit_amenities ADD COLUMN IF NOT EXISTS amenity_id INTEGER').catch(() => {});
+          
           for (const code of codes) {
             // Try to find matching master amenity by beds24_code or amenity_code
             const masterMatch = await pool.query(`
@@ -3791,6 +3794,34 @@ app.post('/api/management-requests/:id/respond', async (req, res) => {
     }
     
     res.json({ success: true, message: `Request ${status}` });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete a management request (Master Admin only)
+app.delete('/api/management-requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get the request to check if it was approved
+    const request = await pool.query('SELECT * FROM management_requests WHERE id = $1', [id]);
+    if (request.rows.length === 0) {
+      return res.json({ success: false, error: 'Request not found' });
+    }
+    
+    // If request was approved, also remove the managed_by_id relationship
+    if (request.rows[0].status === 'approved') {
+      await pool.query(`
+        UPDATE accounts SET managed_by_id = NULL, updated_at = NOW()
+        WHERE id = $1 AND managed_by_id = $2
+      `, [request.rows[0].requesting_account_id, request.rows[0].agency_id]);
+    }
+    
+    // Delete the request
+    await pool.query('DELETE FROM management_requests WHERE id = $1', [id]);
+    
+    res.json({ success: true, message: 'Request deleted' });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -5975,6 +6006,9 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id INTEGER`);
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS hostaway_reservation_id VARCHAR(50)`);
+    
+    // Ensure bookable_unit_amenities has amenity_id column
+    await pool.query(`ALTER TABLE bookable_unit_amenities ADD COLUMN IF NOT EXISTS amenity_id INTEGER`).catch(() => {});
     
     // Add group booking column
     await pool.query(`ALTER TABLE bookings ADD COLUMN IF NOT EXISTS group_booking_id VARCHAR(50)`);
