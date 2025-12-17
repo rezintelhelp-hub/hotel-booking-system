@@ -2285,6 +2285,16 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       refreshToken: refreshToken
     });
     const accessToken = tokenResponse.data.token;
+    const newRefreshToken = tokenResponse.data.refreshToken;
+    
+    // IMPORTANT: Beds24 rotates refresh tokens - save the new one
+    if (newRefreshToken && newRefreshToken !== refreshToken) {
+      await pool.query(
+        'UPDATE gas_sync_connections SET refresh_token = $1, credentials = credentials || $2, updated_at = NOW() WHERE id = $3',
+        [newRefreshToken, JSON.stringify({ refreshToken: newRefreshToken }), connectionId]
+      );
+      console.log('Saved new Beds24 refresh token for connection', connectionId);
+    }
     
     // Get all synced properties with prop_keys
     const propsResult = await pool.query(`
