@@ -19,7 +19,7 @@
         }
         
         .wizard-container {
-            max-width: 800px;
+            max-width: 600px;
             margin: 0 auto;
             background: white;
             border-radius: 16px;
@@ -72,7 +72,7 @@
         
         .wizard-content {
             padding: 2rem;
-            min-height: 400px;
+            min-height: 350px;
         }
         
         .step {
@@ -199,91 +199,9 @@
             border: 1px solid #bee5eb;
         }
         
-        .alert-warning {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeeba;
-        }
-        
-        .property-card {
-            border: 2px solid #e9ecef;
-            border-radius: 12px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-        
-        .property-card:hover {
-            border-color: #667eea;
-            background: #f8f9ff;
-        }
-        
-        .property-card.selected {
-            border-color: #667eea;
-            background: #f0f3ff;
-        }
-        
-        .property-card h3 {
-            color: #1e3a5f;
-            margin-bottom: 0.25rem;
-        }
-        
-        .property-card .meta {
-            color: #6c757d;
-            font-size: 0.9rem;
-        }
-        
-        .property-card .room-count {
-            display: inline-block;
-            background: #e9ecef;
-            padding: 0.25rem 0.75rem;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            margin-top: 0.5rem;
-            margin-right: 0.5rem;
-        }
-        
-        .room-type-list {
-            max-height: 300px;
-            overflow-y: auto;
-            border: 1px solid #e9ecef;
-            border-radius: 8px;
-        }
-        
-        .room-type-item {
-            padding: 1rem;
-            border-bottom: 1px solid #e9ecef;
-        }
-        
-        .room-type-item:last-child {
-            border-bottom: none;
-        }
-        
-        .room-type-item h4 {
-            color: #1e3a5f;
-            margin-bottom: 0.25rem;
-        }
-        
-        .room-type-item .description {
-            color: #6c757d;
-            font-size: 0.85rem;
-            margin-top: 0.25rem;
-        }
-        
-        .room-type-item .badge {
-            display: inline-block;
-            background: #667eea;
-            color: white;
-            padding: 0.2rem 0.5rem;
-            border-radius: 4px;
-            font-size: 0.75rem;
-            margin-right: 0.5rem;
-        }
-        
         .loading {
             text-align: center;
-            padding: 3rem;
+            padding: 2rem;
         }
         
         .spinner {
@@ -313,39 +231,6 @@
         .success-screen h2 {
             color: #28a745;
             margin-bottom: 0.5rem;
-        }
-        
-        .summary-table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 1.5rem;
-            text-align: left;
-        }
-        
-        .summary-table th, .summary-table td {
-            padding: 0.75rem;
-            border-bottom: 1px solid #e9ecef;
-        }
-        
-        .summary-table th {
-            background: #f8f9fa;
-            font-weight: 600;
-            color: #495057;
-        }
-        
-        .checkbox-group {
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            margin-top: 1rem;
-            padding: 1rem;
-            background: #f8f9fa;
-            border-radius: 8px;
-        }
-        
-        .checkbox-group input[type="checkbox"] {
-            width: 18px;
-            height: 18px;
         }
         
         .tab-buttons {
@@ -396,8 +281,8 @@
         .role-card {
             border: 2px solid #e9ecef;
             border-radius: 12px;
-            padding: 1.25rem;
-            margin-bottom: 1rem;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
             cursor: pointer;
             transition: all 0.2s;
         }
@@ -415,6 +300,7 @@
         .role-card h4 {
             color: #1e3a5f;
             margin-bottom: 0.25rem;
+            font-size: 1rem;
         }
         
         .role-card p {
@@ -424,49 +310,40 @@
         }
         
         .urgent-box {
-            border: 2px solid #dc3545;
-            background: #fff5f5;
+            border: 2px solid #667eea;
+            background: #f8f9ff;
             border-radius: 12px;
             padding: 1.5rem;
         }
         
         .urgent-box h3 {
-            color: #dc3545;
+            color: #667eea;
             margin-bottom: 0.5rem;
         }
         
-        .user-info-box {
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1rem;
+            margin: 1.5rem 0;
+        }
+        
+        .stat-box {
             background: #f8f9fa;
             border-radius: 8px;
             padding: 1rem;
-            margin-bottom: 1.5rem;
-            display: flex;
-            align-items: center;
-            gap: 1rem;
+            text-align: center;
         }
         
-        .user-info-box .avatar {
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-size: 1.5rem;
+        .stat-box .number {
+            font-size: 2rem;
             font-weight: bold;
+            color: #667eea;
         }
         
-        .user-info-box .details h4 {
-            color: #1e3a5f;
-            margin-bottom: 0.25rem;
-        }
-        
-        .user-info-box .details p {
+        .stat-box .label {
             color: #6c757d;
             font-size: 0.85rem;
-            margin: 0;
         }
     </style>
 </head>
@@ -474,23 +351,20 @@
     <div class="wizard-container">
         <div class="wizard-header">
             <h1>🏨 Connect to Beds24</h1>
-            <p>Import your properties from Beds24 channel manager</p>
+            <p>Link your Beds24 account to GAS</p>
         </div>
         
         <div class="steps-indicator">
             <div class="step-dot active" data-step="1"></div>
             <div class="step-dot" data-step="2"></div>
             <div class="step-dot" data-step="3"></div>
-            <div class="step-dot" data-step="4"></div>
-            <div class="step-dot" data-step="5"></div>
-            <div class="step-dot" data-step="6"></div>
         </div>
         
         <div class="wizard-content">
             <!-- Step 1: Login or Register -->
             <div class="step active" id="step1">
                 <h2>Step 1: Your Account</h2>
-                <p class="step-description">Login to your existing account or create a new one</p>
+                <p class="step-description">Login or create your GAS account</p>
                 
                 <div id="step1-error"></div>
                 
@@ -523,7 +397,7 @@
                         <label>Account Type</label>
                         <div class="role-card selected" data-role="admin" onclick="selectRole('admin')">
                             <h4>🏠 Property Admin</h4>
-                            <p>I manage my own properties directly</p>
+                            <p>I manage my own properties</p>
                         </div>
                         <div class="role-card" data-role="submaster_admin" onclick="selectRole('submaster_admin')">
                             <h4>👥 Sub Master Admin</h4>
@@ -536,7 +410,7 @@
                     </div>
                     
                     <div class="form-group">
-                        <label for="reg-name">Business/Account Name</label>
+                        <label for="reg-name">Business Name</label>
                         <input type="text" id="reg-name" placeholder="e.g. Belmont Properties">
                     </div>
                     <div class="form-group">
@@ -550,100 +424,51 @@
                 </div>
             </div>
             
-            <!-- Step 2: V2 Invite Code (FAST - expires quickly) -->
+            <!-- Step 2: V2 Invite Code -->
             <div class="step" id="step2">
-                <h2>Step 2: Beds24 V2 Invite Code</h2>
-                <p class="step-description">This code expires quickly - enter it as soon as you generate it</p>
+                <h2>Step 2: Connect Beds24</h2>
+                <p class="step-description">Enter your V2 Invite Code to link your properties</p>
                 
                 <div id="step2-error"></div>
                 
-                <div id="logged-in-user"></div>
-                
                 <div class="urgent-box">
-                    <h3>⚡ Quick! Enter your V2 Invite Code</h3>
+                    <h3>⚡ Enter V2 Invite Code</h3>
                     <p style="color: #6c757d; margin-bottom: 1rem;">
-                        Generate this in Beds24: Settings → Apps & Integrations → API → Generate Invite Code
+                        Generate in Beds24: Settings → Apps & Integrations → API → Generate Invite Code
                     </p>
                     <div class="form-group" style="margin-bottom: 0;">
-                        <input type="text" id="inviteCode" placeholder="Paste your V2 Invite Code here" style="font-size: 1.1rem; padding: 1rem;">
+                        <input type="text" id="inviteCode" placeholder="Paste your V2 Invite Code" style="font-size: 1.1rem; padding: 1rem;">
                     </div>
                 </div>
                 
-                <div id="properties-loading" class="loading" style="display: none;">
+                <div id="connect-loading" class="loading" style="display: none;">
                     <div class="spinner"></div>
-                    <p>Connecting to Beds24 and fetching properties...</p>
+                    <p>Connecting to Beds24...</p>
                 </div>
             </div>
             
-            <!-- Step 3: Select Property -->
+            <!-- Step 3: Success -->
             <div class="step" id="step3">
-                <h2>Step 3: Select Property</h2>
-                <p class="step-description">Choose which property you want to import to GAS</p>
-                
-                <div id="step3-error"></div>
-                <div id="properties-list"></div>
-            </div>
-            
-            <!-- Step 4: V1 API Key + Property Code -->
-            <div class="step" id="step4">
-                <h2>Step 4: Additional Credentials</h2>
-                <p class="step-description">These are needed for images and property-specific access</p>
-                
-                <div id="step4-error"></div>
-                
-                <div id="selected-property-box" class="user-info-box">
-                    <div class="avatar">🏨</div>
-                    <div class="details">
-                        <h4 id="selected-prop-name">-</h4>
-                        <p>Beds24 ID: <span id="selected-prop-id">-</span></p>
+                <div class="success-screen">
+                    <div class="icon">🎉</div>
+                    <h2>Connected!</h2>
+                    <p>Your Beds24 account is now linked to GAS</p>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <div class="number" id="prop-count">0</div>
+                            <div class="label">Properties Found</div>
+                        </div>
+                        <div class="stat-box">
+                            <div class="number" id="room-count">0</div>
+                            <div class="label">Room Types</div>
+                        </div>
                     </div>
+                    
+                    <p style="color: #6c757d; margin-bottom: 1.5rem;">
+                        Use GasSync to import and manage your properties
+                    </p>
                 </div>
-                
-                <div class="form-group">
-                    <label for="v1ApiKey">V1 API Key</label>
-                    <input type="text" id="v1ApiKey" placeholder="Enter your V1 API Key">
-                    <p class="form-hint">Settings → Apps & Integrations → API (V1 section) - for downloading images</p>
-                </div>
-                
-                <div class="form-group">
-                    <label for="propCode">Property Code</label>
-                    <input type="text" id="propCode" placeholder="Enter property-specific code">
-                    <p class="form-hint">Property → Settings → API → Property Key</p>
-                </div>
-                
-                <div id="roomtypes-loading" class="loading" style="display: none;">
-                    <div class="spinner"></div>
-                    <p>Fetching room types...</p>
-                </div>
-            </div>
-            
-            <!-- Step 5: Review Room Types -->
-            <div class="step" id="step5">
-                <h2>Step 5: Review Room Types</h2>
-                <p class="step-description">These room types will be imported with their descriptions</p>
-                
-                <div id="step5-error"></div>
-                <div id="roomtypes-list"></div>
-                
-                <div class="checkbox-group">
-                    <input type="checkbox" id="importImages" checked>
-                    <label for="importImages">Import room images from Beds24 (uses V1 API)</label>
-                </div>
-            </div>
-            
-            <!-- Step 6: Import -->
-            <div class="step" id="step6">
-                <h2>Step 6: Import to GAS</h2>
-                <p class="step-description">Review and confirm the import</p>
-                
-                <div id="step6-error"></div>
-                <div id="import-loading" class="loading" style="display: none;">
-                    <div class="spinner"></div>
-                    <p>Importing property to GAS...</p>
-                </div>
-                
-                <div id="import-summary"></div>
-                <div id="import-success" style="display: none;"></div>
             </div>
         </div>
         
@@ -655,35 +480,19 @@
     
     <script>
         let currentStep = 1;
-        const totalSteps = 6;
+        const totalSteps = 3;
         
-        // Wizard data
         let wizardData = {
-            // Auth
-            authMode: 'login', // 'login' or 'register'
+            authMode: 'login',
             selectedRole: 'admin',
             account: null,
-            
-            // Beds24
-            inviteCode: '',
-            v1ApiKey: '',
-            propCode: '',
-            v2Token: '',
-            
-            // Properties
-            properties: [],
-            selectedProperty: null,
-            roomTypes: [],
-            propertyData: null,
-            
-            // Import
-            importImages: true,
-            importResult: null
+            connectionId: null,
+            propertyCount: 0,
+            roomCount: 0
         };
         
         function showAuthTab(tab) {
             wizardData.authMode = tab;
-            
             document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
             document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
             
@@ -698,9 +507,7 @@
         
         function selectRole(role) {
             wizardData.selectedRole = role;
-            document.querySelectorAll('.role-card').forEach(card => {
-                card.classList.remove('selected');
-            });
+            document.querySelectorAll('.role-card').forEach(card => card.classList.remove('selected'));
             document.querySelector(`.role-card[data-role="${role}"]`).classList.add('selected');
         }
         
@@ -721,10 +528,8 @@
             
             document.getElementById('prevBtn').style.visibility = step === 1 ? 'hidden' : 'visible';
             
-            if (step === 6 && wizardData.importResult) {
-                document.getElementById('nextBtn').textContent = 'Go to Dashboard';
-            } else if (step === 6) {
-                document.getElementById('nextBtn').textContent = 'Import Now 🚀';
+            if (step === 3) {
+                document.getElementById('nextBtn').textContent = 'Go to GasSync →';
             } else {
                 document.getElementById('nextBtn').textContent = 'Next →';
             }
@@ -732,69 +537,29 @@
             updateStepIndicators();
         }
         
+        function showError(containerId, message) {
+            document.getElementById(containerId).innerHTML = `<div class="alert alert-error">${message}</div>`;
+        }
+        
+        function clearErrors() {
+            document.getElementById('step1-error').innerHTML = '';
+            document.getElementById('step2-error').innerHTML = '';
+        }
+        
         async function nextStep() {
-            clearAllErrors();
+            clearErrors();
             
             if (currentStep === 1) {
-                // Auth step
                 if (wizardData.authMode === 'login') {
                     await doLogin();
                 } else {
                     await doRegister();
                 }
             } else if (currentStep === 2) {
-                // V2 Invite Code
-                const inviteCode = document.getElementById('inviteCode').value.trim();
-                if (!inviteCode) {
-                    showError('step2-error', 'Please enter your V2 Invite Code');
-                    return;
-                }
-                wizardData.inviteCode = inviteCode;
-                await fetchProperties();
-                
+                await connectBeds24();
             } else if (currentStep === 3) {
-                // Select Property
-                if (!wizardData.selectedProperty) {
-                    showError('step3-error', 'Please select a property');
-                    return;
-                }
-                document.getElementById('selected-prop-name').textContent = wizardData.selectedProperty.name;
-                document.getElementById('selected-prop-id').textContent = wizardData.selectedProperty.id;
-                currentStep++;
-                showStep(currentStep);
-                
-            } else if (currentStep === 4) {
-                // V1 + Property Code
-                const v1ApiKey = document.getElementById('v1ApiKey').value.trim();
-                const propCode = document.getElementById('propCode').value.trim();
-                
-                if (!v1ApiKey) {
-                    showError('step4-error', 'Please enter your V1 API Key');
-                    return;
-                }
-                if (!propCode) {
-                    showError('step4-error', 'Please enter the Property Code');
-                    return;
-                }
-                
-                wizardData.v1ApiKey = v1ApiKey;
-                wizardData.propCode = propCode;
-                await fetchRoomTypes();
-                
-            } else if (currentStep === 5) {
-                // Review
-                wizardData.importImages = document.getElementById('importImages').checked;
-                showImportSummary();
-                currentStep++;
-                showStep(currentStep);
-                
-            } else if (currentStep === 6) {
-                // Import
-                if (wizardData.importResult) {
-                    window.location.href = `/gas-admin.html?property_id=${wizardData.importResult.gasPropertyId}`;
-                } else {
-                    await doImport();
-                }
+                // Go to GasSync
+                window.location.href = '/gas-admin.html#gas-sync';
             }
         }
         
@@ -802,17 +567,6 @@
             if (currentStep > 1) {
                 currentStep--;
                 showStep(currentStep);
-            }
-        }
-        
-        function showError(containerId, message) {
-            document.getElementById(containerId).innerHTML = `<div class="alert alert-error">${message}</div>`;
-        }
-        
-        function clearAllErrors() {
-            for (let i = 1; i <= 6; i++) {
-                const el = document.getElementById(`step${i}-error`);
-                if (el) el.innerHTML = '';
             }
         }
         
@@ -841,12 +595,11 @@
                 }
                 
                 wizardData.account = data.account;
-                showLoggedInUser();
                 currentStep++;
                 showStep(currentStep);
                 
             } catch (error) {
-                showError('step1-error', `Login failed: ${error.message}`);
+                showError('step1-error', error.message);
             } finally {
                 document.getElementById('nextBtn').disabled = false;
             }
@@ -884,280 +637,80 @@
                 }
                 
                 wizardData.account = data.account;
-                showLoggedInUser();
                 currentStep++;
                 showStep(currentStep);
                 
             } catch (error) {
-                showError('step1-error', `Registration failed: ${error.message}`);
+                showError('step1-error', error.message);
             } finally {
                 document.getElementById('nextBtn').disabled = false;
             }
         }
         
-        function showLoggedInUser() {
-            const container = document.getElementById('logged-in-user');
-            if (wizardData.account) {
-                container.innerHTML = `
-                    <div class="user-info-box">
-                        <div class="avatar">${wizardData.account.name.charAt(0).toUpperCase()}</div>
-                        <div class="details">
-                            <h4>${wizardData.account.name}</h4>
-                            <p>${wizardData.account.email} • ${formatRole(wizardData.account.role)}</p>
-                        </div>
-                    </div>
-                `;
+        async function connectBeds24() {
+            const inviteCode = document.getElementById('inviteCode').value.trim();
+            
+            if (!inviteCode) {
+                showError('step2-error', 'Please enter your V2 Invite Code');
+                return;
             }
-        }
-        
-        function formatRole(role) {
-            const roles = {
-                'admin': 'Property Admin',
-                'submaster_admin': 'Sub Master Admin',
-                'agency_admin': 'Agency Admin',
-                'master_admin': 'Master Admin'
-            };
-            return roles[role] || role;
-        }
-        
-        async function fetchProperties() {
-            document.getElementById('properties-loading').style.display = 'block';
+            
+            document.getElementById('connect-loading').style.display = 'block';
             document.getElementById('nextBtn').disabled = true;
             
             try {
-                const response = await fetch('/api/beds24-wizard/properties', {
+                // Create GasSync connection
+                const response = await fetch('/api/gas-sync/connections', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        inviteCode: wizardData.inviteCode
+                    body: JSON.stringify({
+                        account_id: wizardData.account.id,
+                        adapter_code: 'beds24',
+                        credentials: { inviteCode }
                     })
                 });
                 
                 const data = await response.json();
                 
                 if (!data.success) {
-                    throw new Error(data.error || 'Failed to fetch properties');
+                    throw new Error(data.error || 'Connection failed');
                 }
                 
-                wizardData.properties = data.properties;
-                wizardData.v2Token = data.token;
-                renderProperties();
+                wizardData.connectionId = data.connection?.id;
+                
+                // Trigger initial sync
+                if (wizardData.connectionId) {
+                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    
+                    // Wait a bit then get counts
+                    await new Promise(r => setTimeout(r, 3000));
+                    
+                    const propsResponse = await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/properties`);
+                    const propsData = await propsResponse.json();
+                    
+                    if (propsData.success) {
+                        wizardData.propertyCount = propsData.properties?.length || 0;
+                        wizardData.roomCount = propsData.properties?.reduce((sum, p) => sum + parseInt(p.room_type_count || 0), 0) || 0;
+                    }
+                }
+                
+                document.getElementById('prop-count').textContent = wizardData.propertyCount;
+                document.getElementById('room-count').textContent = wizardData.roomCount;
+                
                 currentStep++;
                 showStep(currentStep);
                 
             } catch (error) {
                 showError('step2-error', `Connection failed: ${error.message}`);
             } finally {
-                document.getElementById('properties-loading').style.display = 'none';
+                document.getElementById('connect-loading').style.display = 'none';
                 document.getElementById('nextBtn').disabled = false;
             }
         }
         
-        function renderProperties() {
-            const container = document.getElementById('properties-list');
-            
-            if (wizardData.properties.length === 0) {
-                container.innerHTML = `
-                    <div class="alert alert-info">
-                        No properties found in your Beds24 account.
-                    </div>
-                `;
-                return;
-            }
-            
-            container.innerHTML = wizardData.properties.map(prop => `
-                <div class="property-card" onclick="selectProperty(${prop.id})" data-id="${prop.id}">
-                    <h3>${prop.name || 'Unnamed Property'}</h3>
-                    <div class="meta">${prop.city || ''} ${prop.country || ''}</div>
-                    <span class="room-count">🛏️ ${prop.roomTypeCount || 0} room types</span>
-                    <span class="room-count">🔑 ID: ${prop.id}</span>
-                </div>
-            `).join('');
-        }
-        
-        function selectProperty(propId) {
-            wizardData.selectedProperty = wizardData.properties.find(p => p.id === propId);
-            
-            document.querySelectorAll('.property-card').forEach(card => {
-                card.classList.remove('selected');
-            });
-            document.querySelector(`.property-card[data-id="${propId}"]`).classList.add('selected');
-        }
-        
-        async function fetchRoomTypes() {
-            document.getElementById('roomtypes-loading').style.display = 'block';
-            document.getElementById('nextBtn').disabled = true;
-            
-            try {
-                const response = await fetch('/api/beds24-wizard/room-types', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ 
-                        token: wizardData.v2Token,
-                        propId: wizardData.selectedProperty.id,
-                        propCode: wizardData.propCode
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to fetch room types');
-                }
-                
-                wizardData.roomTypes = data.roomTypes;
-                wizardData.propertyData = data.property;
-                renderRoomTypes();
-                currentStep++;
-                showStep(currentStep);
-                
-            } catch (error) {
-                showError('step4-error', `Failed: ${error.message}`);
-            } finally {
-                document.getElementById('roomtypes-loading').style.display = 'none';
-                document.getElementById('nextBtn').disabled = false;
-            }
-        }
-        
-        function renderRoomTypes() {
-            const container = document.getElementById('roomtypes-list');
-            
-            if (wizardData.roomTypes.length === 0) {
-                container.innerHTML = `
-                    <div class="alert alert-warning">
-                        No room types found. The property will still be imported.
-                    </div>
-                `;
-                return;
-            }
-            
-            container.innerHTML = `
-                <div class="room-type-list">
-                    ${wizardData.roomTypes.map(rt => `
-                        <div class="room-type-item">
-                            <h4>${rt.displayName || rt.name}</h4>
-                            <div>
-                                ${rt.maxGuests ? `<span class="badge">👥 ${rt.maxGuests} guests</span>` : ''}
-                                ${rt.basePrice ? `<span class="badge">💰 ${rt.basePrice}</span>` : ''}
-                                ${rt.imageCount ? `<span class="badge">📷 ${rt.imageCount} images</span>` : ''}
-                            </div>
-                            ${rt.shortDescription ? `<div class="description"><strong>Description:</strong> ${rt.shortDescription}</div>` : ''}
-                        </div>
-                    `).join('')}
-                </div>
-            `;
-        }
-        
-        function showImportSummary() {
-            const container = document.getElementById('import-summary');
-            const prop = wizardData.selectedProperty;
-            
-            container.innerHTML = `
-                <div class="alert alert-info">
-                    Ready to import this property to GAS
-                </div>
-                
-                <table class="summary-table">
-                    <tr>
-                        <th>Account</th>
-                        <td>${wizardData.account?.name || '-'}</td>
-                    </tr>
-                    <tr>
-                        <th>Property Name</th>
-                        <td>${prop.name || 'Unnamed'}</td>
-                    </tr>
-                    <tr>
-                        <th>Beds24 ID</th>
-                        <td>${prop.id}</td>
-                    </tr>
-                    <tr>
-                        <th>Location</th>
-                        <td>${prop.city || ''} ${prop.country || ''}</td>
-                    </tr>
-                    <tr>
-                        <th>Room Types</th>
-                        <td>${wizardData.roomTypes.length}</td>
-                    </tr>
-                    <tr>
-                        <th>Import Images</th>
-                        <td>${wizardData.importImages ? 'Yes' : 'No'}</td>
-                    </tr>
-                </table>
-            `;
-        }
-        
-        async function doImport() {
-            document.getElementById('import-loading').style.display = 'block';
-            document.getElementById('import-summary').style.display = 'none';
-            document.getElementById('nextBtn').disabled = true;
-            document.getElementById('prevBtn').disabled = true;
-            
-            try {
-                const response = await fetch('/api/beds24-wizard/import', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        inviteCode: wizardData.inviteCode,
-                        v1ApiKey: wizardData.v1ApiKey,
-                        propCode: wizardData.propCode,
-                        propId: wizardData.selectedProperty.id,
-                        accountId: wizardData.account.id,
-                        importImages: wizardData.importImages,
-                        roomTypes: wizardData.roomTypes,
-                        propertyData: wizardData.propertyData
-                    })
-                });
-                
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Import failed');
-                }
-                
-                wizardData.importResult = data;
-                showImportSuccess(data);
-                
-            } catch (error) {
-                showError('step6-error', `Import failed: ${error.message}`);
-                document.getElementById('import-summary').style.display = 'block';
-                document.getElementById('prevBtn').disabled = false;
-            } finally {
-                document.getElementById('import-loading').style.display = 'none';
-                document.getElementById('nextBtn').disabled = false;
-            }
-        }
-        
-        function showImportSuccess(result) {
-            const container = document.getElementById('import-success');
-            container.style.display = 'block';
-            
-            container.innerHTML = `
-                <div class="success-screen">
-                    <div class="icon">🎉</div>
-                    <h2>Import Successful!</h2>
-                    <p>Your property has been imported to GAS</p>
-                    
-                    <table class="summary-table">
-                        <tr>
-                            <th>GAS Property ID</th>
-                            <td>#${result.gasPropertyId}</td>
-                        </tr>
-                        <tr>
-                            <th>Room Types Created</th>
-                            <td>${result.stats?.roomsCreated || 0}</td>
-                        </tr>
-                        <tr>
-                            <th>Images Imported</th>
-                            <td>${result.stats?.imagesCreated || 0}</td>
-                        </tr>
-                    </table>
-                </div>
-            `;
-            
-            document.getElementById('nextBtn').textContent = 'Go to Dashboard →';
-        }
-        
-        // Initialize
         showStep(1);
     </script>
 </body>
