@@ -554,7 +554,7 @@
                 
                 <div id="connect-loading" class="loading" style="display: none;">
                     <div class="spinner"></div>
-                    <p>Connecting to Beds24 and fetching properties...</p>
+                    <p id="connect-status">Connecting to Beds24 and fetching properties...</p>
                 </div>
             </div>
             
@@ -922,21 +922,33 @@
                 
                 // Trigger sync
                 if (wizardData.connectionId) {
+                    document.getElementById('connect-status').textContent = 'Starting sync...';
+                    
                     await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' }
                     });
                     
-                    // Wait for sync then get properties
-                    await new Promise(r => setTimeout(r, 4000));
+                    // Poll for properties (sync runs in background)
+                    let attempts = 0;
+                    const maxAttempts = 10;
                     
-                    const propsResponse = await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/properties`);
-                    const propsData = await propsResponse.json();
-                    
-                    if (propsData.success && propsData.properties) {
-                        wizardData.properties = propsData.properties;
-                        wizardData.propertyCount = propsData.properties.length;
-                        wizardData.roomCount = propsData.properties.reduce((sum, p) => sum + parseInt(p.room_type_count || 0), 0);
+                    while (attempts < maxAttempts) {
+                        document.getElementById('connect-status').textContent = `Waiting for sync to complete... (${attempts + 1}/${maxAttempts})`;
+                        await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds between checks
+                        
+                        const propsResponse = await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/properties`);
+                        const propsData = await propsResponse.json();
+                        
+                        if (propsData.success && propsData.properties && propsData.properties.length > 0) {
+                            wizardData.properties = propsData.properties;
+                            wizardData.propertyCount = propsData.properties.length;
+                            wizardData.roomCount = propsData.properties.reduce((sum, p) => sum + parseInt(p.room_type_count || 0), 0);
+                            document.getElementById('connect-status').textContent = `Found ${wizardData.propertyCount} properties!`;
+                            break;
+                        }
+                        
+                        attempts++;
                     }
                 }
                 
