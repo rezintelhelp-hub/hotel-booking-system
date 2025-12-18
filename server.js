@@ -2060,6 +2060,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             cleaning_fee = COALESCE($9, cleaning_fee),
             security_deposit = COALESCE($10, security_deposit),
             feature_codes = COALESCE(NULLIF($11, ''), feature_codes),
+            beds24_room_id = COALESCE($13, beds24_room_id),
             updated_at = NOW()
           WHERE id = $12
         `, [
@@ -2074,7 +2075,8 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           cleaningFee,
           securityDeposit,
           featureCodes,
-          gasRoomId
+          gasRoomId,
+          prop.adapter_code === 'beds24' ? String(room.external_id) : null
         ]);
         
         // Update text fields separately (handle JSONB/TEXT type differences)
@@ -2098,19 +2100,21 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Ensure feature_codes column exists
         await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS feature_codes TEXT').catch(() => {});
+        await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS beds24_room_id VARCHAR(50)').catch(() => {});
         
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
-            property_id, cm_room_id, name,
+            property_id, cm_room_id, beds24_room_id, name,
             max_guests, base_price,
             room_type, bedrooms, beds, bathrooms, size_sqm,
             cleaning_fee, security_deposit, feature_codes,
             status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'available', NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'available', NOW())
           RETURNING id
         `, [
           gasPropertyId,
           String(room.external_id),
+          prop.adapter_code === 'beds24' ? String(room.external_id) : null,  // Set beds24_room_id for Beds24
           room.name || 'Unnamed Room',
           maxGuests,
           basePrice,
@@ -2375,6 +2379,49 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
     
   } catch (error) {
     res.json({ success: false, error: error.response?.data || error.message });
+  }
+});
+
+// Fix beds24_room_id for existing rooms (one-time migration)
+app.post('/api/gas-sync/connections/:id/fix-room-ids', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get connection
+    const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = connResult.rows[0];
+    if (conn.adapter_code !== 'beds24') {
+      return res.json({ success: false, error: 'Only Beds24 connections supported' });
+    }
+    
+    // Add column if needed
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS beds24_room_id VARCHAR(50)').catch(() => {});
+    
+    // Update bookable_units with beds24_room_id from gas_sync_room_types
+    const result = await pool.query(`
+      UPDATE bookable_units bu
+      SET beds24_room_id = rt.external_id
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      WHERE rt.gas_room_id = bu.id
+        AND sp.connection_id = $1
+        AND bu.beds24_room_id IS NULL
+      RETURNING bu.id, bu.name, rt.external_id as beds24_room_id
+    `, [id]);
+    
+    res.json({ 
+      success: true, 
+      message: `Updated ${result.rowCount} rooms with beds24_room_id`,
+      rooms: result.rows
+    });
+    
+  } catch (error) {
+    console.error('Fix room IDs error:', error);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
