@@ -27211,6 +27211,20 @@ app.get('/api/admin/debug/beds24-room-pricing/:connectionId/:roomId', async (req
   }
 });
 
+// Debug: List room IDs for a property
+app.get('/api/admin/debug/property-rooms/:propertyId', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    const result = await pool.query(
+      'SELECT id, name, beds24_room_id, cm_room_id FROM bookable_units WHERE property_id = $1',
+      [propertyId]
+    );
+    res.json({ success: true, rooms: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // END GASSYNC ROUTES
 // =====================================================
