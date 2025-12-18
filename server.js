@@ -1461,11 +1461,11 @@ app.post('/api/gas-sync/connections/:id/reset', async (req, res) => {
     const { id } = req.params;
     
     // Delete synced data but keep the connection
+    await pool.query('DELETE FROM gas_sync_logs WHERE connection_id = $1', [id]);
     await pool.query('DELETE FROM gas_sync_images WHERE connection_id = $1', [id]);
     await pool.query('DELETE FROM gas_sync_room_types WHERE connection_id = $1', [id]);
     await pool.query('DELETE FROM gas_sync_reservations WHERE connection_id = $1', [id]);
     await pool.query('DELETE FROM gas_sync_properties WHERE connection_id = $1', [id]);
-    await pool.query('DELETE FROM gas_sync_log WHERE connection_id = $1', [id]);
     
     // Reset connection status
     await pool.query(`
@@ -25922,7 +25922,17 @@ app.put('/api/gas-sync/connections/:id', async (req, res) => {
 app.delete('/api/gas-sync/connections/:id', async (req, res) => {
   try {
     const { id } = req.params;
+    
+    // Delete all related data first (foreign key order)
+    await pool.query('DELETE FROM gas_sync_logs WHERE connection_id = $1', [id]);
+    await pool.query('DELETE FROM gas_sync_images WHERE connection_id = $1', [id]);
+    await pool.query('DELETE FROM gas_sync_reservations WHERE connection_id = $1', [id]);
+    await pool.query('DELETE FROM gas_sync_room_types WHERE connection_id = $1', [id]);
+    await pool.query('DELETE FROM gas_sync_properties WHERE connection_id = $1', [id]);
+    
+    // Now delete the connection
     await pool.query('DELETE FROM gas_sync_connections WHERE id = $1', [id]);
+    
     res.json({ success: true, message: 'Connection and all synced data deleted' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
