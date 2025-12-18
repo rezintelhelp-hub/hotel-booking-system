@@ -2553,6 +2553,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     
     // Calculate date range
     const today = new Date();
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
     
     let totalDaysUpdated = 0;
     let roomsSynced = 0;
@@ -27224,6 +27226,38 @@ app.get('/api/admin/debug/property-rooms/:propertyId', async (req, res) => {
     res.json({ success: true, rooms: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
+  }
+});
+
+// Debug: Test calendar API with connection token
+app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, res) => {
+  try {
+    const { connectionId, roomId } = req.params;
+    
+    // Get connection with token
+    const result = await pool.query('SELECT access_token FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const accessToken = result.rows[0].access_token;
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+      headers: { 'token': accessToken },
+      params: { roomId: parseInt(roomId), startDate, endDate }
+    });
+    
+    res.json({
+      success: true,
+      roomId,
+      startDate,
+      endDate,
+      calendar: calResponse.data
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message, details: error.response?.data });
   }
 });
 
