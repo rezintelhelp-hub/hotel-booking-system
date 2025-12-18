@@ -27171,6 +27171,46 @@ app.post('/api/admin/debug/refresh-token/:id', async (req, res) => {
   }
 });
 
+// Debug: Check what Beds24 returns for a room's pricing
+app.get('/api/admin/debug/beds24-room-pricing/:connectionId/:roomId', async (req, res) => {
+  try {
+    const { connectionId, roomId } = req.params;
+    
+    // Get connection with token
+    const result = await pool.query('SELECT access_token, refresh_token, credentials FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = result.rows[0];
+    let accessToken = conn.access_token;
+    
+    // Get fixed prices
+    const pricesResponse = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
+      params: { roomId: parseInt(roomId) },
+      headers: { 'token': accessToken }
+    });
+    
+    // Get availability
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+      params: { roomId: parseInt(roomId), from: startDate, to: endDate },
+      headers: { 'token': accessToken }
+    });
+    
+    res.json({
+      success: true,
+      roomId,
+      fixedPrices: pricesResponse.data,
+      availability: availResponse.data
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message, details: error.response?.data });
+  }
+});
+
 // =====================================================
 // END GASSYNC ROUTES
 // =====================================================
