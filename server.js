@@ -27261,6 +27261,37 @@ app.get('/api/admin/debug/beds24-calendar/:connectionId/:roomId', async (req, re
   }
 });
 
+// Debug: Test offers API with connection token
+app.get('/api/admin/debug/beds24-offers/:connectionId/:roomId', async (req, res) => {
+  try {
+    const { connectionId, roomId } = req.params;
+    
+    const result = await pool.query('SELECT access_token FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const accessToken = result.rows[0].access_token;
+    const arrival = new Date().toISOString().split('T')[0];
+    const departure = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+      headers: { 'token': accessToken },
+      params: { roomId: parseInt(roomId), arrival, departure, numAdults: 2 }
+    });
+    
+    res.json({
+      success: true,
+      roomId,
+      arrival,
+      departure,
+      offers: offerResponse.data
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message, details: error.response?.data });
+  }
+});
+
 // =====================================================
 // END GASSYNC ROUTES
 // =====================================================
