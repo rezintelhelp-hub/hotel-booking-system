@@ -2565,6 +2565,18 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             
             const pricesData = pricesResponse.data?.data || [];
             
+            // Get availability status
+            const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+              params: { 
+                roomId: parseInt(room.beds24_room_id),
+                from: startDate,
+                to: endDate
+              },
+              headers: { 'token': accessToken }
+            });
+            
+            const availData = availResponse.data?.data?.[0]?.availability || {};
+            
             if (pricesData.length > 0) {
               const priceInfo = pricesData[0]; // First/default price offer
               const basePrice = priceInfo.roomPrice || priceInfo['1PersonPrice'] || priceInfo['2PersonPrice'] || 0;
@@ -2581,7 +2593,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 [basePrice, room.gas_room_id]
               );
               
-              // Also populate room_availability with this base price for date range
+              // Populate room_availability with price AND availability status
               const firstNight = priceInfo.firstNight || startDate;
               const lastNight = priceInfo.lastNight || endDate;
               
@@ -2591,17 +2603,23 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               
               for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
                 const dateStr = d.toISOString().split('T')[0];
+                // Check availability from Beds24 response (true = available, false = blocked/booked)
+                const isAvailable = availData[dateStr] !== false;
+                const isBlocked = availData[dateStr] === false;
+                
                 await pool.query(`
                   INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, true, false, $4, 'beds24', NOW())
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24', NOW())
                   ON CONFLICT (room_id, date) 
                   DO UPDATE SET 
                     cm_price = EXCLUDED.cm_price,
                     direct_price = EXCLUDED.direct_price,
+                    is_available = EXCLUDED.is_available,
+                    is_blocked = EXCLUDED.is_blocked,
                     min_stay = EXCLUDED.min_stay,
                     source = 'beds24',
                     updated_at = NOW()
-                `, [room.gas_room_id, dateStr, basePrice, priceInfo.minNights || 1]);
+                `, [room.gas_room_id, dateStr, basePrice, isAvailable, isBlocked, priceInfo.minNights || 1]);
                 
                 totalDaysUpdated++;
               }
