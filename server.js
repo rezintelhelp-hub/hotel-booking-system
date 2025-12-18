@@ -2311,15 +2311,15 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     });
     const accessToken = tokenResponse.data.token;
     
-    // Get all synced properties with prop_keys
+    // Get all synced properties (V2 doesn't require prop_key)
     const propsResult = await pool.query(`
       SELECT sp.id, sp.external_id, sp.name, sp.prop_key, sp.gas_property_id
       FROM gas_sync_properties sp
-      WHERE sp.connection_id = $1 AND sp.prop_key IS NOT NULL
+      WHERE sp.connection_id = $1 AND sp.gas_property_id IS NOT NULL
     `, [connectionId]);
     
     if (propsResult.rows.length === 0) {
-      return res.json({ success: false, error: 'No properties with prop_keys found' });
+      return res.json({ success: false, error: 'No linked properties found. Import properties to GAS first.' });
     }
     
     // Calculate date range
@@ -2353,13 +2353,13 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       try {
         console.log(`Syncing availability for ${prop.name} (Beds24 ID: ${prop.external_id})`);
         
-        // Get rooms for this property
+        // Get rooms for this property - use gas_room_id from sync table
         const roomsResult = await pool.query(`
-          SELECT rt.external_id as beds24_room_id, bu.id as gas_room_id, bu.name
+          SELECT rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
           FROM gas_sync_room_types rt
-          JOIN bookable_units bu ON bu.cm_room_id = rt.external_id::text
-          WHERE rt.sync_property_id = $1 AND bu.property_id = $2
-        `, [prop.id, prop.gas_property_id]);
+          JOIN bookable_units bu ON bu.id = rt.gas_room_id
+          WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL
+        `, [prop.id]);
         
         if (roomsResult.rows.length === 0) {
           console.log(`  No linked rooms found for ${prop.name}`);
