@@ -2280,6 +2280,46 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
   }
 });
 
+// Debug endpoint to check Beds24 calendar format
+app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { roomId, days = 7 } = req.body;
+    
+    const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = connResult.rows[0];
+    const credentials = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
+    const accessToken = conn.access_token || credentials?.token;
+    
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No access token' });
+    }
+    
+    const startDate = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    // Try the calendar endpoint
+    const calendarResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+      params: { roomId: parseInt(roomId), from: startDate, to: endDate },
+      headers: { 'token': accessToken }
+    });
+    
+    res.json({ 
+      success: true, 
+      roomId,
+      dateRange: { startDate, endDate },
+      rawResponse: calendarResponse.data
+    });
+    
+  } catch (error) {
+    res.json({ success: false, error: error.response?.data || error.message });
+  }
+});
+
 // Reconnect Beds24 - exchange new invite code for fresh tokens
 app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
   try {
