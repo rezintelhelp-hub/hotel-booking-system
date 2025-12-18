@@ -26836,8 +26836,7 @@ app.get('/api/gas-sync/properties/:id/compare', async (req, res) => {
     // Get rooms currently in GAS for this property
     const gasRoomsResult = await pool.query(`
       SELECT rt.id as sync_id, rt.external_id as beds24_id, rt.name as sync_name,
-             bu.id as gas_id, bu.name as gas_name, bu.beds24_room_id, bu.cm_room_id,
-             bu.is_active
+             bu.id as gas_id, bu.name as gas_name, bu.beds24_room_id, bu.cm_room_id
       FROM gas_sync_room_types rt
       LEFT JOIN bookable_units bu ON rt.gas_room_id = bu.id
       WHERE rt.sync_property_id = $1
@@ -26847,7 +26846,7 @@ app.get('/api/gas-sync/properties/:id/compare', async (req, res) => {
     
     // Also get any GAS rooms that might exist but aren't linked to sync
     const unlinkedGasRooms = await pool.query(`
-      SELECT bu.id as gas_id, bu.name as gas_name, bu.beds24_room_id, bu.cm_room_id, bu.is_active
+      SELECT bu.id as gas_id, bu.name as gas_name, bu.beds24_room_id, bu.cm_room_id
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
       JOIN gas_sync_properties sp ON sp.gas_property_id = p.id
@@ -26902,7 +26901,7 @@ app.get('/api/gas-sync/properties/:id/compare', async (req, res) => {
         gas_id: gasRoom.gas_id,
         sync_id: gasRoom.sync_id,
         status: existsInBeds24 ? (nameChanged ? 'updated' : 'matched') : 'missing',
-        is_active: gasRoom.is_active !== false
+        is_active: true
       });
     });
     
@@ -26919,7 +26918,7 @@ app.get('/api/gas-sync/properties/:id/compare', async (req, res) => {
           gas_id: room.gas_id,
           sync_id: null,
           status: existsInBeds24 ? 'matched' : 'missing',
-          is_active: room.is_active !== false
+          is_active: true
         });
       }
     });
@@ -26995,7 +26994,7 @@ app.post('/api/gas-sync/properties/:id/apply-sync', async (req, res) => {
     const missingActions = (actions || []).filter(a => a.status === 'missing');
     for (const action of missingActions) {
       if (action.action === 'deactivate') {
-        await pool.query('UPDATE bookable_units SET is_active = false WHERE id = $1', [action.roomId]);
+        await pool.query("UPDATE bookable_units SET status = 'inactive' WHERE id = $1", [action.roomId]);
         deactivated++;
       } else if (action.action === 'delete') {
         // Delete related data first
@@ -27042,8 +27041,8 @@ app.post('/api/gas-sync/properties/:id/apply-sync', async (req, res) => {
         // Insert into bookable_units if gas_property_id exists
         if (syncProp.gas_property_id) {
           const gasRoomResult = await pool.query(`
-            INSERT INTO bookable_units (property_id, name, beds24_room_id, cm_room_id, max_guests, is_active, created_at, updated_at)
-            VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
+            INSERT INTO bookable_units (property_id, name, beds24_room_id, cm_room_id, max_guests, status, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, 'active', NOW(), NOW())
             RETURNING id
           `, [syncProp.gas_property_id, b24Room.name, parseInt(b24Room.id), String(b24Room.id), b24Room.maxGuests || 2]);
           
