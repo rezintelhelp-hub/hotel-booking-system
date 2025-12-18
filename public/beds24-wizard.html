@@ -877,26 +877,50 @@
             document.getElementById('nextBtn').disabled = true;
             
             try {
-                // Create GasSync connection
-                const response = await fetch('/api/gas-sync/connections', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        account_id: wizardData.account.id,
-                        adapter_code: 'beds24',
-                        credentials: { inviteCode }
-                    })
-                });
+                // First check if connection already exists for this account
+                const existingResponse = await fetch(`/api/gas-sync/connections?account_id=${wizardData.account.id}`);
+                const existingData = await existingResponse.json();
                 
-                const data = await response.json();
+                let connectionId = null;
                 
-                if (!data.success) {
-                    throw new Error(data.error || 'Connection failed');
+                if (existingData.success && existingData.connections && existingData.connections.length > 0) {
+                    // Use existing connection
+                    const beds24Conn = existingData.connections.find(c => c.adapter_code === 'beds24');
+                    if (beds24Conn) {
+                        console.log('Found existing Beds24 connection:', beds24Conn.id);
+                        connectionId = beds24Conn.id;
+                    }
                 }
                 
-                wizardData.connectionId = data.connection?.id;
+                if (!connectionId) {
+                    // Create new connection
+                    const response = await fetch('/api/gas-sync/connections', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            account_id: wizardData.account.id,
+                            adapter_code: 'beds24',
+                            credentials: { inviteCode }
+                        })
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (!data.success) {
+                        // If connection already exists error, try to extract existing_id
+                        if (data.existing_id) {
+                            connectionId = data.existing_id;
+                        } else {
+                            throw new Error(data.error || 'Connection failed');
+                        }
+                    } else {
+                        connectionId = data.connection?.id;
+                    }
+                }
                 
-                // Trigger initial sync
+                wizardData.connectionId = connectionId;
+                
+                // Trigger sync
                 if (wizardData.connectionId) {
                     await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync`, {
                         method: 'POST',
