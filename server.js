@@ -2076,7 +2076,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           securityDeposit,
           featureCodes,
           gasRoomId,
-          prop.adapter_code === 'beds24' ? String(room.external_id) : null
+          prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null
         ]);
         
         // Update text fields separately (handle JSONB/TEXT type differences)
@@ -2100,7 +2100,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         // Ensure feature_codes column exists
         await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS feature_codes TEXT').catch(() => {});
-        await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS beds24_room_id VARCHAR(50)').catch(() => {});
         
         const roomResult = await pool.query(`
           INSERT INTO bookable_units (
@@ -2114,7 +2113,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         `, [
           gasPropertyId,
           String(room.external_id),
-          prop.adapter_code === 'beds24' ? String(room.external_id) : null,  // Set beds24_room_id for Beds24
+          prop.adapter_code === 'beds24' ? parseInt(room.external_id) : null,  // Set beds24_room_id for Beds24 (as integer)
           room.name || 'Unnamed Room',
           maxGuests,
           basePrice,
@@ -2398,13 +2397,11 @@ app.post('/api/gas-sync/connections/:id/fix-room-ids', async (req, res) => {
       return res.json({ success: false, error: 'Only Beds24 connections supported' });
     }
     
-    // Add column if needed
-    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS beds24_room_id VARCHAR(50)').catch(() => {});
-    
     // Update bookable_units with beds24_room_id from gas_sync_room_types
+    // Cast external_id to integer since beds24_room_id column is integer
     const result = await pool.query(`
       UPDATE bookable_units bu
-      SET beds24_room_id = rt.external_id
+      SET beds24_room_id = rt.external_id::integer
       FROM gas_sync_room_types rt
       JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
       WHERE rt.gas_room_id = bu.id
