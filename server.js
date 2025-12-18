@@ -27108,6 +27108,34 @@ app.post('/api/admin/properties/:id/set-account', async (req, res) => {
   }
 });
 
+// Debug: Check connection credentials (shows keys only, not values)
+app.get('/api/admin/debug/connection-creds/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query('SELECT id, credentials, access_token, refresh_token FROM gas_sync_connections WHERE id = $1', [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = result.rows[0];
+    const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
+    
+    res.json({
+      success: true,
+      connection_id: id,
+      has_credentials: !!creds,
+      credential_keys: creds ? Object.keys(creds) : [],
+      has_access_token: !!conn.access_token,
+      has_refresh_token: !!conn.refresh_token,
+      v2_token_present: !!(creds?.refreshToken || creds?.v2_token),
+      api_key_present: !!(creds?.apiKey || creds?.api_key)
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // END GASSYNC ROUTES
 // =====================================================
