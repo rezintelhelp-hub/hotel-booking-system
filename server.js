@@ -4261,20 +4261,28 @@ app.get('/api/accounts/:id', async (req, res) => {
 // Create new account
 app.post('/api/accounts', async (req, res) => {
   try {
-    const { name, email, phone, account_code, role, status } = req.body;
+    const { name, email, phone, account_code, role, status, password } = req.body;
     
     if (!name) {
       return res.json({ success: false, error: 'Account name is required' });
     }
     
-    // Ensure account_code column exists
+    // Ensure account_code and password_hash columns exist
     await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS account_code VARCHAR(20)`).catch(() => {});
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS password_hash VARCHAR(255)`).catch(() => {});
+    
+    // Hash password if provided
+    let passwordHash = null;
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      passwordHash = await bcrypt.hash(password, 10);
+    }
     
     const result = await pool.query(`
-      INSERT INTO accounts (name, email, phone, account_code, role, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      INSERT INTO accounts (name, email, phone, account_code, role, status, password_hash, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
       RETURNING *
-    `, [name, email || null, phone || null, account_code || null, role || 'agency_admin', status || 'active']);
+    `, [name, email || null, phone || null, account_code || null, role || 'agency_admin', status || 'active', passwordHash]);
     
     res.json({ success: true, account: result.rows[0] });
   } catch (error) {
