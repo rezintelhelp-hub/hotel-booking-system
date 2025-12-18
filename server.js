@@ -26645,11 +26645,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
     // Simple insert without JSON columns
     const newProp = await pool.query(`
       INSERT INTO properties (
-        account_id, user_id, name, property_type,
+        account_id, name, property_type,
         address, city, state, country, postcode,
         latitude, longitude, timezone, currency,
         check_in_time, check_out_time, status, beds24_property_id
-      ) VALUES ($1, $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', $15)
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, 'active', $15)
       RETURNING id
     `, [
       account_id,
@@ -27101,7 +27101,7 @@ app.post('/api/admin/properties/:id/set-account', async (req, res) => {
   const { account_id } = req.body;
   
   try {
-    await pool.query('UPDATE properties SET account_id = $1, user_id = $1 WHERE id = $2', [account_id, id]);
+    await pool.query('UPDATE properties SET account_id = $1 WHERE id = $2', [account_id, id]);
     res.json({ success: true, message: `Property ${id} moved to account ${account_id}` });
   } catch (error) {
     res.json({ success: false, error: error.message });
