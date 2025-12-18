@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connect to Beds24 - GAS v4</title>
-    <!-- WIZARD VERSION 4 - with debug output -->
+    <title>Connect to Beds24 - GAS v6</title>
+    <!-- WIZARD VERSION 6 - three account types, improved instructions -->
     <style>
         * {
             margin: 0;
@@ -283,9 +283,15 @@
         
         .role-cards {
             display: grid;
-            grid-template-columns: 1fr 1fr;
+            grid-template-columns: 1fr 1fr 1fr;
             gap: 1rem;
             margin-bottom: 1.5rem;
+        }
+        
+        @media (max-width: 600px) {
+            .role-cards {
+                grid-template-columns: 1fr;
+            }
         }
         
         .role-card {
@@ -467,7 +473,7 @@
     <div class="wizard-container">
         <div class="wizard-header">
             <h1>🏨 Connect to Beds24</h1>
-            <p>Set up your channel manager integration in minutes <small style="opacity:0.6">(v5)</small></p>
+            <p>Set up your channel manager integration in minutes <small style="opacity:0.6">(v6)</small></p>
         </div>
         
         <div class="steps-indicator">
@@ -517,11 +523,16 @@
                     
                     <div class="role-cards">
                         <div class="role-card selected" data-role="admin" onclick="selectRole('admin')">
-                            <div class="icon">🏢</div>
-                            <h3>Property Owner</h3>
-                            <p>I manage my own properties</p>
+                            <div class="icon">🏠</div>
+                            <h3>Single Property Owner</h3>
+                            <p>I own one property</p>
                         </div>
-                        <div class="role-card" data-role="agency" onclick="selectRole('agency')">
+                        <div class="role-card" data-role="submaster_admin" onclick="selectRole('submaster_admin')">
+                            <div class="icon">🏢</div>
+                            <h3>Property Group Owner</h3>
+                            <p>I own multiple properties</p>
+                        </div>
+                        <div class="role-card" data-role="agency_admin" onclick="selectRole('agency_admin')">
                             <div class="icon">🌐</div>
                             <h3>Agency</h3>
                             <p>I manage properties for others</p>
@@ -543,7 +554,10 @@
                         <li>Log into Beds24</li>
                         <li>Go to <strong>Settings → Apps & Integrations</strong></li>
                         <li>Click <strong>API → API V2 Access</strong></li>
-                        <li>Click <strong>Invite Code</strong> and copy it</li>
+                        <li>In the Scope section, click <strong>"select all"</strong> for Read, Write, and Delete columns</li>
+                        <li>In the Property dropdown, select <strong>"All owned by account"</strong></li>
+                        <li>Click <strong>"Generate invite code"</strong></li>
+                        <li>Copy the invite code</li>
                     </ol>
                 </div>
                 
@@ -573,8 +587,10 @@
                 <div class="help-box">
                     <h4>📍 Where to find V1 API Key</h4>
                     <ol>
-                        <li>In Beds24, go to <strong>Settings → Apps & Integrations</strong></li>
-                        <li>Click <strong>API → API V1 Access</strong></li>
+                        <li>In Beds24, go to <strong>Settings → Accounts → Account Access</strong></li>
+                        <li>Set IP Access to <strong>"Allow any IP"</strong></li>
+                        <li>Set Allow writes to <strong>"Yes"</strong></li>
+                        <li>Set Property access to <strong>"Owned or linked to this account"</strong></li>
                         <li>Copy the <strong>API Key</strong></li>
                     </ol>
                 </div>
