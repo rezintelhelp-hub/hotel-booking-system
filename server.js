@@ -26624,10 +26624,13 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link', async (req, res) => {
 app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => {
   try {
     const { syncPropertyId } = req.params;
-    const { account_id } = req.body;
+    let { account_id } = req.body;
     
     const syncProp = await pool.query(`
-      SELECT * FROM gas_sync_properties WHERE id = $1
+      SELECT sp.*, c.account_id as connection_account_id
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
     `, [syncPropertyId]);
     
     if (syncProp.rows.length === 0) {
@@ -26635,6 +26638,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/import', async (req, res) => 
     }
     
     const sp = syncProp.rows[0];
+    
+    // Use connection's account_id, not the passed one
+    account_id = sp.connection_account_id;
     
     // Simple insert without JSON columns
     const newProp = await pool.query(`
@@ -27084,6 +27090,19 @@ app.get('/api/admin/properties/search', async (req, res) => {
     `, [`%${q || ''}%`]);
     
     res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fix property account assignment
+app.post('/api/admin/properties/:id/set-account', async (req, res) => {
+  const { id } = req.params;
+  const { account_id } = req.body;
+  
+  try {
+    await pool.query('UPDATE properties SET account_id = $1, user_id = $1 WHERE id = $2', [account_id, id]);
+    res.json({ success: true, message: `Property ${id} moved to account ${account_id}` });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
