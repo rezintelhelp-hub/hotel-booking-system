@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connect to Beds24 - GAS v3</title>
-    <!-- WIZARD VERSION 3 - with polling -->
+    <title>Connect to Beds24 - GAS v4</title>
+    <!-- WIZARD VERSION 4 - with debug output -->
     <style>
         * {
             margin: 0;
@@ -467,7 +467,7 @@
     <div class="wizard-container">
         <div class="wizard-header">
             <h1>🏨 Connect to Beds24</h1>
-            <p>Set up your channel manager integration in minutes <small style="opacity:0.6">(v3)</small></p>
+            <p>Set up your channel manager integration in minutes <small style="opacity:0.6">(v4)</small></p>
         </div>
         
         <div class="steps-indicator">
@@ -921,9 +921,11 @@
                 
                 wizardData.connectionId = connectionId;
                 
+                console.log('Connection ID:', connectionId);
+                
                 // Trigger sync
                 if (wizardData.connectionId) {
-                    document.getElementById('connect-status').textContent = 'Starting sync...';
+                    document.getElementById('connect-status').textContent = `Starting sync for connection ${wizardData.connectionId}...`;
                     
                     await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync`, {
                         method: 'POST',
@@ -935,11 +937,13 @@
                     const maxAttempts = 10;
                     
                     while (attempts < maxAttempts) {
-                        document.getElementById('connect-status').textContent = `Waiting for sync to complete... (${attempts + 1}/${maxAttempts})`;
+                        document.getElementById('connect-status').textContent = `Waiting for sync... (${attempts + 1}/${maxAttempts}) [conn: ${wizardData.connectionId}]`;
                         await new Promise(r => setTimeout(r, 2000)); // Wait 2 seconds between checks
                         
                         const propsResponse = await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/properties`);
                         const propsData = await propsResponse.json();
+                        
+                        console.log(`Poll ${attempts + 1}:`, propsData);
                         
                         if (propsData.success && propsData.properties && propsData.properties.length > 0) {
                             wizardData.properties = propsData.properties;
@@ -951,6 +955,9 @@
                         
                         attempts++;
                     }
+                } else {
+                    console.error('No connection ID!');
+                    throw new Error('Failed to create connection');
                 }
                 
                 if (wizardData.propertyCount === 0) {
