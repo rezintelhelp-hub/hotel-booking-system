@@ -27136,6 +27136,41 @@ app.get('/api/admin/debug/connection-creds/:id', async (req, res) => {
   }
 });
 
+// Force token refresh by clearing expired access token
+app.post('/api/admin/debug/refresh-token/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get connection
+    const result = await pool.query('SELECT refresh_token, credentials FROM gas_sync_connections WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = result.rows[0];
+    const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
+    const refreshToken = conn.refresh_token || creds?.refreshToken;
+    
+    if (!refreshToken) {
+      return res.json({ success: false, error: 'No refresh token found' });
+    }
+    
+    // Get new access token
+    const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+      headers: { 'refreshToken': refreshToken }
+    });
+    
+    const newAccessToken = tokenResponse.data.token;
+    
+    // Save new access token
+    await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [newAccessToken, id]);
+    
+    res.json({ success: true, message: 'Token refreshed successfully' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =====================================================
 // END GASSYNC ROUTES
 // =====================================================
