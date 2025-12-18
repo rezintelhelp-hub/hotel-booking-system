@@ -2280,6 +2280,75 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
   }
 });
 
+// Reconnect Beds24 - exchange new invite code for fresh tokens
+app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { inviteCode } = req.body;
+    
+    if (!inviteCode) {
+      return res.status(400).json({ success: false, error: 'inviteCode is required' });
+    }
+    
+    // Get connection
+    const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = connResult.rows[0];
+    if (conn.adapter_code !== 'beds24') {
+      return res.json({ success: false, error: 'Only Beds24 connections supported' });
+    }
+    
+    // Exchange invite code for token
+    console.log('Reconnect: Exchanging invite code for token...');
+    const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/setup', {
+      headers: {
+        'accept': 'application/json',
+        'code': inviteCode
+      }
+    });
+    
+    if (!tokenResponse.data.token || !tokenResponse.data.refreshToken) {
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Failed to exchange invite code. Please generate a new one.' 
+      });
+    }
+    
+    // Update credentials
+    let credentials = typeof conn.credentials === 'string' 
+      ? JSON.parse(conn.credentials) 
+      : (conn.credentials || {});
+    
+    credentials.token = tokenResponse.data.token;
+    credentials.refreshToken = tokenResponse.data.refreshToken;
+    credentials.expiresIn = tokenResponse.data.expiresIn;
+    delete credentials.inviteCode;
+    
+    await pool.query(`
+      UPDATE gas_sync_connections SET 
+        credentials = $1,
+        access_token = $2,
+        refresh_token = $3,
+        status = 'connected',
+        last_error = NULL,
+        last_error_at = NULL,
+        updated_at = NOW()
+      WHERE id = $4
+    `, [JSON.stringify(credentials), credentials.token, credentials.refreshToken, id]);
+    
+    console.log('Reconnect: Token refreshed successfully');
+    
+    res.json({ success: true, message: 'Connection reconnected with fresh token' });
+    
+  } catch (error) {
+    console.error('Reconnect error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, error: error.response?.data?.error || error.message });
+  }
+});
+
 // Sync availability and pricing from Beds24 (lightweight 15-min sync)
 app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req, res) => {
   try {
@@ -2305,11 +2374,11 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       ? JSON.parse(conn.credentials) 
       : conn.credentials;
     
-    // Get fresh access token - handle both camelCase and snake_case
-    const refreshToken = credentials.refreshToken || credentials.refresh_token;
+    // Get fresh access token - check both credentials JSON and column
+    const refreshToken = credentials?.refreshToken || credentials?.refresh_token || conn.refresh_token;
     
     if (!refreshToken) {
-      return res.json({ success: false, error: 'No refresh token found in credentials' });
+      return res.json({ success: false, error: 'No refresh token found. Please reconnect to Beds24.' });
     }
     
     let accessToken;
