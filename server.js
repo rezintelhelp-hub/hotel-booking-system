@@ -26810,6 +26810,287 @@ app.post('/api/gas-sync/cron/sync', async (req, res) => {
 });
 
 // =====================================================
+// SYNC COMPARISON & RECONCILIATION
+// =====================================================
+
+// Compare GAS rooms with Beds24 rooms for a property
+app.get('/api/gas-sync/properties/:id/compare', async (req, res) => {
+  const { id } = req.params; // This is gas_sync_properties.id
+  
+  try {
+    // Get the sync property info
+    const propResult = await pool.query(`
+      SELECT sp.*, c.credentials, c.adapter_code
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [id]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const syncProp = propResult.rows[0];
+    const credentials = syncProp.credentials;
+    
+    // Get rooms currently in GAS for this property
+    const gasRoomsResult = await pool.query(`
+      SELECT rt.id as sync_id, rt.external_id as beds24_id, rt.name as sync_name,
+             bu.id as gas_id, bu.name as gas_name, bu.beds24_room_id, bu.cm_room_id,
+             bu.is_active
+      FROM gas_sync_room_types rt
+      LEFT JOIN bookable_units bu ON rt.gas_room_id = bu.id
+      WHERE rt.sync_property_id = $1
+    `, [id]);
+    
+    const gasRooms = gasRoomsResult.rows;
+    
+    // Also get any GAS rooms that might exist but aren't linked to sync
+    const unlinkedGasRooms = await pool.query(`
+      SELECT bu.id as gas_id, bu.name as gas_name, bu.beds24_room_id, bu.cm_room_id, bu.is_active
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN gas_sync_properties sp ON sp.gas_property_id = p.id
+      WHERE sp.id = $1
+        AND bu.id NOT IN (SELECT gas_room_id FROM gas_sync_room_types WHERE sync_property_id = $1 AND gas_room_id IS NOT NULL)
+    `, [id]);
+    
+    // Fetch current rooms from Beds24
+    let beds24Rooms = [];
+    
+    if (syncProp.adapter_code === 'beds24') {
+      try {
+        // Get access token
+        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: { 'refreshToken': credentials.v2_token }
+        });
+        const accessToken = tokenResponse.data.token;
+        
+        // Fetch rooms from Beds24
+        const roomsResponse = await axios.get('https://beds24.com/api/v2/properties/rooms', {
+          headers: { 'token': accessToken },
+          params: { propertyId: syncProp.external_id }
+        });
+        
+        beds24Rooms = roomsResponse.data?.data || roomsResponse.data || [];
+      } catch (apiError) {
+        console.error('Error fetching from Beds24:', apiError.message);
+        return res.json({ success: false, error: 'Could not fetch rooms from Beds24: ' + apiError.message });
+      }
+    }
+    
+    // Build comparison
+    const rooms = [];
+    const beds24RoomIds = new Set(beds24Rooms.map(r => String(r.id)));
+    const gasRoomBeds24Ids = new Set();
+    
+    // Process GAS rooms
+    gasRooms.forEach(gasRoom => {
+      const beds24Id = gasRoom.beds24_id || gasRoom.beds24_room_id || gasRoom.cm_room_id;
+      if (beds24Id) gasRoomBeds24Ids.add(String(beds24Id));
+      
+      const existsInBeds24 = beds24Id && beds24RoomIds.has(String(beds24Id));
+      const beds24Room = beds24Rooms.find(r => String(r.id) === String(beds24Id));
+      
+      // Check if name changed
+      const nameChanged = beds24Room && beds24Room.name !== gasRoom.gas_name && beds24Room.name !== gasRoom.sync_name;
+      
+      rooms.push({
+        name: gasRoom.gas_name || gasRoom.sync_name,
+        beds24_name: beds24Room?.name,
+        beds24_id: beds24Id,
+        gas_id: gasRoom.gas_id,
+        sync_id: gasRoom.sync_id,
+        status: existsInBeds24 ? (nameChanged ? 'updated' : 'matched') : 'missing',
+        is_active: gasRoom.is_active !== false
+      });
+    });
+    
+    // Add unlinked GAS rooms
+    unlinkedGasRooms.rows.forEach(room => {
+      const beds24Id = room.beds24_room_id || room.cm_room_id;
+      if (beds24Id && !gasRoomBeds24Ids.has(String(beds24Id))) {
+        gasRoomBeds24Ids.add(String(beds24Id));
+        const existsInBeds24 = beds24RoomIds.has(String(beds24Id));
+        
+        rooms.push({
+          name: room.gas_name,
+          beds24_id: beds24Id,
+          gas_id: room.gas_id,
+          sync_id: null,
+          status: existsInBeds24 ? 'matched' : 'missing',
+          is_active: room.is_active !== false
+        });
+      }
+    });
+    
+    // Find NEW rooms (in Beds24 but not in GAS)
+    beds24Rooms.forEach(b24Room => {
+      if (!gasRoomBeds24Ids.has(String(b24Room.id))) {
+        rooms.push({
+          name: b24Room.name,
+          beds24_id: String(b24Room.id),
+          gas_id: null,
+          sync_id: null,
+          status: 'new',
+          is_active: null
+        });
+      }
+    });
+    
+    // Calculate summary
+    const summary = {
+      new: rooms.filter(r => r.status === 'new').length,
+      matched: rooms.filter(r => r.status === 'matched').length,
+      updated: rooms.filter(r => r.status === 'updated').length,
+      missing: rooms.filter(r => r.status === 'missing').length,
+      total_gas: gasRooms.length + unlinkedGasRooms.rows.length,
+      total_beds24: beds24Rooms.length
+    };
+    
+    res.json({
+      success: true,
+      property: {
+        id: syncProp.id,
+        name: syncProp.name,
+        external_id: syncProp.external_id
+      },
+      summary,
+      rooms
+    });
+    
+  } catch (error) {
+    console.error('Compare error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Apply sync changes
+app.post('/api/gas-sync/properties/:id/apply-sync', async (req, res) => {
+  const { id } = req.params;
+  const { actions } = req.body; // Array of { roomId, status, action }
+  
+  try {
+    // Get property info
+    const propResult = await pool.query(`
+      SELECT sp.*, c.credentials, c.adapter_code, sp.gas_property_id
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [id]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const syncProp = propResult.rows[0];
+    const credentials = syncProp.credentials;
+    
+    let added = 0;
+    let deactivated = 0;
+    let deleted = 0;
+    let updated = 0;
+    
+    // Process actions for missing rooms
+    const missingActions = (actions || []).filter(a => a.status === 'missing');
+    for (const action of missingActions) {
+      if (action.action === 'deactivate') {
+        await pool.query('UPDATE bookable_units SET is_active = false WHERE id = $1', [action.roomId]);
+        deactivated++;
+      } else if (action.action === 'delete') {
+        // Delete related data first
+        await pool.query('DELETE FROM room_availability WHERE room_id = $1', [action.roomId]);
+        await pool.query('DELETE FROM room_images WHERE room_id = $1', [action.roomId]);
+        await pool.query('UPDATE gas_sync_room_types SET gas_room_id = NULL WHERE gas_room_id = $1', [action.roomId]);
+        await pool.query('DELETE FROM bookable_units WHERE id = $1', [action.roomId]);
+        deleted++;
+      }
+      // 'keep' action does nothing
+    }
+    
+    // Process new rooms - fetch from Beds24 and add
+    const newActions = (actions || []).filter(a => a.status === 'new' && a.action === 'add');
+    
+    if (newActions.length > 0 && syncProp.adapter_code === 'beds24') {
+      // Get access token
+      const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+        headers: { 'refreshToken': credentials.v2_token }
+      });
+      const accessToken = tokenResponse.data.token;
+      
+      // Fetch rooms from Beds24
+      const roomsResponse = await axios.get('https://beds24.com/api/v2/properties/rooms', {
+        headers: { 'token': accessToken },
+        params: { propertyId: syncProp.external_id }
+      });
+      
+      const beds24Rooms = roomsResponse.data?.data || roomsResponse.data || [];
+      
+      for (const action of newActions) {
+        const b24Room = beds24Rooms.find(r => String(r.id) === String(action.roomId));
+        if (!b24Room) continue;
+        
+        // Insert into gas_sync_room_types
+        const syncRoomResult = await pool.query(`
+          INSERT INTO gas_sync_room_types (sync_property_id, external_id, name, max_guests, created_at, updated_at)
+          VALUES ($1, $2, $3, $4, NOW(), NOW())
+          RETURNING id
+        `, [id, b24Room.id, b24Room.name, b24Room.maxGuests || 2]);
+        
+        const syncRoomId = syncRoomResult.rows[0].id;
+        
+        // Insert into bookable_units if gas_property_id exists
+        if (syncProp.gas_property_id) {
+          const gasRoomResult = await pool.query(`
+            INSERT INTO bookable_units (property_id, name, beds24_room_id, cm_room_id, max_guests, is_active, created_at, updated_at)
+            VALUES ($1, $2, $3, $4, $5, true, NOW(), NOW())
+            RETURNING id
+          `, [syncProp.gas_property_id, b24Room.name, parseInt(b24Room.id), String(b24Room.id), b24Room.maxGuests || 2]);
+          
+          // Link sync room to GAS room
+          await pool.query('UPDATE gas_sync_room_types SET gas_room_id = $1 WHERE id = $2', 
+            [gasRoomResult.rows[0].id, syncRoomId]);
+        }
+        
+        added++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      added,
+      deactivated,
+      deleted,
+      updated
+    });
+    
+  } catch (error) {
+    console.error('Apply sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Search properties by name (admin)
+app.get('/api/admin/properties/search', async (req, res) => {
+  const { q } = req.query;
+  
+  try {
+    const result = await pool.query(`
+      SELECT p.id, p.name, p.account_id, a.name as account_name,
+             (SELECT COUNT(*) FROM bookable_units WHERE property_id = p.id) as room_count
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE p.name ILIKE $1
+      ORDER BY p.name
+    `, [`%${q || ''}%`]);
+    
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // END GASSYNC ROUTES
 // =====================================================
 
@@ -26863,6 +27144,11 @@ app.delete('/api/admin/properties/:id/full-delete', async (req, res) => {
 // Serve the wizard HTML page
 app.get('/beds24-wizard', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'beds24-wizard.html'));
+});
+
+// Serve the sync review page
+app.get('/sync-review', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'sync-review.html'));
 });
 
 // Step 1: Test V2 API key and fetch properties
