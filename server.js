@@ -3681,6 +3681,38 @@ app.post('/api/admin/accounts/:id/update-role', async (req, res) => {
   }
 });
 
+// Delete account (admin only)
+app.delete('/api/admin/accounts/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Prevent deleting master admin accounts
+    const account = await pool.query('SELECT role FROM accounts WHERE id = $1', [id]);
+    if (account.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found' });
+    }
+    if (account.rows[0].role === 'master_admin') {
+      return res.json({ success: false, error: 'Cannot delete master admin accounts' });
+    }
+    
+    // Check for properties
+    const props = await pool.query('SELECT COUNT(*) FROM properties WHERE account_id = $1', [id]);
+    if (parseInt(props.rows[0].count) > 0) {
+      return res.json({ success: false, error: `Cannot delete account with ${props.rows[0].count} properties. Delete properties first.` });
+    }
+    
+    // Delete related gas_sync data if any
+    await pool.query('DELETE FROM gas_sync_connections WHERE account_id = $1', [id]);
+    
+    // Delete the account
+    await pool.query('DELETE FROM accounts WHERE id = $1', [id]);
+    
+    res.json({ success: true, message: 'Account deleted' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Generate account codes for all accounts missing one
 app.post('/api/admin/generate-account-codes', async (req, res) => {
   try {
