@@ -467,7 +467,7 @@
     <div class="wizard-container">
         <div class="wizard-header">
             <h1>🏨 Connect to Beds24</h1>
-            <p>Set up your channel manager integration in minutes <small style="opacity:0.6">(v4)</small></p>
+            <p>Set up your channel manager integration in minutes <small style="opacity:0.6">(v5)</small></p>
         </div>
         
         <div class="steps-indicator">
@@ -907,6 +907,8 @@
                     
                     const data = await response.json();
                     
+                    console.log('Create connection response:', data);
+                    
                     if (!data.success) {
                         // If connection already exists error, try to extract existing_id
                         if (data.existing_id) {
@@ -915,7 +917,8 @@
                             throw new Error(data.error || 'Connection failed');
                         }
                     } else {
-                        connectionId = data.connection?.id;
+                        // Server returns connection_id, not connection.id
+                        connectionId = data.connection_id || data.connection?.id;
                     }
                 }
                 
