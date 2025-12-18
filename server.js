@@ -25650,6 +25650,32 @@ app.get('/api/gas-sync/connections', async (req, res) => {
   }
 });
 
+// Admin: Get ALL connections across all accounts
+app.get('/api/admin/gas-sync/connections', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT c.id, c.account_id, c.adapter_code, c.status, 
+             c.external_account_id, c.external_account_name,
+             c.sync_enabled, c.sync_interval_minutes,
+             c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
+             c.webhook_registered, c.created_at, c.updated_at,
+             a.name as adapter_name, a.logo_url as adapter_logo,
+             acc.name as account_name, acc.email as account_email,
+             (SELECT COUNT(*) FROM gas_sync_properties WHERE connection_id = c.id) as property_count,
+             (SELECT COUNT(*) FROM gas_sync_room_types WHERE connection_id = c.id) as room_type_count
+      FROM gas_sync_connections c
+      JOIN gas_sync_adapters a ON c.adapter_code = a.code
+      LEFT JOIN accounts acc ON c.account_id = acc.id
+      ORDER BY c.created_at DESC
+    `);
+    
+    res.json({ success: true, connections: result.rows });
+  } catch (error) {
+    console.error('Error fetching all connections:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get single connection details
 app.get('/api/gas-sync/connections/:id', async (req, res) => {
   try {
