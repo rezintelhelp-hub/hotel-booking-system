@@ -2374,22 +2374,28 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       ? JSON.parse(conn.credentials) 
       : conn.credentials;
     
-    // Get fresh access token - check both credentials JSON and column
+    // Try to use stored access token first, then refresh if needed
+    let accessToken = conn.access_token || credentials?.token;
     const refreshToken = credentials?.refreshToken || credentials?.refresh_token || conn.refresh_token;
     
-    if (!refreshToken) {
-      return res.json({ success: false, error: 'No refresh token found. Please reconnect to Beds24.' });
+    // If no access token, try to refresh
+    if (!accessToken && refreshToken) {
+      try {
+        const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+          refreshToken: refreshToken
+        });
+        accessToken = tokenResponse.data.token;
+        
+        // Update stored token
+        await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, connectionId]);
+      } catch (tokenError) {
+        console.error('Token refresh failed:', tokenError.response?.data || tokenError.message);
+        return res.json({ success: false, error: 'Token expired. Please reconnect using a new invite code.' });
+      }
     }
     
-    let accessToken;
-    try {
-      const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-        refreshToken: refreshToken
-      });
-      accessToken = tokenResponse.data.token;
-    } catch (tokenError) {
-      console.error('Token refresh failed:', tokenError.response?.data || tokenError.message);
-      return res.json({ success: false, error: 'Failed to refresh Beds24 token: ' + (tokenError.response?.data?.error || tokenError.message) });
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No access token found. Please reconnect to Beds24.' });
     }
     
     // Get all synced properties (V2 doesn't require prop_key)
