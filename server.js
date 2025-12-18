@@ -2305,11 +2305,23 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       ? JSON.parse(conn.credentials) 
       : conn.credentials;
     
-    // Get fresh access token
-    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-      refreshToken: credentials.refreshToken
-    });
-    const accessToken = tokenResponse.data.token;
+    // Get fresh access token - handle both camelCase and snake_case
+    const refreshToken = credentials.refreshToken || credentials.refresh_token;
+    
+    if (!refreshToken) {
+      return res.json({ success: false, error: 'No refresh token found in credentials' });
+    }
+    
+    let accessToken;
+    try {
+      const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+        refreshToken: refreshToken
+      });
+      accessToken = tokenResponse.data.token;
+    } catch (tokenError) {
+      console.error('Token refresh failed:', tokenError.response?.data || tokenError.message);
+      return res.json({ success: false, error: 'Failed to refresh Beds24 token: ' + (tokenError.response?.data?.error || tokenError.message) });
+    }
     
     // Get all synced properties (V2 doesn't require prop_key)
     const propsResult = await pool.query(`
@@ -2366,35 +2378,28 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           continue;
         }
         
-        // Fetch calendar from Beds24 V2 API
+        // Fetch calendar from Beds24 V2 API for each room
         // Rate limit: wait between requests
-        await new Promise(resolve => setTimeout(resolve, 500));
         
-        const calendarResponse = await axios.post('https://beds24.com/api/v2/inventory/rooms/calendar', {
-          propertyId: parseInt(prop.external_id),
-          startDate,
-          endDate
-        }, {
-          headers: {
-            'token': accessToken,
-            'Content-Type': 'application/json'
-          }
-        });
-        
-        const calendarData = calendarResponse.data;
-        
-        // Calendar data is organized by room
-        if (calendarData && Array.isArray(calendarData)) {
-          for (const roomCal of calendarData) {
-            const beds24RoomId = roomCal.roomId?.toString();
-            const matchedRoom = roomsResult.rows.find(r => r.beds24_room_id?.toString() === beds24RoomId);
+        for (const room of roomsResult.rows) {
+          try {
+            await new Promise(resolve => setTimeout(resolve, 300));
             
-            if (!matchedRoom) {
-              continue; // Skip rooms we haven't linked
-            }
+            const calendarResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+              params: {
+                roomId: parseInt(room.beds24_room_id),
+                from: startDate,
+                to: endDate
+              },
+              headers: {
+                'token': accessToken
+              }
+            });
             
-            // Process each day
-            const days = roomCal.days || roomCal.calendar || [];
+            const calendarData = calendarResponse.data;
+            
+            // Process each day in the response
+            const days = Array.isArray(calendarData) ? calendarData : (calendarData?.days || []);
             for (const day of days) {
               const dateStr = day.date;
               const price = parseFloat(day.price) || parseFloat(day.price1) || null;
@@ -2403,25 +2408,31 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               const minStay = day.minStay || day.minimumStay || 1;
               const maxStay = day.maxStay || day.maximumStay || null;
               
-              await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, max_stay, source, updated_at)
-                VALUES ($1, $2, $3, $3, $4, $5, $6, $7, 'beds24', NOW())
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET 
-                  cm_price = EXCLUDED.cm_price,
-                  is_available = EXCLUDED.is_available,
-                  is_blocked = EXCLUDED.is_blocked,
-                  min_stay = EXCLUDED.min_stay,
-                  max_stay = EXCLUDED.max_stay,
-                  source = 'beds24',
-                  updated_at = NOW()
-              `, [matchedRoom.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay, maxStay]);
-              
-              totalDaysUpdated++;
+              if (dateStr) {
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, max_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, $7, 'beds24', NOW())
+                  ON CONFLICT (room_id, date) 
+                  DO UPDATE SET 
+                    cm_price = EXCLUDED.cm_price,
+                    is_available = EXCLUDED.is_available,
+                    is_blocked = EXCLUDED.is_blocked,
+                    min_stay = EXCLUDED.min_stay,
+                    max_stay = EXCLUDED.max_stay,
+                    source = 'beds24',
+                    updated_at = NOW()
+                `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay, maxStay]);
+                
+                totalDaysUpdated++;
+              }
             }
             
             roomsSynced++;
-            console.log(`  ✓ Synced ${days.length} days for ${matchedRoom.name}`);
+            console.log(`  ✓ Synced ${days.length} days for ${room.name}`);
+            
+          } catch (roomError) {
+            console.error(`  Error syncing room ${room.name}:`, roomError.response?.data || roomError.message);
+            errors.push({ room: room.name, error: roomError.message });
           }
         }
         
