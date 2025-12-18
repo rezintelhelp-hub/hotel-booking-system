@@ -10280,8 +10280,17 @@ app.put('/api/db/properties/:id', async (req, res) => {
     const { id } = req.params;
     const { 
       name, description, address, city, country, property_type, status,
-      district, state, zip_code, latitude, longitude
+      district, state, zip_code, latitude, longitude, account_id
     } = req.body;
+
+    // If only account_id provided, do simple update
+    if (account_id && Object.keys(req.body).length === 1) {
+      const result = await pool.query(
+        'UPDATE properties SET account_id = $1, updated_at = NOW() WHERE id = $2 RETURNING *',
+        [account_id, id]
+      );
+      return res.json({ success: true, data: result.rows[0] });
+    }
 
     const result = await pool.query(
       `UPDATE properties SET 
@@ -10292,16 +10301,15 @@ app.put('/api/db/properties/:id', async (req, res) => {
         country = COALESCE($5, country), 
         property_type = COALESCE($6, property_type),
         status = COALESCE($7, status),
-        district = COALESCE($8, district),
-        state = COALESCE($9, state),
-        zip_code = COALESCE($10, zip_code),
-        latitude = COALESCE($11, latitude),
-        longitude = COALESCE($12, longitude),
+        state = COALESCE($8, state),
+        latitude = COALESCE($9, latitude),
+        longitude = COALESCE($10, longitude),
+        account_id = COALESCE($11, account_id),
         updated_at = NOW()
-      WHERE id = $13
+      WHERE id = $12
       RETURNING *`,
       [name, description, address, city, country, property_type, status,
-       district, state, zip_code, latitude, longitude, id]
+       state, latitude, longitude, account_id, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
