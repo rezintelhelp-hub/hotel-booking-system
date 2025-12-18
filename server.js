@@ -2522,57 +2522,66 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           continue;
         }
         
-        // Fetch calendar from Beds24 V2 API for each room
-        // Rate limit: wait between requests
+        // Fetch fixed prices from Beds24 V2 API for each room
         
         for (const room of roomsResult.rows) {
           try {
             await new Promise(resolve => setTimeout(resolve, 300));
             
-            const calendarResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
-              params: {
-                roomId: parseInt(room.beds24_room_id),
-                from: startDate,
-                to: endDate
-              },
-              headers: {
-                'token': accessToken
-              }
+            // Get fixed prices (base rates)
+            const pricesResponse = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
+              params: { roomId: parseInt(room.beds24_room_id) },
+              headers: { 'token': accessToken }
             });
             
-            const calendarData = calendarResponse.data;
+            const pricesData = pricesResponse.data?.data || [];
             
-            // Process each day in the response
-            const days = Array.isArray(calendarData) ? calendarData : (calendarData?.days || []);
-            for (const day of days) {
-              const dateStr = day.date;
-              const price = parseFloat(day.price) || parseFloat(day.price1) || null;
-              const isAvailable = day.numAvail > 0 || day.available === true || day.available === 1;
-              const isBlocked = day.closed === true || day.closed === 1 || day.numAvail === 0;
-              const minStay = day.minStay || day.minimumStay || 1;
-              const maxStay = day.maxStay || day.maximumStay || null;
+            if (pricesData.length > 0) {
+              const priceInfo = pricesData[0]; // First/default price offer
+              const basePrice = priceInfo.roomPrice || priceInfo['1PersonPrice'] || priceInfo['2PersonPrice'] || 0;
               
-              if (dateStr) {
+              // Update base_price in gas_sync_room_types
+              await pool.query(
+                'UPDATE gas_sync_room_types SET base_price = $1, updated_at = NOW() WHERE external_id = $2 AND sync_property_id = $3',
+                [basePrice, room.beds24_room_id, prop.id]
+              );
+              
+              // Update base_price in bookable_units
+              await pool.query(
+                'UPDATE bookable_units SET base_price = $1, updated_at = NOW() WHERE id = $2',
+                [basePrice, room.gas_room_id]
+              );
+              
+              // Also populate room_availability with this base price for date range
+              const firstNight = priceInfo.firstNight || startDate;
+              const lastNight = priceInfo.lastNight || endDate;
+              
+              // Generate dates in range and insert
+              const start = new Date(startDate > firstNight ? startDate : firstNight);
+              const end = new Date(endDate < lastNight ? endDate : lastNight);
+              
+              for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, max_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, $7, 'beds24', NOW())
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, true, false, $4, 'beds24', NOW())
                   ON CONFLICT (room_id, date) 
                   DO UPDATE SET 
                     cm_price = EXCLUDED.cm_price,
-                    is_available = EXCLUDED.is_available,
-                    is_blocked = EXCLUDED.is_blocked,
+                    direct_price = EXCLUDED.direct_price,
                     min_stay = EXCLUDED.min_stay,
-                    max_stay = EXCLUDED.max_stay,
                     source = 'beds24',
                     updated_at = NOW()
-                `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay, maxStay]);
+                `, [room.gas_room_id, dateStr, basePrice, priceInfo.minNights || 1]);
                 
                 totalDaysUpdated++;
               }
+              
+              roomsSynced++;
+              console.log(`  ✓ Synced price £${basePrice} for ${room.name}`);
+            } else {
+              console.log(`  No pricing found for ${room.name}`);
             }
-            
-            roomsSynced++;
-            console.log(`  ✓ Synced ${days.length} days for ${room.name}`);
             
           } catch (roomError) {
             console.error(`  Error syncing room ${room.name}:`, roomError.response?.data || roomError.message);
