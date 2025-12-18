@@ -1671,17 +1671,11 @@ app.get('/api/gas-sync/debug/room-mapping', async (req, res) => {
 app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res) => {
   try {
     const { syncPropertyId } = req.params;
-    const { accountId } = req.body;
+    let { accountId } = req.body;
     
-    console.log('link-to-gas: Starting for syncPropertyId:', syncPropertyId, 'accountId:', accountId);
-    
-    if (!accountId) {
-      return res.status(400).json({ success: false, error: 'accountId is required' });
-    }
-    
-    // 1. Get synced property data
+    // 1. Get synced property data AND connection's account_id
     const syncProp = await pool.query(`
-      SELECT sp.*, c.adapter_code 
+      SELECT sp.*, c.adapter_code, c.account_id as connection_account_id
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.id = $1
@@ -1692,6 +1686,18 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     }
     
     const prop = syncProp.rows[0];
+    
+    // Use connection's account_id if not provided in request
+    if (!accountId) {
+      accountId = prop.connection_account_id;
+    }
+    
+    console.log('link-to-gas: Starting for syncPropertyId:', syncPropertyId, 'accountId:', accountId);
+    
+    if (!accountId) {
+      return res.status(400).json({ success: false, error: 'accountId is required' });
+    }
+    
     console.log('link-to-gas: Property found:', prop.name, 'adapter:', prop.adapter_code);
     
     const rawData = typeof prop.raw_data === 'string' ? JSON.parse(prop.raw_data) : (prop.raw_data || {});
@@ -25706,6 +25712,63 @@ app.get('/api/admin/gas-sync/connections', async (req, res) => {
   } catch (error) {
     console.error('Error fetching all connections:', error);
     res.json({ success: false, error: error.message });
+  }
+});
+
+// GasSync stats endpoint for dashboard
+app.get('/api/gas-sync/stats', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    
+    let stats;
+    
+    if (accountId) {
+      // Filtered by account
+      stats = await pool.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM gas_sync_connections WHERE account_id = $1) as connections,
+          (SELECT COUNT(*) FROM gas_sync_properties p 
+           JOIN gas_sync_connections c ON p.connection_id = c.id WHERE c.account_id = $1) as properties,
+          (SELECT COUNT(*) FROM gas_sync_room_types rt 
+           JOIN gas_sync_connections c ON rt.connection_id = c.id WHERE c.account_id = $1) as room_types,
+          (SELECT COUNT(*) FROM gas_sync_reservations r 
+           JOIN gas_sync_connections c ON r.connection_id = c.id 
+           WHERE c.account_id = $1 AND r.status = 'confirmed') as reservations,
+          (SELECT COUNT(*) FROM gas_sync_images i 
+           JOIN gas_sync_connections c ON i.connection_id = c.id WHERE c.account_id = $1) as images,
+          (SELECT COUNT(*) FROM gas_sync_connections 
+           WHERE account_id = $1 AND last_error IS NOT NULL) as errors
+      `, [accountId]);
+    } else {
+      // All accounts (for master admin)
+      stats = await pool.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM gas_sync_connections) as connections,
+          (SELECT COUNT(*) FROM gas_sync_properties) as properties,
+          (SELECT COUNT(*) FROM gas_sync_room_types) as room_types,
+          (SELECT COUNT(*) FROM gas_sync_reservations WHERE status = 'confirmed') as reservations,
+          (SELECT COUNT(*) FROM gas_sync_images) as images,
+          (SELECT COUNT(*) FROM gas_sync_connections WHERE last_error IS NOT NULL) as errors
+      `);
+    }
+    
+    res.json({ 
+      success: true, 
+      stats: {
+        connections: parseInt(stats.rows[0].connections) || 0,
+        properties: parseInt(stats.rows[0].properties) || 0,
+        room_types: parseInt(stats.rows[0].room_types) || 0,
+        reservations: parseInt(stats.rows[0].reservations) || 0,
+        images: parseInt(stats.rows[0].images) || 0,
+        errors: parseInt(stats.rows[0].errors) || 0
+      }
+    });
+  } catch (error) {
+    console.error('Error fetching gas-sync stats:', error);
+    res.json({ 
+      success: true, 
+      stats: { connections: 0, properties: 0, room_types: 0, reservations: 0, images: 0, errors: 0 }
+    });
   }
 });
 
