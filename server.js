@@ -2284,7 +2284,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
 app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
   try {
     const { id } = req.params;
-    const { roomId, days = 7 } = req.body;
+    const { roomId, propertyId, days = 7 } = req.body;
     
     const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [id]);
     if (connResult.rows.length === 0) {
@@ -2304,10 +2304,15 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
     
     const results = {};
     
+    // Build params based on what was provided
+    const calParams = { from: startDate, to: endDate };
+    if (roomId) calParams.roomId = parseInt(roomId);
+    if (propertyId) calParams.propertyId = parseInt(propertyId);
+    
     // Try calendar endpoint
     try {
       const calendarResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
-        params: { roomId: parseInt(roomId), from: startDate, to: endDate },
+        params: calParams,
         headers: { 'token': accessToken }
       });
       results.calendar = calendarResponse.data;
@@ -2315,10 +2320,29 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
       results.calendar_error = e.response?.data || e.message;
     }
     
+    // Try availability endpoint (inventory status)
+    try {
+      const availParams = { from: startDate, to: endDate };
+      if (roomId) availParams.roomId = parseInt(roomId);
+      if (propertyId) availParams.propertyId = parseInt(propertyId);
+      
+      const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+        params: availParams,
+        headers: { 'token': accessToken }
+      });
+      results.availability = availResponse.data;
+    } catch (e) {
+      results.availability_error = e.response?.data || e.message;
+    }
+    
     // Try fixedPrices endpoint
     try {
+      const priceParams = {};
+      if (roomId) priceParams.roomId = parseInt(roomId);
+      if (propertyId) priceParams.propertyId = parseInt(propertyId);
+      
       const pricesResponse = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
-        params: { roomId: parseInt(roomId) },
+        params: priceParams,
         headers: { 'token': accessToken }
       });
       results.fixedPrices = pricesResponse.data;
@@ -2328,8 +2352,12 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
     
     // Try rooms/offers endpoint
     try {
+      const offersParams = { arrival: startDate, departure: endDate };
+      if (roomId) offersParams.roomId = parseInt(roomId);
+      if (propertyId) offersParams.propertyId = parseInt(propertyId);
+      
       const offersResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
-        params: { roomId: parseInt(roomId), arrival: startDate, departure: endDate },
+        params: offersParams,
         headers: { 'token': accessToken }
       });
       results.offers = offersResponse.data;
@@ -2340,6 +2368,7 @@ app.post('/api/gas-sync/connections/:id/debug-calendar', async (req, res) => {
     res.json({ 
       success: true, 
       roomId,
+      propertyId,
       dateRange: { startDate, endDate },
       results
     });
