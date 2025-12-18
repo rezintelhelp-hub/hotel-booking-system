@@ -2523,8 +2523,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     // If no access token, try to refresh
     if (!accessToken && refreshToken) {
       try {
-        const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-          refreshToken: refreshToken
+        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: { 'refreshToken': refreshToken }
         });
         accessToken = tokenResponse.data.token;
         
@@ -2540,7 +2540,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       return res.json({ success: false, error: 'No access token found. Please reconnect to Beds24.' });
     }
     
-    // Get all synced properties (V2 doesn't require prop_key)
+    // Get all synced properties
     const propsResult = await pool.query(`
       SELECT sp.id, sp.external_id, sp.name, sp.prop_key, sp.gas_property_id
       FROM gas_sync_properties sp
@@ -2552,14 +2552,13 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
     }
     
     // Calculate date range
-    const startDate = new Date().toISOString().split('T')[0];
-    const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    const today = new Date();
     
     let totalDaysUpdated = 0;
     let roomsSynced = 0;
     const errors = [];
     
-    // Ensure room_availability table has needed columns
+    // Ensure room_availability table exists
     await pool.query(`
       CREATE TABLE IF NOT EXISTS room_availability (
         id SERIAL PRIMARY KEY,
@@ -2595,84 +2594,87 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           continue;
         }
         
-        // Fetch fixed prices from Beds24 V2 API for each room
-        
+        // Use the OFFERS API (like old working code) - gets calculated price per day
         for (const room of roomsResult.rows) {
           try {
-            await new Promise(resolve => setTimeout(resolve, 300));
+            let daysWithPrice = 0;
+            let daysBlocked = 0;
             
-            // Get fixed prices (base rates)
-            const pricesResponse = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
-              params: { roomId: parseInt(room.beds24_room_id) },
-              headers: { 'token': accessToken }
-            });
-            
-            const pricesData = pricesResponse.data?.data || [];
-            
-            // Get availability status
-            const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
-              params: { 
-                roomId: parseInt(room.beds24_room_id),
-                from: startDate,
-                to: endDate
-              },
-              headers: { 'token': accessToken }
-            });
-            
-            const availData = availResponse.data?.data?.[0]?.availability || {};
-            
-            if (pricesData.length > 0) {
-              const priceInfo = pricesData[0]; // First/default price offer
-              const basePrice = priceInfo.roomPrice || priceInfo['1PersonPrice'] || priceInfo['2PersonPrice'] || 0;
+            // Call offers API for each day (like old working code)
+            for (let i = 0; i < days; i++) {
+              const arrivalDate = new Date(today);
+              arrivalDate.setDate(arrivalDate.getDate() + i);
+              const departDate = new Date(arrivalDate);
+              departDate.setDate(departDate.getDate() + 1);
               
-              // Update base_price in gas_sync_room_types
-              await pool.query(
-                'UPDATE gas_sync_room_types SET base_price = $1, updated_at = NOW() WHERE external_id = $2 AND sync_property_id = $3',
-                [basePrice, room.beds24_room_id, prop.id]
-              );
+              const arrival = arrivalDate.toISOString().split('T')[0];
+              const departure = departDate.toISOString().split('T')[0];
               
-              // Update base_price in bookable_units
-              await pool.query(
-                'UPDATE bookable_units SET base_price = $1, updated_at = NOW() WHERE id = $2',
-                [basePrice, room.gas_room_id]
-              );
-              
-              // Populate room_availability with price AND availability status
-              const firstNight = priceInfo.firstNight || startDate;
-              const lastNight = priceInfo.lastNight || endDate;
-              
-              // Generate dates in range and insert
-              const start = new Date(startDate > firstNight ? startDate : firstNight);
-              const end = new Date(endDate < lastNight ? endDate : lastNight);
-              
-              for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-                const dateStr = d.toISOString().split('T')[0];
-                // Check availability from Beds24 response (true = available, false = blocked/booked)
-                const isAvailable = availData[dateStr] !== false;
-                const isBlocked = availData[dateStr] === false;
+              try {
+                const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+                  headers: { 'token': accessToken },
+                  params: { 
+                    roomId: parseInt(room.beds24_room_id), 
+                    arrival: arrival,
+                    departure: departure,
+                    numAdults: 2
+                  }
+                });
+                
+                const offerData = offerResponse.data;
+                
+                // Find offer 1 (Standard Price) from the response
+                let price = null;
+                let unitsAvailable = 0;
+                let minNights = 1;
+                
+                if (offerData.data && offerData.data.length > 0) {
+                  const roomOffers = offerData.data[0];
+                  if (roomOffers.offers && roomOffers.offers.length > 0) {
+                    // Get offer 1 (Standard Price) or first available offer
+                    const offer1 = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
+                    price = offer1.price;
+                    unitsAvailable = offer1.unitsAvailable || 0;
+                    minNights = offer1.minNights || 1;
+                    daysWithPrice++;
+                  }
+                }
+                
+                const isAvailable = unitsAvailable > 0;
+                const isBlocked = !isAvailable && price === null;
+                
+                if (isBlocked) daysBlocked++;
                 
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24', NOW())
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24')
                   ON CONFLICT (room_id, date) 
                   DO UPDATE SET 
-                    cm_price = EXCLUDED.cm_price,
-                    direct_price = EXCLUDED.direct_price,
-                    is_available = EXCLUDED.is_available,
-                    is_blocked = EXCLUDED.is_blocked,
-                    min_stay = EXCLUDED.min_stay,
+                    cm_price = COALESCE($3, room_availability.cm_price),
+                    direct_price = COALESCE($3, room_availability.direct_price),
+                    is_available = $4,
+                    is_blocked = $5,
+                    min_stay = $6,
                     source = 'beds24',
                     updated_at = NOW()
-                `, [room.gas_room_id, dateStr, basePrice, isAvailable, isBlocked, priceInfo.minNights || 1]);
+                `, [room.gas_room_id, arrival, price, isAvailable, isBlocked, minNights]);
                 
                 totalDaysUpdated++;
+                
+              } catch (apiError) {
+                // If rate limited, wait and continue
+                if (apiError.response?.status === 429) {
+                  console.log('  Rate limited, waiting 5 seconds...');
+                  await new Promise(resolve => setTimeout(resolve, 5000));
+                }
               }
               
-              roomsSynced++;
-              console.log(`  ✓ Synced price £${basePrice} for ${room.name}`);
-            } else {
-              console.log(`  No pricing found for ${room.name}`);
+              // Delay between calls to avoid rate limiting (500ms)
+              await new Promise(resolve => setTimeout(resolve, 500));
             }
+            
+            roomsSynced++;
+            console.log(`  ✓ Synced ${room.name}: ${daysWithPrice} days with prices, ${daysBlocked} blocked`);
             
           } catch (roomError) {
             console.error(`  Error syncing room ${room.name}:`, roomError.response?.data || roomError.message);
