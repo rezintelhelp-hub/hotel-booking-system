@@ -25623,24 +25623,49 @@ app.get('/api/gas-sync/adapters', async (req, res) => {
 // Get all connections for an account
 app.get('/api/gas-sync/connections', async (req, res) => {
   try {
-    const accountId = req.query.account_id || req.user?.account_id || 1;
+    const accountId = req.query.account_id;
     
-    const result = await pool.query(`
-      SELECT c.id, c.account_id, c.adapter_code, c.status, 
-             c.external_account_id, c.external_account_name,
-             c.sync_enabled, c.sync_interval_minutes,
-             c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
-             c.webhook_registered, c.created_at, c.updated_at,
-             a.name as adapter_name, a.logo_url as adapter_logo,
-             a.capabilities as adapter_capabilities,
-             (SELECT COUNT(*) FROM gas_sync_properties WHERE connection_id = c.id) as property_count,
-             (SELECT COUNT(*) FROM gas_sync_room_types WHERE connection_id = c.id) as room_type_count,
-             (SELECT COUNT(*) FROM gas_sync_reservations WHERE connection_id = c.id AND status = 'confirmed') as reservation_count
-      FROM gas_sync_connections c
-      JOIN gas_sync_adapters a ON c.adapter_code = a.code
-      WHERE c.account_id = $1
-      ORDER BY c.created_at DESC
-    `, [accountId]);
+    let result;
+    if (accountId) {
+      // Filter by specific account
+      result = await pool.query(`
+        SELECT c.id, c.account_id, c.adapter_code, c.status, 
+               c.external_account_id, c.external_account_name,
+               c.sync_enabled, c.sync_interval_minutes,
+               c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
+               c.webhook_registered, c.created_at, c.updated_at,
+               a.name as adapter_name, a.logo_url as adapter_logo,
+               a.capabilities as adapter_capabilities,
+               acc.name as account_name,
+               (SELECT COUNT(*) FROM gas_sync_properties WHERE connection_id = c.id) as property_count,
+               (SELECT COUNT(*) FROM gas_sync_room_types WHERE connection_id = c.id) as room_type_count,
+               (SELECT COUNT(*) FROM gas_sync_reservations WHERE connection_id = c.id AND status = 'confirmed') as reservation_count
+        FROM gas_sync_connections c
+        JOIN gas_sync_adapters a ON c.adapter_code = a.code
+        LEFT JOIN accounts acc ON c.account_id = acc.id
+        WHERE c.account_id = $1
+        ORDER BY c.created_at DESC
+      `, [accountId]);
+    } else {
+      // No filter - return all connections (for master admin)
+      result = await pool.query(`
+        SELECT c.id, c.account_id, c.adapter_code, c.status, 
+               c.external_account_id, c.external_account_name,
+               c.sync_enabled, c.sync_interval_minutes,
+               c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
+               c.webhook_registered, c.created_at, c.updated_at,
+               a.name as adapter_name, a.logo_url as adapter_logo,
+               a.capabilities as adapter_capabilities,
+               acc.name as account_name,
+               (SELECT COUNT(*) FROM gas_sync_properties WHERE connection_id = c.id) as property_count,
+               (SELECT COUNT(*) FROM gas_sync_room_types WHERE connection_id = c.id) as room_type_count,
+               (SELECT COUNT(*) FROM gas_sync_reservations WHERE connection_id = c.id AND status = 'confirmed') as reservation_count
+        FROM gas_sync_connections c
+        JOIN gas_sync_adapters a ON c.adapter_code = a.code
+        LEFT JOIN accounts acc ON c.account_id = acc.id
+        ORDER BY c.created_at DESC
+      `);
+    }
     
     res.json({ success: true, connections: result.rows });
   } catch (error) {
