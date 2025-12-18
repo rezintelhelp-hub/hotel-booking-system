@@ -685,12 +685,13 @@
             document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
             document.getElementById(`step${step}`).classList.add('active');
             
-            document.getElementById('prevBtn').style.visibility = step === 1 ? 'hidden' : 'visible';
+            // Hide back button on step 1, step 2 (after account created), and step 4
+            const hideBack = step === 1 || (step === 2 && wizardData.account) || step === 4;
+            document.getElementById('prevBtn').style.visibility = hideBack ? 'hidden' : 'visible';
             document.getElementById('skipBtn').style.display = step === 3 ? 'inline-block' : 'none';
             
             if (step === 4) {
                 document.getElementById('nextBtn').textContent = 'Go to GasSync →';
-                document.getElementById('prevBtn').style.visibility = 'hidden';
             } else {
                 document.getElementById('nextBtn').textContent = 'Next →';
             }
@@ -842,6 +843,14 @@
                 const data = await response.json();
                 
                 if (!data.success) {
+                    // Check for duplicate email error
+                    if (data.error && (data.error.includes('duplicate') || data.error.includes('unique') || data.error.includes('already exists'))) {
+                        // Switch to login tab with message
+                        showAuthTab('login');
+                        document.getElementById('login-email').value = email;
+                        showError('step1-error', 'An account with this email already exists. Please login instead.');
+                        return;
+                    }
                     throw new Error(data.error || 'Registration failed');
                 }
                 
@@ -918,11 +927,29 @@
                 showStep(currentStep);
                 
             } catch (error) {
-                showError('step2-error', `Connection failed: ${error.message}`);
+                showStep2Error(error.message);
             } finally {
                 document.getElementById('connect-loading').style.display = 'none';
                 document.getElementById('nextBtn').disabled = false;
             }
+        }
+        
+        function showStep2Error(message) {
+            document.getElementById('step2-error').innerHTML = `
+                <div class="alert alert-error">
+                    <strong>Connection failed:</strong> ${message}
+                </div>
+                <div class="alert alert-warning" style="margin-top: 0.5rem;">
+                    <strong>💡 To try again:</strong>
+                    <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0;">
+                        <li>Go back to Beds24</li>
+                        <li>Generate a <strong>fresh</strong> invite code</li>
+                        <li>Paste it below and click Next</li>
+                    </ol>
+                </div>
+            `;
+            document.getElementById('inviteCode').value = '';
+            document.getElementById('inviteCode').focus();
         }
         
         async function saveV1Credentials() {
