@@ -3701,7 +3701,19 @@ app.delete('/api/admin/accounts/:id', async (req, res) => {
       return res.json({ success: false, error: `Cannot delete account with ${props.rows[0].count} properties. Delete properties first.` });
     }
     
-    // Delete related gas_sync data if any
+    // Get all connections for this account
+    const connections = await pool.query('SELECT id FROM gas_sync_connections WHERE account_id = $1', [id]);
+    
+    // Delete related gas_sync data for each connection
+    for (const conn of connections.rows) {
+      await pool.query('DELETE FROM gas_sync_logs WHERE connection_id = $1', [conn.id]);
+      await pool.query('DELETE FROM gas_sync_images WHERE connection_id = $1', [conn.id]);
+      await pool.query('DELETE FROM gas_sync_reservations WHERE connection_id = $1', [conn.id]);
+      await pool.query('DELETE FROM gas_sync_room_types WHERE connection_id = $1', [conn.id]);
+      await pool.query('DELETE FROM gas_sync_properties WHERE connection_id = $1', [conn.id]);
+    }
+    
+    // Delete connections
     await pool.query('DELETE FROM gas_sync_connections WHERE account_id = $1', [id]);
     
     // Delete the account
@@ -25702,13 +25714,14 @@ app.post('/api/gas-sync/connections', async (req, res) => {
     }
     
     // Special handling for Beds24 - exchange invite code for token
-    if (adapter_code === 'beds24' && credentials.token) {
+    const beds24InviteCode = credentials.token || credentials.inviteCode;
+    if (adapter_code === 'beds24' && beds24InviteCode) {
       try {
         console.log('Beds24: Exchanging invite code for token...');
         const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/setup', {
           headers: {
             'accept': 'application/json',
-            'code': credentials.token
+            'code': beds24InviteCode
           }
         });
         
@@ -25716,6 +25729,8 @@ app.post('/api/gas-sync/connections', async (req, res) => {
           credentials.token = tokenResponse.data.token;
           credentials.refreshToken = tokenResponse.data.refreshToken;
           credentials.expiresIn = tokenResponse.data.expiresIn;
+          // Remove invite code from credentials since we now have the token
+          delete credentials.inviteCode;
           console.log('Beds24: Got access token and refresh token');
         } else {
           return res.status(400).json({ 
