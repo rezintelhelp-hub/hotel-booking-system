@@ -481,6 +481,7 @@
             <div class="step-dot"></div>
             <div class="step-dot"></div>
             <div class="step-dot"></div>
+            <div class="step-dot"></div>
         </div>
         
         <div class="wizard-content">
@@ -614,8 +615,56 @@
                 </div>
             </div>
             
-            <!-- Step 4: Success -->
+            <!-- Step 4: Webhook Setup -->
             <div class="step" id="step4">
+                <h2>Webhook Setup</h2>
+                <p class="step-description">Enable real-time booking updates from Beds24</p>
+                
+                <div class="alert alert-info">
+                    <strong>Why webhooks?</strong> When a booking is made, modified, or cancelled in Beds24, GAS will be notified instantly - no delays!
+                </div>
+                
+                <div class="help-box">
+                    <h4>📍 How to set up webhooks</h4>
+                    <p style="margin-bottom: 1rem;">For <strong>each property</strong> in Beds24:</p>
+                    <ol>
+                        <li>Go to <strong>Settings → Properties → Access</strong></li>
+                        <li>Select the property from the dropdown</li>
+                        <li>Find the <strong>Booking Webhook</strong> section</li>
+                        <li>Set Webhook Version to <strong>2</strong> (with personal data)</li>
+                        <li>Paste the webhook URL below into the URL field</li>
+                        <li>Click <strong>Save</strong></li>
+                        <li>Repeat for each property</li>
+                    </ol>
+                </div>
+                
+                <div class="form-group">
+                    <label>Your Webhook URL <span style="color: #6c757d; font-weight: normal;">(copy this)</span></label>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <input type="text" id="webhookUrl" readonly style="flex: 1; background: #f8f9fa; font-family: monospace; font-size: 0.85rem;">
+                        <button class="btn btn-secondary" onclick="copyWebhookUrl()" style="white-space: nowrap;">
+                            📋 Copy
+                        </button>
+                    </div>
+                    <small style="color: #6c757d; display: block; margin-top: 0.5rem;">
+                        The <code>[PROPERTYID]</code> part will be automatically filled by Beds24
+                    </small>
+                </div>
+                
+                <div id="webhook-copy-success" style="display: none; color: #28a745; margin-top: 0.5rem;">
+                    ✓ Copied to clipboard!
+                </div>
+                
+                <div class="properties-list" style="margin-top: 1.5rem;">
+                    <h4 style="margin-bottom: 0.75rem; color: #1e3a5f;">Properties to configure:</h4>
+                    <div id="webhook-properties-list">
+                        <!-- Property list will be inserted here -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Step 5: Success -->
+            <div class="step" id="step5">
                 <div class="success-screen">
                     <div class="icon">🎉</div>
                     <h2>You're All Set!</h2>
@@ -654,7 +703,7 @@
     
     <script>
         let currentStep = 1;
-        const totalSteps = 4;
+        const totalSteps = 5;
         
         let wizardData = {
             authMode: 'login',
@@ -702,12 +751,12 @@
             document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
             document.getElementById(`step${step}`).classList.add('active');
             
-            // Hide back button on step 1, step 2 (after account created), and step 4
-            const hideBack = step === 1 || (step === 2 && wizardData.account) || step === 4;
+            // Hide back button on step 1, step 2 (after account created), and step 5
+            const hideBack = step === 1 || (step === 2 && wizardData.account) || step === 5;
             document.getElementById('prevBtn').style.visibility = hideBack ? 'hidden' : 'visible';
-            document.getElementById('skipBtn').style.display = step === 3 ? 'inline-block' : 'none';
+            document.getElementById('skipBtn').style.display = (step === 3 || step === 4) ? 'inline-block' : 'none';
             
-            if (step === 4) {
+            if (step === 5) {
                 document.getElementById('nextBtn').textContent = 'Go to GasSync →';
             } else {
                 document.getElementById('nextBtn').textContent = 'Next →';
@@ -726,7 +775,7 @@
             document.getElementById('step3-error').innerHTML = '';
         }
         
-        function copyWebhookUrl(btn, url) {
+        function copyPropWebhookUrl(btn, url) {
             navigator.clipboard.writeText(url).then(() => {
                 btn.textContent = '✓ Copied';
                 btn.classList.add('copied');
@@ -755,7 +804,7 @@
                         <label>Webhook URL (copy this to Beds24)</label>
                         <div class="webhook-url-box">
                             <input type="text" value="${baseUrl}/api/webhooks/beds24?propertyId=${prop.id}" readonly>
-                            <button class="btn-copy" onclick="copyWebhookUrl(this, '${baseUrl}/api/webhooks/beds24?propertyId=${prop.id}')">Copy</button>
+                            <button class="btn-copy" onclick="copyPropWebhookUrl(this, '${baseUrl}/api/webhooks/beds24?propertyId=${prop.id}')">Copy</button>
                         </div>
                         <p class="form-hint">Paste in Beds24: Settings → Properties → Access → Booking Webhook → URL</p>
                     </div>
@@ -777,6 +826,11 @@
             } else if (currentStep === 3) {
                 await saveV1Credentials();
             } else if (currentStep === 4) {
+                // Webhook setup - just move to success
+                currentStep = 5;
+                showStep(currentStep);
+                updateFinalCounts();
+            } else if (currentStep === 5) {
                 window.location.href = '/gas-admin.html#gas-sync';
             }
         }
@@ -790,11 +844,45 @@
         
         async function skipStep() {
             if (currentStep === 3) {
-                // Skip V1 setup, go to success
+                // Skip V1 setup, go to webhook setup
                 currentStep = 4;
+                showStep(currentStep);
+                populateWebhookStep();
+            } else if (currentStep === 4) {
+                // Skip webhook setup, go to success
+                currentStep = 5;
                 showStep(currentStep);
                 updateFinalCounts();
             }
+        }
+        
+        function populateWebhookStep() {
+            const baseUrl = window.location.origin;
+            const webhookUrl = `${baseUrl}/api/webhooks/beds24?connectionId=${wizardData.connectionId}&propertyId=[PROPERTYID]`;
+            document.getElementById('webhookUrl').value = webhookUrl;
+            
+            // Populate properties list
+            const container = document.getElementById('webhook-properties-list');
+            if (wizardData.properties && wizardData.properties.length > 0) {
+                container.innerHTML = wizardData.properties.map(prop => `
+                    <div style="padding: 0.5rem; background: #f8f9fa; border-radius: 6px; margin-bottom: 0.5rem;">
+                        🏨 <strong>${prop.name}</strong> <span style="color: #6c757d;">(ID: ${prop.external_id})</span>
+                    </div>
+                `).join('');
+            } else {
+                container.innerHTML = '<p style="color: #6c757d;">Properties will appear here after sync</p>';
+            }
+        }
+        
+        function copyWebhookUrl() {
+            const urlInput = document.getElementById('webhookUrl');
+            navigator.clipboard.writeText(urlInput.value).then(() => {
+                const successMsg = document.getElementById('webhook-copy-success');
+                successMsg.style.display = 'block';
+                setTimeout(() => {
+                    successMsg.style.display = 'none';
+                }, 2000);
+            });
         }
         
         async function doLogin() {
@@ -1067,7 +1155,7 @@
                 
                 currentStep++;
                 showStep(currentStep);
-                updateFinalCounts();
+                populateWebhookStep();
                 
             } catch (error) {
                 showError('step3-error', `Setup failed: ${error.message}`);
