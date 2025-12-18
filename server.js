@@ -25772,6 +25772,75 @@ app.get('/api/gas-sync/stats', async (req, res) => {
   }
 });
 
+// GasSync status endpoint for dashboard (matches frontend field names)
+app.get('/api/gas-sync/status', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    
+    let stats;
+    
+    if (accountId) {
+      stats = await pool.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM gas_sync_connections WHERE account_id = $1) as connections,
+          (SELECT COUNT(*) FROM gas_sync_properties p 
+           JOIN gas_sync_connections c ON p.connection_id = c.id WHERE c.account_id = $1) as properties,
+          (SELECT COUNT(*) FROM gas_sync_room_types rt 
+           JOIN gas_sync_connections c ON rt.connection_id = c.id WHERE c.account_id = $1) as room_types,
+          (SELECT COUNT(*) FROM gas_sync_reservations r 
+           JOIN gas_sync_connections c ON r.connection_id = c.id 
+           WHERE c.account_id = $1 AND r.status = 'confirmed') as reservations,
+          (SELECT COUNT(*) FROM gas_sync_images i 
+           JOIN gas_sync_connections c ON i.connection_id = c.id WHERE c.account_id = $1) as images,
+          (SELECT COUNT(*) FROM gas_sync_connections 
+           WHERE account_id = $1 AND last_error IS NOT NULL) as errors
+      `, [accountId]);
+    } else {
+      stats = await pool.query(`
+        SELECT 
+          (SELECT COUNT(*) FROM gas_sync_connections) as connections,
+          (SELECT COUNT(*) FROM gas_sync_properties) as properties,
+          (SELECT COUNT(*) FROM gas_sync_room_types) as room_types,
+          (SELECT COUNT(*) FROM gas_sync_reservations WHERE status = 'confirmed') as reservations,
+          (SELECT COUNT(*) FROM gas_sync_images) as images,
+          (SELECT COUNT(*) FROM gas_sync_connections WHERE last_error IS NOT NULL) as errors
+      `);
+    }
+    
+    // Get recent sync activity
+    const activity = await pool.query(`
+      SELECT l.*, c.adapter_code 
+      FROM gas_sync_logs l
+      JOIN gas_sync_connections c ON l.connection_id = c.id
+      ORDER BY l.started_at DESC
+      LIMIT 10
+    `);
+    
+    res.json({ 
+      success: true, 
+      stats: {
+        active_connections: parseInt(stats.rows[0].connections) || 0,
+        total_properties: parseInt(stats.rows[0].properties) || 0,
+        total_room_types: parseInt(stats.rows[0].room_types) || 0,
+        active_reservations: parseInt(stats.rows[0].reservations) || 0,
+        total_images: parseInt(stats.rows[0].images) || 0,
+        error_connections: parseInt(stats.rows[0].errors) || 0
+      },
+      recent_activity: activity.rows
+    });
+  } catch (error) {
+    console.error('Error fetching gas-sync status:', error);
+    res.json({ 
+      success: true, 
+      stats: { 
+        active_connections: 0, total_properties: 0, total_room_types: 0, 
+        active_reservations: 0, total_images: 0, error_connections: 0 
+      },
+      recent_activity: []
+    });
+  }
+});
+
 // Get single connection details
 app.get('/api/gas-sync/connections/:id', async (req, res) => {
   try {
