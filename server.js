@@ -584,6 +584,14 @@ async function runMigrations() {
       console.log('ℹ️  prop_key column:', propKeyError.message);
     }
     
+    // Fix: Ensure gas_sync_connections has api_key column for V1 credentials
+    try {
+      await pool.query(`ALTER TABLE gas_sync_connections ADD COLUMN IF NOT EXISTS api_key TEXT`);
+      console.log('✅ gas_sync_connections.api_key ensured');
+    } catch (apiKeyError) {
+      console.log('ℹ️  api_key column:', apiKeyError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
