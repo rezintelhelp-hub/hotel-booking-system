@@ -27197,6 +27197,53 @@ app.post('/api/admin/debug/refresh-token/:id', async (req, res) => {
   }
 });
 
+// Debug: Check Beds24 PROPERTY-level pricing (fixedPrices by propertyId)
+app.get('/api/admin/debug/beds24-property-pricing/:connectionId/:propertyId', async (req, res) => {
+  try {
+    const { connectionId, propertyId } = req.params;
+    
+    const result = await pool.query('SELECT access_token FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const accessToken = result.rows[0].access_token;
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No access token' });
+    }
+    
+    const pricesResponse = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
+      headers: { 'token': accessToken },
+      params: { propertyId: propertyId }
+    });
+    
+    // Filter to just offer 1 and current/future dates
+    const today = new Date().toISOString().split('T')[0];
+    const relevantPrices = (pricesResponse.data.data || []).filter(p => 
+      p.offerId === 1 && p.lastNight >= today
+    );
+    
+    res.json({
+      success: true,
+      propertyId,
+      totalCount: pricesResponse.data.count,
+      relevantCount: relevantPrices.length,
+      prices: relevantPrices.map(p => ({
+        id: p.id,
+        name: p.name,
+        roomId: p.roomId,
+        firstNight: p.firstNight,
+        lastNight: p.lastNight,
+        roomPrice: p.roomPrice,
+        minNights: p.minNights
+      }))
+    });
+    
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Debug: Check what Beds24 returns for a room's pricing
 app.get('/api/admin/debug/beds24-room-pricing/:connectionId/:roomId', async (req, res) => {
   try {
