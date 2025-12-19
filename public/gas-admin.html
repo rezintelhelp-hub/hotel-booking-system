@@ -11581,9 +11581,9 @@ Local honey and preserves"></textarea>
                     </div>
                     
                     <!-- Single Occupancy Discount -->
-                    <div style="background: #f0fdf4; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                    <div id="single-discount-section" style="background: #f0fdf4; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
                         <label class="form-label" style="color: #166534; margin-bottom: 0.75rem;">💰 Single Occupancy Discount</label>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div id="single-discount-fields" style="display: flex; align-items: center; gap: 0.5rem;">
                             <select id="single-discount-type" class="form-input" style="width: 120px;">
                                 <option value="fixed">Fixed (£)</option>
                                 <option value="percent">Percent (%)</option>
@@ -11591,12 +11591,15 @@ Local honey and preserves"></textarea>
                             <input type="number" id="single-discount-value" class="form-input" value="0" min="0" style="width: 80px;">
                             <span style="font-size: 0.85rem; color: #166534;">off per night</span>
                         </div>
+                        <p id="single-discount-disabled-msg" style="display: none; margin: 0.5rem 0 0 0; font-size: 0.8rem; color: #6b7280; font-style: italic;">
+                            ℹ️ Not applicable when base occupancy is 1 (can't book 0 guests)
+                        </p>
                     </div>
                     
                     <!-- Extra Adult Charge -->
-                    <div style="background: #fef2f2; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                    <div id="extra-adult-section" style="background: #fef2f2; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
                         <label class="form-label" style="color: #991b1b; margin-bottom: 0.75rem;">💵 Extra Adult Charge</label>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <div id="extra-adult-fields" style="display: flex; align-items: center; gap: 0.5rem;">
                             <select id="extra-adult-type" class="form-input" style="width: 120px;">
                                 <option value="fixed">Fixed (£)</option>
                                 <option value="percent">Percent (%)</option>
@@ -11604,6 +11607,9 @@ Local honey and preserves"></textarea>
                             <input type="number" id="extra-adult-charge" class="form-input" value="0" min="0" style="width: 80px;">
                             <span style="font-size: 0.85rem; color: #991b1b;">per extra adult/night</span>
                         </div>
+                        <p id="extra-adult-disabled-msg" style="display: none; margin: 0.5rem 0 0 0; font-size: 0.8rem; color: #6b7280; font-style: italic;">
+                            ℹ️ Not applicable when base occupancy equals max guests
+                        </p>
                     </div>
                     
                     <!-- Children Allowed Toggle -->
@@ -20507,6 +20513,8 @@ Local honey and preserves"></textarea>
                     toggleChildChargeInput();
                     // Update fields visibility based on enabled state
                     toggleOccupancyFields();
+                    // Update which fields are available based on base vs max
+                    updateOccupancyFieldsAvailability();
                 }
             } catch (error) {
                 console.error('Error loading occupancy settings:', error);
@@ -20538,6 +20546,50 @@ Local honey and preserves"></textarea>
             }
         }
         
+        // Update which occupancy fields are available based on base vs max
+        function updateOccupancyFieldsAvailability() {
+            const baseOccupancy = parseInt(document.getElementById('occupancy-base').value) || 1;
+            const maxGuests = parseInt(document.getElementById('occupancy-max-guests').textContent) || 4;
+            
+            // Single Discount: only available if base > 1 (someone can book fewer than base)
+            const singleSection = document.getElementById('single-discount-section');
+            const singleFields = document.getElementById('single-discount-fields');
+            const singleMsg = document.getElementById('single-discount-disabled-msg');
+            
+            if (baseOccupancy <= 1) {
+                singleSection.style.opacity = '0.5';
+                singleFields.style.pointerEvents = 'none';
+                singleMsg.style.display = 'block';
+                document.getElementById('single-discount-type').disabled = true;
+                document.getElementById('single-discount-value').disabled = true;
+            } else {
+                singleSection.style.opacity = '1';
+                singleFields.style.pointerEvents = 'auto';
+                singleMsg.style.display = 'none';
+                document.getElementById('single-discount-type').disabled = false;
+                document.getElementById('single-discount-value').disabled = false;
+            }
+            
+            // Extra Adult: only available if base < max (someone can book more than base)
+            const extraSection = document.getElementById('extra-adult-section');
+            const extraFields = document.getElementById('extra-adult-fields');
+            const extraMsg = document.getElementById('extra-adult-disabled-msg');
+            
+            if (baseOccupancy >= maxGuests) {
+                extraSection.style.opacity = '0.5';
+                extraFields.style.pointerEvents = 'none';
+                extraMsg.style.display = 'block';
+                document.getElementById('extra-adult-type').disabled = true;
+                document.getElementById('extra-adult-charge').disabled = true;
+            } else {
+                extraSection.style.opacity = '1';
+                extraFields.style.pointerEvents = 'auto';
+                extraMsg.style.display = 'none';
+                document.getElementById('extra-adult-type').disabled = false;
+                document.getElementById('extra-adult-charge').disabled = false;
+            }
+        }
+        
         // Add event listeners
         document.addEventListener('DOMContentLoaded', function() {
             const occupancyEnabled = document.getElementById('occupancy-enabled');
@@ -20551,6 +20603,10 @@ Local honey and preserves"></textarea>
             const childrenAllowed = document.getElementById('children-allowed');
             if (childrenAllowed) {
                 childrenAllowed.addEventListener('change', toggleChildrenAllowed);
+            }
+            const occupancyBase = document.getElementById('occupancy-base');
+            if (occupancyBase) {
+                occupancyBase.addEventListener('change', updateOccupancyFieldsAvailability);
             }
         });
         
