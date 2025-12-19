@@ -29748,9 +29748,14 @@ async function runTieredSync() {
                       numAdult: 2
                     });
                     
+                    // Debug: log first V1 response to see format
+                    if (daysUpdated === 0) {
+                      console.log(`    V1 getPrice response for ${room.name}:`, JSON.stringify(v1Response.data).substring(0, 500));
+                    }
+                    
                     // getPrice returns price info including calculated price
                     const priceData = v1Response.data;
-                    const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || null;
+                    const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || priceData?.roomPrice || null;
                     const minStay = priceData?.minStay || priceData?.[0]?.minStay || 1;
                     const isAvailable = priceData?.available !== false && priceData?.numAvail !== 0;
                     
