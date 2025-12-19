@@ -2583,14 +2583,31 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
         continue;
       }
       
-      // Sync each room using OFFERS API (like Lehmann)
+      // Sync each room: availability from inventory, prices from offers
       for (const room of roomsResult.rows) {
         try {
           let daysWithPrice = 0;
           let daysBlocked = 0;
           const beds24RoomId = parseInt(room.beds24_room_id);
           
-          // Call offers API for each day - this returns CALCULATED price
+          // 1. Get availability from INVENTORY API (one call for whole range)
+          const startDate = today.toISOString().split('T')[0];
+          const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          
+          let availData = {};
+          try {
+            const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+              headers: { 'token': accessToken },
+              params: { roomId: beds24RoomId, startDate, endDate }
+            });
+            availData = availResponse.data.data?.[0]?.availability || {};
+          } catch (availError) {
+            console.log(`  Could not get availability for ${room.name}:`, availError.message);
+          }
+          
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
+          // 2. Get prices from OFFERS API for each day
           for (let i = 0; i < days; i++) {
             const arrivalDate = new Date(today);
             arrivalDate.setDate(arrivalDate.getDate() + i);
@@ -2600,6 +2617,13 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             const arrival = arrivalDate.toISOString().split('T')[0];
             const departure = departDate.toISOString().split('T')[0];
             
+            // Get availability from inventory data
+            const isAvailable = availData[arrival] === true;
+            const isBlocked = !isAvailable;
+            if (isBlocked) daysBlocked++;
+            
+            // Get price from offers API
+            let price = null;
             try {
               const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
                 headers: { 'token': accessToken },
@@ -2612,47 +2636,35 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               });
               
               const offerData = offerResponse.data;
-              
-              // Get price from offer 1 (standard price)
-              let price = null;
-              let unitsAvailable = 0;
-              
               if (offerData.data && offerData.data.length > 0) {
                 const roomOffers = offerData.data[0];
                 if (roomOffers.offers && roomOffers.offers.length > 0) {
-                  // Get offer 1 or first available
                   const offer1 = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
                   price = offer1.price;
-                  unitsAvailable = offer1.unitsAvailable || 0;
                   daysWithPrice++;
                 }
               }
-              
-              const isAvailable = unitsAvailable > 0;
-              const isBlocked = !isAvailable && price === null;
-              if (isBlocked) daysBlocked++;
-              
-              await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, source)
-                VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
-                ON CONFLICT (room_id, date) 
-                DO UPDATE SET 
-                  cm_price = COALESCE($3, room_availability.cm_price),
-                  direct_price = COALESCE($3, room_availability.direct_price),
-                  is_available = $4,
-                  is_blocked = $5,
-                  source = 'beds24',
-                  updated_at = NOW()
-              `, [room.gas_room_id, arrival, price, isAvailable, isBlocked]);
-              
-              totalDaysUpdated++;
-              
             } catch (apiError) {
               if (apiError.response?.status === 429) {
                 console.log('  Rate limited, waiting 5s...');
                 await new Promise(resolve => setTimeout(resolve, 5000));
               }
             }
+            
+            await pool.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, source)
+              VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET 
+                cm_price = COALESCE($3, room_availability.cm_price),
+                direct_price = COALESCE($3, room_availability.direct_price),
+                is_available = $4,
+                is_blocked = $5,
+                source = 'beds24',
+                updated_at = NOW()
+            `, [room.gas_room_id, arrival, price, isAvailable, isBlocked]);
+            
+            totalDaysUpdated++;
             
             // 300ms delay between calls to avoid rate limiting
             await new Promise(resolve => setTimeout(resolve, 300));
