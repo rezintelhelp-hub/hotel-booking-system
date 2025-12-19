@@ -21999,8 +21999,8 @@ Local honey and preserves"></textarea>
                     });
                 }
                 
-                // Load all rooms initially
-                await loadRoomsForOfferDropdown();
+                // Load all rooms initially (empty string = no filter)
+                await loadRoomsForOfferDropdown('');
             } catch (error) {
                 console.error('Error loading properties:', error);
             }
@@ -22010,7 +22010,7 @@ Local honey and preserves"></textarea>
             console.log('Loading rooms for property:', propertyId);
             try {
                 const queryString = buildQueryString();
-                let url = `/api/db/bookable_units${queryString}`;
+                let url = `/api/db/bookable-units${queryString}`;
                 
                 const response = await fetch(url);
                 const data = await response.json();
@@ -22021,7 +22021,7 @@ Local honey and preserves"></textarea>
                 if (data.success && data.data) {
                     // Filter by property if one is selected
                     let rooms = data.data;
-                    if (propertyId && propertyId !== '') {
+                    if (propertyId && propertyId !== '' && propertyId !== 'undefined' && propertyId !== 'null') {
                         rooms = rooms.filter(r => String(r.property_id) === String(propertyId));
                     }
                     
@@ -22076,7 +22076,7 @@ Local honey and preserves"></textarea>
                     document.getElementById('offer-property').value = offer.property_id || '';
                     
                     // Load rooms for the selected property, then set room value
-                    await loadRoomsForOfferDropdown(offer.property_id);
+                    await loadRoomsForOfferDropdown(offer.property_id || '');
                     document.getElementById('offer-room').value = offer.room_id || '';
                     
                     openModal('addOfferModal');
