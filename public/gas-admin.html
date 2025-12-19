@@ -11542,6 +11542,96 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+    <!-- Occupancy Settings Modal -->
+    <div id="occupancySettingsModal" class="modal">
+        <div class="modal-content" style="max-width: 550px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">👥 Occupancy Pricing Settings</h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; opacity: 0.9;" id="occupancy-room-name"></p>
+                </div>
+                <button class="modal-close" onclick="closeModal('occupancySettingsModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="occupancy-room-id">
+                
+                <!-- Pricing Mode Toggle -->
+                <div style="background: #f5f3ff; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                        <input type="checkbox" id="occupancy-enabled" style="width: 22px; height: 22px; accent-color: #7c3aed;">
+                        <div>
+                            <strong style="font-size: 1rem;">Enable Occupancy Pricing</strong>
+                            <p style="font-size: 0.8rem; color: #6b7280; margin: 0.25rem 0 0 0;">
+                                Charge different rates based on number of guests
+                            </p>
+                        </div>
+                    </label>
+                </div>
+                
+                <div id="occupancy-settings-fields">
+                    <!-- Base Occupancy -->
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label class="form-label">Base Occupancy (included in standard price)</label>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <select id="occupancy-base" class="form-input" style="max-width: 100px;">
+                                <option value="1">1 adult</option>
+                                <option value="2" selected>2 adults</option>
+                                <option value="3">3 adults</option>
+                                <option value="4">4 adults</option>
+                            </select>
+                            <span style="font-size: 0.85rem; color: #6b7280;">Max guests: <span id="occupancy-max-guests">4</span></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Single Occupancy Discount -->
+                    <div style="background: #f0fdf4; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <label class="form-label" style="color: #166534; margin-bottom: 0.75rem;">💰 Single Occupancy Discount</label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <select id="single-discount-type" class="form-input" style="width: 120px;">
+                                <option value="fixed">Fixed (£)</option>
+                                <option value="percent">Percent (%)</option>
+                            </select>
+                            <input type="number" id="single-discount-value" class="form-input" value="0" min="0" style="width: 80px;">
+                            <span style="font-size: 0.85rem; color: #166534;">off per night</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Extra Adult Charge -->
+                    <div style="background: #fef2f2; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <label class="form-label" style="color: #991b1b; margin-bottom: 0.75rem;">💵 Extra Adult Charge</label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <select id="extra-adult-type" class="form-input" style="width: 120px;">
+                                <option value="fixed">Fixed (£)</option>
+                                <option value="percent">Percent (%)</option>
+                            </select>
+                            <input type="number" id="extra-adult-charge" class="form-input" value="0" min="0" style="width: 80px;">
+                            <span style="font-size: 0.85rem; color: #991b1b;">per extra adult/night</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Child Charge -->
+                    <div style="background: #eff6ff; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <label class="form-label" style="color: #1e40af; margin-bottom: 0.75rem;">👶 Child Charge <span style="font-size: 0.75rem; font-weight: normal;">(under <span id="child-max-age-display">12</span> years)</span></label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <select id="child-charge-type" class="form-input" style="width: 120px;">
+                                <option value="free">Free</option>
+                                <option value="fixed">Fixed (£)</option>
+                                <option value="percent">Percent (%)</option>
+                            </select>
+                            <input type="number" id="child-charge" class="form-input" value="0" min="0" style="width: 80px;" disabled>
+                            <span style="font-size: 0.85rem; color: #1e40af;">per child/night</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('occupancySettingsModal')">Cancel</button>
+                    <button type="button" class="btn" style="background: #7c3aed; border-color: #7c3aed;" onclick="saveOccupancySettings()">💾 Save Settings</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Amenity Modal -->
     <div id="addAmenityModal" class="modal">
         <div class="modal-content" style="max-width: 900px;">
@@ -19975,6 +20065,21 @@ Local honey and preserves"></textarea>
                 const response = await fetch(`/api/availability/${roomId}?from=${fromDate}&to=${toDate}`);
                 const data = await response.json();
                 
+                // Get occupancy settings for this room
+                let occupancySettings = {};
+                try {
+                    const occResponse = await fetch(`/api/rooms/${roomId}/occupancy-settings`);
+                    const occData = await occResponse.json();
+                    if (occData.success) {
+                        occupancySettings = occData.data;
+                    }
+                } catch (e) {
+                    console.log('Could not load occupancy settings:', e);
+                }
+                
+                // Attach occupancy settings to data for grid rendering
+                data.occupancy_settings = occupancySettings;
+                
                 // Get offers for this room
                 const offersResponse = await fetch('/api/admin/offers');
                 const offersData = await offersResponse.json();
@@ -20030,6 +20135,46 @@ Local honey and preserves"></textarea>
                 html += `</tr>`;
                 
                 // ══════════════════════════════════════════════════════════════
+                // ROW 1b: Min Stay (CM) - Shows CM min stay, editable override
+                // ══════════════════════════════════════════════════════════════
+                html += `
+                    <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 0.5rem 0.75rem; position: sticky; left: 0; background: #f8fafc; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1rem;">📅</span>
+                                <div>
+                                    <strong style="font-size: 0.85rem;">Min Stay</strong>
+                                    <div style="font-size: 0.7rem; color: #64748b;">CM default / Override</div>
+                                </div>
+                            </div>
+                        </td>`;
+                
+                dates.forEach(d => {
+                    const dateStr = d.toISOString().split('T')[0];
+                    const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
+                    const cmMinStay = dayData.cm_min_stay || dayData.min_stay || 1;
+                    const override = dayData.min_stay_override;
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<td style="padding: 0.25rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f8fafc'}; font-size: 0.85rem;">
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                            <span style="color: #94a3b8; font-size: 0.7rem;">${cmMinStay}</span>
+                            <input type="number" 
+                                value="${override || ''}" 
+                                data-room="${roomId}" 
+                                data-date="${dateStr}"
+                                data-field="min_stay"
+                                class="min-stay-input"
+                                style="width: 40px; padding: 0.2rem; text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.8rem;"
+                                onchange="markMinStayChanged(this)"
+                                placeholder="-"
+                                min="1"
+                                max="30">
+                        </div>
+                    </td>`;
+                });
+                html += `</tr>`;
+                
+                // ══════════════════════════════════════════════════════════════
                 // ROW 2: Standard Price - YOUR BASE WEBSITE PRICE, EDITABLE
                 // ══════════════════════════════════════════════════════════════
                 html += `
@@ -20062,6 +20207,95 @@ Local honey and preserves"></textarea>
                     </td>`;
                 });
                 html += `</tr>`;
+                
+                // ══════════════════════════════════════════════════════════════
+                // OCCUPANCY PRICING SECTION - Based on room settings
+                // ══════════════════════════════════════════════════════════════
+                const occupancySettings = data.occupancy_settings || {};
+                const pricingMode = occupancySettings.pricing_mode || 'per_room';
+                const maxGuests = occupancySettings.max_guests || 4;
+                const baseOccupancy = occupancySettings.base_occupancy || 2;
+                
+                html += `
+                    <tr>
+                        <td colspan="${dates.length + 1}" style="padding: 0.5rem 0.75rem; background: #ede9fe; border-top: 2px solid #c4b5fd;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-size: 1rem;">👥</span>
+                                    <strong style="color: #5b21b6;">OCCUPANCY PRICING</strong>
+                                    <span style="font-size: 0.75rem; color: #7c3aed; background: white; padding: 0.15rem 0.5rem; border-radius: 10px;">
+                                        ${pricingMode === 'per_occupancy' ? 'Active' : 'Per Room (flat)'}
+                                    </span>
+                                </div>
+                                <button onclick="openOccupancySettings(${roomId})" class="btn btn-small" style="font-size: 0.75rem; padding: 0.25rem 0.75rem; background: #7c3aed; border-color: #7c3aed;">
+                                    ⚙️ Configure
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+                
+                // Only show occupancy rows if pricing_mode is 'per_occupancy'
+                if (pricingMode === 'per_occupancy') {
+                    // Generate rows for each occupancy level
+                    for (let guests = 1; guests <= maxGuests; guests++) {
+                        const isBase = guests === baseOccupancy;
+                        const label = guests === 1 ? '1 Adult' : `${guests} Guests`;
+                        const sublabel = isBase ? '(base rate)' : (guests < baseOccupancy ? 'discount applied' : 'extra charge');
+                        
+                        html += `
+                            <tr style="background: #faf5ff; border-bottom: 1px solid #e9d5ff;">
+                                <td style="padding: 0.5rem 0.75rem; position: sticky; left: 0; background: #faf5ff; z-index: 1;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; padding-left: 1rem;">
+                                        <span style="font-size: 0.9rem;">${'👤'.repeat(Math.min(guests, 4))}</span>
+                                        <div>
+                                            <span style="font-weight: ${isBase ? '600' : '400'}; color: ${isBase ? '#5b21b6' : '#6b7280'};">${label}</span>
+                                            <div style="font-size: 0.65rem; color: #9ca3af;">${sublabel}</div>
+                                        </div>
+                                    </div>
+                                </td>`;
+                        
+                        dates.forEach(d => {
+                            const dateStr = d.toISOString().split('T')[0];
+                            const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
+                            const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price) || 0;
+                            
+                            // Calculate occupancy-adjusted price
+                            let adjPrice = stdPrice;
+                            if (guests === 1 && parseFloat(occupancySettings.single_discount_value) > 0) {
+                                // Single occupancy discount
+                                if (occupancySettings.single_discount_type === 'percent') {
+                                    adjPrice = stdPrice * (1 - parseFloat(occupancySettings.single_discount_value) / 100);
+                                } else {
+                                    adjPrice = stdPrice - parseFloat(occupancySettings.single_discount_value);
+                                }
+                            } else if (guests > baseOccupancy) {
+                                // Extra guests charge
+                                const extraGuests = guests - baseOccupancy;
+                                if (occupancySettings.extra_adult_type === 'percent') {
+                                    adjPrice = stdPrice * (1 + (parseFloat(occupancySettings.extra_adult_charge) / 100) * extraGuests);
+                                } else {
+                                    adjPrice = stdPrice + (parseFloat(occupancySettings.extra_adult_charge) * extraGuests);
+                                }
+                            }
+                            
+                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                            const priceColor = isBase ? '#5b21b6' : (adjPrice < stdPrice ? '#16a34a' : (adjPrice > stdPrice ? '#dc2626' : '#6b7280'));
+                            
+                            html += `<td style="padding: 0.5rem; text-align: center; background: ${isWeekend ? '#f5f3ff' : '#faf5ff'}; color: ${priceColor}; font-size: 0.85rem;">
+                                ${stdPrice > 0 ? '$' + Math.round(adjPrice) : '-'}
+                            </td>`;
+                        });
+                        html += `</tr>`;
+                    }
+                } else {
+                    // Just show a helper row when per_room mode
+                    html += `
+                        <tr style="background: #faf5ff;">
+                            <td colspan="${dates.length + 1}" style="padding: 0.75rem; text-align: center; color: #7c3aed; font-size: 0.85rem;">
+                                💡 Enable "Per Occupancy" pricing to set different rates for 1, 2, 3+ guests
+                            </td>
+                        </tr>`;
+                }
                 
                 // ══════════════════════════════════════════════════════════════
                 // OFFERS SECTION - Calculated from STANDARD PRICE
@@ -20163,6 +20397,152 @@ Local honey and preserves"></textarea>
             } else {
                 input.style.background = '';
                 input.style.borderColor = '#86efac';
+            }
+        }
+        
+        // =====================================================
+        // MIN STAY HANDLING
+        // =====================================================
+        function markMinStayChanged(input) {
+            input.style.background = '#fef3c7';
+            input.style.borderColor = '#f59e0b';
+        }
+        
+        async function saveMinStayChanges() {
+            const inputs = document.querySelectorAll('.min-stay-input');
+            let saved = 0;
+            
+            for (const input of inputs) {
+                if (input.style.background === 'rgb(254, 243, 199)') { // Changed inputs
+                    const roomId = input.dataset.room;
+                    const date = input.dataset.date;
+                    const value = input.value ? parseInt(input.value) : null;
+                    
+                    try {
+                        await fetch(`/api/rooms/${roomId}/min-stay`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({
+                                start_date: date,
+                                end_date: date,
+                                min_stay_override: value
+                            })
+                        });
+                        input.style.background = '';
+                        input.style.borderColor = '#cbd5e1';
+                        saved++;
+                    } catch (e) {
+                        console.error('Error saving min stay:', e);
+                    }
+                }
+            }
+            
+            if (saved > 0) {
+                showNotification(`Saved ${saved} min stay change(s)`, 'success');
+            }
+        }
+        
+        // =====================================================
+        // OCCUPANCY SETTINGS MODAL
+        // =====================================================
+        async function openOccupancySettings(roomId) {
+            document.getElementById('occupancy-room-id').value = roomId;
+            
+            // Load room data
+            try {
+                const response = await fetch(`/api/rooms/${roomId}/occupancy-settings`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const settings = data.data;
+                    
+                    document.getElementById('occupancy-room-name').textContent = settings.name || 'Room';
+                    document.getElementById('occupancy-max-guests').textContent = settings.max_guests || 4;
+                    document.getElementById('occupancy-enabled').checked = settings.pricing_mode === 'per_occupancy';
+                    document.getElementById('occupancy-base').value = settings.base_occupancy || 2;
+                    
+                    document.getElementById('single-discount-type').value = settings.single_discount_type || 'fixed';
+                    document.getElementById('single-discount-value').value = settings.single_discount_value || 0;
+                    
+                    document.getElementById('extra-adult-type').value = settings.extra_adult_type || 'fixed';
+                    document.getElementById('extra-adult-charge').value = settings.extra_adult_charge || 0;
+                    
+                    document.getElementById('child-charge-type').value = settings.child_charge_type || 'free';
+                    document.getElementById('child-charge').value = settings.child_charge || 0;
+                    document.getElementById('child-max-age-display').textContent = settings.child_max_age || 12;
+                    
+                    // Enable/disable child charge input based on type
+                    toggleChildChargeInput();
+                    // Update fields visibility based on enabled state
+                    toggleOccupancyFields();
+                }
+            } catch (error) {
+                console.error('Error loading occupancy settings:', error);
+            }
+            
+            openModal('occupancySettingsModal');
+        }
+        
+        function toggleOccupancyFields() {
+            const enabled = document.getElementById('occupancy-enabled').checked;
+            const fieldsContainer = document.getElementById('occupancy-settings-fields');
+            fieldsContainer.style.opacity = enabled ? '1' : '0.5';
+            fieldsContainer.style.pointerEvents = enabled ? 'auto' : 'none';
+        }
+        
+        function toggleChildChargeInput() {
+            const type = document.getElementById('child-charge-type').value;
+            const input = document.getElementById('child-charge');
+            input.disabled = type === 'free';
+            if (type === 'free') input.value = 0;
+        }
+        
+        // Add event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            const occupancyEnabled = document.getElementById('occupancy-enabled');
+            if (occupancyEnabled) {
+                occupancyEnabled.addEventListener('change', toggleOccupancyFields);
+            }
+            const childChargeType = document.getElementById('child-charge-type');
+            if (childChargeType) {
+                childChargeType.addEventListener('change', toggleChildChargeInput);
+            }
+        });
+        
+        async function saveOccupancySettings() {
+            const roomId = document.getElementById('occupancy-room-id').value;
+            const enabled = document.getElementById('occupancy-enabled').checked;
+            
+            const settings = {
+                pricing_mode: enabled ? 'per_occupancy' : 'per_room',
+                base_occupancy: parseInt(document.getElementById('occupancy-base').value) || 2,
+                single_discount_type: document.getElementById('single-discount-type').value,
+                single_discount_value: parseFloat(document.getElementById('single-discount-value').value) || 0,
+                extra_adult_type: document.getElementById('extra-adult-type').value,
+                extra_adult_charge: parseFloat(document.getElementById('extra-adult-charge').value) || 0,
+                child_charge_type: document.getElementById('child-charge-type').value,
+                child_charge: parseFloat(document.getElementById('child-charge').value) || 0
+            };
+            
+            try {
+                const response = await fetch(`/api/rooms/${roomId}/occupancy-settings`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(settings)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Occupancy settings saved!', 'success');
+                    closeModal('occupancySettingsModal');
+                    // Reload the pricing grid to show changes
+                    loadOffersPricingGrid();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving settings', 'error');
             }
         }
         
