@@ -2491,11 +2491,11 @@ app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
   }
 });
 
-// Sync availability and pricing from Beds24 (lightweight 15-min sync)
+// Sync availability and pricing from Beds24 using OFFERS API (like Lehmann)
 app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req, res) => {
   try {
     const { connectionId } = req.params;
-    const { days = 90 } = req.body; // Default 90 days ahead
+    const { days = 14 } = req.body; // Default 14 days for speed
     
     // Get connection
     const connResult = await pool.query(
@@ -2512,53 +2512,36 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       return res.json({ success: false, error: 'Only Beds24 connections supported for now' });
     }
     
-    const credentials = typeof conn.credentials === 'string' 
-      ? JSON.parse(conn.credentials) 
-      : conn.credentials;
+    // Get access token - try stored token first, then refresh
+    let accessToken = conn.access_token;
+    const refreshToken = conn.refresh_token;
     
-    // Try to use stored access token first, then refresh if needed
-    let accessToken = conn.access_token || credentials?.token;
-    const refreshToken = credentials?.refreshToken || credentials?.refresh_token || conn.refresh_token;
-    
-    // If no access token, try to refresh
     if (!accessToken && refreshToken) {
       try {
         const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
           headers: { 'refreshToken': refreshToken }
         });
         accessToken = tokenResponse.data.token;
-        
-        // Update stored token
         await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, connectionId]);
       } catch (tokenError) {
-        console.error('Token refresh failed:', tokenError.response?.data || tokenError.message);
-        return res.json({ success: false, error: 'Token expired. Please reconnect using a new invite code.' });
+        return res.json({ success: false, error: 'Token expired. Please reconnect.' });
       }
     }
     
     if (!accessToken) {
-      return res.json({ success: false, error: 'No access token found. Please reconnect to Beds24.' });
+      return res.json({ success: false, error: 'No access token. Please reconnect to Beds24.' });
     }
     
-    // Get all synced properties
+    // Get all synced properties with linked rooms
     const propsResult = await pool.query(`
-      SELECT sp.id, sp.external_id, sp.name, sp.prop_key, sp.gas_property_id
+      SELECT sp.id, sp.external_id, sp.name, sp.gas_property_id
       FROM gas_sync_properties sp
       WHERE sp.connection_id = $1 AND sp.gas_property_id IS NOT NULL
     `, [connectionId]);
     
     if (propsResult.rows.length === 0) {
-      return res.json({ success: false, error: 'No linked properties found. Import properties to GAS first.' });
+      return res.json({ success: false, error: 'No linked properties found.' });
     }
-    
-    // Calculate date range
-    const today = new Date();
-    const startDate = today.toISOString().split('T')[0];
-    const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-    
-    let totalDaysUpdated = 0;
-    let roomsSynced = 0;
-    const errors = [];
     
     // Ensure room_availability table exists
     await pool.query(`
@@ -2579,138 +2562,120 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       )
     `);
     
+    const today = new Date();
+    let totalDaysUpdated = 0;
+    let roomsSynced = 0;
+    const errors = [];
+    
     for (const prop of propsResult.rows) {
-      try {
-        console.log(`Syncing availability for ${prop.name} (Beds24 ID: ${prop.external_id})`);
-        
-        // Get rooms for this property - use gas_room_id from sync table
-        const roomsResult = await pool.query(`
-          SELECT rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
-          FROM gas_sync_room_types rt
-          JOIN bookable_units bu ON bu.id = rt.gas_room_id
-          WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL
-        `, [prop.id]);
-        
-        if (roomsResult.rows.length === 0) {
-          console.log(`  No linked rooms found for ${prop.name}`);
-          continue;
-        }
-        
-        // Use the OFFERS API (like old working code) - gets calculated price per day
-        for (const room of roomsResult.rows) {
-          try {
-            let daysWithPrice = 0;
-            let daysBlocked = 0;
+      console.log(`Syncing availability for ${prop.name} (Beds24 ID: ${prop.external_id})`);
+      
+      // Get rooms for this property
+      const roomsResult = await pool.query(`
+        SELECT rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+        FROM gas_sync_room_types rt
+        JOIN bookable_units bu ON bu.id = rt.gas_room_id
+        WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL
+      `, [prop.id]);
+      
+      if (roomsResult.rows.length === 0) {
+        console.log(`  No linked rooms for ${prop.name}`);
+        continue;
+      }
+      
+      // Sync each room using OFFERS API (like Lehmann)
+      for (const room of roomsResult.rows) {
+        try {
+          let daysWithPrice = 0;
+          let daysBlocked = 0;
+          const beds24RoomId = parseInt(room.beds24_room_id);
+          
+          // Call offers API for each day - this returns CALCULATED price
+          for (let i = 0; i < days; i++) {
+            const arrivalDate = new Date(today);
+            arrivalDate.setDate(arrivalDate.getDate() + i);
+            const departDate = new Date(arrivalDate);
+            departDate.setDate(departDate.getDate() + 1);
             
-            // Call offers API for each day (like old working code)
-            for (let i = 0; i < days; i++) {
-              const arrivalDate = new Date(today);
-              arrivalDate.setDate(arrivalDate.getDate() + i);
-              const departDate = new Date(arrivalDate);
-              departDate.setDate(departDate.getDate() + 1);
-              
-              const arrival = arrivalDate.toISOString().split('T')[0];
-              const departure = departDate.toISOString().split('T')[0];
-              
-              try {
-                const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
-                  headers: { 'token': accessToken },
-                  params: { 
-                    roomId: parseInt(room.beds24_room_id), 
-                    arrival: arrival,
-                    departure: departure,
-                    numAdults: 2
-                  }
-                });
-                
-                const offerData = offerResponse.data;
-                
-                // Find offer 1 (Standard Price) from the response
-                let price = null;
-                let unitsAvailable = 0;
-                let minNights = 1;
-                
-                if (offerData.data && offerData.data.length > 0) {
-                  const roomOffers = offerData.data[0];
-                  if (roomOffers.offers && roomOffers.offers.length > 0) {
-                    // Get offer 1 (Standard Price) or first available offer
-                    const offer1 = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
-                    price = offer1.price;
-                    unitsAvailable = offer1.unitsAvailable || 0;
-                    minNights = offer1.minNights || 1;
-                    daysWithPrice++;
-                  }
+            const arrival = arrivalDate.toISOString().split('T')[0];
+            const departure = departDate.toISOString().split('T')[0];
+            
+            try {
+              const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
+                headers: { 'token': accessToken },
+                params: { 
+                  roomId: beds24RoomId, 
+                  arrival: arrival,
+                  departure: departure,
+                  numAdults: 2
                 }
-                
-                const isAvailable = unitsAvailable > 0;
-                const isBlocked = !isAvailable && price === null;
-                
-                if (isBlocked) daysBlocked++;
-                
-                await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24')
-                  ON CONFLICT (room_id, date) 
-                  DO UPDATE SET 
-                    cm_price = COALESCE($3, room_availability.cm_price),
-                    direct_price = COALESCE($3, room_availability.direct_price),
-                    is_available = $4,
-                    is_blocked = $5,
-                    min_stay = $6,
-                    source = 'beds24',
-                    updated_at = NOW()
-                `, [room.gas_room_id, arrival, price, isAvailable, isBlocked, minNights]);
-                
-                totalDaysUpdated++;
-                
-              } catch (apiError) {
-                // If rate limited, wait and continue
-                if (apiError.response?.status === 429) {
-                  console.log('  Rate limited, waiting 5 seconds...');
-                  await new Promise(resolve => setTimeout(resolve, 5000));
+              });
+              
+              const offerData = offerResponse.data;
+              
+              // Get price from offer 1 (standard price)
+              let price = null;
+              let unitsAvailable = 0;
+              
+              if (offerData.data && offerData.data.length > 0) {
+                const roomOffers = offerData.data[0];
+                if (roomOffers.offers && roomOffers.offers.length > 0) {
+                  // Get offer 1 or first available
+                  const offer1 = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
+                  price = offer1.price;
+                  unitsAvailable = offer1.unitsAvailable || 0;
+                  daysWithPrice++;
                 }
               }
               
-              // Delay between calls to avoid rate limiting (500ms)
-              await new Promise(resolve => setTimeout(resolve, 500));
+              const isAvailable = unitsAvailable > 0;
+              const isBlocked = !isAvailable && price === null;
+              if (isBlocked) daysBlocked++;
+              
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, source)
+                VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET 
+                  cm_price = COALESCE($3, room_availability.cm_price),
+                  direct_price = COALESCE($3, room_availability.direct_price),
+                  is_available = $4,
+                  is_blocked = $5,
+                  source = 'beds24',
+                  updated_at = NOW()
+              `, [room.gas_room_id, arrival, price, isAvailable, isBlocked]);
+              
+              totalDaysUpdated++;
+              
+            } catch (apiError) {
+              if (apiError.response?.status === 429) {
+                console.log('  Rate limited, waiting 5s...');
+                await new Promise(resolve => setTimeout(resolve, 5000));
+              }
             }
             
-            roomsSynced++;
-            console.log(`  ✓ Synced ${room.name}: ${daysWithPrice} days with prices, ${daysBlocked} blocked`);
-            
-          } catch (roomError) {
-            console.error(`  Error syncing room ${room.name}:`, roomError.response?.data || roomError.message);
-            errors.push({ room: room.name, error: roomError.message });
+            // 300ms delay between calls to avoid rate limiting
+            await new Promise(resolve => setTimeout(resolve, 300));
           }
-        }
-        
-      } catch (propError) {
-        console.error(`  Error syncing ${prop.name}:`, propError.response?.data || propError.message);
-        errors.push({ property: prop.name, error: propError.message });
-        
-        // If rate limited, wait longer
-        if (propError.response?.status === 429) {
-          console.log('  Rate limited, waiting 10 seconds...');
-          await new Promise(resolve => setTimeout(resolve, 10000));
+          
+          roomsSynced++;
+          console.log(`  ✓ ${room.name}: ${daysWithPrice} prices, ${daysBlocked} blocked`);
+          
+        } catch (roomError) {
+          errors.push({ room: room.name, error: roomError.message });
+          if (roomError.response?.status === 429) {
+            await new Promise(resolve => setTimeout(resolve, 5000));
+          }
         }
       }
     }
     
-    // Update last sync time
-    await pool.query(
-      'UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1',
-      [connectionId]
-    );
+    await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [connectionId]);
     
     res.json({
       success: true,
       message: 'Availability sync complete',
-      stats: {
-        propertiesChecked: propsResult.rows.length,
-        roomsSynced,
-        totalDaysUpdated,
-        dateRange: { startDate, endDate }
-      },
+      stats: { propertiesChecked: propsResult.rows.length, roomsSynced, totalDaysUpdated, days },
       errors: errors.length > 0 ? errors : undefined
     });
     
