@@ -1642,6 +1642,44 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
   }
 });
 
+// Set V1 API key for a connection (for Fixed Prices fallback)
+app.post('/api/gas-sync/connections/:id/set-v1-api-key', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { v1ApiKey } = req.body;
+    
+    if (!v1ApiKey) {
+      return res.status(400).json({ success: false, error: 'v1ApiKey is required' });
+    }
+    
+    // Get current credentials
+    const connResult = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    let credentials = connResult.rows[0].credentials || {};
+    if (typeof credentials === 'string') {
+      credentials = JSON.parse(credentials);
+    }
+    
+    // Add V1 API key to credentials
+    credentials.v1ApiKey = v1ApiKey;
+    
+    // Save updated credentials
+    await pool.query(`
+      UPDATE gas_sync_connections 
+      SET credentials = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [JSON.stringify(credentials), id]);
+    
+    console.log(`✅ V1 API key set for connection ${id}`);
+    res.json({ success: true, message: 'V1 API key saved. Fixed Prices fallback now enabled.' });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get synced properties with their prop keys
 app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) => {
   try {
@@ -29768,13 +29806,25 @@ async function runTieredSync() {
         
         console.log(`⏰ [Tiered Sync] Tier ${tier.tier} (${tier.name}): ${roomsResult.rows.length} rooms due`);
         
+        // Get V1 credentials from connection for fallback
+        const credentials = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials || '{}') : (conn.credentials || {});
+        const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
+        
         for (const room of roomsResult.rows) {
           try {
             // Calculate date range for this tier
             const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
             const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
             
-            // Fetch calendar from Beds24
+            // Get prop_key for this room's property
+            const propKeyResult = await pool.query(`
+              SELECT sp.prop_key FROM gas_sync_properties sp
+              JOIN gas_sync_room_types rt ON rt.sync_property_id = sp.id
+              WHERE rt.id = $1
+            `, [room.id]);
+            const propKey = propKeyResult.rows[0]?.prop_key;
+            
+            // Fetch calendar from Beds24 V2
             const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
               headers: { 'token': accessToken },
               params: {
@@ -29790,32 +29840,93 @@ async function runTieredSync() {
             const calendarData = calResponse.data.data?.[0]?.calendar || [];
             let daysUpdated = 0;
             
-            // Process calendar data
-            for (const entry of calendarData) {
-              const fromDate = new Date(entry.from);
-              const toDate = new Date(entry.to);
+            // If V2 calendar is empty and we have V1 credentials, try V1 getPrice fallback
+            if (calendarData.length === 0 && v1ApiKey && propKey) {
+              console.log(`  📦 ${room.name}: V2 empty, trying V1 getPrice fallback...`);
               
-              for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
-                const dateStr = d.toISOString().split('T')[0];
-                const numAvail = entry.numAvail || 0;
-                const price = entry.price1 || null;
-                const minStay = entry.minStay || 1;
+              // V1 getPrice endpoint - gets calculated price for specific dates
+              try {
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                  const dateStr = d.toISOString().split('T')[0];
+                  const nextDay = new Date(d);
+                  nextDay.setDate(nextDay.getDate() + 1);
+                  const departStr = nextDay.toISOString().split('T')[0];
+                  
+                  try {
+                    const v1Response = await axios.post('https://api.beds24.com/json/getPrice', {
+                      authentication: {
+                        apiKey: v1ApiKey,
+                        propKey: propKey
+                      },
+                      roomId: room.beds24_room_id,
+                      arrival: dateStr,
+                      departure: departStr,
+                      numAdult: 2
+                    });
+                    
+                    // getPrice returns price info including calculated price
+                    const priceData = v1Response.data;
+                    const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || null;
+                    const minStay = priceData?.minStay || priceData?.[0]?.minStay || 1;
+                    const isAvailable = priceData?.available !== false && priceData?.numAvail !== 0;
+                    
+                    if (price !== null) {
+                      await pool.query(`
+                        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                        VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24-v1', NOW())
+                        ON CONFLICT (room_id, date) 
+                        DO UPDATE SET 
+                          cm_price = COALESCE($3, room_availability.cm_price),
+                          is_available = $4,
+                          is_blocked = $5,
+                          min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                          cm_min_stay = $6,
+                          source = 'beds24-v1',
+                          updated_at = NOW()
+                      `, [room.gas_room_id, dateStr, price, isAvailable, !isAvailable, minStay]);
+                      
+                      daysUpdated++;
+                    }
+                    
+                    // Small delay between V1 calls to avoid rate limits
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                  } catch (dayErr) {
+                    // Skip individual day errors
+                    if (dayErr.response?.status === 429) throw dayErr; // Re-throw rate limits
+                  }
+                }
+              } catch (v1Error) {
+                console.log(`  ⚠️ V1 fallback failed for ${room.name}: ${v1Error.message}`);
+              }
+            } else {
+              // Process V2 calendar data
+              for (const entry of calendarData) {
+                const fromDate = new Date(entry.from);
+                const toDate = new Date(entry.to);
                 
-                await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
-                  ON CONFLICT (room_id, date) 
-                  DO UPDATE SET 
-                    cm_price = COALESCE($3, room_availability.cm_price),
-                    is_available = $4,
-                    is_blocked = $5,
-                    min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
-                    cm_min_stay = $6,
-                    source = 'beds24',
-                    updated_at = NOW()
-                `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
-                
-                daysUpdated++;
+                for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                  const dateStr = d.toISOString().split('T')[0];
+                  const numAvail = entry.numAvail || 0;
+                  const price = entry.price1 || null;
+                  const minStay = entry.minStay || 1;
+                  
+                  await pool.query(`
+                    INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                    ON CONFLICT (room_id, date) 
+                    DO UPDATE SET 
+                      cm_price = COALESCE($3, room_availability.cm_price),
+                      is_available = $4,
+                      is_blocked = $5,
+                      min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                      cm_min_stay = $6,
+                      source = 'beds24',
+                      updated_at = NOW()
+                  `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+                  
+                  daysUpdated++;
+                }
               }
             }
             
