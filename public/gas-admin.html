@@ -14558,13 +14558,26 @@ Local honey and preserves"></textarea>
                                         }
                                     </td>
                                     <td>
-                                        ${account.stripe_account_id 
-                                            ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <span class="badge badge-success">✓ Connected</span>
-                                                <button class="btn btn-secondary btn-small" onclick="disconnectStripe(${account.id}, '${account.name}')" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; color: #dc2626;">Disconnect</button>
-                                               </div>`
-                                            : `<button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Connect</button>`
-                                        }
+                                        ${(() => {
+                                            const propCount = parseInt(account.property_count) || 0;
+                                            const stripePropsCount = parseInt(account.stripe_properties_count) || 0;
+                                            const hasAccountStripe = !!account.stripe_account_id;
+                                            
+                                            if (hasAccountStripe) {
+                                                return `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <span class="badge badge-success">✓ Connected</span>
+                                                    <button class="btn btn-secondary btn-small" onclick="disconnectStripe(${account.id}, '${account.name}')" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; color: #dc2626;">Disconnect</button>
+                                                </div>`;
+                                            } else if (stripePropsCount > 0 && stripePropsCount >= propCount && propCount > 0) {
+                                                return `<span class="badge badge-success" style="cursor: default;">✓ ${stripePropsCount}/${propCount} Properties</span>`;
+                                            } else if (stripePropsCount > 0) {
+                                                return `<span class="badge badge-warning" style="cursor: default;">⚡ ${stripePropsCount}/${propCount} Properties</span>`;
+                                            } else if (propCount === 0) {
+                                                return `<span style="color: var(--text-muted); font-size: 0.85rem;">No properties</span>`;
+                                            } else {
+                                                return `<button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Connect</button>`;
+                                            }
+                                        })()}
                                     </td>
                                     <td>
                                         <span id="account-plan-${account.id}" class="badge badge-secondary" style="cursor: pointer;" onclick="openAssignPlanModal(${account.id}, \`${account.name.replace(/`/g, "'")}\`)">
