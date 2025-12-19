@@ -11606,8 +11606,21 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                     
+                    <!-- Children Allowed Toggle -->
+                    <div style="background: #f0f9ff; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; border: 1px solid #bae6fd;">
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                            <input type="checkbox" id="children-allowed" checked style="width: 20px; height: 20px; accent-color: #0284c7;">
+                            <div>
+                                <strong style="color: #0369a1;">Allow Children</strong>
+                                <p style="font-size: 0.75rem; color: #6b7280; margin: 0.15rem 0 0 0;">
+                                    Uncheck to hide children selector on booking widget
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                    
                     <!-- Child Charge -->
-                    <div style="background: #eff6ff; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                    <div id="child-charge-section" style="background: #eff6ff; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
                         <label class="form-label" style="color: #1e40af; margin-bottom: 0.75rem;">👶 Child Charge <span style="font-size: 0.75rem; font-weight: normal;">(under <span id="child-max-age-display">12</span> years)</span></label>
                         <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <select id="child-charge-type" class="form-input" style="width: 120px;">
@@ -20480,6 +20493,10 @@ Local honey and preserves"></textarea>
                     document.getElementById('extra-adult-type').value = settings.extra_adult_type || 'fixed';
                     document.getElementById('extra-adult-charge').value = settings.extra_adult_charge || 0;
                     
+                    // Children allowed toggle
+                    document.getElementById('children-allowed').checked = settings.children_allowed !== false;
+                    toggleChildrenAllowed();
+                    
                     document.getElementById('child-charge-type').value = settings.child_charge_type || 'free';
                     document.getElementById('child-charge').value = settings.child_charge || 0;
                     document.getElementById('child-max-age-display').textContent = settings.child_max_age || 12;
@@ -20510,6 +20527,15 @@ Local honey and preserves"></textarea>
             if (type === 'free') input.value = 0;
         }
         
+        function toggleChildrenAllowed() {
+            const allowed = document.getElementById('children-allowed').checked;
+            const childChargeSection = document.getElementById('child-charge-section');
+            if (childChargeSection) {
+                childChargeSection.style.opacity = allowed ? '1' : '0.4';
+                childChargeSection.style.pointerEvents = allowed ? 'auto' : 'none';
+            }
+        }
+        
         // Add event listeners
         document.addEventListener('DOMContentLoaded', function() {
             const occupancyEnabled = document.getElementById('occupancy-enabled');
@@ -20519,6 +20545,10 @@ Local honey and preserves"></textarea>
             const childChargeType = document.getElementById('child-charge-type');
             if (childChargeType) {
                 childChargeType.addEventListener('change', toggleChildChargeInput);
+            }
+            const childrenAllowed = document.getElementById('children-allowed');
+            if (childrenAllowed) {
+                childrenAllowed.addEventListener('change', toggleChildrenAllowed);
             }
         });
         
@@ -20533,6 +20563,7 @@ Local honey and preserves"></textarea>
                 single_discount_value: parseFloat(document.getElementById('single-discount-value').value) || 0,
                 extra_adult_type: document.getElementById('extra-adult-type').value,
                 extra_adult_charge: parseFloat(document.getElementById('extra-adult-charge').value) || 0,
+                children_allowed: document.getElementById('children-allowed').checked,
                 child_charge_type: document.getElementById('child-charge-type').value,
                 child_charge: parseFloat(document.getElementById('child-charge').value) || 0
             };
