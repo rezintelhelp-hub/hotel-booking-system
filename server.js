@@ -19106,6 +19106,20 @@ app.post('/api/webhooks/beds24', async (req, res) => {
           
           await client.query('BEGIN');
           
+          // If cancelled, update the GAS booking status
+          if (isCancelled && bookingId) {
+            const updateResult = await client.query(`
+              UPDATE bookings 
+              SET status = 'cancelled', cancelled_time = NOW(), updated_at = NOW()
+              WHERE beds24_booking_id = $1 AND status != 'cancelled'
+              RETURNING id
+            `, [bookingId.toString()]);
+            
+            if (updateResult.rowCount > 0) {
+              console.log(`✅ Cancelled GAS booking ${updateResult.rows[0].id} via webhook (Beds24 booking ${bookingId})`);
+            }
+          }
+          
           for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             
