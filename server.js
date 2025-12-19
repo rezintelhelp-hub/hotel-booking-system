@@ -2583,7 +2583,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
         continue;
       }
       
-      // Sync each room using CALENDAR API - one call gets everything!
+      // Sync each room using CALENDAR API, fallback to fixedPrices if empty
       for (const room of roomsResult.rows) {
         try {
           let daysWithPrice = 0;
@@ -2593,7 +2593,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           const startDate = today.toISOString().split('T')[0];
           const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
           
-          // ONE call per room - gets numAvail, price1, minStay for all dates
+          // Try CALENDAR API first - one call gets everything
           const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
             headers: { 'token': accessToken },
             params: { 
@@ -2608,21 +2608,87 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
           
           const calendarData = calResponse.data.data?.[0]?.calendar || [];
           
-          // Process each date entry from calendar
-          for (const entry of calendarData) {
-            // Calendar can return date ranges, expand them
-            const fromDate = new Date(entry.from);
-            const toDate = new Date(entry.to);
+          if (calendarData.length > 0) {
+            // Calendar has data - use it (Adelphi style)
+            for (const entry of calendarData) {
+              const fromDate = new Date(entry.from);
+              const toDate = new Date(entry.to);
+              
+              for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                
+                const numAvail = entry.numAvail || 0;
+                const price = entry.price1 || null;
+                const minStay = entry.minStay || 1;
+                
+                const isAvailable = numAvail > 0;
+                const isBlocked = numAvail === 0;
+                
+                if (price !== null) daysWithPrice++;
+                if (isBlocked) daysBlocked++;
+                
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24')
+                  ON CONFLICT (room_id, date) 
+                  DO UPDATE SET 
+                    cm_price = COALESCE($3, room_availability.cm_price),
+                    direct_price = COALESCE($3, room_availability.direct_price),
+                    is_available = $4,
+                    is_blocked = $5,
+                    min_stay = $6,
+                    source = 'beds24',
+                    updated_at = NOW()
+                `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay]);
+                
+                totalDaysUpdated++;
+              }
+            }
+          } else {
+            // Calendar empty - use fixedPrices + availability (Belmont style)
+            console.log(`  Calendar empty for ${room.name}, using fixedPrices fallback`);
             
-            for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
-              const dateStr = d.toISOString().split('T')[0];
+            // Get fixedPrices
+            const pricesResponse = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
+              headers: { 'token': accessToken },
+              params: { roomId: beds24RoomId }
+            });
+            const priceRules = (pricesResponse.data.data || []).filter(r => r.offerId === 1);
+            
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // Get availability
+            const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
+              headers: { 'token': accessToken },
+              params: { roomId: beds24RoomId, startDate, endDate }
+            });
+            const availData = availResponse.data.data?.[0]?.availability || {};
+            
+            // Helper to find price for a date from fixedPrices rules
+            const findPriceForDate = (dateStr) => {
+              const matchingRules = priceRules.filter(rule => 
+                dateStr >= rule.firstNight && dateStr <= rule.lastNight
+              );
+              if (matchingRules.length === 0) return null;
+              // Use highest ID (most recent rule) if multiple match
+              const bestRule = matchingRules.reduce((best, curr) => 
+                curr.id > best.id ? curr : best
+              );
+              return { price: bestRule.roomPrice, minStay: bestRule.minNights || 1 };
+            };
+            
+            // Process each day
+            for (let i = 0; i < days; i++) {
+              const dateObj = new Date(today);
+              dateObj.setDate(dateObj.getDate() + i);
+              const dateStr = dateObj.toISOString().split('T')[0];
               
-              const numAvail = entry.numAvail || 0;
-              const price = entry.price1 || null;
-              const minStay = entry.minStay || 1;
+              const isAvailable = availData[dateStr] === true;
+              const isBlocked = !isAvailable;
               
-              const isAvailable = numAvail > 0;
-              const isBlocked = numAvail === 0;
+              const priceInfo = findPriceForDate(dateStr);
+              const price = priceInfo?.price || null;
+              const minStay = priceInfo?.minStay || 1;
               
               if (price !== null) daysWithPrice++;
               if (isBlocked) daysBlocked++;
