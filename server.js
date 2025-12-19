@@ -11206,7 +11206,7 @@ app.post('/api/payment-setup-tokens', async (req, res) => {
     `, [token, account_id, property_id || null, provider || null, expiresAt, created_by || null]);
     
     // Build setup URL
-    const setupUrl = `https://admin.gas.travel/payment-setup?token=${token}`;
+    const setupUrl = `https://admin.gas.travel/payment-setup.html?token=${token}`;
     
     res.json({
       success: true,
