@@ -21024,7 +21024,8 @@ app.post('/api/public/book', async (req, res) => {
     const beds24RoomId = unit.rows[0].beds24_room_id;
     if (beds24RoomId) {
       try {
-        const accessToken = await getBeds24AccessToken(pool);
+        // Use property-specific token lookup for GasSync connections
+        const accessToken = await getBeds24AccessTokenForProperty(pool, unit.rows[0].property_id, unit_id);
         if (accessToken) {
           console.log(`Real-time availability check for room ${beds24RoomId}: ${check_in} to ${check_out}`);
           
@@ -21176,7 +21177,8 @@ app.post('/api/public/book', async (req, res) => {
     // BEDS24 SYNC
     if (cmData?.beds24_room_id) {
       try {
-        const accessToken = await getBeds24AccessToken(pool);
+        // Use property-specific token lookup for GasSync connections
+        const accessToken = await getBeds24AccessTokenForProperty(pool, newBooking.property_id, unit_id);
         
         // Build payment array if deposit was taken
         const payments = [];
