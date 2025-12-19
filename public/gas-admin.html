@@ -21859,6 +21859,7 @@ Local honey and preserves"></textarea>
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border);">
                             <th style="text-align: left; padding: 0.5rem;">Offer</th>
+                            <th style="text-align: left; padding: 0.5rem;">Applies To</th>
                             <th style="text-align: center; padding: 0.5rem;">Own Website</th>
                             <th style="text-align: center; padding: 0.5rem;">Travel Agents</th>
                             <th style="text-align: center; padding: 0.5rem;">Status</th>
@@ -21870,10 +21871,26 @@ Local honey and preserves"></textarea>
             
             for (const offer of offers) {
                 const isStandard = offer.id === 'standard' || offer.name === 'Standard Price';
+                
+                // Build "Applies To" text
+                let appliesTo = 'All Properties';
+                if (offer.room_name) {
+                    appliesTo = offer.room_name;
+                } else if (offer.property_name) {
+                    appliesTo = offer.property_name;
+                } else if (offer.room_id) {
+                    appliesTo = 'Room #' + offer.room_id;
+                } else if (offer.property_id) {
+                    appliesTo = 'Property #' + offer.property_id;
+                }
+                
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
                             <strong>${isStandard ? '⭐ ' : '🏷️ '}${offer.name}</strong>
+                        </td>
+                        <td style="padding: 0.75rem; font-size: 0.85rem; color: #6b7280;">
+                            ${appliesTo}
                         </td>
                         <td style="text-align: center; padding: 0.75rem;">
                             <input type="checkbox" ${isStandard || offer.available_website !== false ? 'checked' : ''} 
@@ -21981,10 +21998,51 @@ Local honey and preserves"></textarea>
                         propSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
                     });
                 }
+                
+                // Load all rooms initially
+                await loadRoomsForOfferDropdown();
             } catch (error) {
                 console.error('Error loading properties:', error);
             }
         }
+        
+        async function loadRoomsForOfferDropdown(propertyId) {
+            try {
+                const queryString = buildQueryString();
+                let url = `/api/db/bookable_units${queryString}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                const roomSelect = document.getElementById('offer-room');
+                roomSelect.innerHTML = '<option value="">All Rooms</option>';
+                
+                if (data.success && data.data) {
+                    // Filter by property if one is selected
+                    let rooms = data.data;
+                    if (propertyId) {
+                        rooms = rooms.filter(r => r.property_id == propertyId);
+                    }
+                    
+                    rooms.forEach(r => {
+                        roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        // Add event listener for property dropdown change
+        document.addEventListener('DOMContentLoaded', function() {
+            const propSelect = document.getElementById('offer-property');
+            if (propSelect) {
+                propSelect.addEventListener('change', function() {
+                    const selectedPropertyId = this.value;
+                    loadRoomsForOfferDropdown(selectedPropertyId);
+                });
+            }
+        });
         
         async function editOffer(id) {
             try {
@@ -22025,6 +22083,10 @@ Local honey and preserves"></textarea>
                     updateDiscountDisplay();
                     await loadPropertiesForOfferDropdown();
                     document.getElementById('offer-property').value = offer.property_id || '';
+                    
+                    // Load rooms for the selected property, then set room value
+                    await loadRoomsForOfferDropdown(offer.property_id);
+                    document.getElementById('offer-room').value = offer.room_id || '';
                     
                     openModal('addOfferModal');
                 }
