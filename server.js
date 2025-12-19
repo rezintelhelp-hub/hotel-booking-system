@@ -2916,8 +2916,341 @@ app.post('/api/gas-sync/connections/:connectionId/full-sync', async (req, res) =
   }
 });
 
-// Run clients migration manually
 // =====================================================
+// TIERED AVAILABILITY POLLING SYSTEM
+// Syncs 18 months (540 days) without killing Beds24 rate limits
+// =====================================================
+
+/*
+ TIER STRUCTURE:
+ - Tier 1: Days 1-14   → Every 15 minutes (high activity)
+ - Tier 2: Days 15-60  → Every 2 hours (booking window)
+ - Tier 3: Days 61-180 → Every 6 hours (medium term)
+ - Tier 4: Days 181-540 → Every 24 hours (far future)
+ 
+ Rate limit friendly: Stagger rooms, ~2 second delay between API calls
+*/
+
+const SYNC_TIERS = [
+  { tier: 1, startDay: 0, endDay: 14, intervalMinutes: 15, name: 'Immediate (0-14 days)' },
+  { tier: 2, startDay: 15, endDay: 60, intervalMinutes: 120, name: 'Near-term (15-60 days)' },
+  { tier: 3, startDay: 61, endDay: 180, intervalMinutes: 360, name: 'Medium-term (61-180 days)' },
+  { tier: 4, startDay: 181, endDay: 540, intervalMinutes: 1440, name: 'Long-term (181-540 days)' }
+];
+
+// Add tier tracking columns
+async function ensureTierTrackingColumns() {
+  try {
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier1_synced_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier2_synced_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier3_synced_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier4_synced_at TIMESTAMP`);
+  } catch (e) {
+    console.log('Tier columns may already exist:', e.message);
+  }
+}
+
+// Tiered sync endpoint - call this from cron every 15 minutes
+app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
+  const cronSecret = req.headers['x-cron-secret'];
+  const isDev = process.env.NODE_ENV === 'development' || req.query.dev === 'true';
+  
+  if (!isDev && cronSecret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    await ensureTierTrackingColumns();
+    
+    const now = new Date();
+    const results = { tiers: [], totalRoomsSynced: 0, totalDaysUpdated: 0, errors: [] };
+    
+    // Get all active Beds24 connections
+    const connections = await pool.query(`
+      SELECT * FROM gas_sync_connections 
+      WHERE adapter_code = 'beds24' AND sync_enabled = true AND status != 'syncing'
+    `);
+    
+    for (const conn of connections.rows) {
+      let accessToken = conn.access_token;
+      
+      // Refresh token if needed
+      if (!accessToken && conn.refresh_token) {
+        try {
+          const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+            headers: { 'refreshToken': conn.refresh_token }
+          });
+          accessToken = tokenResponse.data.token;
+          await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, conn.id]);
+        } catch (e) {
+          results.errors.push({ connection: conn.id, error: 'Token refresh failed' });
+          continue;
+        }
+      }
+      
+      if (!accessToken) continue;
+      
+      // Get rooms that need syncing for each tier
+      for (const tier of SYNC_TIERS) {
+        const tierColumn = `tier${tier.tier}_synced_at`;
+        const cutoffTime = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
+        
+        // Find rooms due for this tier sync
+        const roomsResult = await pool.query(`
+          SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+          FROM gas_sync_room_types rt
+          JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+          JOIN bookable_units bu ON bu.id = rt.gas_room_id
+          WHERE sp.connection_id = $1 
+            AND rt.gas_room_id IS NOT NULL
+            AND (rt.${tierColumn} IS NULL OR rt.${tierColumn} < $2)
+          ORDER BY rt.${tierColumn} ASC NULLS FIRST
+          LIMIT 5
+        `, [conn.id, cutoffTime]);
+        
+        if (roomsResult.rows.length === 0) continue;
+        
+        const tierResult = { tier: tier.tier, name: tier.name, rooms: [], daysUpdated: 0 };
+        
+        for (const room of roomsResult.rows) {
+          try {
+            // Calculate date range for this tier
+            const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
+            const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
+            
+            // Fetch calendar from Beds24
+            const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+              headers: { 'token': accessToken },
+              params: {
+                roomId: parseInt(room.beds24_room_id),
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                includeNumAvail: true,
+                includePrices: true,
+                includeMinStay: true
+              }
+            });
+            
+            const calendarData = calResponse.data.data?.[0]?.calendar || [];
+            let daysUpdated = 0;
+            
+            // Process calendar data
+            for (const entry of calendarData) {
+              const fromDate = new Date(entry.from);
+              const toDate = new Date(entry.to);
+              
+              for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                const numAvail = entry.numAvail || 0;
+                const price = entry.price1 || null;
+                const minStay = entry.minStay || 1;
+                
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                  ON CONFLICT (room_id, date) 
+                  DO UPDATE SET 
+                    cm_price = COALESCE($3, room_availability.cm_price),
+                    is_available = $4,
+                    is_blocked = $5,
+                    min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                    cm_min_stay = $6,
+                    source = 'beds24',
+                    updated_at = NOW()
+                `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+                
+                daysUpdated++;
+              }
+            }
+            
+            // Update tier sync timestamp
+            await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
+            
+            tierResult.rooms.push({ id: room.id, name: room.name, daysUpdated });
+            tierResult.daysUpdated += daysUpdated;
+            results.totalRoomsSynced++;
+            results.totalDaysUpdated += daysUpdated;
+            
+            // Rate limit protection: wait 2 seconds between API calls
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+          } catch (roomError) {
+            results.errors.push({ room: room.id, name: room.name, tier: tier.tier, error: roomError.message });
+            
+            // If rate limited, stop this tier
+            if (roomError.response?.status === 429) {
+              console.log(`Rate limited on tier ${tier.tier}, stopping tier sync`);
+              break;
+            }
+          }
+        }
+        
+        if (tierResult.rooms.length > 0) {
+          results.tiers.push(tierResult);
+        }
+      }
+    }
+    
+    console.log(`Tiered sync complete: ${results.totalRoomsSynced} rooms, ${results.totalDaysUpdated} days`);
+    res.json({ success: true, ...results });
+    
+  } catch (error) {
+    console.error('Tiered sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual trigger for specific tier (for testing/debugging)
+app.post('/api/gas-sync/connections/:connectionId/sync-tier/:tier', async (req, res) => {
+  try {
+    const { connectionId, tier } = req.params;
+    const tierNum = parseInt(tier);
+    const tierConfig = SYNC_TIERS.find(t => t.tier === tierNum);
+    
+    if (!tierConfig) {
+      return res.json({ success: false, error: 'Invalid tier. Use 1-4.' });
+    }
+    
+    // Get connection
+    const conn = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (conn.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const connection = conn.rows[0];
+    let accessToken = connection.access_token;
+    
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No access token' });
+    }
+    
+    const now = new Date();
+    const startDate = new Date(now.getTime() + tierConfig.startDay * 24 * 60 * 60 * 1000);
+    const endDate = new Date(now.getTime() + tierConfig.endDay * 24 * 60 * 60 * 1000);
+    
+    // Get all rooms for this connection
+    const rooms = await pool.query(`
+      SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      JOIN bookable_units bu ON bu.id = rt.gas_room_id
+      WHERE sp.connection_id = $1 AND rt.gas_room_id IS NOT NULL
+    `, [connectionId]);
+    
+    const results = { tier: tierConfig, rooms: [], totalDays: 0 };
+    
+    for (const room of rooms.rows) {
+      try {
+        const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+          headers: { 'token': accessToken },
+          params: {
+            roomId: parseInt(room.beds24_room_id),
+            startDate: startDate.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+            includeNumAvail: true,
+            includePrices: true,
+            includeMinStay: true
+          }
+        });
+        
+        const calendarData = calResponse.data.data?.[0]?.calendar || [];
+        let daysUpdated = 0;
+        
+        for (const entry of calendarData) {
+          const fromDate = new Date(entry.from);
+          const toDate = new Date(entry.to);
+          
+          for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            
+            await pool.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET 
+                cm_price = COALESCE($3, room_availability.cm_price),
+                is_available = $4,
+                is_blocked = $5,
+                min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                cm_min_stay = $6,
+                source = 'beds24',
+                updated_at = NOW()
+            `, [room.gas_room_id, dateStr, entry.price1, (entry.numAvail || 0) > 0, (entry.numAvail || 0) === 0, entry.minStay || 1]);
+            
+            daysUpdated++;
+          }
+        }
+        
+        // Update tier timestamp
+        await pool.query(`UPDATE gas_sync_room_types SET tier${tierNum}_synced_at = NOW() WHERE id = $1`, [room.id]);
+        
+        results.rooms.push({ name: room.name, daysUpdated });
+        results.totalDays += daysUpdated;
+        
+        // Rate limit protection
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+      } catch (e) {
+        results.rooms.push({ name: room.name, error: e.message });
+      }
+    }
+    
+    res.json({ success: true, ...results });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get sync status for a connection
+app.get('/api/gas-sync/connections/:connectionId/sync-status', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    
+    const rooms = await pool.query(`
+      SELECT rt.id, bu.name, 
+             rt.tier1_synced_at, rt.tier2_synced_at, rt.tier3_synced_at, rt.tier4_synced_at,
+             (SELECT COUNT(*) FROM room_availability WHERE room_id = rt.gas_room_id) as availability_days
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      JOIN bookable_units bu ON bu.id = rt.gas_room_id
+      WHERE sp.connection_id = $1 AND rt.gas_room_id IS NOT NULL
+    `, [connectionId]);
+    
+    const now = new Date();
+    
+    const roomStatus = rooms.rows.map(room => {
+      const tiers = SYNC_TIERS.map(tier => {
+        const syncedAt = room[`tier${tier.tier}_synced_at`];
+        const cutoff = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
+        const isDue = !syncedAt || new Date(syncedAt) < cutoff;
+        
+        return {
+          tier: tier.tier,
+          name: tier.name,
+          lastSync: syncedAt,
+          isDue,
+          interval: `${tier.intervalMinutes} mins`
+        };
+      });
+      
+      return {
+        id: room.id,
+        name: room.name,
+        availabilityDays: parseInt(room.availability_days),
+        tiers
+      };
+    });
+    
+    res.json({ success: true, rooms: roomStatus, tierConfig: SYNC_TIERS });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Run clients migration manually
+// ====================================================
 // ACCOUNTS SYSTEM - New unified account structure
 // =====================================================
 
