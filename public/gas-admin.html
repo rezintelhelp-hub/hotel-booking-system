@@ -20211,10 +20211,10 @@ Local honey and preserves"></textarea>
                 // ══════════════════════════════════════════════════════════════
                 // OCCUPANCY PRICING SECTION - Based on room settings
                 // ══════════════════════════════════════════════════════════════
-                const occupancySettings = data.occupancy_settings || {};
-                const pricingMode = occupancySettings.pricing_mode || 'per_room';
-                const maxGuests = occupancySettings.max_guests || 4;
-                const baseOccupancy = occupancySettings.base_occupancy || 2;
+                const occSettings = data.occupancy_settings || {};
+                const pricingMode = occSettings.pricing_mode || 'per_room';
+                const maxGuests = occSettings.max_guests || 4;
+                const baseOccupancy = occSettings.base_occupancy || 2;
                 
                 html += `
                     <tr>
@@ -20261,20 +20261,20 @@ Local honey and preserves"></textarea>
                             
                             // Calculate occupancy-adjusted price
                             let adjPrice = stdPrice;
-                            if (guests === 1 && parseFloat(occupancySettings.single_discount_value) > 0) {
+                            if (guests === 1 && parseFloat(occSettings.single_discount_value) > 0) {
                                 // Single occupancy discount
-                                if (occupancySettings.single_discount_type === 'percent') {
-                                    adjPrice = stdPrice * (1 - parseFloat(occupancySettings.single_discount_value) / 100);
+                                if (occSettings.single_discount_type === 'percent') {
+                                    adjPrice = stdPrice * (1 - parseFloat(occSettings.single_discount_value) / 100);
                                 } else {
-                                    adjPrice = stdPrice - parseFloat(occupancySettings.single_discount_value);
+                                    adjPrice = stdPrice - parseFloat(occSettings.single_discount_value);
                                 }
                             } else if (guests > baseOccupancy) {
                                 // Extra guests charge
                                 const extraGuests = guests - baseOccupancy;
-                                if (occupancySettings.extra_adult_type === 'percent') {
-                                    adjPrice = stdPrice * (1 + (parseFloat(occupancySettings.extra_adult_charge) / 100) * extraGuests);
+                                if (occSettings.extra_adult_type === 'percent') {
+                                    adjPrice = stdPrice * (1 + (parseFloat(occSettings.extra_adult_charge) / 100) * extraGuests);
                                 } else {
-                                    adjPrice = stdPrice + (parseFloat(occupancySettings.extra_adult_charge) * extraGuests);
+                                    adjPrice = stdPrice + (parseFloat(occSettings.extra_adult_charge) * extraGuests);
                                 }
                             }
                             
