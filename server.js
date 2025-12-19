@@ -592,7 +592,7 @@ async function runMigrations() {
       console.log('ℹ️  source column:', sourceError.message);
     }
     
-    // Add property-level Stripe keys
+    // Add property-level Stripe keys (legacy - will migrate to payment_configurations)
     try {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_publishable_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
@@ -600,6 +600,52 @@ async function runMigrations() {
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
+    }
+    
+    // Create payment_configurations table for flexible multi-provider support
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS payment_configurations (
+          id SERIAL PRIMARY KEY,
+          account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+          property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+          provider VARCHAR(50) NOT NULL,
+          name VARCHAR(100),
+          is_enabled BOOLEAN DEFAULT false,
+          credentials JSONB DEFAULT '{}',
+          settings JSONB DEFAULT '{}',
+          is_default BOOLEAN DEFAULT false,
+          test_mode BOOLEAN DEFAULT false,
+          last_tested_at TIMESTAMP,
+          test_result JSONB,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          CONSTRAINT unique_provider_per_scope UNIQUE (account_id, property_id, provider)
+        )
+      `);
+      console.log('✅ payment_configurations table ensured');
+    } catch (payConfigError) {
+      console.log('ℹ️  payment_configurations:', payConfigError.message);
+    }
+    
+    // Create payment_setup_tokens for secure setup links
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS payment_setup_tokens (
+          id SERIAL PRIMARY KEY,
+          token VARCHAR(100) UNIQUE NOT NULL,
+          account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+          property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+          provider VARCHAR(50),
+          expires_at TIMESTAMP NOT NULL,
+          used_at TIMESTAMP,
+          created_by INTEGER,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('✅ payment_setup_tokens table ensured');
+    } catch (setupTokenError) {
+      console.log('ℹ️  payment_setup_tokens:', setupTokenError.message);
     }
     
   } catch (error) {
@@ -5310,7 +5356,51 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
     try {
         const { propertyId } = req.params;
         
-        // Get property's Stripe settings (property-level or account-level)
+        // First check new payment_configurations table
+        let paymentConfig = await pool.query(`
+            SELECT pc.*
+            FROM payment_configurations pc
+            WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+            LIMIT 1
+        `, [propertyId]);
+        
+        // Fall back to account-level config
+        if (paymentConfig.rows.length === 0) {
+            paymentConfig = await pool.query(`
+                SELECT pc.*
+                FROM payment_configurations pc
+                JOIN properties p ON pc.account_id = p.account_id
+                WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
+                LIMIT 1
+            `, [propertyId]);
+        }
+        
+        // If found in new table, use it
+        if (paymentConfig.rows.length > 0) {
+            const config = paymentConfig.rows[0];
+            
+            // Get deposit rules
+            let depositRule = null;
+            const ruleResult = await pool.query(`
+                SELECT * FROM deposit_rules 
+                WHERE (property_id = $1 OR (property_id IS NULL AND account_id = $2)) AND is_active = true 
+                ORDER BY property_id NULLS LAST, created_at DESC LIMIT 1
+            `, [propertyId, config.account_id]);
+            
+            if (ruleResult.rows.length > 0) {
+                depositRule = ruleResult.rows[0];
+            }
+            
+            return res.json({
+                success: true,
+                stripe_enabled: true,
+                stripe_type: 'config',
+                stripe_publishable_key: config.credentials?.publishable_key,
+                deposit_rule: depositRule
+            });
+        }
+        
+        // Fall back to legacy property/account stripe fields
         const result = await pool.query(`
             SELECT p.id, p.account_id, p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
                    a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete
@@ -5815,7 +5905,52 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
     try {
         const { property_id, amount, currency, booking_data } = req.body;
         
-        // Get property's Stripe keys (property-level or fall back to account-level)
+        // First check payment_configurations table
+        let paymentConfig = await pool.query(`
+            SELECT pc.*
+            FROM payment_configurations pc
+            WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+            LIMIT 1
+        `, [property_id]);
+        
+        // Fall back to account-level config
+        if (paymentConfig.rows.length === 0) {
+            paymentConfig = await pool.query(`
+                SELECT pc.*
+                FROM payment_configurations pc
+                JOIN properties p ON pc.account_id = p.account_id
+                WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
+                LIMIT 1
+            `, [property_id]);
+        }
+        
+        let paymentIntent;
+        
+        // Use new payment_configurations if available
+        if (paymentConfig.rows.length > 0 && paymentConfig.rows[0].credentials?.secret_key) {
+            const config = paymentConfig.rows[0];
+            const configStripe = new Stripe(config.credentials.secret_key);
+            
+            paymentIntent = await configStripe.paymentIntents.create({
+                amount: Math.round(amount * 100),
+                currency: (currency || 'gbp').toLowerCase(),
+                metadata: {
+                    property_id: property_id,
+                    guest_email: booking_data?.email || '',
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            });
+            
+            return res.json({
+                success: true,
+                client_secret: paymentIntent.client_secret,
+                payment_intent_id: paymentIntent.id,
+                publishable_key: config.credentials.publishable_key
+            });
+        }
+        
+        // Fall back to legacy property stripe fields
         const result = await pool.query(`
             SELECT p.stripe_secret_key, p.stripe_publishable_key, p.stripe_enabled,
                    a.stripe_account_id
@@ -5830,9 +5965,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
         
         const prop = result.rows[0];
         
-        let paymentIntent;
-        
-        // Use property's own Stripe keys if configured
+        // Use property's own Stripe keys if configured (legacy)
         if (prop.stripe_enabled && prop.stripe_secret_key) {
             const propertyStripe = new Stripe(prop.stripe_secret_key);
             
@@ -5847,7 +5980,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                 }
             });
             
-            res.json({
+            return res.json({
                 success: true,
                 client_secret: paymentIntent.client_secret,
                 payment_intent_id: paymentIntent.id,
@@ -5869,7 +6002,7 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
                 stripeAccount: prop.stripe_account_id
             });
             
-            res.json({
+            return res.json({
                 success: true,
                 client_secret: paymentIntent.client_secret,
                 payment_intent_id: paymentIntent.id
@@ -10723,6 +10856,505 @@ app.get('/api/properties/:id/stripe', async (req, res) => {
     }
     
     res.json({ success: true, stripe: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PAYMENT CONFIGURATIONS - Multi-provider support
+// Providers: stripe, paypal, airwallex
+// =====================================================
+
+const PAYMENT_PROVIDERS = {
+  stripe: {
+    name: 'Stripe',
+    fields: [
+      { key: 'publishable_key', label: 'Publishable Key', type: 'text', required: true, prefix: 'pk_' },
+      { key: 'secret_key', label: 'Secret Key', type: 'password', required: true, prefix: 'sk_' }
+    ],
+    helpUrl: 'https://dashboard.stripe.com/apikeys',
+    testEndpoint: 'balance'
+  },
+  paypal: {
+    name: 'PayPal',
+    fields: [
+      { key: 'client_id', label: 'Client ID', type: 'text', required: true },
+      { key: 'client_secret', label: 'Client Secret', type: 'password', required: true }
+    ],
+    helpUrl: 'https://developer.paypal.com/dashboard/applications',
+    testEndpoint: null // TODO: implement
+  },
+  airwallex: {
+    name: 'Airwallex',
+    fields: [
+      { key: 'client_id', label: 'Client ID', type: 'text', required: true },
+      { key: 'api_key', label: 'API Key', type: 'password', required: true }
+    ],
+    helpUrl: 'https://www.airwallex.com/docs',
+    testEndpoint: null // TODO: implement
+  }
+};
+
+// Get available payment providers
+app.get('/api/payment/providers', (req, res) => {
+  const providers = Object.entries(PAYMENT_PROVIDERS).map(([code, provider]) => ({
+    code,
+    name: provider.name,
+    fields: provider.fields,
+    helpUrl: provider.helpUrl,
+    available: code === 'stripe' // Only Stripe is fully implemented
+  }));
+  res.json({ success: true, providers });
+});
+
+// Get payment configurations for an account
+app.get('/api/accounts/:accountId/payment-configurations', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT pc.*, p.name as property_name
+      FROM payment_configurations pc
+      LEFT JOIN properties p ON pc.property_id = p.id
+      WHERE pc.account_id = $1
+      ORDER BY pc.property_id NULLS FIRST, pc.provider
+    `, [accountId]);
+    
+    // Don't expose secret credentials
+    const configs = result.rows.map(c => ({
+      ...c,
+      credentials: {
+        ...c.credentials,
+        secret_key: c.credentials?.secret_key ? '••••••••' : null,
+        client_secret: c.credentials?.client_secret ? '••••••••' : null,
+        api_key: c.credentials?.api_key ? '••••••••' : null
+      }
+    }));
+    
+    res.json({ success: true, configurations: configs });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get payment configuration for a specific property (or account default)
+app.get('/api/properties/:propertyId/payment-configuration', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    // First check for property-specific config
+    let result = await pool.query(`
+      SELECT pc.*, p.name as property_name, p.account_id
+      FROM payment_configurations pc
+      JOIN properties p ON pc.property_id = p.id
+      WHERE pc.property_id = $1 AND pc.is_enabled = true
+      ORDER BY pc.is_default DESC
+      LIMIT 1
+    `, [propertyId]);
+    
+    // Fall back to account-level config
+    if (result.rows.length === 0) {
+      result = await pool.query(`
+        SELECT pc.*, NULL as property_name, pc.account_id
+        FROM payment_configurations pc
+        JOIN properties p ON pc.account_id = p.account_id
+        WHERE p.id = $1 AND pc.property_id IS NULL AND pc.is_enabled = true
+        ORDER BY pc.is_default DESC
+        LIMIT 1
+      `, [propertyId]);
+    }
+    
+    // Also check legacy stripe fields on property
+    if (result.rows.length === 0) {
+      const legacyResult = await pool.query(`
+        SELECT id, stripe_publishable_key, stripe_secret_key, stripe_enabled
+        FROM properties WHERE id = $1 AND stripe_enabled = true
+      `, [propertyId]);
+      
+      if (legacyResult.rows.length > 0 && legacyResult.rows[0].stripe_secret_key) {
+        return res.json({
+          success: true,
+          configuration: {
+            provider: 'stripe',
+            is_enabled: true,
+            is_legacy: true,
+            credentials: {
+              publishable_key: legacyResult.rows[0].stripe_publishable_key
+            }
+          }
+        });
+      }
+    }
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, configuration: null });
+    }
+    
+    const config = result.rows[0];
+    res.json({
+      success: true,
+      configuration: {
+        ...config,
+        credentials: {
+          publishable_key: config.credentials?.publishable_key,
+          client_id: config.credentials?.client_id
+          // Don't expose secrets
+        }
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save payment configuration
+app.post('/api/payment-configurations', async (req, res) => {
+  try {
+    const { account_id, property_id, provider, name, credentials, settings, is_enabled, is_default, test_mode } = req.body;
+    
+    if (!account_id || !provider) {
+      return res.json({ success: false, error: 'account_id and provider are required' });
+    }
+    
+    if (!PAYMENT_PROVIDERS[provider]) {
+      return res.json({ success: false, error: 'Invalid provider. Supported: ' + Object.keys(PAYMENT_PROVIDERS).join(', ') });
+    }
+    
+    // Validate credentials for Stripe
+    if (provider === 'stripe' && credentials?.secret_key) {
+      try {
+        const testStripe = new Stripe(credentials.secret_key);
+        await testStripe.balance.retrieve();
+      } catch (stripeError) {
+        return res.json({ success: false, error: 'Invalid Stripe credentials: ' + stripeError.message });
+      }
+    }
+    
+    // If setting as default, unset other defaults for this scope
+    if (is_default) {
+      if (property_id) {
+        await pool.query(`UPDATE payment_configurations SET is_default = false WHERE property_id = $1`, [property_id]);
+      } else {
+        await pool.query(`UPDATE payment_configurations SET is_default = false WHERE account_id = $1 AND property_id IS NULL`, [account_id]);
+      }
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO payment_configurations (account_id, property_id, provider, name, credentials, settings, is_enabled, is_default, test_mode)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (account_id, property_id, provider)
+      DO UPDATE SET 
+        name = EXCLUDED.name,
+        credentials = EXCLUDED.credentials,
+        settings = EXCLUDED.settings,
+        is_enabled = EXCLUDED.is_enabled,
+        is_default = EXCLUDED.is_default,
+        test_mode = EXCLUDED.test_mode,
+        updated_at = NOW()
+      RETURNING id, account_id, property_id, provider, name, is_enabled, is_default, test_mode, created_at, updated_at
+    `, [account_id, property_id || null, provider, name || PAYMENT_PROVIDERS[provider].name, credentials || {}, settings || {}, is_enabled || false, is_default || false, test_mode || false]);
+    
+    console.log(`✅ Payment configuration saved: ${provider} for ${property_id ? 'property ' + property_id : 'account ' + account_id}`);
+    res.json({ success: true, configuration: result.rows[0] });
+  } catch (error) {
+    console.error('Save payment config error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update payment configuration
+app.put('/api/payment-configurations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, credentials, settings, is_enabled, is_default, test_mode } = req.body;
+    
+    // Get existing config to check provider
+    const existing = await pool.query('SELECT * FROM payment_configurations WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      return res.json({ success: false, error: 'Configuration not found' });
+    }
+    
+    const config = existing.rows[0];
+    
+    // Merge credentials (don't lose existing secrets if not provided)
+    const mergedCredentials = {
+      ...config.credentials,
+      ...credentials
+    };
+    
+    // Validate Stripe credentials if changed
+    if (config.provider === 'stripe' && credentials?.secret_key && credentials.secret_key !== '••••••••') {
+      try {
+        const testStripe = new Stripe(credentials.secret_key);
+        await testStripe.balance.retrieve();
+      } catch (stripeError) {
+        return res.json({ success: false, error: 'Invalid Stripe credentials: ' + stripeError.message });
+      }
+    } else if (credentials?.secret_key === '••••••••') {
+      // Keep existing secret
+      delete mergedCredentials.secret_key;
+      mergedCredentials.secret_key = config.credentials?.secret_key;
+    }
+    
+    // If setting as default, unset other defaults
+    if (is_default) {
+      if (config.property_id) {
+        await pool.query(`UPDATE payment_configurations SET is_default = false WHERE property_id = $1 AND id != $2`, [config.property_id, id]);
+      } else {
+        await pool.query(`UPDATE payment_configurations SET is_default = false WHERE account_id = $1 AND property_id IS NULL AND id != $2`, [config.account_id, id]);
+      }
+    }
+    
+    const result = await pool.query(`
+      UPDATE payment_configurations SET
+        name = COALESCE($1, name),
+        credentials = $2,
+        settings = COALESCE($3, settings),
+        is_enabled = COALESCE($4, is_enabled),
+        is_default = COALESCE($5, is_default),
+        test_mode = COALESCE($6, test_mode),
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING id, account_id, property_id, provider, name, is_enabled, is_default, test_mode, updated_at
+    `, [name, mergedCredentials, settings, is_enabled, is_default, test_mode, id]);
+    
+    res.json({ success: true, configuration: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete payment configuration
+app.delete('/api/payment-configurations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM payment_configurations WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Test payment configuration
+app.post('/api/payment-configurations/:id/test', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query('SELECT * FROM payment_configurations WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Configuration not found' });
+    }
+    
+    const config = result.rows[0];
+    let testResult = { success: false, message: 'Provider not supported for testing' };
+    
+    if (config.provider === 'stripe' && config.credentials?.secret_key) {
+      try {
+        const testStripe = new Stripe(config.credentials.secret_key);
+        const balance = await testStripe.balance.retrieve();
+        testResult = {
+          success: true,
+          message: 'Connection successful',
+          details: {
+            currency: balance.available[0]?.currency || 'unknown',
+            available: balance.available[0]?.amount || 0
+          }
+        };
+      } catch (stripeError) {
+        testResult = { success: false, message: stripeError.message };
+      }
+    } else if (config.provider === 'paypal') {
+      testResult = { success: false, message: 'PayPal testing not yet implemented' };
+    } else if (config.provider === 'airwallex') {
+      testResult = { success: false, message: 'Airwallex testing not yet implemented' };
+    }
+    
+    // Save test result
+    await pool.query(`
+      UPDATE payment_configurations SET last_tested_at = NOW(), test_result = $1 WHERE id = $2
+    `, [testResult, id]);
+    
+    res.json({ success: true, test_result: testResult });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PAYMENT SETUP TOKENS - Secure links for property owners
+// =====================================================
+
+// Generate setup token for property owner
+app.post('/api/payment-setup-tokens', async (req, res) => {
+  try {
+    const { account_id, property_id, provider, expires_hours = 72, created_by } = req.body;
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'account_id is required' });
+    }
+    
+    // Generate secure token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + expires_hours * 60 * 60 * 1000);
+    
+    const result = await pool.query(`
+      INSERT INTO payment_setup_tokens (token, account_id, property_id, provider, expires_at, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, token, expires_at
+    `, [token, account_id, property_id || null, provider || null, expiresAt, created_by || null]);
+    
+    // Build setup URL
+    const setupUrl = `https://admin.gas.travel/payment-setup?token=${token}`;
+    
+    res.json({
+      success: true,
+      token: result.rows[0].token,
+      expires_at: result.rows[0].expires_at,
+      setup_url: setupUrl
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get setup token info (public - for the setup page)
+app.get('/api/payment-setup/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const result = await pool.query(`
+      SELECT t.*, a.name as account_name, p.name as property_name
+      FROM payment_setup_tokens t
+      JOIN accounts a ON t.account_id = a.id
+      LEFT JOIN properties p ON t.property_id = p.id
+      WHERE t.token = $1
+    `, [token]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired token' });
+    }
+    
+    const tokenData = result.rows[0];
+    
+    if (tokenData.used_at) {
+      return res.json({ success: false, error: 'This setup link has already been used' });
+    }
+    
+    if (new Date(tokenData.expires_at) < new Date()) {
+      return res.json({ success: false, error: 'This setup link has expired' });
+    }
+    
+    res.json({
+      success: true,
+      setup: {
+        account_name: tokenData.account_name,
+        property_name: tokenData.property_name,
+        provider: tokenData.provider, // null means user can choose
+        providers: Object.entries(PAYMENT_PROVIDERS).map(([code, p]) => ({
+          code,
+          name: p.name,
+          fields: p.fields,
+          helpUrl: p.helpUrl,
+          available: code === 'stripe'
+        }))
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Complete payment setup via token (public)
+app.post('/api/payment-setup/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { provider, credentials } = req.body;
+    
+    // Validate token
+    const tokenResult = await pool.query(`
+      SELECT * FROM payment_setup_tokens WHERE token = $1
+    `, [token]);
+    
+    if (tokenResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid token' });
+    }
+    
+    const tokenData = tokenResult.rows[0];
+    
+    if (tokenData.used_at) {
+      return res.json({ success: false, error: 'This setup link has already been used' });
+    }
+    
+    if (new Date(tokenData.expires_at) < new Date()) {
+      return res.json({ success: false, error: 'This setup link has expired' });
+    }
+    
+    const selectedProvider = tokenData.provider || provider;
+    if (!selectedProvider || !PAYMENT_PROVIDERS[selectedProvider]) {
+      return res.json({ success: false, error: 'Please select a valid payment provider' });
+    }
+    
+    // Validate credentials
+    if (selectedProvider === 'stripe') {
+      if (!credentials?.publishable_key || !credentials?.secret_key) {
+        return res.json({ success: false, error: 'Both Publishable Key and Secret Key are required' });
+      }
+      
+      try {
+        const testStripe = new Stripe(credentials.secret_key);
+        await testStripe.balance.retrieve();
+      } catch (stripeError) {
+        return res.json({ success: false, error: 'Invalid Stripe credentials: ' + stripeError.message });
+      }
+    }
+    
+    // Save configuration
+    await pool.query(`
+      INSERT INTO payment_configurations (account_id, property_id, provider, credentials, is_enabled, is_default)
+      VALUES ($1, $2, $3, $4, true, true)
+      ON CONFLICT (account_id, property_id, provider)
+      DO UPDATE SET credentials = EXCLUDED.credentials, is_enabled = true, updated_at = NOW()
+    `, [tokenData.account_id, tokenData.property_id, selectedProvider, credentials]);
+    
+    // Mark token as used
+    await pool.query(`UPDATE payment_setup_tokens SET used_at = NOW() WHERE token = $1`, [token]);
+    
+    console.log(`✅ Payment setup completed via token for ${tokenData.property_id ? 'property ' + tokenData.property_id : 'account ' + tokenData.account_id}`);
+    
+    res.json({ success: true, message: 'Payment configuration saved successfully!' });
+  } catch (error) {
+    console.error('Payment setup error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// List setup tokens for an account
+app.get('/api/accounts/:accountId/payment-setup-tokens', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT t.*, p.name as property_name
+      FROM payment_setup_tokens t
+      LEFT JOIN properties p ON t.property_id = p.id
+      WHERE t.account_id = $1
+      ORDER BY t.created_at DESC
+    `, [accountId]);
+    
+    res.json({ success: true, tokens: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Revoke a setup token
+app.delete('/api/payment-setup-tokens/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM payment_setup_tokens WHERE id = $1', [id]);
+    res.json({ success: true });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
