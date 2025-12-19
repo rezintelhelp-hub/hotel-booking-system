@@ -11574,10 +11574,7 @@ Local honey and preserves"></textarea>
                         <label class="form-label">Base Occupancy (included in standard price)</label>
                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                             <select id="occupancy-base" class="form-input" style="max-width: 100px;">
-                                <option value="1">1 adult</option>
-                                <option value="2" selected>2 adults</option>
-                                <option value="3">3 adults</option>
-                                <option value="4">4 adults</option>
+                                <!-- Options populated dynamically based on max_guests -->
                             </select>
                             <span style="font-size: 0.85rem; color: #6b7280;">Max guests: <span id="occupancy-max-guests">4</span></span>
                         </div>
@@ -20455,11 +20452,23 @@ Local honey and preserves"></textarea>
                 
                 if (data.success && data.data) {
                     const settings = data.data;
+                    const maxGuests = settings.max_guests || 4;
                     
                     document.getElementById('occupancy-room-name').textContent = settings.name || 'Room';
-                    document.getElementById('occupancy-max-guests').textContent = settings.max_guests || 4;
+                    document.getElementById('occupancy-max-guests').textContent = maxGuests;
+                    
+                    // Populate base occupancy dropdown based on max_guests
+                    const baseSelect = document.getElementById('occupancy-base');
+                    baseSelect.innerHTML = '';
+                    for (let i = 1; i <= maxGuests; i++) {
+                        const option = document.createElement('option');
+                        option.value = i;
+                        option.textContent = i === 1 ? '1 adult' : `${i} adults`;
+                        baseSelect.appendChild(option);
+                    }
+                    
                     document.getElementById('occupancy-enabled').checked = settings.pricing_mode === 'per_occupancy';
-                    document.getElementById('occupancy-base').value = settings.base_occupancy || 2;
+                    document.getElementById('occupancy-base').value = settings.base_occupancy || Math.min(2, maxGuests);
                     
                     document.getElementById('single-discount-type').value = settings.single_discount_type || 'fixed';
                     document.getElementById('single-discount-value').value = settings.single_discount_value || 0;
