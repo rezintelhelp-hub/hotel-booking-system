@@ -21990,15 +21990,16 @@ app.post('/api/public/calculate-price', async (req, res) => {
       
       // Apply occupancy pricing if enabled
       if (pricingMode === 'per_occupancy') {
-        // Single occupancy discount
-        if (numAdults === 1 && singleDiscountValue > 0) {
+        // Single occupancy discount - only applies if base_occupancy is more than 1
+        // (i.e., room is normally for 2+ people but only 1 is staying)
+        if (numAdults === 1 && baseOccupancy > 1 && singleDiscountValue > 0) {
           if (singleDiscountType === 'percent') {
             nightOccupancyAdjustment = -(nightPrice * singleDiscountValue / 100);
           } else {
             nightOccupancyAdjustment = -singleDiscountValue;
           }
         }
-        // Extra adult charge
+        // Extra adult charge - applies when MORE adults than base occupancy
         else if (numAdults > baseOccupancy && extraAdultCharge > 0) {
           const extraAdults = numAdults - baseOccupancy;
           if (extraAdultType === 'percent') {
