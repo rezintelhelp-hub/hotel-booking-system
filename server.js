@@ -2974,8 +2974,8 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
     for (const conn of connections.rows) {
       let accessToken = conn.access_token;
       
-      // Refresh token if needed
-      if (!accessToken && conn.refresh_token) {
+      // Always try to refresh token - access tokens expire quickly
+      if (conn.refresh_token) {
         try {
           const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
             headers: { 'refreshToken': conn.refresh_token }
@@ -2983,7 +2983,7 @@ app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
           accessToken = tokenResponse.data.token;
           await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, conn.id]);
         } catch (e) {
-          results.errors.push({ connection: conn.id, error: 'Token refresh failed' });
+          results.errors.push({ connection: conn.id, error: 'Token refresh failed: ' + e.message });
           continue;
         }
       }
@@ -29725,22 +29725,26 @@ async function runTieredSync() {
     for (const conn of connections.rows) {
       let accessToken = conn.access_token;
       
-      // Refresh token if needed
-      if (!accessToken && conn.refresh_token) {
+      // Always try to refresh token - access tokens expire quickly
+      if (conn.refresh_token) {
         try {
           const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
             headers: { 'refreshToken': conn.refresh_token }
           });
           accessToken = tokenResponse.data.token;
           await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, conn.id]);
-          console.log(`⏰ [Tiered Sync] Refreshed token for connection ${conn.id}`);
+          console.log(`⏰ [Tiered Sync] Refreshed token for connection ${conn.id} (${conn.name || 'unnamed'})`);
         } catch (e) {
-          errors.push({ connection: conn.id, error: 'Token refresh failed' });
+          console.error(`⏰ [Tiered Sync] Token refresh failed for connection ${conn.id}: ${e.message}`);
+          errors.push({ connection: conn.id, error: 'Token refresh failed: ' + e.message });
           continue;
         }
       }
       
-      if (!accessToken) continue;
+      if (!accessToken) {
+        console.log(`⏰ [Tiered Sync] No token for connection ${conn.id}, skipping`);
+        continue;
+      }
       
       // Get rooms that need syncing for each tier
       for (const tier of SYNC_TIERS) {
