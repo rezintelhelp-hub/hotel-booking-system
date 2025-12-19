@@ -20275,7 +20275,9 @@ Local honey and preserves"></textarea>
                             
                             // Calculate occupancy-adjusted price
                             let adjPrice = stdPrice;
-                            if (guests === 1 && parseFloat(occSettings.single_discount_value) > 0) {
+                            // Single discount only applies when base occupancy is more than 1
+                            // (i.e., room is for 2+ people but only 1 is staying)
+                            if (guests === 1 && baseOccupancy > 1 && parseFloat(occSettings.single_discount_value) > 0) {
                                 // Single occupancy discount
                                 if (occSettings.single_discount_type === 'percent') {
                                     adjPrice = stdPrice * (1 - parseFloat(occSettings.single_discount_value) / 100);
