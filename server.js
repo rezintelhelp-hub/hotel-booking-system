@@ -15349,13 +15349,6 @@ app.post('/api/admin/offers', async (req, res) => {
         stackable || false, priority || 0, active !== false
       ]);
     }
-        discount_type || 'percentage', discount_value, applies_to || 'standard_price',
-        min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
-        min_advance_days || null, max_advance_days || null,
-        valid_from || null, valid_until || null, valid_days_of_week || null,
-        stackable || false, priority || 0, active !== false
-      ]);
-    }
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -21979,9 +21972,13 @@ app.post('/api/public/calculate-price', async (req, res) => {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
     }
     
-    // Get availability for date range
+    // Get availability for date range - include min_stay
     const availability = await pool.query(`
-      SELECT date, COALESCE(standard_price, direct_price, cm_price) as price, is_available, is_blocked
+      SELECT date, 
+             COALESCE(standard_price, direct_price, cm_price) as price, 
+             is_available, 
+             is_blocked,
+             COALESCE(min_stay_override, min_stay, cm_min_stay, 1) as min_stay
       FROM room_availability
       WHERE room_id = $1 AND date >= $2 AND date < $3
       ORDER BY date
@@ -22021,6 +22018,27 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     if (nights < 1) {
       return res.json({ success: false, error: 'Invalid date range' });
+    }
+    
+    // Check minimum stay requirement - use the max min_stay from any day in the range
+    let maxMinStay = 1;
+    let minStayDate = null;
+    for (const dayData of availability.rows) {
+      const dayMinStay = parseInt(dayData.min_stay) || 1;
+      if (dayMinStay > maxMinStay) {
+        maxMinStay = dayMinStay;
+        minStayDate = dayData.date;
+      }
+    }
+    
+    if (nights < maxMinStay) {
+      return res.json({ 
+        success: false, 
+        error: `Minimum stay of ${maxMinStay} nights required`,
+        min_stay_required: maxMinStay,
+        nights_selected: nights,
+        min_stay_date: minStayDate
+      });
     }
     
     // Build nightly breakdown with occupancy adjustments
@@ -22324,6 +22342,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       availability_debug: availabilityDebug,
       currency: currency,
       nights: nights,
+      min_stay: maxMinStay,
       room_name: roomData.name,
       adults: numAdults,
       children: numChildren,
@@ -22346,6 +22365,44 @@ app.post('/api/public/calculate-price', async (req, res) => {
     });
   } catch (error) {
     console.error('Calculate price error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get min stay for a room's date range (public - for calendar display)
+app.get('/api/public/rooms/:roomId/min-stay', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { start_date, end_date } = req.query;
+    
+    const startDate = start_date || new Date().toISOString().split('T')[0];
+    const endDate = end_date || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const result = await pool.query(`
+      SELECT date, 
+             COALESCE(min_stay_override, min_stay, cm_min_stay, 1) as min_stay,
+             cm_min_stay
+      FROM room_availability
+      WHERE room_id = $1 AND date >= $2 AND date <= $3
+      ORDER BY date
+    `, [roomId, startDate, endDate]);
+    
+    // Also get default min stay from room settings
+    const roomResult = await pool.query(`
+      SELECT min_stay FROM bookable_units WHERE id = $1
+    `, [roomId]);
+    
+    const defaultMinStay = roomResult.rows[0]?.min_stay || 1;
+    
+    res.json({ 
+      success: true, 
+      default_min_stay: defaultMinStay,
+      dates: result.rows.map(r => ({
+        date: r.date,
+        min_stay: parseInt(r.min_stay) || defaultMinStay
+      }))
+    });
+  } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
