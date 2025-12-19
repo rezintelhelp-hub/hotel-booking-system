@@ -597,9 +597,34 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_publishable_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS child_max_age INTEGER DEFAULT 12`);
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
+    }
+    
+    // Add occupancy pricing columns to bookable_units
+    try {
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS pricing_mode VARCHAR(20) DEFAULT 'per_room'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS base_occupancy INTEGER DEFAULT 2`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS extra_adult_type VARCHAR(10) DEFAULT 'fixed'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS extra_adult_charge DECIMAL(10,2) DEFAULT 0`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS single_discount_type VARCHAR(10) DEFAULT 'fixed'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS single_discount_value DECIMAL(10,2) DEFAULT 0`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge_type VARCHAR(10) DEFAULT 'fixed'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge DECIMAL(10,2) DEFAULT 0`);
+      console.log('✅ Occupancy pricing columns ensured on bookable_units');
+    } catch (occError) {
+      console.log('ℹ️  Occupancy columns:', occError.message);
+    }
+    
+    // Add min_stay columns to room_availability
+    try {
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS cm_min_stay INTEGER`);
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS min_stay_override INTEGER`);
+      console.log('✅ Min stay columns ensured on room_availability');
+    } catch (minStayError) {
+      console.log('ℹ️  Min stay columns:', minStayError.message);
     }
     
     // Create payment_configurations table for flexible multi-provider support
@@ -2692,8 +2717,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 if (isBlocked) daysBlocked++;
                 
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24')
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24')
                   ON CONFLICT (room_id, date) 
                   DO UPDATE SET 
                     cm_price = COALESCE($3, room_availability.cm_price),
@@ -2701,6 +2726,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                     is_available = $4,
                     is_blocked = $5,
                     min_stay = $6,
+                    cm_min_stay = $6,
                     source = 'beds24',
                     updated_at = NOW()
                 `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay]);
@@ -2758,8 +2784,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               if (isBlocked) daysBlocked++;
               
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
-                VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24')
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
+                VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24')
                 ON CONFLICT (room_id, date) 
                 DO UPDATE SET 
                   cm_price = COALESCE($3, room_availability.cm_price),
@@ -2767,6 +2793,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                   is_available = $4,
                   is_blocked = $5,
                   min_stay = $6,
+                  cm_min_stay = $6,
                   source = 'beds24',
                   updated_at = NOW()
               `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay]);
@@ -17347,7 +17374,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
       return res.json({ success: false, error: 'from and to dates required' });
     }
     
-    // Get availability data - include standard_price if it exists
+    // Get availability data - include standard_price and min_stay fields if they exist
     let availability;
     try {
       availability = await pool.query(`
@@ -17360,6 +17387,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
           is_available,
           is_blocked,
           min_stay,
+          cm_min_stay,
+          min_stay_override,
           source,
           notes
         FROM room_availability
@@ -17369,7 +17398,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
         ORDER BY date
       `, [roomId, from, to]);
     } catch (e) {
-      // Fallback if standard_price column doesn't exist
+      // Fallback if new columns don't exist
       availability = await pool.query(`
         SELECT 
           date,
@@ -17380,6 +17409,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
           is_available,
           is_blocked,
           min_stay,
+          min_stay as cm_min_stay,
+          NULL as min_stay_override,
           source,
           notes
         FROM room_availability
@@ -17409,6 +17440,9 @@ app.get('/api/availability/:roomId', async (req, res) => {
         is_available: a.is_available,
         is_blocked: a.is_blocked,
         min_stay: a.min_stay,
+        cm_min_stay: a.cm_min_stay,
+        min_stay_override: a.min_stay_override,
+        effective_min_stay: a.min_stay_override || a.cm_min_stay || a.min_stay || 1,
         source: a.source
       };
     });
@@ -19835,6 +19869,284 @@ app.post('/api/rooms/:id/features', async (req, res) => {
     res.status(500).json({ success: false, error: error.message });
   } finally {
     client.release();
+  }
+});
+
+// =====================================================
+// OCCUPANCY PRICING - Per-room settings
+// =====================================================
+
+// GET /api/rooms/:id/occupancy-settings - Get occupancy pricing settings
+app.get('/api/rooms/:id/occupancy-settings', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    
+    const result = await pool.query(`
+      SELECT 
+        bu.id,
+        bu.name,
+        bu.max_guests,
+        bu.pricing_mode,
+        bu.base_occupancy,
+        bu.extra_adult_type,
+        bu.extra_adult_charge,
+        bu.single_discount_type,
+        bu.single_discount_value,
+        bu.child_charge_type,
+        bu.child_charge,
+        p.child_max_age
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error getting occupancy settings:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/rooms/:id/occupancy-settings - Save occupancy pricing settings
+app.put('/api/rooms/:id/occupancy-settings', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const {
+      pricing_mode,
+      base_occupancy,
+      extra_adult_type,
+      extra_adult_charge,
+      single_discount_type,
+      single_discount_value,
+      child_charge_type,
+      child_charge
+    } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE bookable_units SET
+        pricing_mode = COALESCE($1, pricing_mode),
+        base_occupancy = COALESCE($2, base_occupancy),
+        extra_adult_type = COALESCE($3, extra_adult_type),
+        extra_adult_charge = COALESCE($4, extra_adult_charge),
+        single_discount_type = COALESCE($5, single_discount_type),
+        single_discount_value = COALESCE($6, single_discount_value),
+        child_charge_type = COALESCE($7, child_charge_type),
+        child_charge = COALESCE($8, child_charge),
+        updated_at = NOW()
+      WHERE id = $9
+      RETURNING *
+    `, [
+      pricing_mode,
+      base_occupancy,
+      extra_adult_type,
+      extra_adult_charge,
+      single_discount_type,
+      single_discount_value,
+      child_charge_type,
+      child_charge,
+      roomId
+    ]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    console.log(`✅ Occupancy settings saved for room ${roomId}`);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error saving occupancy settings:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/properties/:id/child-max-age - Set property-level child max age
+app.put('/api/properties/:id/child-max-age', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { child_max_age } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE properties SET child_max_age = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, name, child_max_age
+    `, [child_max_age || 12, id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// MIN STAY - Per-date settings
+// =====================================================
+
+// GET /api/rooms/:id/min-stay - Get min stay settings for date range
+app.get('/api/rooms/:id/min-stay', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { start_date, end_date } = req.query;
+    
+    const result = await pool.query(`
+      SELECT date, cm_min_stay, min_stay_override,
+             COALESCE(min_stay_override, cm_min_stay, 1) as effective_min_stay
+      FROM room_availability
+      WHERE room_id = $1 
+        AND date >= $2 
+        AND date <= $3
+      ORDER BY date
+    `, [roomId, start_date, end_date]);
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/rooms/:id/min-stay - Save min stay overrides for date range
+app.put('/api/rooms/:id/min-stay', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { start_date, end_date, min_stay_override } = req.body;
+    
+    // Update or insert for each date in range
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, min_stay_override)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (room_id, date) 
+        DO UPDATE SET min_stay_override = $3, updated_at = NOW()
+      `, [roomId, dateStr, min_stay_override || null]);
+    }
+    
+    console.log(`✅ Min stay override set to ${min_stay_override} for room ${roomId} from ${start_date} to ${end_date}`);
+    res.json({ success: true, message: 'Min stay updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// OCCUPANCY PRICE CALCULATOR - Helper endpoint
+// =====================================================
+
+// POST /api/rooms/:id/calculate-occupancy-price - Calculate price for specific occupancy
+app.post('/api/rooms/:id/calculate-occupancy-price', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { standard_price, adults, children } = req.body;
+    
+    // Get room occupancy settings
+    const roomResult = await pool.query(`
+      SELECT 
+        bu.*,
+        p.child_max_age
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    const room = roomResult.rows[0];
+    const basePrice = parseFloat(standard_price) || 0;
+    
+    // If per_room mode, just return standard price
+    if (room.pricing_mode === 'per_room') {
+      return res.json({
+        success: true,
+        price: basePrice,
+        breakdown: {
+          standard_price: basePrice,
+          adjustments: [],
+          final_price: basePrice
+        }
+      });
+    }
+    
+    // Calculate occupancy-adjusted price
+    const baseOccupancy = room.base_occupancy || 2;
+    const numAdults = parseInt(adults) || 1;
+    const numChildren = parseInt(children) || 0;
+    
+    let adjustedPrice = basePrice;
+    const adjustments = [];
+    
+    // Single occupancy discount
+    if (numAdults === 1 && numChildren === 0 && parseFloat(room.single_discount_value) > 0) {
+      let discount = 0;
+      if (room.single_discount_type === 'percent') {
+        discount = basePrice * (parseFloat(room.single_discount_value) / 100);
+      } else {
+        discount = parseFloat(room.single_discount_value);
+      }
+      adjustedPrice -= discount;
+      adjustments.push({
+        type: 'single_discount',
+        description: 'Single occupancy discount',
+        amount: -discount
+      });
+    }
+    
+    // Extra adults charge
+    const extraAdults = Math.max(0, numAdults - baseOccupancy);
+    if (extraAdults > 0 && parseFloat(room.extra_adult_charge) > 0) {
+      let extraCharge = 0;
+      if (room.extra_adult_type === 'percent') {
+        extraCharge = basePrice * (parseFloat(room.extra_adult_charge) / 100) * extraAdults;
+      } else {
+        extraCharge = parseFloat(room.extra_adult_charge) * extraAdults;
+      }
+      adjustedPrice += extraCharge;
+      adjustments.push({
+        type: 'extra_adults',
+        description: `${extraAdults} extra adult(s)`,
+        amount: extraCharge
+      });
+    }
+    
+    // Children charge
+    if (numChildren > 0 && room.child_charge_type !== 'free' && parseFloat(room.child_charge) > 0) {
+      let childCharge = 0;
+      if (room.child_charge_type === 'percent') {
+        childCharge = basePrice * (parseFloat(room.child_charge) / 100) * numChildren;
+      } else {
+        childCharge = parseFloat(room.child_charge) * numChildren;
+      }
+      adjustedPrice += childCharge;
+      adjustments.push({
+        type: 'children',
+        description: `${numChildren} child(ren)`,
+        amount: childCharge
+      });
+    }
+    
+    res.json({
+      success: true,
+      price: Math.round(adjustedPrice * 100) / 100,
+      breakdown: {
+        standard_price: basePrice,
+        base_occupancy: baseOccupancy,
+        adults: numAdults,
+        children: numChildren,
+        adjustments,
+        final_price: Math.round(adjustedPrice * 100) / 100
+      }
+    });
+  } catch (error) {
+    console.error('Error calculating occupancy price:', error);
+    res.json({ success: false, error: error.message });
   }
 });
 
