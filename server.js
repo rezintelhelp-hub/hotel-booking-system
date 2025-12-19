@@ -27668,6 +27668,7 @@ app.get('/api/gas-sync/connections', async (req, res) => {
       result = await pool.query(`
         SELECT c.id, c.account_id, c.adapter_code, c.status, 
                c.external_account_id, c.external_account_name,
+               COALESCE(c.external_account_name, (SELECT name FROM gas_sync_properties WHERE connection_id = c.id LIMIT 1), 'Unnamed') as connection_name,
                c.sync_enabled, c.sync_interval_minutes,
                c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
                c.webhook_registered, c.created_at, c.updated_at,
@@ -27688,6 +27689,7 @@ app.get('/api/gas-sync/connections', async (req, res) => {
       result = await pool.query(`
         SELECT c.id, c.account_id, c.adapter_code, c.status, 
                c.external_account_id, c.external_account_name,
+               COALESCE(c.external_account_name, (SELECT name FROM gas_sync_properties WHERE connection_id = c.id LIMIT 1), 'Unnamed') as connection_name,
                c.sync_enabled, c.sync_interval_minutes,
                c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
                c.webhook_registered, c.created_at, c.updated_at,
