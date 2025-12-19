@@ -1503,6 +1503,42 @@ app.post('/api/gas-sync/connections/:id/mappings/reset', async (req, res) => {
   }
 });
 
+// Helper function to get currency symbol from currency code
+function getCurrencySymbol(currencyCode) {
+  const symbols = {
+    'GBP': '£',
+    'USD': '$',
+    'EUR': '€',
+    'CHF': 'CHF ',
+    'AUD': 'A$',
+    'CAD': 'C$',
+    'NZD': 'NZ$',
+    'JPY': '¥',
+    'CNY': '¥',
+    'INR': '₹',
+    'ZAR': 'R',
+    'BRL': 'R$',
+    'MXN': 'MX$',
+    'SEK': 'kr',
+    'NOK': 'kr',
+    'DKK': 'kr',
+    'PLN': 'zł',
+    'CZK': 'Kč',
+    'HUF': 'Ft',
+    'THB': '฿',
+    'SGD': 'S$',
+    'HKD': 'HK$',
+    'MYR': 'RM',
+    'AED': 'AED ',
+    'SAR': 'SAR ',
+    'ILS': '₪',
+    'TRY': '₺',
+    'RUB': '₽',
+    'KRW': '₩'
+  };
+  return symbols[currencyCode?.toUpperCase()] || currencyCode + ' ' || '$';
+}
+
 // Helper function for default mappings
 function getDefaultMappings(adapterCode) {
   const beds24Defaults = [
@@ -1521,6 +1557,7 @@ function getDefaultMappings(adapterCode) {
     { source_entity: 'property', source_field: 'web', target_entity: 'properties', target_field: 'website' },
     { source_entity: 'property', source_field: 'latitude', target_entity: 'properties', target_field: 'latitude' },
     { source_entity: 'property', source_field: 'longitude', target_entity: 'properties', target_field: 'longitude' },
+    { source_entity: 'property', source_field: 'currency', target_entity: 'properties', target_field: 'currency' },
     // Room mappings - based on actual Beds24 V1 API response
     { source_entity: 'room', source_field: 'name', target_entity: 'bookable_units', target_field: 'name' },
     { source_entity: 'room', source_field: 'texts.displayName.EN', target_entity: 'bookable_units', target_field: 'display_name' },
@@ -1818,6 +1855,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     // Add all necessary columns
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT \'GBP\'');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS house_rules TEXT');
@@ -17374,6 +17412,17 @@ app.get('/api/availability/:roomId', async (req, res) => {
       return res.json({ success: false, error: 'from and to dates required' });
     }
     
+    // Get room info including property currency
+    const roomInfo = await pool.query(`
+      SELECT bu.id, bu.name, bu.property_id, p.currency, p.country
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    const currency = roomInfo.rows[0]?.currency || 'GBP';
+    const currencySymbol = getCurrencySymbol(currency);
+    
     // Get availability data - include standard_price and min_stay fields if they exist
     let availability;
     try {
@@ -17538,7 +17587,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
       });
     }
     
-    res.json({ success: true, availability: result });
+    res.json({ success: true, availability: result, currency, currency_symbol: currencySymbol });
   } catch (error) {
     console.error('Availability error:', error);
     res.json({ success: false, error: error.message });
