@@ -20062,6 +20062,9 @@ Local honey and preserves"></textarea>
                 const response = await fetch(`/api/availability/${roomId}?from=${fromDate}&to=${toDate}`);
                 const data = await response.json();
                 
+                // Get currency from response (defaults to £ for UK properties)
+                const currencySymbol = data.currency_symbol || '£';
+                
                 // Get occupancy settings for this room
                 let occupancySettings = {};
                 try {
@@ -20076,6 +20079,7 @@ Local honey and preserves"></textarea>
                 
                 // Attach occupancy settings to data for grid rendering
                 data.occupancy_settings = occupancySettings;
+                data.currency_symbol = currencySymbol;
                 
                 // Get offers for this room
                 const offersResponse = await fetch('/api/admin/offers');
@@ -20126,7 +20130,7 @@ Local honey and preserves"></textarea>
                     const refPrice = dayData.cm_price || '-';
                     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                     html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f1f5f9'}; color: #475569; font-weight: 600;">
-                        ${refPrice !== '-' ? '$' + parseFloat(refPrice).toFixed(0) : '-'}
+                        ${refPrice !== '-' ? currencySymbol + parseFloat(refPrice).toFixed(0) : '-'}
                     </td>`;
                 });
                 html += `</tr>`;
@@ -20279,7 +20283,7 @@ Local honey and preserves"></textarea>
                             const priceColor = isBase ? '#5b21b6' : (adjPrice < stdPrice ? '#16a34a' : (adjPrice > stdPrice ? '#dc2626' : '#6b7280'));
                             
                             html += `<td style="padding: 0.5rem; text-align: center; background: ${isWeekend ? '#f5f3ff' : '#faf5ff'}; color: ${priceColor}; font-size: 0.85rem;">
-                                ${stdPrice > 0 ? '$' + Math.round(adjPrice) : '-'}
+                                ${stdPrice > 0 ? currencySymbol + Math.round(adjPrice) : '-'}
                             </td>`;
                         });
                         html += `</tr>`;
@@ -20338,7 +20342,7 @@ Local honey and preserves"></textarea>
                             
                             const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                             html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9c3' : '#fffbeb'}; color: #b45309; font-weight: 500;">
-                                ${stdPrice > 0 ? '$' + offerPrice.toFixed(0) : '-'}
+                                ${stdPrice > 0 ? currencySymbol + offerPrice.toFixed(0) : '-'}
                             </td>`;
                         });
                         
