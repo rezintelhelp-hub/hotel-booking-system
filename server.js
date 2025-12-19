@@ -2583,97 +2583,76 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
         continue;
       }
       
-      // Sync each room: availability from inventory, prices from offers
+      // Sync each room using CALENDAR API - one call gets everything!
       for (const room of roomsResult.rows) {
         try {
           let daysWithPrice = 0;
           let daysBlocked = 0;
           const beds24RoomId = parseInt(room.beds24_room_id);
           
-          // 1. Get availability from INVENTORY API (one call for whole range)
           const startDate = today.toISOString().split('T')[0];
           const endDate = new Date(Date.now() + days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
           
-          let availData = {};
-          try {
-            const availResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/availability', {
-              headers: { 'token': accessToken },
-              params: { roomId: beds24RoomId, startDate, endDate }
-            });
-            availData = availResponse.data.data?.[0]?.availability || {};
-          } catch (availError) {
-            console.log(`  Could not get availability for ${room.name}:`, availError.message);
-          }
-          
-          await new Promise(resolve => setTimeout(resolve, 200));
-          
-          // 2. Get prices from OFFERS API for each day
-          for (let i = 0; i < days; i++) {
-            const arrivalDate = new Date(today);
-            arrivalDate.setDate(arrivalDate.getDate() + i);
-            const departDate = new Date(arrivalDate);
-            departDate.setDate(departDate.getDate() + 1);
-            
-            const arrival = arrivalDate.toISOString().split('T')[0];
-            const departure = departDate.toISOString().split('T')[0];
-            
-            // Get availability from inventory data
-            const isAvailable = availData[arrival] === true;
-            const isBlocked = !isAvailable;
-            if (isBlocked) daysBlocked++;
-            
-            // Get price from offers API
-            let price = null;
-            try {
-              const offerResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/offers', {
-                headers: { 'token': accessToken },
-                params: { 
-                  roomId: beds24RoomId, 
-                  arrival: arrival,
-                  departure: departure,
-                  numAdults: 2
-                }
-              });
-              
-              const offerData = offerResponse.data;
-              if (offerData.data && offerData.data.length > 0) {
-                const roomOffers = offerData.data[0];
-                if (roomOffers.offers && roomOffers.offers.length > 0) {
-                  const offer1 = roomOffers.offers.find(o => o.offerId === 1) || roomOffers.offers[0];
-                  price = offer1.price;
-                  daysWithPrice++;
-                }
-              }
-            } catch (apiError) {
-              if (apiError.response?.status === 429) {
-                console.log('  Rate limited, waiting 5s...');
-                await new Promise(resolve => setTimeout(resolve, 5000));
-              }
+          // ONE call per room - gets numAvail, price1, minStay for all dates
+          const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+            headers: { 'token': accessToken },
+            params: { 
+              roomId: beds24RoomId, 
+              startDate, 
+              endDate,
+              includeNumAvail: true,
+              includePrices: true,
+              includeMinStay: true
             }
+          });
+          
+          const calendarData = calResponse.data.data?.[0]?.calendar || [];
+          
+          // Process each date entry from calendar
+          for (const entry of calendarData) {
+            // Calendar can return date ranges, expand them
+            const fromDate = new Date(entry.from);
+            const toDate = new Date(entry.to);
             
-            await pool.query(`
-              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, source)
-              VALUES ($1, $2, $3, $3, $4, $5, 'beds24')
-              ON CONFLICT (room_id, date) 
-              DO UPDATE SET 
-                cm_price = COALESCE($3, room_availability.cm_price),
-                direct_price = COALESCE($3, room_availability.direct_price),
-                is_available = $4,
-                is_blocked = $5,
-                source = 'beds24',
-                updated_at = NOW()
-            `, [room.gas_room_id, arrival, price, isAvailable, isBlocked]);
-            
-            totalDaysUpdated++;
-            
-            // 300ms delay between calls to avoid rate limiting
-            await new Promise(resolve => setTimeout(resolve, 300));
+            for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().split('T')[0];
+              
+              const numAvail = entry.numAvail || 0;
+              const price = entry.price1 || null;
+              const minStay = entry.minStay || 1;
+              
+              const isAvailable = numAvail > 0;
+              const isBlocked = numAvail === 0;
+              
+              if (price !== null) daysWithPrice++;
+              if (isBlocked) daysBlocked++;
+              
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
+                VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24')
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET 
+                  cm_price = COALESCE($3, room_availability.cm_price),
+                  direct_price = COALESCE($3, room_availability.direct_price),
+                  is_available = $4,
+                  is_blocked = $5,
+                  min_stay = $6,
+                  source = 'beds24',
+                  updated_at = NOW()
+              `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay]);
+              
+              totalDaysUpdated++;
+            }
           }
           
           roomsSynced++;
           console.log(`  ✓ ${room.name}: ${daysWithPrice} prices, ${daysBlocked} blocked`);
           
+          // Small delay between rooms
+          await new Promise(resolve => setTimeout(resolve, 200));
+          
         } catch (roomError) {
+          console.error(`  Error syncing ${room.name}:`, roomError.response?.data || roomError.message);
           errors.push({ room: room.name, error: roomError.message });
           if (roomError.response?.status === 429) {
             await new Promise(resolve => setTimeout(resolve, 5000));
