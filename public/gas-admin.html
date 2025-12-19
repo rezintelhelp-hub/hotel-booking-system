@@ -11246,7 +11246,7 @@ Local honey and preserves"></textarea>
 
     <!-- Payment Settings Modal -->
     <div id="paymentSettingsModal" class="modal">
-        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
                     <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">💳 Payment Settings</h3>
@@ -11256,16 +11256,102 @@ Local honey and preserves"></textarea>
             </div>
             <div class="modal-body" style="padding: 1.5rem;">
                 <input type="hidden" id="payment-settings-property-id">
+                <input type="hidden" id="payment-settings-account-id">
                 
-                <!-- Enable/Disable -->
-                <div class="form-group" style="margin-bottom: 1.5rem;">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 1rem;">
-                        <input type="checkbox" id="payment-enabled" style="width: 20px; height: 20px;" checked>
-                        <strong>Enable Online Payments</strong>
-                    </label>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0 0 1.75rem;">
-                        Allow guests to pay deposits and balances online
-                    </p>
+                <!-- Payment Provider Selection -->
+                <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #c7d2fe;">
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; color: #4338ca;">🏦 Payment Provider</h4>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <!-- Stripe -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="provider-stripe-label">
+                            <input type="radio" name="payment-provider" value="stripe" id="payment-provider-stripe" style="width: 18px; height: 18px;" checked>
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" style="height: 24px;">
+                            <span style="flex: 1; font-weight: 500;">Stripe</span>
+                            <span style="font-size: 0.75rem; background: #10b981; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Recommended</span>
+                        </label>
+                        
+                        <!-- PayPal -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="provider-paypal-label">
+                            <input type="radio" name="payment-provider" value="paypal" id="payment-provider-paypal" style="width: 18px; height: 18px;" disabled>
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" style="height: 24px;">
+                            <span style="flex: 1; font-weight: 500;">PayPal</span>
+                            <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
+                        </label>
+                        
+                        <!-- Airwallex -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="provider-airwallex-label">
+                            <input type="radio" name="payment-provider" value="airwallex" id="payment-provider-airwallex" style="width: 18px; height: 18px;" disabled>
+                            <span style="font-weight: 600; color: #e11d48;">Airwallex</span>
+                            <span style="flex: 1;"></span>
+                            <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Stripe API Keys Section -->
+                <div id="stripe-keys-section" style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; font-size: 0.95rem;">🔑 Stripe API Keys</h4>
+                        <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="font-size: 0.8rem; color: var(--accent);">
+                            Get keys from Stripe Dashboard →
+                        </a>
+                    </div>
+                    
+                    <div id="stripe-keys-status" style="margin-bottom: 1rem; padding: 0.75rem; border-radius: 8px; display: none;">
+                        <!-- Status will be shown here -->
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Publishable Key</label>
+                        <input type="text" class="form-input" id="stripe-publishable-key" placeholder="pk_live_... or pk_test_...">
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            Starts with pk_live_ (production) or pk_test_ (testing)
+                        </p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Secret Key</label>
+                        <input type="password" class="form-input" id="stripe-secret-key" placeholder="sk_live_... or sk_test_...">
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            Starts with sk_live_ (production) or sk_test_ (testing)
+                        </p>
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="testStripeConnection()" style="font-size: 0.85rem;">
+                            🔍 Test Connection
+                        </button>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto; font-size: 0.85rem;">
+                            <input type="checkbox" id="stripe-test-mode" style="width: 16px; height: 16px;">
+                            Test Mode
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Generate Setup Link (for property owners) -->
+                <div style="background: #fef3c7; border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #fcd34d;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.25rem;">📧</span>
+                        <div style="flex: 1;">
+                            <strong style="font-size: 0.9rem;">Need to send to property owner?</strong>
+                            <p style="font-size: 0.8rem; color: #92400e; margin: 0.25rem 0 0 0;">
+                                Generate a secure link they can use to enter their own Stripe keys
+                            </p>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="generatePaymentSetupLink()" style="font-size: 0.8rem; white-space: nowrap;">
+                            🔗 Generate Link
+                        </button>
+                    </div>
+                    <div id="setup-link-result" style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: white; border-radius: 8px;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="text" id="setup-link-url" class="form-input" readonly style="flex: 1; font-size: 0.8rem;">
+                            <button type="button" class="btn btn-small" onclick="copySetupLink()" style="font-size: 0.75rem;">📋 Copy</button>
+                        </div>
+                        <p style="font-size: 0.75rem; color: #92400e; margin: 0.5rem 0 0 0;">
+                            Link expires in 72 hours
+                        </p>
+                    </div>
                 </div>
                 
                 <!-- Deposit Settings -->
@@ -11309,39 +11395,6 @@ Local honey and preserves"></textarea>
                         <option value="EUR">🇪🇺 EUR (€)</option>
                         <option value="CHF">🇨🇭 CHF</option>
                     </select>
-                </div>
-                
-                <!-- Payment Methods -->
-                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
-                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem;">💳 Payment Methods</h4>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="payment-method-card" checked style="width: 18px; height: 18px;">
-                            <span>Credit/Debit Card (via Stripe)</span>
-                        </label>
-                        <div id="stripe-connect-section" style="margin-left: 1.5rem; padding: 0.75rem; background: white; border-radius: 8px;">
-                            <div id="stripe-not-connected" style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="color: var(--error);">⚠️ Stripe not connected</span>
-                                <button type="button" class="btn btn-small" onclick="connectStripe()" style="font-size: 0.8rem;">
-                                    Connect Stripe
-                                </button>
-                            </div>
-                            <div id="stripe-connected" style="display: none; color: var(--success);">
-                                ✓ Stripe connected
-                            </div>
-                        </div>
-                        
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; opacity: 0.5;">
-                            <input type="checkbox" id="payment-method-paypal" disabled style="width: 18px; height: 18px;">
-                            <span>PayPal (coming soon)</span>
-                        </label>
-                        
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; opacity: 0.5;">
-                            <input type="checkbox" id="payment-method-bank" disabled style="width: 18px; height: 18px;">
-                            <span>Bank Transfer (coming soon)</span>
-                        </label>
-                    </div>
                 </div>
                 
                 <!-- Cancellation Policy -->
@@ -26967,40 +27020,71 @@ Local honey and preserves"></textarea>
             document.getElementById('payment-settings-property-name').textContent = propertyName;
             
             // Reset form
-            document.getElementById('payment-enabled').checked = true;
+            document.getElementById('payment-provider-stripe').checked = true;
+            document.getElementById('stripe-publishable-key').value = '';
+            document.getElementById('stripe-secret-key').value = '';
+            document.getElementById('stripe-test-mode').checked = false;
+            document.getElementById('stripe-keys-status').style.display = 'none';
+            document.getElementById('setup-link-result').style.display = 'none';
             document.getElementById('payment-deposit-type').value = 'percentage';
             document.getElementById('payment-deposit-amount').value = 25;
             document.getElementById('payment-balance-days').value = 14;
             document.getElementById('payment-currency').value = 'GBP';
-            document.getElementById('payment-method-card').checked = true;
             document.getElementById('payment-cancellation').value = '';
             
-            // Load existing settings
+            // Get property's account_id
+            try {
+                const propRes = await fetch(`/api/db/properties/${propertyId}`);
+                const propData = await propRes.json();
+                if (propData.success) {
+                    document.getElementById('payment-settings-account-id').value = propData.data.account_id;
+                }
+            } catch (e) {
+                console.error('Error getting property:', e);
+            }
+            
+            // Load existing payment configuration
+            try {
+                const response = await fetch(`/api/properties/${propertyId}/payment-configuration`);
+                const data = await response.json();
+                
+                if (data.success && data.configuration) {
+                    const config = data.configuration;
+                    
+                    // Show configured status
+                    const statusEl = document.getElementById('stripe-keys-status');
+                    if (config.is_enabled) {
+                        statusEl.innerHTML = '<span style="color: var(--success);">✅ Stripe connected and enabled</span>';
+                        statusEl.style.background = '#d1fae5';
+                        statusEl.style.display = 'block';
+                    }
+                    
+                    // Fill in publishable key (secret is hidden)
+                    if (config.credentials?.publishable_key) {
+                        document.getElementById('stripe-publishable-key').value = config.credentials.publishable_key;
+                        document.getElementById('stripe-secret-key').placeholder = '••••••••••••••••••••';
+                    }
+                    
+                    if (config.test_mode) {
+                        document.getElementById('stripe-test-mode').checked = true;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading payment config:', error);
+            }
+            
+            // Also load legacy payment settings
             try {
                 const response = await fetch(`/api/property/${propertyId}/payment-settings`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
                     const settings = data.data;
-                    document.getElementById('payment-enabled').checked = settings.payment_enabled !== false;
                     document.getElementById('payment-deposit-type').value = settings.deposit_type || 'percentage';
                     document.getElementById('payment-deposit-amount').value = settings.deposit_amount || 25;
                     document.getElementById('payment-balance-days').value = settings.balance_due_days || 14;
                     document.getElementById('payment-currency').value = settings.currency || 'GBP';
                     document.getElementById('payment-cancellation').value = settings.cancellation_policy || '';
-                    
-                    // Payment methods
-                    const methods = settings.accepted_methods || ['card'];
-                    document.getElementById('payment-method-card').checked = methods.includes('card');
-                    
-                    // Stripe status
-                    if (settings.stripe_connected) {
-                        document.getElementById('stripe-not-connected').style.display = 'none';
-                        document.getElementById('stripe-connected').style.display = 'block';
-                    } else {
-                        document.getElementById('stripe-not-connected').style.display = 'flex';
-                        document.getElementById('stripe-connected').style.display = 'none';
-                    }
                     
                     updateDepositSymbol();
                 }
@@ -27047,17 +27131,51 @@ Local honey and preserves"></textarea>
         
         async function savePaymentSettings() {
             const propertyId = document.getElementById('payment-settings-property-id').value;
+            const accountId = document.getElementById('payment-settings-account-id').value;
             
-            const acceptedMethods = [];
-            if (document.getElementById('payment-method-card').checked) acceptedMethods.push('card');
+            const publishableKey = document.getElementById('stripe-publishable-key').value.trim();
+            const secretKey = document.getElementById('stripe-secret-key').value.trim();
+            const testMode = document.getElementById('stripe-test-mode').checked;
             
+            // If Stripe keys provided, save to payment_configurations
+            if (publishableKey && secretKey) {
+                try {
+                    const configResponse = await fetch('/api/payment-configurations', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({
+                            account_id: parseInt(accountId),
+                            property_id: parseInt(propertyId),
+                            provider: 'stripe',
+                            credentials: {
+                                publishable_key: publishableKey,
+                                secret_key: secretKey
+                            },
+                            is_enabled: true,
+                            is_default: true,
+                            test_mode: testMode
+                        })
+                    });
+                    
+                    const configData = await configResponse.json();
+                    if (!configData.success) {
+                        showNotification('Error saving Stripe keys: ' + configData.error, 'error');
+                        return;
+                    }
+                } catch (error) {
+                    showNotification('Error saving Stripe configuration', 'error');
+                    return;
+                }
+            }
+            
+            // Save deposit/payment settings
             const settings = {
-                payment_enabled: document.getElementById('payment-enabled').checked,
+                payment_enabled: true,
                 deposit_type: document.getElementById('payment-deposit-type').value,
                 deposit_amount: parseFloat(document.getElementById('payment-deposit-amount').value) || 25,
                 balance_due_days: parseInt(document.getElementById('payment-balance-days').value) || 14,
                 currency: document.getElementById('payment-currency').value,
-                accepted_methods: acceptedMethods,
+                accepted_methods: ['card'],
                 cancellation_policy: document.getElementById('payment-cancellation').value
             };
             
@@ -27080,9 +27198,103 @@ Local honey and preserves"></textarea>
             }
         }
         
-        function connectStripe() {
-            // For now, just show a message - Stripe Connect implementation later
-            showNotification('Stripe Connect integration coming soon! Contact support for setup assistance.', 'info', 5000);
+        async function testStripeConnection() {
+            const secretKey = document.getElementById('stripe-secret-key').value.trim();
+            const publishableKey = document.getElementById('stripe-publishable-key').value.trim();
+            
+            if (!secretKey || !publishableKey) {
+                showNotification('Please enter both Publishable Key and Secret Key', 'warning');
+                return;
+            }
+            
+            const statusEl = document.getElementById('stripe-keys-status');
+            statusEl.innerHTML = '<span style="color: var(--text-secondary);">🔄 Testing connection...</span>';
+            statusEl.style.background = '#f1f5f9';
+            statusEl.style.display = 'block';
+            
+            try {
+                // Save temporarily to test
+                const propertyId = document.getElementById('payment-settings-property-id').value;
+                const accountId = document.getElementById('payment-settings-account-id').value;
+                
+                const response = await fetch('/api/payment-configurations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        account_id: parseInt(accountId),
+                        property_id: parseInt(propertyId),
+                        provider: 'stripe',
+                        credentials: {
+                            publishable_key: publishableKey,
+                            secret_key: secretKey
+                        },
+                        is_enabled: false  // Don't enable until explicitly saved
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Now test the connection
+                    const testResponse = await fetch(`/api/payment-configurations/${data.configuration.id}/test`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    });
+                    
+                    const testData = await testResponse.json();
+                    
+                    if (testData.success && testData.test_result?.success) {
+                        statusEl.innerHTML = '<span style="color: var(--success);">✅ Connection successful! Keys are valid.</span>';
+                        statusEl.style.background = '#d1fae5';
+                    } else {
+                        statusEl.innerHTML = `<span style="color: var(--error);">❌ ${testData.test_result?.message || testData.error}</span>`;
+                        statusEl.style.background = '#fee2e2';
+                    }
+                } else {
+                    statusEl.innerHTML = `<span style="color: var(--error);">❌ ${data.error}</span>`;
+                    statusEl.style.background = '#fee2e2';
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<span style="color: var(--error);">❌ Connection test failed</span>';
+                statusEl.style.background = '#fee2e2';
+            }
+        }
+        
+        async function generatePaymentSetupLink() {
+            const propertyId = document.getElementById('payment-settings-property-id').value;
+            const accountId = document.getElementById('payment-settings-account-id').value;
+            
+            try {
+                const response = await fetch('/api/payment-setup-tokens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        account_id: parseInt(accountId),
+                        property_id: parseInt(propertyId),
+                        provider: 'stripe',
+                        expires_hours: 72
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('setup-link-url').value = data.setup_url;
+                    document.getElementById('setup-link-result').style.display = 'block';
+                    showNotification('Setup link generated!', 'success');
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error generating link', 'error');
+            }
+        }
+        
+        function copySetupLink() {
+            const input = document.getElementById('setup-link-url');
+            input.select();
+            document.execCommand('copy');
+            showNotification('Link copied to clipboard!', 'success');
         }
 
         // Load client-facing billing page
