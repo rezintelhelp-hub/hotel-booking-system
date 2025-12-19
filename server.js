@@ -10845,7 +10845,8 @@ app.post('/api/db/book', async (req, res) => {
     // 3a. If room is linked to Beds24, push the booking
     if (beds24RoomId) {
       try {
-        const accessToken = await getBeds24AccessToken(pool);
+        // Use property-specific token lookup for GasSync connections
+        const accessToken = await getBeds24AccessTokenForProperty(pool, property_id, room_id);
         
         // Build payments array if deposit was paid
         const payments = [];
@@ -11509,6 +11510,69 @@ async function getBeds24AccessToken(pool) {
   
   console.log('Got Beds24 access token');
   return tokenResponse.data.token;
+}
+
+// Helper to get Beds24 access token for a specific property via GasSync
+// This looks up the correct connection based on the property/room
+async function getBeds24AccessTokenForProperty(pool, propertyId, roomId) {
+  try {
+    // First try to find via GasSync - look up connection from room -> property -> connection
+    let connectionResult;
+    
+    if (roomId) {
+      // Look up via room's GasSync connection
+      connectionResult = await pool.query(`
+        SELECT gsc.id, gsc.credentials, gsc.access_token, gsc.refresh_token
+        FROM gas_sync_connections gsc
+        JOIN gas_sync_properties gsp ON gsp.connection_id = gsc.id
+        JOIN gas_sync_room_types gsrt ON gsrt.sync_property_id = gsp.id
+        JOIN bookable_units bu ON bu.id = gsrt.gas_room_id
+        WHERE bu.id = $1 AND gsc.adapter_code = 'beds24'
+        LIMIT 1
+      `, [roomId]);
+    }
+    
+    // If not found via room, try via property
+    if ((!connectionResult || connectionResult.rows.length === 0) && propertyId) {
+      connectionResult = await pool.query(`
+        SELECT gsc.id, gsc.credentials, gsc.access_token, gsc.refresh_token
+        FROM gas_sync_connections gsc
+        JOIN gas_sync_properties gsp ON gsp.connection_id = gsc.id
+        WHERE gsp.gas_property_id = $1 AND gsc.adapter_code = 'beds24'
+        LIMIT 1
+      `, [propertyId]);
+    }
+    
+    if (connectionResult && connectionResult.rows.length > 0) {
+      const conn = connectionResult.rows[0];
+      const credentials = typeof conn.credentials === 'string' 
+        ? JSON.parse(conn.credentials) 
+        : conn.credentials;
+      
+      const refreshToken = conn.refresh_token || credentials?.refreshToken;
+      
+      if (refreshToken) {
+        console.log('Using GasSync connection refresh token for property:', propertyId);
+        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: { 'refreshToken': refreshToken }
+        });
+        
+        if (tokenResponse.data.token) {
+          console.log('Got Beds24 access token via GasSync connection');
+          return tokenResponse.data.token;
+        }
+      }
+    }
+    
+    // Fallback to global token
+    console.log('No GasSync connection found, falling back to global token');
+    return await getBeds24AccessToken(pool);
+    
+  } catch (error) {
+    console.error('Error getting Beds24 token for property:', error.message);
+    // Fallback to global token
+    return await getBeds24AccessToken(pool);
+  }
 }
 
 // Helper to get Beds24 connection info including account_id
