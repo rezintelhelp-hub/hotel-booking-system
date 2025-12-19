@@ -584,6 +584,14 @@ async function runMigrations() {
       console.log('ℹ️  prop_key column:', propKeyError.message);
     }
     
+    // Fix: Extend room_availability.source column to VARCHAR(50) if it's VARCHAR(20)
+    try {
+      await pool.query(`ALTER TABLE room_availability ALTER COLUMN source TYPE VARCHAR(50)`);
+      console.log('✅ room_availability.source extended to VARCHAR(50)');
+    } catch (sourceError) {
+      console.log('ℹ️  source column:', sourceError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -17529,6 +17537,8 @@ app.post('/api/admin/migrate-availability', async (req, res) => {
       await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS direct_price DECIMAL(10,2)');
       await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS direct_discount_percent INTEGER');
       await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT \'manual\'');
+      // Extend source column to VARCHAR(50) if it's too short
+      await client.query('ALTER TABLE room_availability ALTER COLUMN source TYPE VARCHAR(50)').catch(() => {});
       // Migrate old price column to cm_price
       await client.query('UPDATE room_availability SET cm_price = price WHERE cm_price IS NULL AND price IS NOT NULL');
     } catch (e) {
@@ -19127,7 +19137,7 @@ app.post('/api/webhooks/beds24', async (req, res) => {
               // Re-open the dates (only if source was webhook)
               await client.query(`
                 UPDATE room_availability 
-                SET is_available = true, is_blocked = false, source = 'beds24_webhook_cancel', updated_at = NOW()
+                SET is_available = true, is_blocked = false, source = 'beds24_cancel', updated_at = NOW()
                 WHERE room_id = $1 AND date = $2 AND source LIKE 'beds24%'
               `, [ourRoomId, dateStr]);
             } else {
