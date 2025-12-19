@@ -20785,12 +20785,14 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availMap[dateStr];
       
-      const dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked) : true;
       const dayPrice = dayData?.price || basePrice;
+      // Day is unavailable if: explicitly unavailable, blocked, OR no price set
+      const hasPrice = dayPrice && parseFloat(dayPrice) > 0;
+      const dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked && hasPrice) : (basePrice > 0);
       
       calendar.push({
         date: dateStr,
-        price: parseFloat(dayPrice),
+        price: parseFloat(dayPrice) || 0,
         available: dayAvailable,
         min_stay: dayData?.min_stay || 1
       });
