@@ -17929,7 +17929,6 @@ app.get('/api/availability/:roomId', async (req, res) => {
       `);
       
       const allCols = columnsResult.rows.map(r => r.column_name);
-      console.log('Bookings table columns:', allCols.join(', '));
       
       // Find check-in column
       let checkInCol = allCols.find(c => c === 'check_in') ||
@@ -17951,16 +17950,12 @@ app.get('/api/availability/:roomId', async (req, res) => {
                       allCols.find(c => c === 'unit_id');
       
       if (!checkInCol || !checkOutCol) {
-        console.log('Could not find check-in/out columns. Available:', allCols.join(', '));
         throw new Error('Booking columns not found');
       }
       
       if (!roomIdCol) {
-        console.log('Could not find room ID column. Skipping bookings.');
         throw new Error('Room ID column not found');
       }
-      
-      console.log(`Using columns: ${roomIdCol}, ${checkInCol}, ${checkOutCol}`);
       
       const bookings = await pool.query(`
         SELECT 
@@ -27600,129 +27595,15 @@ setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
 
-// Schedule GasSync availability sync every 15 minutes
+// OLD GasSync availability sync - DISABLED (replaced by tiered sync)
+// This was causing "column name does not exist" error
+// The tiered sync (startTieredSyncScheduler) now handles all availability syncing
+/*
 async function runGasSyncAvailabilitySync() {
-  try {
-    console.log('⏰ [Scheduled] Starting GasSync availability sync...');
-    
-    // Ensure room_availability table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS room_availability (
-        id SERIAL PRIMARY KEY,
-        room_id INTEGER NOT NULL,
-        date DATE NOT NULL,
-        cm_price DECIMAL(10,2),
-        direct_price DECIMAL(10,2),
-        is_available BOOLEAN DEFAULT true,
-        is_blocked BOOLEAN DEFAULT false,
-        min_stay INTEGER DEFAULT 1,
-        max_stay INTEGER,
-        source VARCHAR(50),
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(room_id, date)
-      )
-    `);
-    
-    // Get all active GasSync connections
-    const connections = await pool.query(`
-      SELECT id, name, adapter_code FROM gas_sync_connections WHERE status = 'active'
-    `);
-    
-    for (const conn of connections.rows) {
-      if (conn.adapter_code === 'beds24') {
-        try {
-          // Call the availability sync endpoint internally
-          const propsResult = await pool.query(`
-            SELECT sp.id, sp.external_id, sp.name, sp.prop_key, sp.gas_property_id
-            FROM gas_sync_properties sp
-            WHERE sp.connection_id = $1 AND sp.prop_key IS NOT NULL AND sp.gas_property_id IS NOT NULL
-          `, [conn.id]);
-          
-          if (propsResult.rows.length === 0) continue;
-          
-          // Get access token
-          const connData = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [conn.id]);
-          const credentials = typeof connData.rows[0].credentials === 'string' 
-            ? JSON.parse(connData.rows[0].credentials) 
-            : connData.rows[0].credentials;
-          
-          const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-            refreshToken: credentials.refreshToken
-          });
-          const accessToken = tokenResponse.data.token;
-          
-          // Calculate date range (30 days for quick sync)
-          const startDate = new Date().toISOString().split('T')[0];
-          const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          
-          let roomsSynced = 0;
-          
-          for (const prop of propsResult.rows) {
-            // Get rooms for this property
-            const roomsResult = await pool.query(`
-              SELECT rt.external_id as beds24_room_id, bu.id as gas_room_id
-              FROM gas_sync_room_types rt
-              JOIN bookable_units bu ON bu.cm_room_id = rt.external_id::text
-              WHERE rt.sync_property_id = $1 AND bu.property_id = $2
-            `, [prop.id, prop.gas_property_id]);
-            
-            if (roomsResult.rows.length === 0) continue;
-            
-            // Rate limit
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            const calendarResponse = await axios.post('https://beds24.com/api/v2/inventory/rooms/calendar', {
-              propertyId: parseInt(prop.external_id),
-              startDate,
-              endDate
-            }, {
-              headers: { 'token': accessToken, 'Content-Type': 'application/json' }
-            });
-            
-            const calendarData = calendarResponse.data;
-            if (calendarData && Array.isArray(calendarData)) {
-              for (const roomCal of calendarData) {
-                const beds24RoomId = roomCal.roomId?.toString();
-                const matchedRoom = roomsResult.rows.find(r => r.beds24_room_id?.toString() === beds24RoomId);
-                if (!matchedRoom) continue;
-                
-                const days = roomCal.days || roomCal.calendar || [];
-                for (const day of days) {
-                  const price = parseFloat(day.price) || parseFloat(day.price1) || null;
-                  const isAvailable = day.numAvail > 0 || day.available === true;
-                  const isBlocked = day.closed === true || day.numAvail === 0;
-                  const minStay = day.minStay || 1;
-                  
-                  await pool.query(`
-                    INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'beds24', NOW())
-                    ON CONFLICT (room_id, date) 
-                    DO UPDATE SET cm_price = EXCLUDED.cm_price, is_available = EXCLUDED.is_available, 
-                      is_blocked = EXCLUDED.is_blocked, min_stay = EXCLUDED.min_stay, updated_at = NOW()
-                  `, [matchedRoom.gas_room_id, day.date, price, isAvailable, isBlocked, minStay]);
-                }
-                roomsSynced++;
-              }
-            }
-          }
-          
-          console.log(`⏰ [Scheduled] GasSync availability: ${conn.name} - ${roomsSynced} rooms synced`);
-          
-        } catch (connError) {
-          console.error(`⏰ [Scheduled] GasSync availability error for ${conn.name}:`, connError.message);
-        }
-      }
-    }
-    
-    console.log('⏰ [Scheduled] GasSync availability sync complete');
-  } catch (error) {
-    console.error('⏰ [Scheduled] GasSync availability sync error:', error.message);
-  }
+  // ... disabled - using tiered sync instead
 }
-
-// Run GasSync availability sync every 15 minutes
 setInterval(runGasSyncAvailabilitySync, 15 * 60 * 1000);
+*/
 
 // Run initial Beds24 sync 60 seconds after startup
 setTimeout(() => {
@@ -29840,9 +29721,12 @@ async function runTieredSync() {
             const calendarData = calResponse.data.data?.[0]?.calendar || [];
             let daysUpdated = 0;
             
-            // If V2 calendar is empty and we have V1 credentials, try V1 getPrice fallback
-            if (calendarData.length === 0 && v1ApiKey && propKey) {
-              console.log(`  📦 ${room.name}: V2 empty, trying V1 getPrice fallback...`);
+            // Check if V2 returned any prices (not just availability)
+            const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
+            
+            // If V2 has no prices and we have V1 credentials, try V1 getPrice fallback
+            if (!hasAnyPrices && v1ApiKey && propKey) {
+              console.log(`  📦 ${room.name}: V2 returned no prices, trying V1 getPrice fallback...`);
               
               // V1 getPrice endpoint - gets calculated price for specific dates
               try {
