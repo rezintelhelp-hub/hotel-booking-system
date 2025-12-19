@@ -6859,6 +6859,9 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS allowed_checkout_days VARCHAR(20) DEFAULT '0,1,2,3,4,5,6'`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS min_nights INTEGER DEFAULT 1`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS max_nights INTEGER`);
+    // Add array columns for multi-select property/room targeting
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
     
     // Create vouchers table
     await pool.query(`
@@ -15290,6 +15293,7 @@ app.post('/api/admin/offers', async (req, res) => {
   try {
     const {
       name, description, property_id, room_id,
+      property_ids, room_ids,
       discount_type, discount_value, applies_to,
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
@@ -15300,7 +15304,30 @@ app.post('/api/admin/offers', async (req, res) => {
     
     let result;
     try {
-      // Try with new columns
+      // Try with array columns
+      result = await pool.query(`
+        INSERT INTO offers (
+          name, description, property_id, room_id, property_ids, room_ids,
+          discount_type, discount_value, applies_to,
+          min_nights, max_nights, min_guests, max_guests,
+          min_advance_days, max_advance_days,
+          valid_from, valid_until, valid_days_of_week,
+          allowed_checkin_days, allowed_checkout_days,
+          stackable, priority, active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        RETURNING *
+      `, [
+        name, description, property_id || null, room_id || null,
+        property_ids || null, room_ids || null,
+        discount_type || 'percentage', discount_value, applies_to || 'standard_price',
+        min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
+        min_advance_days || null, max_advance_days || null,
+        valid_from || null, valid_until || null, valid_days_of_week || null,
+        allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
+        stackable || false, priority || 0, active !== false
+      ]);
+    } catch (colErr) {
+      // Fallback without array columns
       result = await pool.query(`
         INSERT INTO offers (
           name, description, property_id, room_id,
@@ -15321,20 +15348,7 @@ app.post('/api/admin/offers', async (req, res) => {
         allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
         stackable || false, priority || 0, active !== false
       ]);
-    } catch (colErr) {
-      // Fallback without new columns
-      result = await pool.query(`
-        INSERT INTO offers (
-          name, description, property_id, room_id,
-          discount_type, discount_value, applies_to,
-          min_nights, max_nights, min_guests, max_guests,
-          min_advance_days, max_advance_days,
-          valid_from, valid_until, valid_days_of_week,
-          stackable, priority, active
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-        RETURNING *
-      `, [
-        name, description, property_id || null, room_id || null,
+    }
         discount_type || 'percentage', discount_value, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
@@ -15354,48 +15368,90 @@ app.put('/api/admin/offers/:id', async (req, res) => {
   try {
     const {
       name, description, property_id, room_id,
+      property_ids, room_ids,
       discount_type, discount_value, applies_to,
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
-      stackable, priority, active
+      stackable, priority, active,
+      available_website, available_agents
     } = req.body;
     
     let result;
     try {
-      // Try with new columns
+      // Try with array columns
       result = await pool.query(`
         UPDATE offers SET
-          name = $1, description = $2, property_id = $3, room_id = $4,
-          discount_type = $5, discount_value = $6, applies_to = $7,
-          min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
-          min_advance_days = $12, max_advance_days = $13,
-          valid_from = $14, valid_until = $15, valid_days_of_week = $16,
-          allowed_checkin_days = $17, allowed_checkout_days = $18,
-          stackable = $19, priority = $20, active = $21, updated_at = NOW()
-        WHERE id = $22
+          name = COALESCE($1, name), 
+          description = COALESCE($2, description), 
+          property_id = $3, 
+          room_id = $4,
+          property_ids = $5,
+          room_ids = $6,
+          discount_type = COALESCE($7, discount_type), 
+          discount_value = COALESCE($8, discount_value), 
+          applies_to = COALESCE($9, applies_to),
+          min_nights = COALESCE($10, min_nights), 
+          max_nights = $11, 
+          min_guests = $12, 
+          max_guests = $13,
+          min_advance_days = $14, 
+          max_advance_days = $15,
+          valid_from = $16, 
+          valid_until = $17, 
+          valid_days_of_week = $18,
+          allowed_checkin_days = COALESCE($19, allowed_checkin_days), 
+          allowed_checkout_days = COALESCE($20, allowed_checkout_days),
+          stackable = COALESCE($21, stackable), 
+          priority = COALESCE($22, priority), 
+          active = COALESCE($23, active),
+          available_website = COALESCE($24, available_website),
+          available_agents = COALESCE($25, available_agents),
+          updated_at = NOW()
+        WHERE id = $26
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
+        property_ids || null, room_ids || null,
         discount_type, discount_value, applies_to,
         min_nights, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
-        allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
-        stackable, priority, active, req.params.id
+        allowed_checkin_days, allowed_checkout_days,
+        stackable, priority, active,
+        available_website, available_agents,
+        req.params.id
       ]);
     } catch (colErr) {
-      // Fallback without new columns
+      // Fallback without array columns
       result = await pool.query(`
         UPDATE offers SET
-          name = $1, description = $2, property_id = $3, room_id = $4,
-          discount_type = $5, discount_value = $6, applies_to = $7,
-          min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
-          min_advance_days = $12, max_advance_days = $13,
-          valid_from = $14, valid_until = $15, valid_days_of_week = $16,
-          stackable = $17, priority = $18, active = $19, updated_at = NOW()
-        WHERE id = $20
+          name = COALESCE($1, name), 
+          description = COALESCE($2, description), 
+          property_id = $3, 
+          room_id = $4,
+          discount_type = COALESCE($5, discount_type), 
+          discount_value = COALESCE($6, discount_value), 
+          applies_to = COALESCE($7, applies_to),
+          min_nights = COALESCE($8, min_nights), 
+          max_nights = $9, 
+          min_guests = $10, 
+          max_guests = $11,
+          min_advance_days = $12, 
+          max_advance_days = $13,
+          valid_from = $14, 
+          valid_until = $15, 
+          valid_days_of_week = $16,
+          allowed_checkin_days = COALESCE($17, allowed_checkin_days), 
+          allowed_checkout_days = COALESCE($18, allowed_checkout_days),
+          stackable = COALESCE($19, stackable), 
+          priority = COALESCE($20, priority), 
+          active = COALESCE($21, active),
+          available_website = COALESCE($22, available_website),
+          available_agents = COALESCE($23, available_agents),
+          updated_at = NOW()
+        WHERE id = $24
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -15403,7 +15459,10 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         min_nights, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
-        stackable, priority, active, req.params.id
+        allowed_checkin_days, allowed_checkout_days,
+        stackable, priority, active,
+        available_website, available_agents,
+        req.params.id
       ]);
     }
     
