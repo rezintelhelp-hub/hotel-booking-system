@@ -3852,7 +3852,15 @@ app.get('/api/admin/accounts', async (req, res) => {
           p.name as parent_name,
           m.name as managed_by_name,
           (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+          (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+           JOIN properties prop ON pc.property_id = prop.id 
+           WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+          (SELECT COUNT(*) FROM properties prop 
+           WHERE prop.account_id = a.id 
+           AND (prop.stripe_enabled = true OR EXISTS (
+             SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+           ))) as stripe_properties_count
         FROM accounts a
         LEFT JOIN accounts p ON a.parent_id = p.id
         LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -3882,7 +3890,15 @@ app.get('/api/admin/accounts', async (req, res) => {
             p.name as parent_name,
             m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+            (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+             JOIN properties prop ON pc.property_id = prop.id 
+             WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+            (SELECT COUNT(*) FROM properties prop 
+             WHERE prop.account_id = a.id 
+             AND (prop.stripe_enabled = true OR EXISTS (
+               SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+             ))) as stripe_properties_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
           LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -3902,7 +3918,15 @@ app.get('/api/admin/accounts', async (req, res) => {
             p.name as parent_name,
             m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+            (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+             JOIN properties prop ON pc.property_id = prop.id 
+             WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+            (SELECT COUNT(*) FROM properties prop 
+             WHERE prop.account_id = a.id 
+             AND (prop.stripe_enabled = true OR EXISTS (
+               SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+             ))) as stripe_properties_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
           LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -3924,7 +3948,15 @@ app.get('/api/admin/accounts', async (req, res) => {
             p.name as parent_name,
             m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+            (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+             JOIN properties prop ON pc.property_id = prop.id 
+             WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+            (SELECT COUNT(*) FROM properties prop 
+             WHERE prop.account_id = a.id 
+             AND (prop.stripe_enabled = true OR EXISTS (
+               SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+             ))) as stripe_properties_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
           LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -3939,7 +3971,15 @@ app.get('/api/admin/accounts', async (req, res) => {
           p.name as parent_name,
           m.name as managed_by_name,
           (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+          (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+           JOIN properties prop ON pc.property_id = prop.id 
+           WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+          (SELECT COUNT(*) FROM properties prop 
+           WHERE prop.account_id = a.id 
+           AND (prop.stripe_enabled = true OR EXISTS (
+             SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+           ))) as stripe_properties_count
         FROM accounts a
         LEFT JOIN accounts p ON a.parent_id = p.id
         LEFT JOIN accounts m ON a.managed_by_id = m.id
