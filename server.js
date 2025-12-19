@@ -613,6 +613,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS single_discount_value DECIMAL(10,2) DEFAULT 0`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge_type VARCHAR(10) DEFAULT 'fixed'`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge DECIMAL(10,2) DEFAULT 0`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS children_allowed BOOLEAN DEFAULT true`);
       console.log('✅ Occupancy pricing columns ensured on bookable_units');
     } catch (occError) {
       console.log('ℹ️  Occupancy columns:', occError.message);
@@ -19943,6 +19944,7 @@ app.get('/api/rooms/:id/occupancy-settings', async (req, res) => {
         bu.single_discount_value,
         bu.child_charge_type,
         bu.child_charge,
+        bu.children_allowed,
         p.child_max_age
       FROM bookable_units bu
       JOIN properties p ON bu.property_id = p.id
@@ -19972,7 +19974,8 @@ app.put('/api/rooms/:id/occupancy-settings', async (req, res) => {
       single_discount_type,
       single_discount_value,
       child_charge_type,
-      child_charge
+      child_charge,
+      children_allowed
     } = req.body;
     
     const result = await pool.query(`
@@ -19985,8 +19988,9 @@ app.put('/api/rooms/:id/occupancy-settings', async (req, res) => {
         single_discount_value = COALESCE($6, single_discount_value),
         child_charge_type = COALESCE($7, child_charge_type),
         child_charge = COALESCE($8, child_charge),
+        children_allowed = COALESCE($9, children_allowed),
         updated_at = NOW()
-      WHERE id = $9
+      WHERE id = $10
       RETURNING *
     `, [
       pricing_mode,
@@ -19997,6 +20001,7 @@ app.put('/api/rooms/:id/occupancy-settings', async (req, res) => {
       single_discount_value,
       child_charge_type,
       child_charge,
+      children_allowed,
       roomId
     ]);
     
@@ -21766,6 +21771,56 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
   }
 });
 
+// Get occupancy settings for a room (PUBLIC API - for booking widget)
+app.get('/api/public/rooms/:roomId/occupancy-settings', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        bu.id,
+        bu.name,
+        bu.max_guests,
+        bu.max_adults,
+        bu.pricing_mode,
+        bu.base_occupancy,
+        bu.extra_adult_type,
+        bu.extra_adult_charge,
+        bu.single_discount_type,
+        bu.single_discount_value,
+        bu.child_charge_type,
+        bu.child_charge,
+        bu.children_allowed,
+        p.child_max_age,
+        p.currency
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    const room = result.rows[0];
+    const currencySymbol = getCurrencySymbol(room.currency);
+    
+    res.json({ 
+      success: true, 
+      data: {
+        ...room,
+        currency_symbol: currencySymbol,
+        // Calculate max adults and children for dropdowns
+        max_adults: room.max_adults || room.max_guests || 4,
+        max_children: room.children_allowed !== false ? Math.max(0, (room.max_guests || 4) - 1) : 0
+      }
+    });
+  } catch (error) {
+    console.error('Public occupancy settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get availability calendar (public)
 app.get('/api/public/availability/:unitId', async (req, res) => {
   try {
@@ -21859,7 +21914,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
 // Calculate price for dates (public) - supports offers, vouchers, upsells
 app.post('/api/public/calculate-price', async (req, res) => {
   try {
-    const { unit_id, check_in, check_out, guests, voucher_code, upsells } = req.body;
+    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells } = req.body;
     
     if (!unit_id || !check_in || !check_out) {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
@@ -21867,15 +21922,21 @@ app.post('/api/public/calculate-price', async (req, res) => {
     
     // Get availability for date range
     const availability = await pool.query(`
-      SELECT date, COALESCE(direct_price, cm_price) as price, is_available, is_blocked
+      SELECT date, COALESCE(standard_price, direct_price, cm_price) as price, is_available, is_blocked
       FROM room_availability
       WHERE room_id = $1 AND date >= $2 AND date < $3
       ORDER BY date
     `, [unit_id, check_in, check_out]);
     
-    // Get unit for base price
+    // Get unit with occupancy settings
     const unit = await pool.query(`
-      SELECT bu.base_price, bu.max_guests, bu.name, p.currency 
+      SELECT bu.base_price, bu.max_guests, bu.name, 
+             bu.pricing_mode, bu.base_occupancy, 
+             bu.extra_adult_type, bu.extra_adult_charge,
+             bu.single_discount_type, bu.single_discount_value,
+             bu.child_charge_type, bu.child_charge,
+             bu.children_allowed,
+             p.currency, p.child_max_age
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -21885,8 +21946,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
-    const basePrice = unit.rows[0].base_price || 0;
-    const currency = unit.rows[0].currency || 'GBP';
+    const roomData = unit.rows[0];
+    const basePrice = roomData.base_price || 0;
+    const currency = roomData.currency || 'GBP';
+    
+    // Parse guests - support both old (guests) and new (adults + children) format
+    const numAdults = parseInt(adults) || parseInt(guests) || 2;
+    const numChildren = parseInt(children) || 0;
+    const totalGuests = numAdults + numChildren;
     
     // Calculate nights
     const checkInDate = new Date(check_in);
@@ -21897,18 +21964,63 @@ app.post('/api/public/calculate-price', async (req, res) => {
       return res.json({ success: false, error: 'Invalid date range' });
     }
     
-    // Build nightly breakdown
+    // Build nightly breakdown with occupancy adjustments
     const nightlyBreakdown = [];
     let accommodationTotal = 0;
+    let occupancyAdjustmentTotal = 0;
     let allAvailable = true;
+    
+    // Occupancy settings
+    const pricingMode = roomData.pricing_mode || 'per_room';
+    const baseOccupancy = parseInt(roomData.base_occupancy) || 2;
+    const extraAdultType = roomData.extra_adult_type || 'fixed';
+    const extraAdultCharge = parseFloat(roomData.extra_adult_charge) || 0;
+    const singleDiscountType = roomData.single_discount_type || 'fixed';
+    const singleDiscountValue = parseFloat(roomData.single_discount_value) || 0;
+    const childChargeType = roomData.child_charge_type || 'free';
+    const childCharge = parseFloat(roomData.child_charge) || 0;
     
     let current = new Date(check_in);
     for (let i = 0; i < nights; i++) {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === dateStr);
       
-      const nightPrice = dayData?.price || basePrice;
-      accommodationTotal += parseFloat(nightPrice);
+      let nightPrice = parseFloat(dayData?.price || basePrice);
+      let nightOccupancyAdjustment = 0;
+      
+      // Apply occupancy pricing if enabled
+      if (pricingMode === 'per_occupancy') {
+        // Single occupancy discount
+        if (numAdults === 1 && singleDiscountValue > 0) {
+          if (singleDiscountType === 'percent') {
+            nightOccupancyAdjustment = -(nightPrice * singleDiscountValue / 100);
+          } else {
+            nightOccupancyAdjustment = -singleDiscountValue;
+          }
+        }
+        // Extra adult charge
+        else if (numAdults > baseOccupancy && extraAdultCharge > 0) {
+          const extraAdults = numAdults - baseOccupancy;
+          if (extraAdultType === 'percent') {
+            nightOccupancyAdjustment = nightPrice * (extraAdultCharge / 100) * extraAdults;
+          } else {
+            nightOccupancyAdjustment = extraAdultCharge * extraAdults;
+          }
+        }
+        
+        // Child charges
+        if (numChildren > 0 && childChargeType !== 'free' && childCharge > 0) {
+          if (childChargeType === 'percent') {
+            nightOccupancyAdjustment += nightPrice * (childCharge / 100) * numChildren;
+          } else {
+            nightOccupancyAdjustment += childCharge * numChildren;
+          }
+        }
+      }
+      
+      const adjustedNightPrice = nightPrice + nightOccupancyAdjustment;
+      accommodationTotal += adjustedNightPrice;
+      occupancyAdjustmentTotal += nightOccupancyAdjustment;
       
       if (dayData && (!dayData.is_available || dayData.is_blocked)) {
         allAvailable = false;
@@ -21916,10 +22028,26 @@ app.post('/api/public/calculate-price', async (req, res) => {
       
       nightlyBreakdown.push({
         date: dateStr,
-        price: parseFloat(nightPrice)
+        base_price: nightPrice,
+        occupancy_adjustment: nightOccupancyAdjustment,
+        price: adjustedNightPrice
       });
       
       current.setDate(current.getDate() + 1);
+    }
+    
+    // Build occupancy label for display
+    let occupancyLabel = '';
+    if (occupancyAdjustmentTotal !== 0) {
+      if (occupancyAdjustmentTotal < 0) {
+        occupancyLabel = 'Single occupancy discount';
+      } else if (numAdults > baseOccupancy) {
+        occupancyLabel = `Extra guest charge (${numAdults - baseOccupancy} extra adult${numAdults - baseOccupancy > 1 ? 's' : ''})`;
+      }
+      if (numChildren > 0 && childChargeType !== 'free') {
+        if (occupancyLabel) occupancyLabel += ' + ';
+        occupancyLabel += `${numChildren} child${numChildren > 1 ? 'ren' : ''}`;
+      }
     }
     
     // Check for applicable offers
@@ -22136,7 +22264,13 @@ app.post('/api/public/calculate-price', async (req, res) => {
       availability_debug: availabilityDebug,
       currency: currency,
       nights: nights,
-      room_name: unit.rows[0].name,
+      room_name: roomData.name,
+      adults: numAdults,
+      children: numChildren,
+      total_guests: totalGuests,
+      pricing_mode: pricingMode,
+      occupancy_adjustment: occupancyAdjustmentTotal,
+      occupancy_label: occupancyLabel,
       accommodation_total: accommodationTotal,
       offer_discount: discount,
       offer_applied: offerApplied,
