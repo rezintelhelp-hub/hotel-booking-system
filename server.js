@@ -592,6 +592,16 @@ async function runMigrations() {
       console.log('ℹ️  source column:', sourceError.message);
     }
     
+    // Add property-level Stripe keys
+    try {
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_publishable_key TEXT`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
+      console.log('✅ Property Stripe keys columns ensured');
+    } catch (stripeError) {
+      console.log('ℹ️  Stripe columns:', stripeError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -5300,9 +5310,10 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
     try {
         const { propertyId } = req.params;
         
-        // Get property's account and check if Stripe is connected
+        // Get property's Stripe settings (property-level or account-level)
         const result = await pool.query(`
-            SELECT p.id, p.account_id, a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete
+            SELECT p.id, p.account_id, p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
+                   a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete
             FROM properties p
             JOIN accounts a ON p.account_id = a.id
             WHERE p.id = $1
@@ -5313,7 +5324,11 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         }
         
         const data = result.rows[0];
-        const stripeEnabled = !!(data.stripe_account_id && data.stripe_onboarding_complete);
+        
+        // Property-level Stripe takes priority
+        const hasPropertyStripe = data.stripe_enabled && data.stripe_publishable_key && data.stripe_secret_key;
+        const hasAccountStripe = !!(data.stripe_account_id && data.stripe_onboarding_complete);
+        const stripeEnabled = hasPropertyStripe || hasAccountStripe;
         
         // Get deposit rules for this property (or fall back to account-level rule)
         let depositRule = null;
@@ -5345,8 +5360,9 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         res.json({
             success: true,
             stripe_enabled: stripeEnabled,
-            stripe_publishable_key: stripeEnabled ? process.env.STRIPE_PUBLISHABLE_KEY : null,
-            stripe_account_id: stripeEnabled ? data.stripe_account_id : null,
+            stripe_type: hasPropertyStripe ? 'property' : (hasAccountStripe ? 'connect' : null),
+            stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null),
+            stripe_account_id: hasAccountStripe ? data.stripe_account_id : null,
             deposit_rule: depositRule
         });
         
@@ -5799,39 +5815,69 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
     try {
         const { property_id, amount, currency, booking_data } = req.body;
         
-        // Get property's Stripe account
+        // Get property's Stripe keys (property-level or fall back to account-level)
         const result = await pool.query(`
-            SELECT a.stripe_account_id 
+            SELECT p.stripe_secret_key, p.stripe_publishable_key, p.stripe_enabled,
+                   a.stripe_account_id
             FROM properties p
             JOIN accounts a ON p.account_id = a.id
-            WHERE p.id = $1 AND a.stripe_account_id IS NOT NULL
+            WHERE p.id = $1
         `, [property_id]);
         
         if (result.rows.length === 0) {
-            return res.status(400).json({ success: false, error: 'Property not configured for payments' });
+            return res.status(400).json({ success: false, error: 'Property not found' });
         }
         
-        const stripeAccountId = result.rows[0].stripe_account_id;
+        const prop = result.rows[0];
         
-        // Create payment intent on connected account
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(amount * 100), // Convert to cents
-            currency: (currency || 'gbp').toLowerCase(),
-            metadata: {
-                property_id: property_id,
-                guest_email: booking_data?.email || '',
-                check_in: booking_data?.check_in || '',
-                check_out: booking_data?.check_out || ''
-            }
-        }, {
-            stripeAccount: stripeAccountId
-        });
+        let paymentIntent;
         
-        res.json({
-            success: true,
-            client_secret: paymentIntent.client_secret,
-            payment_intent_id: paymentIntent.id
-        });
+        // Use property's own Stripe keys if configured
+        if (prop.stripe_enabled && prop.stripe_secret_key) {
+            const propertyStripe = new Stripe(prop.stripe_secret_key);
+            
+            paymentIntent = await propertyStripe.paymentIntents.create({
+                amount: Math.round(amount * 100),
+                currency: (currency || 'gbp').toLowerCase(),
+                metadata: {
+                    property_id: property_id,
+                    guest_email: booking_data?.email || '',
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            });
+            
+            res.json({
+                success: true,
+                client_secret: paymentIntent.client_secret,
+                payment_intent_id: paymentIntent.id,
+                publishable_key: prop.stripe_publishable_key
+            });
+        }
+        // Fall back to Stripe Connect if account has it
+        else if (prop.stripe_account_id) {
+            paymentIntent = await stripe.paymentIntents.create({
+                amount: Math.round(amount * 100),
+                currency: (currency || 'gbp').toLowerCase(),
+                metadata: {
+                    property_id: property_id,
+                    guest_email: booking_data?.email || '',
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            }, {
+                stripeAccount: prop.stripe_account_id
+            });
+            
+            res.json({
+                success: true,
+                client_secret: paymentIntent.client_secret,
+                payment_intent_id: paymentIntent.id
+            });
+        }
+        else {
+            return res.status(400).json({ success: false, error: 'Property not configured for payments. Please add Stripe keys in property settings.' });
+        }
         
     } catch (error) {
         console.error('Error creating payment intent:', error);
@@ -10618,6 +10664,66 @@ app.put('/api/db/properties/:id', async (req, res) => {
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     console.error('Update error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save property Stripe settings
+app.put('/api/properties/:id/stripe', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stripe_publishable_key, stripe_secret_key, stripe_enabled } = req.body;
+    
+    // Validate the keys if provided
+    if (stripe_secret_key && stripe_publishable_key) {
+      try {
+        // Test the secret key by making a simple API call
+        const testStripe = new Stripe(stripe_secret_key);
+        await testStripe.balance.retrieve();
+      } catch (stripeError) {
+        return res.json({ success: false, error: 'Invalid Stripe keys: ' + stripeError.message });
+      }
+    }
+    
+    const result = await pool.query(`
+      UPDATE properties 
+      SET stripe_publishable_key = $1,
+          stripe_secret_key = $2,
+          stripe_enabled = $3,
+          updated_at = NOW()
+      WHERE id = $4
+      RETURNING id, name, stripe_enabled
+    `, [stripe_publishable_key || null, stripe_secret_key || null, stripe_enabled || false, id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    console.log(`✅ Stripe settings saved for property ${id}`);
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    console.error('Save Stripe settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get property Stripe settings
+app.get('/api/properties/:id/stripe', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT id, name, stripe_publishable_key, stripe_enabled,
+             CASE WHEN stripe_secret_key IS NOT NULL THEN true ELSE false END as has_secret_key
+      FROM properties WHERE id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ success: true, stripe: result.rows[0] });
+  } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
