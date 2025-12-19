@@ -19134,11 +19134,11 @@ app.post('/api/webhooks/beds24', async (req, res) => {
             const dateStr = d.toISOString().split('T')[0];
             
             if (isCancelled) {
-              // Re-open the dates (only if source was webhook)
+              // Re-open the dates (include 'booking' source from GAS bookings)
               await client.query(`
                 UPDATE room_availability 
                 SET is_available = true, is_blocked = false, source = 'beds24_cancel', updated_at = NOW()
-                WHERE room_id = $1 AND date = $2 AND source LIKE 'beds24%'
+                WHERE room_id = $1 AND date = $2 AND source IN ('booking', 'beds24_sync', 'beds24_webhook', 'beds24_inventory', 'beds24_cancel')
               `, [ourRoomId, dateStr]);
             } else {
               // Block the dates
