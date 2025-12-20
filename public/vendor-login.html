@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vendor Portal | GAS</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --bg: #f8fafc;
+            --card-bg: #ffffff;
+            --text: #1e293b;
+            --text-muted: #64748b;
+            --border: #e2e8f0;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            padding: 1.5rem 2rem;
+        }
+
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+
+        .main {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+        }
+
+        .login-card {
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+            width: 100%;
+            max-width: 420px;
+            overflow: hidden;
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .card-header h1 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .card-header p {
+            opacity: 0.9;
+            font-size: 0.9rem;
+        }
+
+        .card-body {
+            padding: 2rem;
+        }
+
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            font-weight: 500;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.875rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            font-size: 1rem;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.875rem 1.5rem;
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(99, 102, 241, 0.4);
+        }
+
+        .btn:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #dc2626;
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-size: 0.9rem;
+            display: none;
+        }
+
+        .footer-link {
+            text-align: center;
+            margin-top: 1.5rem;
+            padding-top: 1.5rem;
+            border-top: 1px solid var(--border);
+        }
+
+        .footer-link a {
+            color: var(--primary);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        .footer-link a:hover {
+            text-decoration: underline;
+        }
+
+        /* Vendor Portal Dashboard Styles */
+        .portal-container {
+            display: none;
+            min-height: 100vh;
+            background: var(--bg);
+        }
+
+        .portal-header {
+            background: white;
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .portal-logo {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+
+        .vendor-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .vendor-name {
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .btn-logout {
+            padding: 0.5rem 1rem;
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.875rem;
+        }
+
+        .btn-logout:hover {
+            background: var(--bg);
+        }
+
+        .portal-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        .portal-title {
+            font-size: 1.5rem;
+            color: var(--text);
+            margin-bottom: 0.5rem;
+        }
+
+        .portal-subtitle {
+            color: var(--text-muted);
+            margin-bottom: 2rem;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid var(--border);
+        }
+
+        .stat-value {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--text);
+        }
+
+        .stat-label {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .requests-card {
+            background: white;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            overflow: hidden;
+        }
+
+        .requests-header {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .requests-header h2 {
+            font-size: 1.1rem;
+            color: var(--text);
+        }
+
+        .filter-select {
+            padding: 0.5rem 1rem;
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            font-size: 0.875rem;
+        }
+
+        .requests-list {
+            padding: 0;
+        }
+
+        .request-item {
+            padding: 1rem 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 1rem;
+            align-items: center;
+        }
+
+        .request-item:last-child {
+            border-bottom: none;
+        }
+
+        .request-service {
+            font-weight: 500;
+            color: var(--text);
+        }
+
+        .request-guest {
+            color: var(--text-muted);
+            font-size: 0.9rem;
+        }
+
+        .request-dates {
+            color: var(--text-muted);
+            font-size: 0.875rem;
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+
+        .badge-pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .badge-confirmed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .badge-completed {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .action-btns {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .btn-sm {
+            padding: 0.375rem 0.75rem;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            border: none;
+            cursor: pointer;
+        }
+
+        .btn-confirm {
+            background: var(--success);
+            color: white;
+        }
+
+        .btn-complete {
+            background: var(--primary);
+            color: white;
+        }
+
+        .empty-state {
+            padding: 3rem;
+            text-align: center;
+            color: var(--text-muted);
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        @media (max-width: 768px) {
+            .request-item {
+                grid-template-columns: 1fr;
+                gap: 0.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Login View -->
+    <div id="loginView">
+        <div class="header">
+            <a href="/home.html" class="logo">GAS</a>
+        </div>
+        
+        <div class="main">
+            <div class="login-card">
+                <div class="card-header">
+                    <h1>🤝 Vendor Portal</h1>
+                    <p>Access your service requests and booking details</p>
+                </div>
+                <div class="card-body">
+                    <div class="error-message" id="errorMessage"></div>
+                    
+                    <form id="loginForm" onsubmit="handleLogin(event)">
+                        <div class="form-group">
+                            <label class="form-label">Email Address</label>
+                            <input type="email" id="email" class="form-input" placeholder="your@email.com" required>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <input type="password" id="password" class="form-input" placeholder="Enter your password" required>
+                        </div>
+                        
+                        <button type="submit" class="btn" id="loginBtn">
+                            Sign In
+                        </button>
+                    </form>
+                    
+                    <div class="footer-link">
+                        <a href="/home.html">← Back to GAS</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Portal View (shown after login) -->
+    <div class="portal-container" id="portalView">
+        <div class="portal-header">
+            <div class="portal-logo">GAS Vendor Portal</div>
+            <div class="vendor-info">
+                <span class="vendor-name" id="vendorName">ABC Taxis</span>
+                <button class="btn-logout" onclick="handleLogout()">Sign Out</button>
+            </div>
+        </div>
+        
+        <div class="portal-content">
+            <h1 class="portal-title">Service Requests</h1>
+            <p class="portal-subtitle">View and manage your service requests from property guests</p>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="statPending">0</div>
+                    <div class="stat-label">Pending</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statConfirmed">0</div>
+                    <div class="stat-label">Confirmed</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="statCompleted">0</div>
+                    <div class="stat-label">Completed</div>
+                </div>
+            </div>
+            
+            <div class="requests-card">
+                <div class="requests-header">
+                    <h2>📋 Your Requests</h2>
+                    <select class="filter-select" id="statusFilter" onchange="loadRequests()">
+                        <option value="">All Requests</option>
+                        <option value="pending">Pending</option>
+                        <option value="confirmed">Confirmed</option>
+                        <option value="completed">Completed</option>
+                    </select>
+                </div>
+                <div class="requests-list" id="requestsList">
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>No service requests yet</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentVendor = null;
+
+        async function handleLogin(e) {
+            e.preventDefault();
+            
+            const email = document.getElementById('email').value;
+            const password = document.getElementById('password').value;
+            const btn = document.getElementById('loginBtn');
+            const errorEl = document.getElementById('errorMessage');
+            
+            btn.disabled = true;
+            btn.textContent = 'Signing in...';
+            errorEl.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/vendor/login', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email, password })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentVendor = data.vendor;
+                    localStorage.setItem('vendorToken', data.token);
+                    localStorage.setItem('vendorData', JSON.stringify(data.vendor));
+                    showPortal();
+                } else {
+                    errorEl.textContent = data.error || 'Invalid email or password';
+                    errorEl.style.display = 'block';
+                }
+            } catch (error) {
+                errorEl.textContent = 'Connection error. Please try again.';
+                errorEl.style.display = 'block';
+            }
+            
+            btn.disabled = false;
+            btn.textContent = 'Sign In';
+        }
+
+        function showPortal() {
+            document.getElementById('loginView').style.display = 'none';
+            document.getElementById('portalView').style.display = 'block';
+            document.body.style.background = 'var(--bg)';
+            
+            if (currentVendor) {
+                document.getElementById('vendorName').textContent = currentVendor.name;
+            }
+            
+            loadRequests();
+        }
+
+        function handleLogout() {
+            localStorage.removeItem('vendorToken');
+            localStorage.removeItem('vendorData');
+            currentVendor = null;
+            
+            document.getElementById('loginView').style.display = 'block';
+            document.getElementById('portalView').style.display = 'none';
+            document.body.style.background = 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)';
+        }
+
+        async function loadRequests() {
+            const token = localStorage.getItem('vendorToken');
+            if (!token) return;
+            
+            const status = document.getElementById('statusFilter').value;
+            
+            try {
+                let url = `/api/vendor/requests?token=${token}`;
+                if (status) url += `&status=${status}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderRequests(data.requests);
+                    updateStats(data.stats);
+                }
+            } catch (error) {
+                console.error('Error loading requests:', error);
+            }
+        }
+
+        function renderRequests(requests) {
+            const container = document.getElementById('requestsList');
+            
+            if (!requests || requests.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📭</div>
+                        <p>No service requests found</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = requests.map(r => `
+                <div class="request-item">
+                    <div>
+                        <div class="request-service">${r.service_name}</div>
+                        <div class="request-guest">${r.guest_name || 'Guest'} • Qty: ${r.quantity}</div>
+                    </div>
+                    <div class="request-dates">
+                        ${r.check_in ? new Date(r.check_in).toLocaleDateString() : ''} 
+                        ${r.check_out ? '- ' + new Date(r.check_out).toLocaleDateString() : ''}
+                    </div>
+                    <div>
+                        <span class="badge badge-${r.status}">${r.status}</span>
+                    </div>
+                    <div class="action-btns">
+                        ${r.status === 'pending' || r.status === 'notified' ? 
+                            `<button class="btn-sm btn-confirm" onclick="updateStatus(${r.id}, 'confirmed')">Confirm</button>` : ''}
+                        ${r.status === 'confirmed' ? 
+                            `<button class="btn-sm btn-complete" onclick="updateStatus(${r.id}, 'completed')">Complete</button>` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateStats(stats) {
+            if (stats) {
+                document.getElementById('statPending').textContent = stats.pending || 0;
+                document.getElementById('statConfirmed').textContent = stats.confirmed || 0;
+                document.getElementById('statCompleted').textContent = stats.completed || 0;
+            }
+        }
+
+        async function updateStatus(requestId, status) {
+            const token = localStorage.getItem('vendorToken');
+            if (!token) return;
+            
+            try {
+                const response = await fetch(`/api/vendor/requests/${requestId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ token, status })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadRequests();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Connection error');
+            }
+        }
+
+        // Check for existing session on load
+        document.addEventListener('DOMContentLoaded', () => {
+            const vendorData = localStorage.getItem('vendorData');
+            if (vendorData) {
+                try {
+                    currentVendor = JSON.parse(vendorData);
+                    showPortal();
+                } catch (e) {
+                    localStorage.removeItem('vendorData');
+                    localStorage.removeItem('vendorToken');
+                }
+            }
+        });
+    </script>
+</body>
+</html>
