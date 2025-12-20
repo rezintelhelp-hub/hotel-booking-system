@@ -750,11 +750,17 @@ CREATE INDEX idx_faqs_account ON faqs(account_id);
 - FAQPage schema injection (cached 1 hour)
 - Analytics scripts injection
 
-### Phase 2 - Content System (SEO Pro) ⬜ NEXT
-- [ ] Blog posts CRUD in GAS Admin
-- [ ] Blog sync to WordPress (or use GAS Blog plugin)
-- [ ] Attractions CRUD in GAS Admin
-- [ ] Attractions sync to WordPress (or use GAS Attractions plugin)
+### Phase 2 - Content System (SEO Pro) ✅ IN PROGRESS
+- [x] Blog posts CRUD in GAS Admin
+- [x] Blog modal with rich text formatting
+- [x] Blog categories
+- [x] Blog SEO fields (meta title/description)
+- [x] Attractions CRUD in GAS Admin
+- [x] Attractions modal with full fields
+- [x] Attractions categories
+- [x] Attractions SEO fields
+- [ ] Blog → WordPress sync (GAS Blog plugin)
+- [ ] Attractions → WordPress sync (GAS Attractions plugin)
 - [ ] Guides (lead magnets) system
 - [ ] Guide download with email capture
 - [ ] Basic contacts table (from guide downloads)
