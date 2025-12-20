@@ -29015,8 +29015,8 @@ Local honey and preserves"></textarea>
             const connected = document.getElementById('cm-connected');
             
             try {
-                // Get connections for current account
-                const response = await fetch(`/api/gas-sync/connections?account_id=${currentAccount?.id || ''}`, { headers: authHeaders() });
+                // Get all connections (don't filter by account - connections are typically at master level)
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (loading) loading.style.display = 'none';
