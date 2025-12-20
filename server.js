@@ -16168,8 +16168,8 @@ app.post('/api/admin/vendors', async (req, res) => {
     // Hash password if provided
     let passwordHash = null;
     if (password) {
-      const bcrypt = require('bcrypt');
-      passwordHash = await bcrypt.hash(password, 10);
+      const crypto = require('crypto');
+      passwordHash = crypto.createHash('sha256').update(password).digest('hex');
     }
     
     // Create vendor
@@ -16229,8 +16229,8 @@ app.put('/api/admin/vendors/:id', async (req, res) => {
     let params = [name, contact_name, email, phone, address, notes, login_email, status || 'active', req.params.id];
     
     if (password) {
-      const bcrypt = require('bcrypt');
-      const passwordHash = await bcrypt.hash(password, 10);
+      const crypto = require('crypto');
+      const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
       passwordUpdate = ', password_hash = $10';
       params.push(passwordHash);
     }
