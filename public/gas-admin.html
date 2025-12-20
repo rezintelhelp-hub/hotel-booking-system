@@ -20606,7 +20606,7 @@ Local honey and preserves"></textarea>
                         const isDiscount = offer.discount_value > 0;
                         const discountLabel = offer.discount_type === 'percentage' 
                             ? `${isDiscount ? '-' : '+'}${Math.abs(offer.discount_value)}%` 
-                            : `${isDiscount ? '-' : '+'}$${Math.abs(offer.discount_value)}`;
+                            : `${isDiscount ? '-' : '+'}${Math.abs(offer.discount_value)}`;
                         
                         html += `
                             <tr style="border-bottom: 1px solid var(--border);">
@@ -23417,12 +23417,12 @@ Local honey and preserves"></textarea>
                         discountBg = '#dcfce7';
                         break;
                     case 'fixed':
-                        discountText = `£${voucher.discount_value} Off`;
+                        discountText = `${voucher.discount_value} Off`;
                         discountColor = '#166534';
                         discountBg = '#dcfce7';
                         break;
                     case 'monetary':
-                        discountText = `£${voucher.discount_value} Credit`;
+                        discountText = `${voucher.discount_value} Credit`;
                         discountColor = '#7c3aed';
                         discountBg = '#ede9fe';
                         break;
@@ -23438,7 +23438,7 @@ Local honey and preserves"></textarea>
                         break;
                     default:
                         discountText = voucher.discount_type === 'fixed_amount' 
-                            ? `£${voucher.discount_value}` 
+                            ? `${voucher.discount_value}` 
                             : `${voucher.discount_value}%`;
                 }
                 
@@ -23834,7 +23834,7 @@ Local honey and preserves"></textarea>
                             <strong>${upsell.name}</strong>${vendorBadge}
                             ${upsell.description ? `<br><small style="color: var(--text-secondary);">${upsell.description}</small>` : ''}
                         </td>
-                        <td style="padding: 0.75rem; font-weight: 600; color: #059669;">$${parseFloat(upsell.price).toFixed(2)}</td>
+                        <td style="padding: 0.75rem; font-weight: 600; color: #059669;">${parseFloat(upsell.price).toFixed(2)}</td>
                         <td style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.9rem;">${chargeTypeLabels[upsell.charge_type] || upsell.charge_type}</td>
                         <td style="padding: 0.75rem; text-align: center;">
                             <span class="badge ${upsell.active ? 'badge-success' : 'badge-secondary'}">${upsell.active ? 'Active' : 'Inactive'}</span>
@@ -24387,7 +24387,7 @@ Local honey and preserves"></textarea>
                                         <tr style="border-bottom: 1px solid var(--border);">
                                             <td style="padding: 12px 8px;">
                                                 <strong>${r.service_name}</strong>
-                                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Qty: ${r.quantity} | £${parseFloat(r.total_price || 0).toFixed(2)}</div>
+                                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Qty: ${r.quantity} | ${parseFloat(r.total_price || 0).toFixed(2)}</div>
                                             </td>
                                             <td style="padding: 12px 8px;">${r.vendor_name || '-'}</td>
                                             <td style="padding: 12px 8px;">${r.guest_name || '-'}</td>
@@ -24515,7 +24515,7 @@ Local honey and preserves"></textarea>
             for (const fee of fees) {
                 const amountDisplay = fee.amount_type === 'percentage' 
                     ? `${fee.amount}%` 
-                    : `$${parseFloat(fee.amount).toFixed(2)}`;
+                    : `${parseFloat(fee.amount).toFixed(2)}`;
                     
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
