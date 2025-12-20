@@ -1506,10 +1506,6 @@
                         <span class="nav-icon">📅</span>
                         <span>Availability</span>
                     </a>
-                    <a class="nav-item client-connection" data-view="client-connection-view" href="#" onclick="navClick(this, 'client-connection-view'); return false;" style="display: none;">
-                        <span class="nav-icon">🔗</span>
-                        <span>Connection</span>
-                    </a>
                     </div>
                 </div>
 
@@ -1532,10 +1528,6 @@
                         <span class="nav-icon">🎁</span>
                         <span>Upsells</span>
                     </a>
-                    <a class="nav-item" data-view="vendors" href="#" onclick="navClick(this, 'vendors'); return false;">
-                        <span class="nav-icon">🤝</span>
-                        <span>Vendors</span>
-                    </a>
                     <a class="nav-item" data-view="taxes" href="#" onclick="navClick(this, 'taxes'); return false;">
                         <span class="nav-icon">🏛️</span>
                         <span>Taxes</span>
@@ -1557,16 +1549,6 @@
                     <a class="nav-item" data-view="marketing" href="#" onclick="navClick(this, 'marketing'); return false;">
                         <span class="nav-icon">📣</span>
                         <span>Features & Tags</span>
-                    </a>
-                    </div>
-                </div>
-
-                <div class="nav-section">
-                    <div class="nav-label" onclick="toggleNavSection(this)">SEO & Content</div>
-                    <div class="nav-section-items">
-                    <a class="nav-item" data-view="faqs" href="#" onclick="navClick(this, 'faqs'); return false;">
-                        <span class="nav-icon">❓</span>
-                        <span>FAQs</span>
                     </a>
                     </div>
                 </div>
@@ -1835,6 +1817,7 @@
                         <div class="category-links">
                             <span onclick="event.stopPropagation(); showView('availability')">Calendar</span>
                             <span onclick="event.stopPropagation(); showView('rateplans')">Rate Plans</span>
+                            <span onclick="event.stopPropagation(); showView('fees')">Fees</span>
                             <span onclick="event.stopPropagation(); showView('integrations')">Channels</span>
                         </div>
                     </div>
@@ -1851,6 +1834,7 @@
                             <span onclick="event.stopPropagation(); showView('marketing')">Features</span>
                             <span onclick="event.stopPropagation(); showView('upsells')">Upsells</span>
                             <span onclick="event.stopPropagation(); showView('wordpress')">Website</span>
+                            <span onclick="event.stopPropagation(); showView('content')">Content</span>
                         </div>
                     </div>
 
@@ -3347,68 +3331,6 @@
                 </div>
             </div>
 
-            <!-- Vendors View -->
-            <div id="vendors" class="view">
-                <div class="header">
-                    <div class="header-top">
-                        <div>
-                            <h2>External Vendors</h2>
-                            <p>Manage third-party service providers linked to your upsells and vouchers</p>
-                        </div>
-                        <button class="btn" onclick="openAddVendorModal()">
-                            <span>+</span>
-                            <span>Add Vendor</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Info Banner -->
-                <div class="card" style="background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%); border: 1px solid #93c5fd; margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: flex-start;">
-                        <div style="font-size: 1.5rem;">💡</div>
-                        <div>
-                            <h4 style="margin: 0 0 0.5rem 0; color: #1e40af;">How External Vendors Work</h4>
-                            <p style="margin: 0; color: #1e3a8a; font-size: 0.9rem;">
-                                When a guest purchases an upsell or voucher linked to an external vendor (like a taxi company or tour operator), 
-                                the vendor receives an email notification. They can then log in to view booking details and confirm the service.
-                            </p>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Vendors List -->
-                <div class="card">
-                    <div id="vendors-list">
-                        <div class="empty-state">
-                            <div class="empty-icon">🤝</div>
-                            <h3>No Vendors Configured</h3>
-                            <p>Add external vendors like taxi companies, tour operators, or local services</p>
-                            <button class="btn" onclick="openAddVendorModal()">Add Your First Vendor</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Service Requests Section -->
-                <div class="card" style="margin-top: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h3 style="margin: 0;">📋 Service Requests</h3>
-                        <select id="service-requests-filter" class="form-input" style="width: auto;" onchange="loadServiceRequests()">
-                            <option value="">All Statuses</option>
-                            <option value="pending">Pending</option>
-                            <option value="notified">Notified</option>
-                            <option value="confirmed">Confirmed</option>
-                            <option value="completed">Completed</option>
-                            <option value="cancelled">Cancelled</option>
-                        </select>
-                    </div>
-                    <div id="service-requests-list">
-                        <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
-                            Service requests will appear here when guests purchase external vendor services.
-                        </p>
-                    </div>
-                </div>
-            </div>
-
             <!-- Fees View -->
             <div id="fees" class="view">
                 <div class="header">
@@ -3983,95 +3905,6 @@
                 </div>
             </div>
 
-            <!-- FAQs View -->
-            <div id="faqs" class="view">
-                <div class="header">
-                    <div class="header-top">
-                        <div>
-                            <h2>❓ FAQs</h2>
-                            <p>Frequently asked questions for your properties - improves SEO with FAQ schema markup</p>
-                        </div>
-                        <button class="btn" onclick="openAddFaqModal()">
-                            <span>+</span>
-                            <span>Add FAQ</span>
-                        </button>
-                    </div>
-                </div>
-
-                <!-- Property Selector -->
-                <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Select Property</label>
-                            <select id="faqs-property-select" class="form-input" onchange="loadFaqsForProperty()">
-                                <option value="">Select Property...</option>
-                            </select>
-                        </div>
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Category Filter</label>
-                            <select id="faqs-category-filter" class="form-input" onchange="filterFaqsByCategory()">
-                                <option value="">All Categories</option>
-                                <option value="check-in">Check-in/Check-out</option>
-                                <option value="amenities">Amenities</option>
-                                <option value="policies">Policies</option>
-                                <option value="location">Location</option>
-                                <option value="booking">Booking</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Quick Add Common FAQs -->
-                <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                        <h3 style="margin: 0;">⚡ Quick Add Common FAQs</h3>
-                        <button class="btn btn-secondary" onclick="toggleFaqPresets()" id="toggle-faq-presets-btn" style="font-size: 0.85rem;">
-                            Show Templates ▼
-                        </button>
-                    </div>
-                    <div id="faq-presets" style="display: none;">
-                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.5rem;">
-                            <button class="preset-btn" onclick="quickAddFaq('What time is check-in?', 'Check-in is from 3:00 PM. Early check-in may be available on request, subject to availability.', 'check-in')">🕐 Check-in time</button>
-                            <button class="preset-btn" onclick="quickAddFaq('What time is check-out?', 'Check-out is by 11:00 AM. Late check-out may be available on request for an additional fee.', 'check-in')">🕐 Check-out time</button>
-                            <button class="preset-btn" onclick="quickAddFaq('Is parking available?', 'Yes, free private parking is available on-site. No reservation is needed.', 'amenities')">🅿️ Parking</button>
-                            <button class="preset-btn" onclick="quickAddFaq('Is WiFi available?', 'Yes, free high-speed WiFi is available throughout the property.', 'amenities')">📶 WiFi</button>
-                            <button class="preset-btn" onclick="quickAddFaq('Are pets allowed?', 'Pets are welcome by prior arrangement. Please contact us in advance to discuss.', 'policies')">🐾 Pet policy</button>
-                            <button class="preset-btn" onclick="quickAddFaq('What is the cancellation policy?', 'Free cancellation up to 7 days before arrival. Cancellations within 7 days are charged at 50% of the booking total.', 'policies')">❌ Cancellation</button>
-                            <button class="preset-btn" onclick="quickAddFaq('Is smoking allowed?', 'This is a strictly non-smoking property. Smoking is not permitted anywhere on the premises.', 'policies')">🚭 Smoking</button>
-                            <button class="preset-btn" onclick="quickAddFaq('How far is the nearest beach?', 'The nearest beach is approximately 10 minutes walk from the property.', 'location')">🏖️ Beach distance</button>
-                            <button class="preset-btn" onclick="quickAddFaq('How do I get directions?', 'Full directions will be sent in your booking confirmation. The property is easily accessible by car and public transport.', 'location')">🗺️ Directions</button>
-                            <button class="preset-btn" onclick="quickAddFaq('Is there a security deposit?', 'A refundable security deposit may be required. This will be returned within 7 days of check-out, subject to inspection.', 'booking')">💰 Deposit</button>
-                            <button class="preset-btn" onclick="quickAddFaq('Can I request an early check-in?', 'Early check-in may be possible subject to availability. Please contact us at least 24 hours before arrival to request.', 'check-in')">⏰ Early check-in</button>
-                            <button class="preset-btn" onclick="quickAddFaq('Is breakfast included?', 'Breakfast is available as an optional extra. Please select this option during booking or contact us to add it.', 'amenities')">🍳 Breakfast</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Schema Preview -->
-                <div class="card" style="margin-bottom: 1rem; display: none;" id="faq-schema-preview-card">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                        <h3 style="margin: 0;">📋 Schema Preview</h3>
-                        <button class="btn btn-secondary" onclick="copyFaqSchema()" style="font-size: 0.85rem;">Copy JSON-LD</button>
-                    </div>
-                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                        This structured data helps search engines display your FAQs in search results.
-                    </p>
-                    <pre id="faq-schema-preview" style="background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; font-size: 0.8rem; overflow-x: auto; max-height: 200px;"></pre>
-                </div>
-
-                <!-- FAQs List -->
-                <div class="card">
-                    <div id="faqs-list">
-                        <div class="empty-state">
-                            <div class="empty-icon">❓</div>
-                            <h3>Select a Property</h3>
-                            <p>Choose a property above to manage its FAQs</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- Website Editor - Tabbed Interface -->
             <div id="website-editor" class="view">
                 <div class="header">
@@ -4109,6 +3942,9 @@
                     </button>
                     <button class="editor-tab" data-tab="styles" onclick="switchEditorTab('styles')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         🎨 Styles & Colors
+                    </button>
+                    <button class="editor-tab" data-tab="seo" onclick="switchEditorTab('seo')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
+                        🔍 SEO & Analytics
                     </button>
                 </div>
                 
@@ -4332,6 +4168,102 @@
                             <button class="btn" onclick="saveWebsiteSection('styles', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Styles</button>
                         </div>
                         <div id="editor-styles-content"></div>
+                    </div>
+                    
+                    <!-- SEO Tab -->
+                    <div id="editor-panel-seo" class="editor-panel" style="display: none;">
+                        <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                            <button class="btn" onclick="saveWebsiteSection('seo', this)" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">💾 Save SEO Settings</button>
+                        </div>
+                        <div id="editor-seo-content">
+                            <!-- SEO Settings Form -->
+                            <div style="display: grid; gap: 1.5rem;">
+                                
+                                <!-- Analytics Section -->
+                                <div class="card" style="padding: 1.5rem;">
+                                    <h3 style="margin: 0 0 1rem 0; color: #1e293b;">📊 Analytics & Tracking</h3>
+                                    <p style="color: #64748b; margin-bottom: 1.5rem;">Connect your analytics tools to track visitor behavior and conversions.</p>
+                                    
+                                    <div style="display: grid; gap: 1rem;">
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Google Analytics 4 ID</label>
+                                            <input type="text" id="wb-seo-google-analytics-id" class="form-control" placeholder="G-XXXXXXXXXX" style="max-width: 300px;">
+                                            <small style="color: #64748b;">Your GA4 Measurement ID (starts with G-)</small>
+                                        </div>
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Google Tag Manager ID</label>
+                                            <input type="text" id="wb-seo-google-tag-manager-id" class="form-control" placeholder="GTM-XXXXXXX" style="max-width: 300px;">
+                                            <small style="color: #64748b;">Your GTM Container ID</small>
+                                        </div>
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Facebook Pixel ID</label>
+                                            <input type="text" id="wb-seo-facebook-pixel-id" class="form-control" placeholder="1234567890" style="max-width: 300px;">
+                                            <small style="color: #64748b;">For Facebook/Instagram conversion tracking</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Meta Tags Section -->
+                                <div class="card" style="padding: 1.5rem;">
+                                    <h3 style="margin: 0 0 1rem 0; color: #1e293b;">🏷️ Default Meta Tags</h3>
+                                    <p style="color: #64748b; margin-bottom: 1.5rem;">Set default meta information for your website. These can be overridden on individual pages.</p>
+                                    
+                                    <div style="display: grid; gap: 1rem;">
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">
+                                                <input type="checkbox" id="wb-seo-enabled" checked style="margin-right: 0.5rem;">
+                                                Enable SEO Meta Tags
+                                            </label>
+                                            <small style="color: #64748b;">Inject meta description, Open Graph, and Twitter Card tags. Disable if using another SEO plugin.</small>
+                                        </div>
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Default Meta Title</label>
+                                            <input type="text" id="wb-seo-meta-title" class="form-control" placeholder="Your Property Name | Book Direct">
+                                            <small style="color: #64748b;">50-60 characters recommended</small>
+                                        </div>
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Default Meta Description</label>
+                                            <textarea id="wb-seo-meta-description" class="form-control" rows="3" placeholder="Book your stay at our beautiful property. Best rates guaranteed when you book direct."></textarea>
+                                            <small style="color: #64748b;">150-160 characters recommended. Shows in search results.</small>
+                                        </div>
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">Default OG Image URL</label>
+                                            <input type="url" id="wb-seo-og-image" class="form-control" placeholder="https://yoursite.com/images/og-image.jpg">
+                                            <small style="color: #64748b;">Image shown when sharing on social media. Recommended: 1200x630px.</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Schema Section -->
+                                <div class="card" style="padding: 1.5rem;">
+                                    <h3 style="margin: 0 0 1rem 0; color: #1e293b;">📋 Schema.org Markup</h3>
+                                    <p style="color: #64748b; margin-bottom: 1.5rem;">Structured data helps search engines understand your content and can enable rich results.</p>
+                                    
+                                    <div style="display: grid; gap: 1rem;">
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">
+                                                <input type="checkbox" id="wb-seo-include-schema" checked style="margin-right: 0.5rem;">
+                                                Include LodgingBusiness Schema
+                                            </label>
+                                            <small style="color: #64748b;">Adds structured data for Google's hotel/accommodation features.</small>
+                                        </div>
+                                        <div>
+                                            <label style="font-weight: 600; display: block; margin-bottom: 0.5rem;">
+                                                <input type="checkbox" id="wb-seo-include-faqs" checked style="margin-right: 0.5rem;">
+                                                Include FAQ Schema
+                                            </label>
+                                            <small style="color: #64748b;">Injects FAQPage schema from your FAQs (configured in SEO & Content → FAQs).</small>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Info Box -->
+                                <div style="background: #f0fdf4; padding: 1.5rem; border-radius: 12px; border: 1px solid #86efac;">
+                                    <h4 style="margin: 0 0 0.5rem 0; color: #166534;">✅ WordPress Sync</h4>
+                                    <p style="margin: 0; color: #166534;">These settings will be synced to your WordPress site when you click "Sync from GAS" in the GAS Booking plugin settings.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -8409,7 +8341,7 @@ Local honey and preserves"></textarea>
                             <h2>🔗 Channel Manager Connections</h2>
                             <p>Manage your channel manager integrations</p>
                         </div>
-                        <div class="header-actions master-only" style="display: none;">
+                        <div class="header-actions">
                             <button class="btn btn-primary" onclick="showAddConnectionModal()">
                                 <span>➕</span> Add Connection
                             </button>
@@ -8419,22 +8351,6 @@ Local honey and preserves"></textarea>
                 
                 <div id="connectionsGrid" class="connections-grid">
                     <p style="color: var(--text-secondary);">Loading connections...</p>
-                </div>
-            </div>
-
-            <!-- Simple Client Connection View -->
-            <div id="client-connection-view" class="view">
-                <div class="header">
-                    <div class="header-top">
-                        <div>
-                            <h2>🔗 Connection Status</h2>
-                            <p>Your channel manager connection</p>
-                        </div>
-                    </div>
-                </div>
-                
-                <div id="clientConnectionInfo" class="card">
-                    <p style="color: var(--text-secondary);">Loading...</p>
                 </div>
             </div>
 
@@ -8586,11 +8502,11 @@ Local honey and preserves"></textarea>
     </div>
 
     <!-- GasSync Connection Details Modal -->
-    <div id="connectionDetailsModal" class="modal" onclick="if(event.target === this) closeModal('connectionDetailsModal')">
+    <div id="connectionDetailsModal" class="modal">
         <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
-                <button onclick="closeModal('connectionDetailsModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
+                <button class="close-btn" onclick="closeModal('connectionDetailsModal')" style="color: white;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 0;">
                 <div class="gas-sync-tabs">
@@ -10228,9 +10144,10 @@ Local honey and preserves"></textarea>
                             <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
                                 Price <span style="color: #ef4444;">*</span>
                             </label>
-                            <div>
+                            <div style="position: relative;">
+                                <span style="position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: #6b7280;">$</span>
                                 <input type="number" id="upsell-price" class="form-input" placeholder="50.00" required min="0" step="0.01"
-                                    style="padding: 0.75rem; border-radius: 8px;">
+                                    style="padding: 0.75rem; padding-left: 1.75rem; border-radius: 8px;">
                             </div>
                         </div>
                         <div class="form-group">
@@ -10256,35 +10173,6 @@ Local honey and preserves"></textarea>
                             style="padding: 0.75rem; border-radius: 8px; width: 120px;">
                     </div>
                     
-                    <!-- Internal/External Toggle -->
-                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
-                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
-                            🤝 Provider Type
-                        </label>
-                        <div style="display: flex; gap: 1rem; margin-bottom: 0.75rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; border-radius: 8px; border: 2px solid #e5e7eb; background: white;" id="upsell-internal-label">
-                                <input type="radio" name="upsell-provider-type" value="internal" checked onchange="toggleUpsellProviderType()">
-                                <span>🏠 Internal</span>
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; border-radius: 8px; border: 2px solid #e5e7eb; background: white;" id="upsell-external-label">
-                                <input type="radio" name="upsell-provider-type" value="external" onchange="toggleUpsellProviderType()">
-                                <span>🚗 External Vendor</span>
-                            </label>
-                        </div>
-                        <div id="upsell-vendor-section" style="display: none;">
-                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Select Vendor</label>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <select id="upsell-vendor" class="form-input" style="flex: 1; padding: 0.6rem; border-radius: 8px;">
-                                    <option value="">Select a vendor...</option>
-                                </select>
-                                <button type="button" class="btn btn-secondary" onclick="openAddVendorModal()" style="white-space: nowrap;">+ New Vendor</button>
-                            </div>
-                            <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;">
-                                External vendors will be notified when this upsell is purchased.
-                            </p>
-                        </div>
-                    </div>
-                    
                     <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
                         <input type="checkbox" id="upsell-active" checked style="width: 18px; height: 18px;">
                         <span style="font-weight: 500; color: #374151;">Active</span>
@@ -10295,238 +10183,6 @@ Local honey and preserves"></textarea>
                 <button class="btn btn-secondary" onclick="closeModal('addUpsellModal')" style="border-radius: 8px;">Cancel</button>
                 <button class="btn" onclick="saveUpsell()" style="border-radius: 8px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
                     💾 Save Upsell
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add Vendor Modal -->
-    <div id="addVendorModal" class="modal">
-        <div class="modal-content" style="max-width: 900px; border-radius: 16px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
-                <div>
-                    <h3 class="modal-title" id="vendor-modal-title" style="margin: 0;">🤝 Add Vendor</h3>
-                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">External service provider for upsells and vouchers</p>
-                </div>
-                <button class="modal-close" onclick="closeModal('addVendorModal')" style="color: white;">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 1.5rem;">
-                <form id="vendor-form">
-                    <input type="hidden" id="vendor-id">
-                    
-                    <!-- Basic Info -->
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
-                        <div class="form-group">
-                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                                Company Name <span style="color: #ef4444;">*</span>
-                            </label>
-                            <input type="text" id="vendor-name" class="form-input" placeholder="e.g., ABC Taxis" required
-                                style="padding: 0.75rem; border-radius: 8px;">
-                        </div>
-                        <div class="form-group">
-                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                                Contact Person
-                            </label>
-                            <input type="text" id="vendor-contact" class="form-input" placeholder="e.g., John Smith"
-                                style="padding: 0.75rem; border-radius: 8px;">
-                        </div>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
-                        <div class="form-group">
-                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                                Notification Email <span style="color: #ef4444;">*</span>
-                            </label>
-                            <input type="email" id="vendor-email" class="form-input" placeholder="bookings@abctaxis.com" required
-                                style="padding: 0.75rem; border-radius: 8px;">
-                        </div>
-                        <div class="form-group">
-                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                                Phone
-                            </label>
-                            <input type="tel" id="vendor-phone" class="form-input" placeholder="+44 123 456 7890"
-                                style="padding: 0.75rem; border-radius: 8px;">
-                        </div>
-                    </div>
-                    
-                    <div class="form-group" style="margin-bottom: 1.25rem;">
-                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                            Address
-                        </label>
-                        <textarea id="vendor-address" class="form-input" rows="2" placeholder="Company address"
-                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
-                    </div>
-                    
-                    <div class="form-group" style="margin-bottom: 1.25rem;">
-                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                            Internal Notes <span style="color: #9ca3af; font-weight: normal;">(only visible to you)</span>
-                        </label>
-                        <textarea id="vendor-notes" class="form-input" rows="2" placeholder="Any notes about this vendor..."
-                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
-                    </div>
-                    
-                    <!-- Vendor Portal Login -->
-                    <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
-                        <label style="font-weight: 600; color: #166534; margin-bottom: 0.75rem; display: block;">
-                            🔐 Vendor Portal Login
-                        </label>
-                        <p style="font-size: 0.85rem; color: #15803d; margin-bottom: 0.75rem;">
-                            Create login credentials so the vendor can view booking details and confirm services.
-                        </p>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Login Email</label>
-                                <input type="email" id="vendor-login-email" class="form-input" placeholder="login@abctaxis.com"
-                                    style="padding: 0.6rem; border-radius: 8px;">
-                            </div>
-                            <div class="form-group" style="margin-bottom: 0;">
-                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Password</label>
-                                <input type="password" id="vendor-password" class="form-input" placeholder="Create password"
-                                    style="padding: 0.6rem; border-radius: 8px;">
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <!-- Data Permissions -->
-                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
-                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
-                            👁️ Data Visibility - What can this vendor see?
-                        </label>
-                        <p style="font-size: 0.85rem; color: #a16207; margin-bottom: 0.75rem;">
-                            Choose what booking information this vendor can access when they log in.
-                        </p>
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-guest-name" checked> Guest Name
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-guest-phone" checked> Guest Phone
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-guest-email"> Guest Email
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-check-in" checked> Check-in Date
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-check-out" checked> Check-out Date
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-property" checked> Property Name
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-room"> Room Name
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-guest-count" checked> Guest Count
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-requests" checked> Special Requests
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-address"> Guest Address
-                            </label>
-                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
-                                <input type="checkbox" id="perm-total"> Booking Total
-                            </label>
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
-                        <select id="vendor-status" class="form-input" style="width: auto; padding: 0.5rem;">
-                            <option value="active">Active</option>
-                            <option value="inactive">Inactive</option>
-                        </select>
-                        <span style="font-weight: 500; color: #374151;">Vendor Status</span>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f9fafb; border-radius: 0 0 16px 16px;">
-                <button class="btn btn-secondary" onclick="closeModal('addVendorModal')" style="border-radius: 8px;">Cancel</button>
-                <button class="btn" onclick="saveVendor()" style="border-radius: 8px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
-                    💾 Save Vendor
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add FAQ Modal -->
-    <div id="addFaqModal" class="modal">
-        <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
-                <div>
-                    <h3 class="modal-title" id="faq-modal-title" style="margin: 0;">❓ Add FAQ</h3>
-                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Help guests find answers and improve your SEO</p>
-                </div>
-                <button class="modal-close" onclick="closeModal('addFaqModal')" style="color: white;">&times;</button>
-            </div>
-            <div class="modal-body" style="padding: 1.5rem;">
-                <form id="faq-form">
-                    <input type="hidden" id="faq-id">
-                    
-                    <div class="form-group" style="margin-bottom: 1.25rem;">
-                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                            Question <span style="color: #ef4444;">*</span>
-                        </label>
-                        <input type="text" id="faq-question" class="form-input" placeholder="e.g., What time is check-in?" required
-                            style="padding: 0.75rem; border-radius: 8px;">
-                    </div>
-                    
-                    <div class="form-group" style="margin-bottom: 1.25rem;">
-                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                            Answer <span style="color: #ef4444;">*</span>
-                        </label>
-                        <textarea id="faq-answer" class="form-input" rows="4" placeholder="Provide a clear, helpful answer..." required
-                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
-                        <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem;">
-                            Keep answers concise but informative. This appears in search results.
-                        </p>
-                    </div>
-                    
-                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
-                        <div class="form-group">
-                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                                Category
-                            </label>
-                            <select id="faq-category" class="form-input" style="padding: 0.75rem; border-radius: 8px;">
-                                <option value="">Select category...</option>
-                                <option value="check-in">Check-in/Check-out</option>
-                                <option value="amenities">Amenities</option>
-                                <option value="policies">Policies</option>
-                                <option value="location">Location</option>
-                                <option value="booking">Booking</option>
-                                <option value="other">Other</option>
-                            </select>
-                        </div>
-                        <div class="form-group">
-                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
-                                Display Order
-                            </label>
-                            <input type="number" id="faq-order" class="form-input" placeholder="0" min="0"
-                                style="padding: 0.75rem; border-radius: 8px;">
-                        </div>
-                    </div>
-                    
-                    <div style="display: flex; flex-wrap: wrap; gap: 1rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="faq-show-website" checked style="width: 18px; height: 18px;">
-                            <span style="font-weight: 500; color: #374151;">Show on website</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="faq-include-schema" checked style="width: 18px; height: 18px;">
-                            <span style="font-weight: 500; color: #374151;">Include in SEO schema</span>
-                        </label>
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="faq-active" checked style="width: 18px; height: 18px;">
-                            <span style="font-weight: 500; color: #374151;">Active</span>
-                        </label>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f9fafb; border-radius: 0 0 16px 16px;">
-                <button class="btn btn-secondary" onclick="closeModal('addFaqModal')" style="border-radius: 8px;">Cancel</button>
-                <button class="btn" onclick="saveFaq()" style="border-radius: 8px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
-                    💾 Save FAQ
                 </button>
             </div>
         </div>
@@ -12940,7 +12596,8 @@ Local honey and preserves"></textarea>
                 'homepage': 'hero',
                 'subpages': 'page-rooms',
                 'footer': 'footer',
-                'styles': 'styles'
+                'styles': 'styles',
+                'seo': 'seo'
             };
             if (sectionMap[tabName]) {
                 loadWebsiteBuilderSection(sectionMap[tabName]);
@@ -13394,14 +13051,12 @@ Local honey and preserves"></textarea>
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
             if (viewName === 'upsells') loadUpsells();
-            if (viewName === 'vendors') { loadVendors(); loadServiceRequests(); }
             if (viewName === 'fees') loadFees();
             if (viewName === 'taxes') loadTaxes();
             if (viewName === 'payments') initPaymentsView();
             if (viewName === 'deposit-rules') initDepositRulesView();
             if (viewName === 'bookings') loadBookings();
             if (viewName === 'marketing') loadMarketingProperties();
-            if (viewName === 'faqs') loadFaqs();
             if (viewName === 'wb-header') loadWebsiteSection('header');
             if (viewName === 'wb-hero') loadWebsiteSection('hero');
             if (viewName === 'wb-intro') loadWebsiteSection('intro');
@@ -13457,7 +13112,6 @@ Local honey and preserves"></textarea>
             // GasSync views
             if (viewName === 'gas-sync-dashboard') loadGasSyncDashboard();
             if (viewName === 'gas-sync-connections') loadGasSyncConnections();
-            if (viewName === 'client-connection-view') loadClientConnectionView();
             if (viewName === 'gas-sync-properties') { loadGasSyncConnections().then(() => loadSyncedProperties()); }
             if (viewName === 'gas-sync-logs') { loadGasSyncConnections().then(() => loadSyncLogs()); }
             
@@ -13494,6 +13148,7 @@ Local honey and preserves"></textarea>
                     'cta': 'editor-cta-content',
                     'footer': 'editor-footer-content',
                     'styles': 'editor-styles-content',
+                    'seo': 'editor-seo-content',
                     'page-about': 'editor-page-about-content',
                     'page-gallery': 'editor-page-gallery-content',
                     'page-blog': 'editor-page-blog-content',
@@ -13619,6 +13274,7 @@ Local honey and preserves"></textarea>
                     'cta': 'editor-cta-content',
                     'footer': 'editor-footer-content',
                     'styles': 'editor-styles-content',
+                    'seo': 'editor-seo-content',
                     'page-about': 'editor-page-about-content',
                     'page-gallery': 'editor-page-gallery-content',
                     'page-blog': 'editor-page-blog-content',
@@ -15121,15 +14777,18 @@ Local honey and preserves"></textarea>
                                             const hasAccountStripe = !!account.stripe_account_id;
                                             
                                             if (hasAccountStripe) {
-                                                return `<span class="badge badge-success">✓ Connected</span>`;
+                                                return `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <span class="badge badge-success">✓ Connected</span>
+                                                    <button class="btn btn-secondary btn-small" onclick="disconnectStripe(${account.id}, '${account.name}')" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; color: #dc2626;">Disconnect</button>
+                                                </div>`;
                                             } else if (stripePropsCount > 0 && stripePropsCount >= propCount && propCount > 0) {
-                                                return `<span class="badge badge-success">✓ ${stripePropsCount}/${propCount} Properties</span>`;
+                                                return `<span class="badge badge-success" style="cursor: default;">✓ ${stripePropsCount}/${propCount} Properties</span>`;
                                             } else if (stripePropsCount > 0) {
-                                                return `<span class="badge badge-warning">⚡ ${stripePropsCount}/${propCount} Properties</span>`;
+                                                return `<span class="badge badge-warning" style="cursor: default;">⚡ ${stripePropsCount}/${propCount} Properties</span>`;
                                             } else if (propCount === 0) {
                                                 return `<span style="color: var(--text-muted); font-size: 0.85rem;">No properties</span>`;
                                             } else {
-                                                return `<span style="color: var(--text-muted); font-size: 0.85rem;">Not connected</span>`;
+                                                return `<button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Connect</button>`;
                                             }
                                         })()}
                                     </td>
@@ -15276,12 +14935,6 @@ Local honey and preserves"></textarea>
             
             document.querySelectorAll('.master-only').forEach(el => {
                 el.style.display = showMasterSections ? 'block' : 'none';
-            });
-            
-            // Client connection: show when client OR when master is viewing a client
-            const showClientConnection = !isMaster || isViewingClient;
-            document.querySelectorAll('.client-connection').forEach(el => {
-                el.style.display = showClientConnection ? 'flex' : 'none';
             });
             
             // Billing admin items: same logic
@@ -19648,7 +19301,7 @@ Local honey and preserves"></textarea>
                     modal.remove();
                 } else {
                     modal.classList.remove('active');
-                    modal.style.display = 'none';
+                    // Don't set display:none - let CSS handle visibility via .active class
                 }
             }
         }
@@ -20788,7 +20441,7 @@ Local honey and preserves"></textarea>
                         const isDiscount = offer.discount_value > 0;
                         const discountLabel = offer.discount_type === 'percentage' 
                             ? `${isDiscount ? '-' : '+'}${Math.abs(offer.discount_value)}%` 
-                            : `${isDiscount ? '-' : '+'}${Math.abs(offer.discount_value)}`;
+                            : `${isDiscount ? '-' : '+'}$${Math.abs(offer.discount_value)}`;
                         
                         html += `
                             <tr style="border-bottom: 1px solid var(--border);">
@@ -23599,12 +23252,12 @@ Local honey and preserves"></textarea>
                         discountBg = '#dcfce7';
                         break;
                     case 'fixed':
-                        discountText = `${voucher.discount_value} Off`;
+                        discountText = `£${voucher.discount_value} Off`;
                         discountColor = '#166534';
                         discountBg = '#dcfce7';
                         break;
                     case 'monetary':
-                        discountText = `${voucher.discount_value} Credit`;
+                        discountText = `£${voucher.discount_value} Credit`;
                         discountColor = '#7c3aed';
                         discountBg = '#ede9fe';
                         break;
@@ -23620,7 +23273,7 @@ Local honey and preserves"></textarea>
                         break;
                     default:
                         discountText = voucher.discount_type === 'fixed_amount' 
-                            ? `${voucher.discount_value}` 
+                            ? `£${voucher.discount_value}` 
                             : `${voucher.discount_value}%`;
                 }
                 
@@ -24007,16 +23660,13 @@ Local honey and preserves"></textarea>
             };
             
             for (const upsell of upsells) {
-                const vendorBadge = upsell.is_external ? 
-                    `<span class="badge badge-info" style="font-size: 0.7rem; margin-left: 0.5rem;">🚗 ${upsell.vendor_name || 'External'}</span>` : '';
-                    
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
-                            <strong>${upsell.name}</strong>${vendorBadge}
+                            <strong>${upsell.name}</strong>
                             ${upsell.description ? `<br><small style="color: var(--text-secondary);">${upsell.description}</small>` : ''}
                         </td>
-                        <td style="padding: 0.75rem; font-weight: 600; color: #059669;">${parseFloat(upsell.price).toFixed(2)}</td>
+                        <td style="padding: 0.75rem; font-weight: 600; color: #059669;">$${parseFloat(upsell.price).toFixed(2)}</td>
                         <td style="padding: 0.75rem; color: var(--text-secondary); font-size: 0.9rem;">${chargeTypeLabels[upsell.charge_type] || upsell.charge_type}</td>
                         <td style="padding: 0.75rem; text-align: center;">
                             <span class="badge ${upsell.active ? 'badge-success' : 'badge-secondary'}">${upsell.active ? 'Active' : 'Inactive'}</span>
@@ -24042,11 +23692,6 @@ Local honey and preserves"></textarea>
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
             document.getElementById('upsell-room').style.display = 'block';
             
-            // Reset provider type to internal
-            document.querySelector('input[name="upsell-provider-type"][value="internal"]').checked = true;
-            document.getElementById('upsell-vendor-section').style.display = 'none';
-            loadVendorsForUpsellModal();
-            
             // Pre-select property from page filter
             const selectedProperty = document.getElementById('upsells-property-select')?.value;
             loadUpsellPropertiesForModal().then(() => {
@@ -24056,46 +23701,6 @@ Local honey and preserves"></textarea>
                 }
             });
             openModal('addUpsellModal');
-        }
-        
-        function toggleUpsellProviderType() {
-            const isExternal = document.querySelector('input[name="upsell-provider-type"]:checked')?.value === 'external';
-            document.getElementById('upsell-vendor-section').style.display = isExternal ? 'block' : 'none';
-            
-            // Update radio button styling
-            const internalLabel = document.getElementById('upsell-internal-label');
-            const externalLabel = document.getElementById('upsell-external-label');
-            
-            if (isExternal) {
-                internalLabel.style.borderColor = '#e5e7eb';
-                internalLabel.style.background = 'white';
-                externalLabel.style.borderColor = '#6366f1';
-                externalLabel.style.background = '#eef2ff';
-            } else {
-                externalLabel.style.borderColor = '#e5e7eb';
-                externalLabel.style.background = 'white';
-                internalLabel.style.borderColor = '#10b981';
-                internalLabel.style.background = '#ecfdf5';
-            }
-        }
-        
-        async function loadVendorsForUpsellModal() {
-            try {
-                const queryString = buildQueryString();
-                const response = await fetch(`/api/admin/vendors${queryString}`, { headers: authHeaders() });
-                const data = await response.json();
-                
-                const select = document.getElementById('upsell-vendor');
-                select.innerHTML = '<option value="">Select a vendor...</option>';
-                
-                if (data.success && data.data) {
-                    data.data.forEach(v => {
-                        select.innerHTML += `<option value="${v.id}">${v.name}</option>`;
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading vendors:', error);
-            }
         }
         
         async function loadUpsellPropertiesForModal() {
@@ -24189,22 +23794,6 @@ Local honey and preserves"></textarea>
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
             document.getElementById('upsell-room').style.display = 'block';
             
-            // Set provider type and vendor
-            if (upsell.is_external) {
-                document.querySelector('input[name="upsell-provider-type"][value="external"]').checked = true;
-                document.getElementById('upsell-vendor-section').style.display = 'block';
-            } else {
-                document.querySelector('input[name="upsell-provider-type"][value="internal"]').checked = true;
-                document.getElementById('upsell-vendor-section').style.display = 'none';
-            }
-            toggleUpsellProviderType();
-            
-            // Load vendors and set selected
-            await loadVendorsForUpsellModal();
-            if (upsell.vendor_id) {
-                document.getElementById('upsell-vendor').value = upsell.vendor_id;
-            }
-            
             // Load properties first
             await loadUpsellPropertiesForModal();
             
@@ -24252,10 +23841,6 @@ Local honey and preserves"></textarea>
                 roomId = document.getElementById('upsell-room').value || null;
             }
             
-            // Get vendor info
-            const isExternal = document.querySelector('input[name="upsell-provider-type"]:checked')?.value === 'external';
-            const vendorId = isExternal ? (document.getElementById('upsell-vendor').value || null) : null;
-            
             const upsellData = {
                 name: document.getElementById('upsell-name').value,
                 description: document.getElementById('upsell-description').value,
@@ -24265,9 +23850,7 @@ Local honey and preserves"></textarea>
                 property_id: document.getElementById('upsell-property').value || null,
                 room_id: roomId,
                 room_ids: roomIds,
-                active: document.getElementById('upsell-active').checked,
-                is_external: isExternal,
-                vendor_id: vendorId
+                active: document.getElementById('upsell-active').checked
             };
             
             try {
@@ -24307,644 +23890,6 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 alert('Error deleting upsell: ' + error.message);
-            }
-        }
-
-        // =====================================================
-        // VENDORS FUNCTIONS
-        // =====================================================
-        
-        let vendorsData = [];
-        
-        async function loadVendors() {
-            try {
-                const queryString = buildQueryString();
-                const response = await fetch(`/api/admin/vendors${queryString}`, { headers: authHeaders() });
-                const data = await response.json();
-                
-                if (data.success) {
-                    vendorsData = data.data || [];
-                    renderVendors(vendorsData);
-                }
-            } catch (error) {
-                console.error('Error loading vendors:', error);
-            }
-        }
-        
-        function renderVendors(vendors) {
-            const container = document.getElementById('vendors-list');
-            if (!container) return;
-            
-            if (!vendors || vendors.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">🤝</div>
-                        <h3>No Vendors Configured</h3>
-                        <p>Add external vendors like taxi companies, tour operators, or local services</p>
-                        <button class="btn" onclick="openAddVendorModal()">Add Your First Vendor</button>
-                    </div>
-                `;
-                return;
-            }
-            
-            container.innerHTML = `
-                <div class="table-container">
-                    <table style="width: 100%; border-collapse: collapse;">
-                        <thead>
-                            <tr style="border-bottom: 1px solid var(--border);">
-                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Vendor</th>
-                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Contact</th>
-                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Linked Items</th>
-                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Pending</th>
-                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Status</th>
-                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            ${vendors.map(v => `
-                                <tr style="border-bottom: 1px solid var(--border);">
-                                    <td style="padding: 12px 8px;">
-                                        <div style="display: flex; align-items: center; gap: 12px;">
-                                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1, #4f46e5); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">${v.name.charAt(0)}</div>
-                                            <div>
-                                                <strong>${v.name}</strong>
-                                                ${v.contact_name ? `<div style="font-size: 0.85rem; color: var(--text-secondary);">${v.contact_name}</div>` : ''}
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td style="padding: 12px 8px;">
-                                        <div style="font-size: 0.9rem;">${v.email}</div>
-                                        ${v.phone ? `<div style="font-size: 0.85rem; color: var(--text-secondary);">${v.phone}</div>` : ''}
-                                    </td>
-                                    <td style="padding: 12px 8px;">
-                                        ${parseInt(v.upsell_count) > 0 ? `<span class="badge badge-success">${v.upsell_count} upsell${v.upsell_count > 1 ? 's' : ''}</span>` : ''}
-                                        ${parseInt(v.voucher_count) > 0 ? `<span class="badge badge-info">${v.voucher_count} voucher${v.voucher_count > 1 ? 's' : ''}</span>` : ''}
-                                        ${parseInt(v.upsell_count) === 0 && parseInt(v.voucher_count) === 0 ? '<span style="color: var(--text-secondary);">None</span>' : ''}
-                                    </td>
-                                    <td style="padding: 12px 8px;">
-                                        ${parseInt(v.pending_requests) > 0 ? `<span class="badge badge-warning">${v.pending_requests}</span>` : '<span style="color: var(--text-secondary);">0</span>'}
-                                    </td>
-                                    <td style="padding: 12px 8px;">
-                                        <span class="badge ${v.status === 'active' ? 'badge-success' : 'badge-secondary'}">${v.status}</span>
-                                    </td>
-                                    <td style="padding: 12px 8px;">
-                                        <div style="display: flex; gap: 0.5rem;">
-                                            <button class="btn btn-secondary btn-small" onclick="editVendor(${v.id})">Edit</button>
-                                            <button class="btn btn-secondary btn-small" onclick="deleteVendor(${v.id})" style="color: #dc2626;">Delete</button>
-                                        </div>
-                                    </td>
-                                </tr>
-                            `).join('')}
-                        </tbody>
-                    </table>
-                </div>
-            `;
-        }
-        
-        function openAddVendorModal() {
-            document.getElementById('vendor-form').reset();
-            document.getElementById('vendor-id').value = '';
-            document.getElementById('vendor-modal-title').innerHTML = '🤝 Add Vendor';
-            document.getElementById('vendor-status').value = 'active';
-            
-            // Reset permissions to defaults
-            document.getElementById('perm-guest-name').checked = true;
-            document.getElementById('perm-guest-phone').checked = true;
-            document.getElementById('perm-guest-email').checked = false;
-            document.getElementById('perm-check-in').checked = true;
-            document.getElementById('perm-check-out').checked = true;
-            document.getElementById('perm-property').checked = true;
-            document.getElementById('perm-room').checked = false;
-            document.getElementById('perm-guest-count').checked = true;
-            document.getElementById('perm-requests').checked = true;
-            document.getElementById('perm-address').checked = false;
-            document.getElementById('perm-total').checked = false;
-            
-            openModal('addVendorModal');
-        }
-        
-        async function editVendor(id) {
-            try {
-                const response = await fetch(`/api/admin/vendors/${id}`, { headers: authHeaders() });
-                const data = await response.json();
-                
-                if (data.success && data.data) {
-                    const v = data.data;
-                    document.getElementById('vendor-id').value = v.id;
-                    document.getElementById('vendor-modal-title').innerHTML = '🤝 Edit Vendor';
-                    document.getElementById('vendor-name').value = v.name || '';
-                    document.getElementById('vendor-contact').value = v.contact_name || '';
-                    document.getElementById('vendor-email').value = v.email || '';
-                    document.getElementById('vendor-phone').value = v.phone || '';
-                    document.getElementById('vendor-address').value = v.address || '';
-                    document.getElementById('vendor-notes').value = v.notes || '';
-                    document.getElementById('vendor-login-email').value = v.login_email || '';
-                    document.getElementById('vendor-password').value = '';
-                    document.getElementById('vendor-status').value = v.status || 'active';
-                    
-                    // Set permissions
-                    if (v.permissions) {
-                        document.getElementById('perm-guest-name').checked = v.permissions.can_see_guest_name !== false;
-                        document.getElementById('perm-guest-phone').checked = v.permissions.can_see_guest_phone !== false;
-                        document.getElementById('perm-guest-email').checked = v.permissions.can_see_guest_email || false;
-                        document.getElementById('perm-check-in').checked = v.permissions.can_see_check_in_date !== false;
-                        document.getElementById('perm-check-out').checked = v.permissions.can_see_check_out_date !== false;
-                        document.getElementById('perm-property').checked = v.permissions.can_see_property_name !== false;
-                        document.getElementById('perm-room').checked = v.permissions.can_see_room_name || false;
-                        document.getElementById('perm-guest-count').checked = v.permissions.can_see_guest_count !== false;
-                        document.getElementById('perm-requests').checked = v.permissions.can_see_special_requests !== false;
-                        document.getElementById('perm-address').checked = v.permissions.can_see_guest_address || false;
-                        document.getElementById('perm-total').checked = v.permissions.can_see_booking_total || false;
-                    }
-                    
-                    openModal('addVendorModal');
-                }
-            } catch (error) {
-                alert('Error loading vendor: ' + error.message);
-            }
-        }
-        
-        async function saveVendor() {
-            const id = document.getElementById('vendor-id').value;
-            
-            const vendorData = {
-                account_id: currentAccount?.id || viewingAccountId || 1,
-                name: document.getElementById('vendor-name').value,
-                contact_name: document.getElementById('vendor-contact').value,
-                email: document.getElementById('vendor-email').value,
-                phone: document.getElementById('vendor-phone').value,
-                address: document.getElementById('vendor-address').value,
-                notes: document.getElementById('vendor-notes').value,
-                login_email: document.getElementById('vendor-login-email').value || null,
-                password: document.getElementById('vendor-password').value || null,
-                status: document.getElementById('vendor-status').value,
-                permissions: {
-                    can_see_guest_name: document.getElementById('perm-guest-name').checked,
-                    can_see_guest_phone: document.getElementById('perm-guest-phone').checked,
-                    can_see_guest_email: document.getElementById('perm-guest-email').checked,
-                    can_see_check_in_date: document.getElementById('perm-check-in').checked,
-                    can_see_check_out_date: document.getElementById('perm-check-out').checked,
-                    can_see_property_name: document.getElementById('perm-property').checked,
-                    can_see_room_name: document.getElementById('perm-room').checked,
-                    can_see_guest_count: document.getElementById('perm-guest-count').checked,
-                    can_see_special_requests: document.getElementById('perm-requests').checked,
-                    can_see_guest_address: document.getElementById('perm-address').checked,
-                    can_see_booking_total: document.getElementById('perm-total').checked
-                }
-            };
-            
-            try {
-                const url = id ? `/api/admin/vendors/${id}` : '/api/admin/vendors';
-                const method = id ? 'PUT' : 'POST';
-                
-                const response = await fetch(url, {
-                    method,
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify(vendorData)
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    closeModal('addVendorModal');
-                    loadVendors();
-                    // Also refresh vendor dropdown in upsell modal if it's open
-                    loadVendorsForUpsellModal();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                alert('Error saving vendor: ' + error.message);
-            }
-        }
-        
-        async function deleteVendor(id) {
-            if (!confirm('Delete this vendor? Any linked upsells/vouchers will be converted to internal.')) return;
-            
-            try {
-                const response = await fetch(`/api/admin/vendors/${id}`, { method: 'DELETE', headers: authHeaders() });
-                const data = await response.json();
-                
-                if (data.success) {
-                    loadVendors();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                alert('Error deleting vendor: ' + error.message);
-            }
-        }
-        
-        async function loadServiceRequests() {
-            const status = document.getElementById('service-requests-filter')?.value;
-            const container = document.getElementById('service-requests-list');
-            if (!container) return;
-            
-            try {
-                const queryString = buildQueryString();
-                let url = `/api/admin/service-requests${queryString}`;
-                if (status) {
-                    url += (queryString ? '&' : '?') + `status=${status}`;
-                }
-                
-                const response = await fetch(url, { headers: authHeaders() });
-                const data = await response.json();
-                
-                if (data.success && data.data && data.data.length > 0) {
-                    container.innerHTML = `
-                        <div class="table-container">
-                            <table style="width: 100%; border-collapse: collapse;">
-                                <thead>
-                                    <tr style="border-bottom: 1px solid var(--border);">
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Service</th>
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Vendor</th>
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Guest</th>
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Dates</th>
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Status</th>
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Actions</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${data.data.map(r => `
-                                        <tr style="border-bottom: 1px solid var(--border);">
-                                            <td style="padding: 12px 8px;">
-                                                <strong>${r.service_name}</strong>
-                                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Qty: ${r.quantity} | ${parseFloat(r.total_price || 0).toFixed(2)}</div>
-                                            </td>
-                                            <td style="padding: 12px 8px;">${r.vendor_name || '-'}</td>
-                                            <td style="padding: 12px 8px;">${r.guest_name || '-'}</td>
-                                            <td style="padding: 12px 8px;">
-                                                ${r.check_in ? new Date(r.check_in).toLocaleDateString() : '-'}
-                                                ${r.check_out ? ` - ${new Date(r.check_out).toLocaleDateString()}` : ''}
-                                            </td>
-                                            <td style="padding: 12px 8px;">
-                                                <span class="badge ${getServiceStatusBadgeClass(r.status)}">${r.status}</span>
-                                            </td>
-                                            <td style="padding: 12px 8px;">
-                                                <select onchange="updateServiceRequestStatus(${r.id}, this.value)" class="form-input" style="padding: 0.25rem; font-size: 0.85rem; width: auto;">
-                                                    <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>Pending</option>
-                                                    <option value="notified" ${r.status === 'notified' ? 'selected' : ''}>Notified</option>
-                                                    <option value="confirmed" ${r.status === 'confirmed' ? 'selected' : ''}>Confirmed</option>
-                                                    <option value="completed" ${r.status === 'completed' ? 'selected' : ''}>Completed</option>
-                                                    <option value="cancelled" ${r.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
-                                                </select>
-                                            </td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                } else {
-                    container.innerHTML = `
-                        <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
-                            No service requests found.
-                        </p>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error loading service requests:', error);
-            }
-        }
-        
-        function getServiceStatusBadgeClass(status) {
-            switch(status) {
-                case 'pending': return 'badge-warning';
-                case 'notified': return 'badge-info';
-                case 'confirmed': return 'badge-success';
-                case 'completed': return 'badge-success';
-                case 'cancelled': return 'badge-secondary';
-                default: return 'badge-secondary';
-            }
-        }
-        
-        async function updateServiceRequestStatus(id, status) {
-            try {
-                const response = await fetch(`/api/admin/service-requests/${id}/status`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ status })
-                });
-                
-                const data = await response.json();
-                if (!data.success) {
-                    alert('Error: ' + data.error);
-                    loadServiceRequests();
-                }
-            } catch (error) {
-                alert('Error updating status: ' + error.message);
-            }
-        }
-
-        // =====================================================
-        // FAQS FUNCTIONS
-        // =====================================================
-        
-        let faqsData = [];
-        
-        async function loadFaqsPropertySelect() {
-            try {
-                const queryString = buildQueryString();
-                const response = await fetch(`/api/db/properties${queryString}`);
-                const data = await response.json();
-                
-                const select = document.getElementById('faqs-property-select');
-                if (!select) return;
-                
-                select.innerHTML = '<option value="">Select Property...</option>';
-                
-                if (data.success && data.data) {
-                    data.data.forEach(p => {
-                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading properties for FAQs:', error);
-            }
-        }
-        
-        async function loadFaqs() {
-            await loadFaqsPropertySelect();
-        }
-        
-        async function loadFaqsForProperty() {
-            const propertyId = document.getElementById('faqs-property-select')?.value;
-            const container = document.getElementById('faqs-list');
-            
-            if (!propertyId) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">❓</div>
-                        <h3>Select a Property</h3>
-                        <p>Choose a property above to manage its FAQs</p>
-                    </div>
-                `;
-                document.getElementById('faq-schema-preview-card').style.display = 'none';
-                return;
-            }
-            
-            try {
-                const response = await fetch(`/api/admin/faqs?property_id=${propertyId}`, { headers: authHeaders() });
-                const data = await response.json();
-                
-                if (data.success) {
-                    faqsData = data.data || [];
-                    renderFaqs(faqsData);
-                    updateFaqSchemaPreview();
-                }
-            } catch (error) {
-                console.error('Error loading FAQs:', error);
-            }
-        }
-        
-        function filterFaqsByCategory() {
-            const category = document.getElementById('faqs-category-filter')?.value;
-            if (category) {
-                const filtered = faqsData.filter(f => f.category === category);
-                renderFaqs(filtered);
-            } else {
-                renderFaqs(faqsData);
-            }
-        }
-        
-        function renderFaqs(faqs) {
-            const container = document.getElementById('faqs-list');
-            const propertyId = document.getElementById('faqs-property-select')?.value;
-            
-            if (!propertyId) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">❓</div>
-                        <h3>Select a Property</h3>
-                        <p>Choose a property above to manage its FAQs</p>
-                    </div>
-                `;
-                return;
-            }
-            
-            if (!faqs || faqs.length === 0) {
-                container.innerHTML = `
-                    <div class="empty-state">
-                        <div class="empty-icon">❓</div>
-                        <h3>No FAQs Yet</h3>
-                        <p>Add frequently asked questions to help guests and improve your SEO</p>
-                        <button class="btn" onclick="openAddFaqModal()">Add Your First FAQ</button>
-                    </div>
-                `;
-                return;
-            }
-            
-            const categoryLabels = {
-                'check-in': '🕐 Check-in/Check-out',
-                'amenities': '🛋️ Amenities',
-                'policies': '📋 Policies',
-                'location': '📍 Location',
-                'booking': '📅 Booking',
-                'other': '📌 Other'
-            };
-            
-            container.innerHTML = `
-                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
-                    <span style="color: var(--text-secondary);">${faqs.length} FAQ${faqs.length !== 1 ? 's' : ''}</span>
-                </div>
-                ${faqs.map((faq, index) => `
-                    <div style="border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; background: white;">
-                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
-                            <div style="flex: 1;">
-                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
-                                    <strong style="font-size: 1rem;">${faq.question}</strong>
-                                    ${faq.category ? `<span class="badge badge-secondary" style="font-size: 0.7rem;">${categoryLabels[faq.category] || faq.category}</span>` : ''}
-                                </div>
-                                <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">${faq.answer}</p>
-                                <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
-                                    ${faq.show_on_website ? '<span class="badge badge-success" style="font-size: 0.65rem;">Website</span>' : ''}
-                                    ${faq.include_in_schema ? '<span class="badge badge-info" style="font-size: 0.65rem;">SEO Schema</span>' : ''}
-                                    ${!faq.active ? '<span class="badge badge-secondary" style="font-size: 0.65rem;">Inactive</span>' : ''}
-                                </div>
-                            </div>
-                            <div style="display: flex; gap: 0.5rem;">
-                                <button class="btn btn-secondary btn-small" onclick="editFaq(${faq.id})">Edit</button>
-                                <button class="btn btn-secondary btn-small" onclick="deleteFaq(${faq.id})" style="color: #dc2626;">Delete</button>
-                            </div>
-                        </div>
-                    </div>
-                `).join('')}
-            `;
-        }
-        
-        function updateFaqSchemaPreview() {
-            const schemaCard = document.getElementById('faq-schema-preview-card');
-            const schemaPreview = document.getElementById('faq-schema-preview');
-            
-            const schemaFaqs = faqsData.filter(f => f.include_in_schema && f.active);
-            
-            if (schemaFaqs.length === 0) {
-                schemaCard.style.display = 'none';
-                return;
-            }
-            
-            schemaCard.style.display = 'block';
-            
-            const schema = {
-                "@context": "https://schema.org",
-                "@type": "FAQPage",
-                "mainEntity": schemaFaqs.map(faq => ({
-                    "@type": "Question",
-                    "name": faq.question,
-                    "acceptedAnswer": {
-                        "@type": "Answer",
-                        "text": faq.answer
-                    }
-                }))
-            };
-            
-            schemaPreview.textContent = JSON.stringify(schema, null, 2);
-        }
-        
-        function copyFaqSchema() {
-            const schemaPreview = document.getElementById('faq-schema-preview');
-            navigator.clipboard.writeText(schemaPreview.textContent).then(() => {
-                alert('Schema JSON-LD copied to clipboard!');
-            });
-        }
-        
-        function toggleFaqPresets() {
-            const presets = document.getElementById('faq-presets');
-            const btn = document.getElementById('toggle-faq-presets-btn');
-            
-            if (presets.style.display === 'none') {
-                presets.style.display = 'block';
-                btn.textContent = 'Hide Templates ▲';
-            } else {
-                presets.style.display = 'none';
-                btn.textContent = 'Show Templates ▼';
-            }
-        }
-        
-        async function quickAddFaq(question, answer, category) {
-            const propertyId = document.getElementById('faqs-property-select')?.value;
-            if (!propertyId) {
-                alert('Please select a property first');
-                return;
-            }
-            
-            try {
-                const response = await fetch('/api/admin/faqs', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({
-                        property_id: propertyId,
-                        question,
-                        answer,
-                        category,
-                        show_on_website: true,
-                        include_in_schema: true,
-                        active: true
-                    })
-                });
-                
-                const data = await response.json();
-                if (data.success) {
-                    loadFaqsForProperty();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                alert('Error adding FAQ: ' + error.message);
-            }
-        }
-        
-        function openAddFaqModal() {
-            document.getElementById('faq-form').reset();
-            document.getElementById('faq-id').value = '';
-            document.getElementById('faq-modal-title').innerHTML = '❓ Add FAQ';
-            document.getElementById('faq-show-website').checked = true;
-            document.getElementById('faq-include-schema').checked = true;
-            document.getElementById('faq-active').checked = true;
-            openModal('addFaqModal');
-        }
-        
-        function editFaq(id) {
-            const faq = faqsData.find(f => f.id === id);
-            if (!faq) return;
-            
-            document.getElementById('faq-id').value = faq.id;
-            document.getElementById('faq-question').value = faq.question || '';
-            document.getElementById('faq-answer').value = faq.answer || '';
-            document.getElementById('faq-category').value = faq.category || '';
-            document.getElementById('faq-order').value = faq.display_order || 0;
-            document.getElementById('faq-show-website').checked = faq.show_on_website !== false;
-            document.getElementById('faq-include-schema').checked = faq.include_in_schema !== false;
-            document.getElementById('faq-active').checked = faq.active !== false;
-            document.getElementById('faq-modal-title').innerHTML = '✏️ Edit FAQ';
-            openModal('addFaqModal');
-        }
-        
-        async function saveFaq() {
-            const id = document.getElementById('faq-id').value;
-            const propertyId = document.getElementById('faqs-property-select')?.value;
-            
-            if (!propertyId) {
-                alert('Please select a property first');
-                return;
-            }
-            
-            const faqData = {
-                property_id: propertyId,
-                question: document.getElementById('faq-question').value,
-                answer: document.getElementById('faq-answer').value,
-                category: document.getElementById('faq-category').value || null,
-                display_order: parseInt(document.getElementById('faq-order').value) || 0,
-                show_on_website: document.getElementById('faq-show-website').checked,
-                include_in_schema: document.getElementById('faq-include-schema').checked,
-                active: document.getElementById('faq-active').checked
-            };
-            
-            if (!faqData.question || !faqData.answer) {
-                alert('Question and answer are required');
-                return;
-            }
-            
-            try {
-                const url = id ? `/api/admin/faqs/${id}` : '/api/admin/faqs';
-                const method = id ? 'PUT' : 'POST';
-                
-                const response = await fetch(url, {
-                    method,
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify(faqData)
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    closeModal('addFaqModal');
-                    loadFaqsForProperty();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                alert('Error saving FAQ: ' + error.message);
-            }
-        }
-        
-        async function deleteFaq(id) {
-            if (!confirm('Delete this FAQ?')) return;
-            
-            try {
-                const response = await fetch(`/api/admin/faqs/${id}`, { 
-                    method: 'DELETE', 
-                    headers: authHeaders() 
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    loadFaqsForProperty();
-                } else {
-                    alert('Error: ' + data.error);
-                }
-            } catch (error) {
-                alert('Error deleting FAQ: ' + error.message);
             }
         }
 
@@ -25009,7 +23954,7 @@ Local honey and preserves"></textarea>
             for (const fee of fees) {
                 const amountDisplay = fee.amount_type === 'percentage' 
                     ? `${fee.amount}%` 
-                    : `${parseFloat(fee.amount).toFixed(2)}`;
+                    : `$${parseFloat(fee.amount).toFixed(2)}`;
                     
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
@@ -30102,7 +29047,7 @@ Local honey and preserves"></textarea>
 
         async function loadConnectionStatus() {
             try {
-                const response = await fetch('/api/gas-sync/connections' + buildQueryString(), { headers: authHeaders() });
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
                 
                 const container = document.getElementById('connectionStatusList');
@@ -30140,95 +29085,15 @@ Local honey and preserves"></textarea>
             }
         }
 
-        // Simple client connection view
-        async function loadClientConnectionView() {
-            const container = document.getElementById('clientConnectionInfo');
-            try {
-                const response = await fetch('/api/gas-sync/connections' + buildQueryString(), { headers: authHeaders() });
-                const data = await response.json();
-                
-                if (data.success && data.connections && data.connections.length > 0) {
-                    const conn = data.connections[0];
-                    
-                    // Fetch properties for this connection
-                    let propertiesHtml = '<tr><td colspan="4" style="text-align: center; color: var(--text-secondary);">No properties synced</td></tr>';
-                    try {
-                        const propsResponse = await fetch(`/api/gas-sync/connections/${conn.id}/properties`, { headers: authHeaders() });
-                        const propsData = await propsResponse.json();
-                        if (propsData.success && propsData.properties && propsData.properties.length > 0) {
-                            const rows = [];
-                            for (const prop of propsData.properties) {
-                                const roomsResponse = await fetch(`/api/gas-sync/properties/${prop.id}/room-types`, { headers: authHeaders() });
-                                const roomsData = await roomsResponse.json();
-                                const roomCount = roomsData.success ? roomsData.room_types.length : 0;
-                                
-                                rows.push(`
-                                    <tr>
-                                        <td>
-                                            <div style="display: flex; align-items: center; gap: 12px;">
-                                                <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">${prop.name.charAt(0)}</div>
-                                                <div>
-                                                    <strong>${prop.name}</strong>
-                                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">${prop.city || ''} ${prop.country || ''}</div>
-                                                </div>
-                                            </div>
-                                        </td>
-                                        <td><span class="connection-status-badge connected">${conn.adapter_name}</span></td>
-                                        <td>${roomCount} rooms</td>
-                                        <td><span class="connection-status-badge ${conn.status}">${conn.status}</span></td>
-                                    </tr>
-                                `);
-                            }
-                            propertiesHtml = rows.join('');
-                        }
-                    } catch (e) {
-                        console.error('Error fetching properties:', e);
-                    }
-                    
-                    container.innerHTML = `
-                        <div class="table-container">
-                            <table style="width: 100%; border-collapse: collapse;">
-                                <thead>
-                                    <tr style="border-bottom: 1px solid var(--border);">
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Property</th>
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Channel</th>
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Rooms</th>
-                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${propertiesHtml}
-                                </tbody>
-                            </table>
-                        </div>
-                    `;
-                } else {
-                    container.innerHTML = `
-                        <div style="text-align: center; padding: 2rem;">
-                            <div style="font-size: 3rem; margin-bottom: 1rem;">🔌</div>
-                            <h3>No Connection</h3>
-                            <p style="color: var(--text-secondary);">No channel manager connected yet.</p>
-                        </div>
-                    `;
-                }
-            } catch (error) {
-                console.error('Error loading client connection:', error);
-                container.innerHTML = '<p style="color: var(--text-secondary);">Error loading connection info.</p>';
-            }
-        }
-
         // Connections
         async function loadGasSyncConnections() {
             try {
-                const response = await fetch('/api/gas-sync/connections' + buildQueryString(), { headers: authHeaders() });
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
                 
                 gasSyncConnections = data.connections || [];
                 
                 const grid = document.getElementById('connectionsGrid');
-                const isMaster = currentAccount && currentAccount.role === 'master_admin';
-                const isViewingClient = selectedAccountId !== null;
-                const showControls = isMaster && !isViewingClient;
                 
                 if (gasSyncConnections.length > 0) {
                     grid.innerHTML = gasSyncConnections.map(conn => `
@@ -30262,40 +29127,26 @@ Local honey and preserves"></textarea>
                                 ${conn.last_error ? '<br><span style="color: #ef4444;">Error: ' + conn.last_error.substring(0, 50) + '...</span>' : ''}
                             </div>
                             
-                            ${showControls ? `
                             <div class="connection-actions">
                                 <button class="btn btn-secondary btn-sm" onclick="triggerSync(${conn.id})">🔄 Sync</button>
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionDetails(${conn.id})">⚙️ Details</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})">🗑️</button>
                             </div>
-                            ` : ''}
                         </div>
                     `).join('');
                 } else {
-                    if (showControls) {
-                        grid.innerHTML = `
-                            <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
-                                <div style="font-size: 64px; margin-bottom: 20px;">🔌</div>
-                                <h3>No Channel Managers Connected</h3>
-                                <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                                    Connect your channel managers to sync properties, availability, and reservations
-                                </p>
-                                <button class="btn btn-primary btn-lg" onclick="showAddConnectionModal()">
-                                    ➕ Add Your First Connection
-                                </button>
-                            </div>
-                        `;
-                    } else {
-                        grid.innerHTML = `
-                            <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
-                                <div style="font-size: 64px; margin-bottom: 20px;">🔌</div>
-                                <h3>No Connections</h3>
-                                <p style="color: var(--text-secondary);">
-                                    Contact your administrator to set up a channel manager connection.
-                                </p>
-                            </div>
-                        `;
-                    }
+                    grid.innerHTML = `
+                        <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                            <div style="font-size: 64px; margin-bottom: 20px;">🔌</div>
+                            <h3>No Channel Managers Connected</h3>
+                            <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                                Connect your channel managers to sync properties, availability, and reservations
+                            </p>
+                            <button class="btn btn-primary btn-lg" onclick="showAddConnectionModal()">
+                                ➕ Add Your First Connection
+                            </button>
+                        </div>
+                    `;
                 }
                 
                 populateConnectionFilters();
