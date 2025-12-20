@@ -6278,6 +6278,18 @@
                     </div>
                 </div>
 
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property / Website</label>
+                            <select id="blog-property-select" class="form-input" onchange="loadAppBlogPosts()">
+                                <option value="">All Properties</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div id="app-blog-posts-list">
                         <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
@@ -6299,6 +6311,18 @@
                             <p>Manage local attractions and things to do</p>
                         </div>
                         <button class="btn" onclick="openAttractionModal()">+ Add Attraction</button>
+                    </div>
+                </div>
+
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property / Website</label>
+                            <select id="attractions-property-select" class="form-input" onchange="loadAppAttractions()">
+                                <option value="">All Properties</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
 
@@ -12136,6 +12160,15 @@ Local honey and preserves"></textarea>
                 <form id="blog-form">
                     <input type="hidden" id="blog-id">
                     
+                    <!-- Property Selector -->
+                    <div class="form-group" style="margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <label class="form-label">Property / Website *</label>
+                        <select class="form-input" id="blog-property-id" required>
+                            <option value="">Select property...</option>
+                        </select>
+                        <small style="color: var(--text-secondary);">Choose which website this blog post belongs to</small>
+                    </div>
+                    
                     <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 1.5rem;">
                         <!-- Left Column: Content -->
                         <div>
@@ -12249,6 +12282,15 @@ Local honey and preserves"></textarea>
             <div class="modal-body" style="padding: 1.5rem;">
                 <form id="attraction-form">
                     <input type="hidden" id="attraction-id">
+                    
+                    <!-- Property Selector -->
+                    <div class="form-group" style="margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <label class="form-label">Property / Website *</label>
+                        <select class="form-input" id="attraction-property-id" required>
+                            <option value="">Select property...</option>
+                        </select>
+                        <small style="color: var(--text-secondary);">Choose which website this attraction belongs to</small>
+                    </div>
                     
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
@@ -26871,15 +26913,25 @@ Local honey and preserves"></textarea>
             }
         }
 
-        function openBlogModal(post = null) {
+        async function openBlogModal(post = null) {
             document.getElementById('blog-form').reset();
             document.getElementById('blog-id').value = '';
             document.getElementById('blog-delete-btn').style.display = 'none';
             document.getElementById('blog-image-preview').innerHTML = '';
             
+            // Populate property dropdown in modal
+            await populatePropertySelect('blog-property-id');
+            
+            // Pre-select property from filter if set
+            const filterProperty = document.getElementById('blog-property-select')?.value;
+            if (filterProperty && !post) {
+                document.getElementById('blog-property-id').value = filterProperty;
+            }
+            
             if (post) {
                 document.getElementById('blog-modal-title').textContent = '📝 Edit Blog Post';
                 document.getElementById('blog-id').value = post.id;
+                document.getElementById('blog-property-id').value = post.property_id || '';
                 document.getElementById('blog-title').value = post.title || '';
                 document.getElementById('blog-slug').value = post.slug || '';
                 document.getElementById('blog-excerpt').value = post.excerpt || '';
@@ -26920,8 +26972,14 @@ Local honey and preserves"></textarea>
 
         async function saveBlogPost() {
             const id = document.getElementById('blog-id').value;
+            const propertyId = document.getElementById('blog-property-id').value;
             const title = document.getElementById('blog-title').value.trim();
             const content = document.getElementById('blog-content').value.trim();
+            
+            if (!propertyId) {
+                showNotification('Please select a property', 'error');
+                return;
+            }
             
             if (!title || !content) {
                 showNotification('Title and content are required', 'error');
@@ -26929,6 +26987,7 @@ Local honey and preserves"></textarea>
             }
             
             const postData = {
+                property_id: parseInt(propertyId),
                 title: title,
                 slug: document.getElementById('blog-slug').value.trim() || null,
                 excerpt: document.getElementById('blog-excerpt').value.trim(),
@@ -27078,15 +27137,25 @@ Local honey and preserves"></textarea>
             }
         }
 
-        function openAttractionModal(attraction = null) {
+        async function openAttractionModal(attraction = null) {
             document.getElementById('attraction-form').reset();
             document.getElementById('attraction-id').value = '';
             document.getElementById('attraction-delete-btn').style.display = 'none';
             document.getElementById('attraction-published').checked = true;
             
+            // Populate property dropdown in modal
+            await populatePropertySelect('attraction-property-id');
+            
+            // Pre-select property from filter if set
+            const filterProperty = document.getElementById('attractions-property-select')?.value;
+            if (filterProperty && !attraction) {
+                document.getElementById('attraction-property-id').value = filterProperty;
+            }
+            
             if (attraction) {
                 document.getElementById('attraction-modal-title').textContent = '🎯 Edit Attraction';
                 document.getElementById('attraction-id').value = attraction.id;
+                document.getElementById('attraction-property-id').value = attraction.property_id || '';
                 document.getElementById('attraction-name').value = attraction.name || '';
                 document.getElementById('attraction-slug').value = attraction.slug || '';
                 document.getElementById('attraction-category').value = attraction.category || '';
@@ -27128,9 +27197,15 @@ Local honey and preserves"></textarea>
 
         async function saveAttraction() {
             const id = document.getElementById('attraction-id').value;
+            const propertyId = document.getElementById('attraction-property-id').value;
             const name = document.getElementById('attraction-name').value.trim();
             const category = document.getElementById('attraction-category').value;
             const shortDesc = document.getElementById('attraction-short-desc').value.trim();
+            
+            if (!propertyId) {
+                showNotification('Please select a property', 'error');
+                return;
+            }
             
             if (!name || !category || !shortDesc) {
                 showNotification('Name, category and short description are required', 'error');
@@ -27138,6 +27213,7 @@ Local honey and preserves"></textarea>
             }
             
             const attractionData = {
+                property_id: parseInt(propertyId),
                 name: name,
                 slug: document.getElementById('attraction-slug').value.trim() || null,
                 category: category,
@@ -27218,9 +27294,17 @@ Local honey and preserves"></textarea>
         }
 
         async function loadAppBlogPosts() {
-            // Reuse the same function but target different container
+            // Populate property dropdown first using standard pattern
+            await loadBlogPropertySelect();
+            
             try {
-                const response = await fetch(`/api/admin/blog?client_id=${getClientId()}`);
+                const propertyId = document.getElementById('blog-property-select')?.value || '';
+                let url = `/api/admin/blog?client_id=${getClientId()}`;
+                if (propertyId) {
+                    url += `&property_id=${propertyId}`;
+                }
+                
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 const container = document.getElementById('app-blog-posts-list');
@@ -27232,6 +27316,7 @@ Local honey and preserves"></textarea>
                             <thead>
                                 <tr>
                                     <th>Title</th>
+                                    <th>Property</th>
                                     <th>Category</th>
                                     <th>Status</th>
                                     <th>Date</th>
@@ -27242,6 +27327,7 @@ Local honey and preserves"></textarea>
                                 ${data.posts.map(post => `
                                     <tr>
                                         <td><strong>${post.title}</strong></td>
+                                        <td>${post.property_name || '<span style="color: var(--text-secondary);">Not assigned</span>'}</td>
                                         <td>${post.category || '-'}</td>
                                         <td><span class="badge ${post.is_published ? 'badge-success' : 'badge-secondary'}">${post.is_published ? 'Published' : 'Draft'}</span></td>
                                         <td>${post.published_at ? new Date(post.published_at).toLocaleDateString() : '-'}</td>
@@ -27253,15 +27339,57 @@ Local honey and preserves"></textarea>
                             </tbody>
                         </table>
                     `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">📝</div>
+                            <h3 style="margin-bottom: 0.5rem;">No blog posts yet</h3>
+                            <p>Create your first blog post to engage your guests</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="openBlogModal()">Create Your First Post</button>
+                        </div>
+                    `;
                 }
             } catch (error) {
                 console.error('Error loading blog posts:', error);
             }
         }
+        
+        async function loadBlogPropertySelect() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('blog-property-select');
+                if (!select) return;
+                
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">All Properties</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+                
+                if (currentValue) select.value = currentValue;
+            } catch (error) {
+                console.error('Error loading properties for blog:', error);
+            }
+        }
 
         async function loadAppAttractions() {
+            // Populate property dropdown first using standard pattern
+            await loadAttractionsPropertySelect();
+            
             try {
-                const response = await fetch(`/api/admin/attractions?client_id=${getClientId()}`);
+                const propertyId = document.getElementById('attractions-property-select')?.value || '';
+                let url = `/api/admin/attractions?client_id=${getClientId()}`;
+                if (propertyId) {
+                    url += `&property_id=${propertyId}`;
+                }
+                
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 const container = document.getElementById('app-attractions-list');
@@ -27287,9 +27415,42 @@ Local honey and preserves"></textarea>
                             `).join('')}
                         </div>
                     `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">🎯</div>
+                            <h3 style="margin-bottom: 0.5rem;">No attractions yet</h3>
+                            <p>Add local attractions to help guests explore the area</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="openAttractionModal()">Add Your First Attraction</button>
+                        </div>
+                    `;
                 }
             } catch (error) {
                 console.error('Error loading attractions:', error);
+            }
+        }
+        
+        async function loadAttractionsPropertySelect() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('attractions-property-select');
+                if (!select) return;
+                
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">All Properties</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+                
+                if (currentValue) select.value = currentValue;
+            } catch (error) {
+                console.error('Error loading properties for attractions:', error);
             }
         }
 
