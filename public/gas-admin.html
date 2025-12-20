@@ -8270,7 +8270,7 @@ Local honey and preserves"></textarea>
                     </div>
                 </div>
                 
-                <div id="clientConnectionInfo" class="card" style="max-width: 500px;">
+                <div id="clientConnectionInfo" class="card" style="max-width: 600px;">
                     <p style="color: var(--text-secondary);">Loading...</p>
                 </div>
             </div>
@@ -29049,33 +29049,17 @@ Local honey and preserves"></textarea>
                     }
                     
                     container.innerHTML = `
-                        <div style="padding: 1.5rem;">
-                            <div style="display: grid; gap: 1rem;">
-                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
-                                    <span style="color: var(--text-secondary);">Connected To</span>
-                                    <strong>${conn.adapter_name || 'Channel Manager'}</strong>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
-                                    <span style="color: var(--text-secondary);">Property</span>
-                                    <strong>${propertyNames}</strong>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color); flex-wrap: wrap; gap: 0.5rem;">
-                                    <span style="color: var(--text-secondary);">Rooms</span>
-                                    <strong style="text-align: right; max-width: 300px;">${roomNames}</strong>
-                                </div>
-                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0;">
-                                    <span style="color: var(--text-secondary);">Status</span>
-                                    <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
-                                        <span style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></span>
-                                        <strong>${statusText}</strong>
-                                    </span>
-                                </div>
-                            </div>
-                        </div>
+                        <h4 style="margin-bottom: 1rem;">Connection Info</h4>
+                        <table style="width: 100%;"><tbody>
+                            <tr><td style="padding: 8px 0; color: var(--text-secondary); width: 140px;">Connected To</td><td><strong>${conn.adapter_name || 'Channel Manager'}</strong></td></tr>
+                            <tr><td style="padding: 8px 0; color: var(--text-secondary);">Property</td><td><strong>${propertyNames}</strong></td></tr>
+                            <tr><td style="padding: 8px 0; color: var(--text-secondary); vertical-align: top;">Rooms</td><td>${roomNames}</td></tr>
+                            <tr><td style="padding: 8px 0; color: var(--text-secondary);">Status</td><td><span class="connection-status-badge ${conn.status}">${statusText}</span></td></tr>
+                        </tbody></table>
                     `;
                 } else {
                     container.innerHTML = `
-                        <div style="padding: 2rem; text-align: center;">
+                        <div style="text-align: center; padding: 2rem;">
                             <div style="font-size: 3rem; margin-bottom: 1rem;">🔌</div>
                             <h3>No Connection</h3>
                             <p style="color: var(--text-secondary);">No channel manager connected yet.</p>
@@ -29084,7 +29068,7 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 console.error('Error loading client connection:', error);
-                container.innerHTML = '<p style="color: var(--text-secondary); padding: 1rem;">Error loading connection info.</p>';
+                container.innerHTML = '<p style="color: var(--text-secondary);">Error loading connection info.</p>';
             }
         }
 
