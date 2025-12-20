@@ -584,12 +584,94 @@ async function runMigrations() {
       console.log('ℹ️  prop_key column:', propKeyError.message);
     }
     
-    // Fix: Ensure gas_sync_connections has api_key column for V1 credentials
+    // Fix: Extend room_availability.source column to VARCHAR(50) if it's VARCHAR(20)
     try {
-      await pool.query(`ALTER TABLE gas_sync_connections ADD COLUMN IF NOT EXISTS api_key TEXT`);
-      console.log('✅ gas_sync_connections.api_key ensured');
-    } catch (apiKeyError) {
-      console.log('ℹ️  api_key column:', apiKeyError.message);
+      await pool.query(`ALTER TABLE room_availability ALTER COLUMN source TYPE VARCHAR(50)`);
+      console.log('✅ room_availability.source extended to VARCHAR(50)');
+    } catch (sourceError) {
+      console.log('ℹ️  source column:', sourceError.message);
+    }
+    
+    // Add property-level Stripe keys (legacy - will migrate to payment_configurations)
+    try {
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_publishable_key TEXT`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS child_max_age INTEGER DEFAULT 12`);
+      console.log('✅ Property Stripe keys columns ensured');
+    } catch (stripeError) {
+      console.log('ℹ️  Stripe columns:', stripeError.message);
+    }
+    
+    // Add occupancy pricing columns to bookable_units
+    try {
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS pricing_mode VARCHAR(20) DEFAULT 'per_room'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS base_occupancy INTEGER DEFAULT 2`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS extra_adult_type VARCHAR(10) DEFAULT 'fixed'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS extra_adult_charge DECIMAL(10,2) DEFAULT 0`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS single_discount_type VARCHAR(10) DEFAULT 'fixed'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS single_discount_value DECIMAL(10,2) DEFAULT 0`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge_type VARCHAR(10) DEFAULT 'fixed'`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge DECIMAL(10,2) DEFAULT 0`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS children_allowed BOOLEAN DEFAULT true`);
+      console.log('✅ Occupancy pricing columns ensured on bookable_units');
+    } catch (occError) {
+      console.log('ℹ️  Occupancy columns:', occError.message);
+    }
+    
+    // Add min_stay columns to room_availability
+    try {
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS cm_min_stay INTEGER`);
+      await pool.query(`ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS min_stay_override INTEGER`);
+      console.log('✅ Min stay columns ensured on room_availability');
+    } catch (minStayError) {
+      console.log('ℹ️  Min stay columns:', minStayError.message);
+    }
+    
+    // Create payment_configurations table for flexible multi-provider support
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS payment_configurations (
+          id SERIAL PRIMARY KEY,
+          account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+          property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+          provider VARCHAR(50) NOT NULL,
+          name VARCHAR(100),
+          is_enabled BOOLEAN DEFAULT false,
+          credentials JSONB DEFAULT '{}',
+          settings JSONB DEFAULT '{}',
+          is_default BOOLEAN DEFAULT false,
+          test_mode BOOLEAN DEFAULT false,
+          last_tested_at TIMESTAMP,
+          test_result JSONB,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          CONSTRAINT unique_provider_per_scope UNIQUE (account_id, property_id, provider)
+        )
+      `);
+      console.log('✅ payment_configurations table ensured');
+    } catch (payConfigError) {
+      console.log('ℹ️  payment_configurations:', payConfigError.message);
+    }
+    
+    // Create payment_setup_tokens for secure setup links
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS payment_setup_tokens (
+          id SERIAL PRIMARY KEY,
+          token VARCHAR(100) UNIQUE NOT NULL,
+          account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+          property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+          provider VARCHAR(50),
+          expires_at TIMESTAMP NOT NULL,
+          used_at TIMESTAMP,
+          created_by INTEGER,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('✅ payment_setup_tokens table ensured');
+    } catch (setupTokenError) {
+      console.log('ℹ️  payment_setup_tokens:', setupTokenError.message);
     }
     
   } catch (error) {
@@ -1422,6 +1504,42 @@ app.post('/api/gas-sync/connections/:id/mappings/reset', async (req, res) => {
   }
 });
 
+// Helper function to get currency symbol from currency code
+function getCurrencySymbol(currencyCode) {
+  const symbols = {
+    'GBP': '£',
+    'USD': '$',
+    'EUR': '€',
+    'CHF': 'CHF ',
+    'AUD': 'A$',
+    'CAD': 'C$',
+    'NZD': 'NZ$',
+    'JPY': '¥',
+    'CNY': '¥',
+    'INR': '₹',
+    'ZAR': 'R',
+    'BRL': 'R$',
+    'MXN': 'MX$',
+    'SEK': 'kr',
+    'NOK': 'kr',
+    'DKK': 'kr',
+    'PLN': 'zł',
+    'CZK': 'Kč',
+    'HUF': 'Ft',
+    'THB': '฿',
+    'SGD': 'S$',
+    'HKD': 'HK$',
+    'MYR': 'RM',
+    'AED': 'AED ',
+    'SAR': 'SAR ',
+    'ILS': '₪',
+    'TRY': '₺',
+    'RUB': '₽',
+    'KRW': '₩'
+  };
+  return symbols[currencyCode?.toUpperCase()] || currencyCode + ' ' || '$';
+}
+
 // Helper function for default mappings
 function getDefaultMappings(adapterCode) {
   const beds24Defaults = [
@@ -1440,6 +1558,7 @@ function getDefaultMappings(adapterCode) {
     { source_entity: 'property', source_field: 'web', target_entity: 'properties', target_field: 'website' },
     { source_entity: 'property', source_field: 'latitude', target_entity: 'properties', target_field: 'latitude' },
     { source_entity: 'property', source_field: 'longitude', target_entity: 'properties', target_field: 'longitude' },
+    { source_entity: 'property', source_field: 'currency', target_entity: 'properties', target_field: 'currency' },
     // Room mappings - based on actual Beds24 V1 API response
     { source_entity: 'room', source_field: 'name', target_entity: 'bookable_units', target_field: 'name' },
     { source_entity: 'room', source_field: 'texts.displayName.EN', target_entity: 'bookable_units', target_field: 'display_name' },
@@ -1518,6 +1637,44 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
     }
     
     res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Set V1 API key for a connection (for Fixed Prices fallback)
+app.post('/api/gas-sync/connections/:id/set-v1-api-key', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { v1ApiKey } = req.body;
+    
+    if (!v1ApiKey) {
+      return res.status(400).json({ success: false, error: 'v1ApiKey is required' });
+    }
+    
+    // Get current credentials
+    const connResult = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [id]);
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    let credentials = connResult.rows[0].credentials || {};
+    if (typeof credentials === 'string') {
+      credentials = JSON.parse(credentials);
+    }
+    
+    // Add V1 API key to credentials
+    credentials.v1ApiKey = v1ApiKey;
+    
+    // Save updated credentials
+    await pool.query(`
+      UPDATE gas_sync_connections 
+      SET credentials = $1, updated_at = NOW()
+      WHERE id = $2
+    `, [JSON.stringify(credentials), id]);
+    
+    console.log(`✅ V1 API key set for connection ${id}`);
+    res.json({ success: true, message: 'V1 API key saved. Fixed Prices fallback now enabled.' });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
   }
@@ -1737,6 +1894,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     
     // Add all necessary columns
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS currency VARCHAR(3) DEFAULT \'GBP\'');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS short_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS full_description TEXT');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS house_rules TEXT');
@@ -2540,23 +2698,12 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
       return res.json({ success: false, error: 'No access token. Please reconnect to Beds24.' });
     }
     
-    // Get all synced properties with linked rooms (include prop_key for V1 API fallback)
+    // Get all synced properties with linked rooms
     const propsResult = await pool.query(`
-      SELECT sp.id, sp.external_id, sp.name, sp.gas_property_id, sp.prop_key
+      SELECT sp.id, sp.external_id, sp.name, sp.gas_property_id
       FROM gas_sync_properties sp
       WHERE sp.connection_id = $1 AND sp.gas_property_id IS NOT NULL
     `, [connectionId]);
-    
-    // Parse V1 credentials from connection api_key (stored as JSON)
-    let v1ApiKey = null;
-    try {
-      if (conn.api_key) {
-        const apiKeyData = typeof conn.api_key === 'string' ? JSON.parse(conn.api_key) : conn.api_key;
-        v1ApiKey = apiKeyData.v1ApiKey || null;
-      }
-    } catch (e) {
-      console.log('Could not parse V1 credentials:', e.message);
-    }
     
     if (propsResult.rows.length === 0) {
       return res.json({ success: false, error: 'No linked properties found.' });
@@ -2647,8 +2794,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                 if (isBlocked) daysBlocked++;
                 
                 await pool.query(`
-                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
-                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24')
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24')
                   ON CONFLICT (room_id, date) 
                   DO UPDATE SET 
                     cm_price = COALESCE($3, room_availability.cm_price),
@@ -2656,6 +2803,7 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                     is_available = $4,
                     is_blocked = $5,
                     min_stay = $6,
+                    cm_min_stay = $6,
                     source = 'beds24',
                     updated_at = NOW()
                 `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay]);
@@ -2667,56 +2815,12 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
             // Calendar empty - use fixedPrices + availability (Belmont style)
             console.log(`  Calendar empty for ${room.name}, using fixedPrices fallback`);
             
-            // Try V2 fixedPrices first
-            let priceRules = [];
+            // Get fixedPrices
             const pricesResponse = await axios.get('https://beds24.com/api/v2/inventory/fixedPrices', {
               headers: { 'token': accessToken },
               params: { roomId: beds24RoomId }
             });
-            priceRules = (pricesResponse.data.data || []).filter(r => r.offerId === 1);
-            console.log(`    V2 fixedPrices returned ${priceRules.length} rules for room ${beds24RoomId}`);
-            
-            // If V2 returns empty and we have V1 credentials, try V1 getRates
-            if (priceRules.length === 0 && v1ApiKey && prop.prop_key) {
-              console.log(`    V2 empty, trying V1 getRates with prop_key: ${prop.prop_key}`);
-              try {
-                const v1Response = await axios.post('https://api.beds24.com/json/getRates', {
-                  authentication: {
-                    apiKey: v1ApiKey,
-                    propKey: prop.prop_key
-                  }
-                }, {
-                  headers: { 'Content-Type': 'application/json' }
-                });
-                
-                // V1 getRates returns array of rate rules with different format
-                const v1Rates = Array.isArray(v1Response.data) ? v1Response.data : [];
-                console.log(`    V1 getRates returned ${v1Rates.length} total rates`);
-                
-                // Filter for this room (roomId matches beds24RoomId)
-                const roomRates = v1Rates.filter(r => 
-                  String(r.roomId) === String(beds24RoomId) && r.roomPriceEnable === '1'
-                );
-                console.log(`    Found ${roomRates.length} rates for room ${beds24RoomId}`);
-                
-                // Convert V1 format to priceRules format
-                // V1: { firstNight, lastNight, roomPrice, minNights, rateId }
-                priceRules = roomRates.map(r => ({
-                  id: parseInt(r.rateId) || 0,
-                  firstNight: r.firstNight,
-                  lastNight: r.lastNight,
-                  roomPrice: parseFloat(r.roomPrice) || 0,
-                  minNights: parseInt(r.minNights) || 1
-                }));
-                console.log(`    Converted ${priceRules.length} V1 rates to price rules`);
-                
-                if (priceRules.length > 0) {
-                  console.log(`    Sample rule: ${priceRules[0].firstNight} to ${priceRules[0].lastNight} @ £${priceRules[0].roomPrice}`);
-                }
-              } catch (v1Error) {
-                console.log(`    V1 getRates error: ${v1Error.response?.data?.error || v1Error.message}`);
-              }
-            }
+            const priceRules = (pricesResponse.data.data || []).filter(r => r.offerId === 1);
             
             await new Promise(resolve => setTimeout(resolve, 100));
             
@@ -2757,8 +2861,8 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
               if (isBlocked) daysBlocked++;
               
               await pool.query(`
-                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
-                VALUES ($1, $2, $3, $3, $4, $5, $6, 'beds24')
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
+                VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24')
                 ON CONFLICT (room_id, date) 
                 DO UPDATE SET 
                   cm_price = COALESCE($3, room_availability.cm_price),
@@ -2766,10 +2870,10 @@ app.post('/api/gas-sync/connections/:connectionId/sync-availability', async (req
                   is_available = $4,
                   is_blocked = $5,
                   min_stay = $6,
+                  cm_min_stay = $6,
                   source = 'beds24',
                   updated_at = NOW()
               `, [room.gas_room_id, dateStr, price, isAvailable, isBlocked, minStay]);
-              
               
               totalDaysUpdated++;
             }
@@ -2850,8 +2954,341 @@ app.post('/api/gas-sync/connections/:connectionId/full-sync', async (req, res) =
   }
 });
 
-// Run clients migration manually
 // =====================================================
+// TIERED AVAILABILITY POLLING SYSTEM
+// Syncs 18 months (540 days) without killing Beds24 rate limits
+// =====================================================
+
+/*
+ TIER STRUCTURE:
+ - Tier 1: Days 1-14   → Every 15 minutes (high activity)
+ - Tier 2: Days 15-60  → Every 2 hours (booking window)
+ - Tier 3: Days 61-180 → Every 6 hours (medium term)
+ - Tier 4: Days 181-540 → Every 24 hours (far future)
+ 
+ Rate limit friendly: Stagger rooms, ~2 second delay between API calls
+*/
+
+const SYNC_TIERS = [
+  { tier: 1, startDay: 0, endDay: 14, intervalMinutes: 15, name: 'Immediate (0-14 days)' },
+  { tier: 2, startDay: 15, endDay: 60, intervalMinutes: 120, name: 'Near-term (15-60 days)' },
+  { tier: 3, startDay: 61, endDay: 180, intervalMinutes: 360, name: 'Medium-term (61-180 days)' },
+  { tier: 4, startDay: 181, endDay: 540, intervalMinutes: 1440, name: 'Long-term (181-540 days)' }
+];
+
+// Add tier tracking columns
+async function ensureTierTrackingColumns() {
+  try {
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier1_synced_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier2_synced_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier3_synced_at TIMESTAMP`);
+    await pool.query(`ALTER TABLE gas_sync_room_types ADD COLUMN IF NOT EXISTS tier4_synced_at TIMESTAMP`);
+  } catch (e) {
+    console.log('Tier columns may already exist:', e.message);
+  }
+}
+
+// Tiered sync endpoint - call this from cron every 15 minutes
+app.post('/api/gas-sync/tiered-availability-sync', async (req, res) => {
+  const cronSecret = req.headers['x-cron-secret'];
+  const isDev = process.env.NODE_ENV === 'development' || req.query.dev === 'true';
+  
+  if (!isDev && cronSecret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    await ensureTierTrackingColumns();
+    
+    const now = new Date();
+    const results = { tiers: [], totalRoomsSynced: 0, totalDaysUpdated: 0, errors: [] };
+    
+    // Get all active Beds24 connections
+    const connections = await pool.query(`
+      SELECT * FROM gas_sync_connections 
+      WHERE adapter_code = 'beds24' AND sync_enabled = true AND status != 'syncing'
+    `);
+    
+    for (const conn of connections.rows) {
+      let accessToken = conn.access_token;
+      
+      // Always try to refresh token - access tokens expire quickly
+      if (conn.refresh_token) {
+        try {
+          const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+            headers: { 'refreshToken': conn.refresh_token }
+          });
+          accessToken = tokenResponse.data.token;
+          await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, conn.id]);
+        } catch (e) {
+          results.errors.push({ connection: conn.id, error: 'Token refresh failed: ' + e.message });
+          continue;
+        }
+      }
+      
+      if (!accessToken) continue;
+      
+      // Get rooms that need syncing for each tier
+      for (const tier of SYNC_TIERS) {
+        const tierColumn = `tier${tier.tier}_synced_at`;
+        const cutoffTime = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
+        
+        // Find rooms due for this tier sync
+        const roomsResult = await pool.query(`
+          SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+          FROM gas_sync_room_types rt
+          JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+          JOIN bookable_units bu ON bu.id = rt.gas_room_id
+          WHERE sp.connection_id = $1 
+            AND rt.gas_room_id IS NOT NULL
+            AND (rt.${tierColumn} IS NULL OR rt.${tierColumn} < $2)
+          ORDER BY rt.${tierColumn} ASC NULLS FIRST
+          LIMIT 5
+        `, [conn.id, cutoffTime]);
+        
+        if (roomsResult.rows.length === 0) continue;
+        
+        const tierResult = { tier: tier.tier, name: tier.name, rooms: [], daysUpdated: 0 };
+        
+        for (const room of roomsResult.rows) {
+          try {
+            // Calculate date range for this tier
+            const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
+            const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
+            
+            // Fetch calendar from Beds24
+            const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+              headers: { 'token': accessToken },
+              params: {
+                roomId: parseInt(room.beds24_room_id),
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                includeNumAvail: true,
+                includePrices: true,
+                includeMinStay: true
+              }
+            });
+            
+            const calendarData = calResponse.data.data?.[0]?.calendar || [];
+            let daysUpdated = 0;
+            
+            // Process calendar data
+            for (const entry of calendarData) {
+              const fromDate = new Date(entry.from);
+              const toDate = new Date(entry.to);
+              
+              for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                const dateStr = d.toISOString().split('T')[0];
+                const numAvail = entry.numAvail || 0;
+                const price = entry.price1 || null;
+                const minStay = entry.minStay || 1;
+                
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                  ON CONFLICT (room_id, date) 
+                  DO UPDATE SET 
+                    cm_price = COALESCE($3, room_availability.cm_price),
+                    is_available = $4,
+                    is_blocked = $5,
+                    min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                    cm_min_stay = $6,
+                    source = 'beds24',
+                    updated_at = NOW()
+                `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+                
+                daysUpdated++;
+              }
+            }
+            
+            // Update tier sync timestamp
+            await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
+            
+            tierResult.rooms.push({ id: room.id, name: room.name, daysUpdated });
+            tierResult.daysUpdated += daysUpdated;
+            results.totalRoomsSynced++;
+            results.totalDaysUpdated += daysUpdated;
+            
+            // Rate limit protection: wait 2 seconds between API calls
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+          } catch (roomError) {
+            results.errors.push({ room: room.id, name: room.name, tier: tier.tier, error: roomError.message });
+            
+            // If rate limited, stop this tier
+            if (roomError.response?.status === 429) {
+              console.log(`Rate limited on tier ${tier.tier}, stopping tier sync`);
+              break;
+            }
+          }
+        }
+        
+        if (tierResult.rooms.length > 0) {
+          results.tiers.push(tierResult);
+        }
+      }
+    }
+    
+    console.log(`Tiered sync complete: ${results.totalRoomsSynced} rooms, ${results.totalDaysUpdated} days`);
+    res.json({ success: true, ...results });
+    
+  } catch (error) {
+    console.error('Tiered sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual trigger for specific tier (for testing/debugging)
+app.post('/api/gas-sync/connections/:connectionId/sync-tier/:tier', async (req, res) => {
+  try {
+    const { connectionId, tier } = req.params;
+    const tierNum = parseInt(tier);
+    const tierConfig = SYNC_TIERS.find(t => t.tier === tierNum);
+    
+    if (!tierConfig) {
+      return res.json({ success: false, error: 'Invalid tier. Use 1-4.' });
+    }
+    
+    // Get connection
+    const conn = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [connectionId]);
+    if (conn.rows.length === 0) {
+      return res.json({ success: false, error: 'Connection not found' });
+    }
+    
+    const connection = conn.rows[0];
+    let accessToken = connection.access_token;
+    
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No access token' });
+    }
+    
+    const now = new Date();
+    const startDate = new Date(now.getTime() + tierConfig.startDay * 24 * 60 * 60 * 1000);
+    const endDate = new Date(now.getTime() + tierConfig.endDay * 24 * 60 * 60 * 1000);
+    
+    // Get all rooms for this connection
+    const rooms = await pool.query(`
+      SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      JOIN bookable_units bu ON bu.id = rt.gas_room_id
+      WHERE sp.connection_id = $1 AND rt.gas_room_id IS NOT NULL
+    `, [connectionId]);
+    
+    const results = { tier: tierConfig, rooms: [], totalDays: 0 };
+    
+    for (const room of rooms.rows) {
+      try {
+        const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+          headers: { 'token': accessToken },
+          params: {
+            roomId: parseInt(room.beds24_room_id),
+            startDate: startDate.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+            includeNumAvail: true,
+            includePrices: true,
+            includeMinStay: true
+          }
+        });
+        
+        const calendarData = calResponse.data.data?.[0]?.calendar || [];
+        let daysUpdated = 0;
+        
+        for (const entry of calendarData) {
+          const fromDate = new Date(entry.from);
+          const toDate = new Date(entry.to);
+          
+          for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            
+            await pool.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET 
+                cm_price = COALESCE($3, room_availability.cm_price),
+                is_available = $4,
+                is_blocked = $5,
+                min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                cm_min_stay = $6,
+                source = 'beds24',
+                updated_at = NOW()
+            `, [room.gas_room_id, dateStr, entry.price1, (entry.numAvail || 0) > 0, (entry.numAvail || 0) === 0, entry.minStay || 1]);
+            
+            daysUpdated++;
+          }
+        }
+        
+        // Update tier timestamp
+        await pool.query(`UPDATE gas_sync_room_types SET tier${tierNum}_synced_at = NOW() WHERE id = $1`, [room.id]);
+        
+        results.rooms.push({ name: room.name, daysUpdated });
+        results.totalDays += daysUpdated;
+        
+        // Rate limit protection
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+      } catch (e) {
+        results.rooms.push({ name: room.name, error: e.message });
+      }
+    }
+    
+    res.json({ success: true, ...results });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Get sync status for a connection
+app.get('/api/gas-sync/connections/:connectionId/sync-status', async (req, res) => {
+  try {
+    const { connectionId } = req.params;
+    
+    const rooms = await pool.query(`
+      SELECT rt.id, bu.name, 
+             rt.tier1_synced_at, rt.tier2_synced_at, rt.tier3_synced_at, rt.tier4_synced_at,
+             (SELECT COUNT(*) FROM room_availability WHERE room_id = rt.gas_room_id) as availability_days
+      FROM gas_sync_room_types rt
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      JOIN bookable_units bu ON bu.id = rt.gas_room_id
+      WHERE sp.connection_id = $1 AND rt.gas_room_id IS NOT NULL
+    `, [connectionId]);
+    
+    const now = new Date();
+    
+    const roomStatus = rooms.rows.map(room => {
+      const tiers = SYNC_TIERS.map(tier => {
+        const syncedAt = room[`tier${tier.tier}_synced_at`];
+        const cutoff = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
+        const isDue = !syncedAt || new Date(syncedAt) < cutoff;
+        
+        return {
+          tier: tier.tier,
+          name: tier.name,
+          lastSync: syncedAt,
+          isDue,
+          interval: `${tier.intervalMinutes} mins`
+        };
+      });
+      
+      return {
+        id: room.id,
+        name: room.name,
+        availabilityDays: parseInt(room.availability_days),
+        tiers
+      };
+    });
+    
+    res.json({ success: true, rooms: roomStatus, tierConfig: SYNC_TIERS });
+    
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Run clients migration manually
+// ====================================================
 // ACCOUNTS SYSTEM - New unified account structure
 // =====================================================
 
@@ -3852,7 +4289,15 @@ app.get('/api/admin/accounts', async (req, res) => {
           p.name as parent_name,
           m.name as managed_by_name,
           (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+          (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+           JOIN properties prop ON pc.property_id = prop.id 
+           WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+          (SELECT COUNT(*) FROM properties prop 
+           WHERE prop.account_id = a.id 
+           AND (prop.stripe_enabled = true OR EXISTS (
+             SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+           ))) as stripe_properties_count
         FROM accounts a
         LEFT JOIN accounts p ON a.parent_id = p.id
         LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -3882,7 +4327,15 @@ app.get('/api/admin/accounts', async (req, res) => {
             p.name as parent_name,
             m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+            (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+             JOIN properties prop ON pc.property_id = prop.id 
+             WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+            (SELECT COUNT(*) FROM properties prop 
+             WHERE prop.account_id = a.id 
+             AND (prop.stripe_enabled = true OR EXISTS (
+               SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+             ))) as stripe_properties_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
           LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -3902,7 +4355,15 @@ app.get('/api/admin/accounts', async (req, res) => {
             p.name as parent_name,
             m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+            (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+             JOIN properties prop ON pc.property_id = prop.id 
+             WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+            (SELECT COUNT(*) FROM properties prop 
+             WHERE prop.account_id = a.id 
+             AND (prop.stripe_enabled = true OR EXISTS (
+               SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+             ))) as stripe_properties_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
           LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -3924,7 +4385,15 @@ app.get('/api/admin/accounts', async (req, res) => {
             p.name as parent_name,
             m.name as managed_by_name,
             (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+            (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+            (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+             JOIN properties prop ON pc.property_id = prop.id 
+             WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+            (SELECT COUNT(*) FROM properties prop 
+             WHERE prop.account_id = a.id 
+             AND (prop.stripe_enabled = true OR EXISTS (
+               SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+             ))) as stripe_properties_count
           FROM accounts a
           LEFT JOIN accounts p ON a.parent_id = p.id
           LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -3939,7 +4408,15 @@ app.get('/api/admin/accounts', async (req, res) => {
           p.name as parent_name,
           m.name as managed_by_name,
           (SELECT COUNT(*) FROM accounts WHERE parent_id = a.id) as child_count,
-          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count
+          (SELECT COUNT(*) FROM properties WHERE account_id = a.id) as property_count,
+          (SELECT COUNT(DISTINCT pc.property_id) FROM payment_configurations pc 
+           JOIN properties prop ON pc.property_id = prop.id 
+           WHERE prop.account_id = a.id AND pc.is_enabled = true) as payment_configured_count,
+          (SELECT COUNT(*) FROM properties prop 
+           WHERE prop.account_id = a.id 
+           AND (prop.stripe_enabled = true OR EXISTS (
+             SELECT 1 FROM payment_configurations pc WHERE pc.property_id = prop.id AND pc.is_enabled = true
+           ))) as stripe_properties_count
         FROM accounts a
         LEFT JOIN accounts p ON a.parent_id = p.id
         LEFT JOIN accounts m ON a.managed_by_id = m.id
@@ -5356,9 +5833,54 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
     try {
         const { propertyId } = req.params;
         
-        // Get property's account and check if Stripe is connected
+        // First check new payment_configurations table
+        let paymentConfig = await pool.query(`
+            SELECT pc.*
+            FROM payment_configurations pc
+            WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+            LIMIT 1
+        `, [propertyId]);
+        
+        // Fall back to account-level config
+        if (paymentConfig.rows.length === 0) {
+            paymentConfig = await pool.query(`
+                SELECT pc.*
+                FROM payment_configurations pc
+                JOIN properties p ON pc.account_id = p.account_id
+                WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
+                LIMIT 1
+            `, [propertyId]);
+        }
+        
+        // If found in new table, use it
+        if (paymentConfig.rows.length > 0) {
+            const config = paymentConfig.rows[0];
+            
+            // Get deposit rules
+            let depositRule = null;
+            const ruleResult = await pool.query(`
+                SELECT * FROM deposit_rules 
+                WHERE (property_id = $1 OR (property_id IS NULL AND account_id = $2)) AND is_active = true 
+                ORDER BY property_id NULLS LAST, created_at DESC LIMIT 1
+            `, [propertyId, config.account_id]);
+            
+            if (ruleResult.rows.length > 0) {
+                depositRule = ruleResult.rows[0];
+            }
+            
+            return res.json({
+                success: true,
+                stripe_enabled: true,
+                stripe_type: 'config',
+                stripe_publishable_key: config.credentials?.publishable_key,
+                deposit_rule: depositRule
+            });
+        }
+        
+        // Fall back to legacy property/account stripe fields
         const result = await pool.query(`
-            SELECT p.id, p.account_id, a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete
+            SELECT p.id, p.account_id, p.stripe_publishable_key, p.stripe_secret_key, p.stripe_enabled,
+                   a.stripe_account_id, a.stripe_account_status, a.stripe_onboarding_complete
             FROM properties p
             JOIN accounts a ON p.account_id = a.id
             WHERE p.id = $1
@@ -5369,7 +5891,11 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         }
         
         const data = result.rows[0];
-        const stripeEnabled = !!(data.stripe_account_id && data.stripe_onboarding_complete);
+        
+        // Property-level Stripe takes priority
+        const hasPropertyStripe = data.stripe_enabled && data.stripe_publishable_key && data.stripe_secret_key;
+        const hasAccountStripe = !!(data.stripe_account_id && data.stripe_onboarding_complete);
+        const stripeEnabled = hasPropertyStripe || hasAccountStripe;
         
         // Get deposit rules for this property (or fall back to account-level rule)
         let depositRule = null;
@@ -5401,8 +5927,9 @@ app.get('/api/public/property/:propertyId/stripe-info', async (req, res) => {
         res.json({
             success: true,
             stripe_enabled: stripeEnabled,
-            stripe_publishable_key: stripeEnabled ? process.env.STRIPE_PUBLISHABLE_KEY : null,
-            stripe_account_id: stripeEnabled ? data.stripe_account_id : null,
+            stripe_type: hasPropertyStripe ? 'property' : (hasAccountStripe ? 'connect' : null),
+            stripe_publishable_key: hasPropertyStripe ? data.stripe_publishable_key : (hasAccountStripe ? process.env.STRIPE_PUBLISHABLE_KEY : null),
+            stripe_account_id: hasAccountStripe ? data.stripe_account_id : null,
             deposit_rule: depositRule
         });
         
@@ -5855,39 +6382,112 @@ app.post('/api/public/create-payment-intent', async (req, res) => {
     try {
         const { property_id, amount, currency, booking_data } = req.body;
         
-        // Get property's Stripe account
+        // First check payment_configurations table
+        let paymentConfig = await pool.query(`
+            SELECT pc.*
+            FROM payment_configurations pc
+            WHERE pc.property_id = $1 AND pc.provider = 'stripe' AND pc.is_enabled = true
+            LIMIT 1
+        `, [property_id]);
+        
+        // Fall back to account-level config
+        if (paymentConfig.rows.length === 0) {
+            paymentConfig = await pool.query(`
+                SELECT pc.*
+                FROM payment_configurations pc
+                JOIN properties p ON pc.account_id = p.account_id
+                WHERE p.id = $1 AND pc.property_id IS NULL AND pc.provider = 'stripe' AND pc.is_enabled = true
+                LIMIT 1
+            `, [property_id]);
+        }
+        
+        let paymentIntent;
+        
+        // Use new payment_configurations if available
+        if (paymentConfig.rows.length > 0 && paymentConfig.rows[0].credentials?.secret_key) {
+            const config = paymentConfig.rows[0];
+            const configStripe = new Stripe(config.credentials.secret_key);
+            
+            paymentIntent = await configStripe.paymentIntents.create({
+                amount: Math.round(amount * 100),
+                currency: (currency || 'gbp').toLowerCase(),
+                metadata: {
+                    property_id: property_id,
+                    guest_email: booking_data?.email || '',
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            });
+            
+            return res.json({
+                success: true,
+                client_secret: paymentIntent.client_secret,
+                payment_intent_id: paymentIntent.id,
+                publishable_key: config.credentials.publishable_key
+            });
+        }
+        
+        // Fall back to legacy property stripe fields
         const result = await pool.query(`
-            SELECT a.stripe_account_id 
+            SELECT p.stripe_secret_key, p.stripe_publishable_key, p.stripe_enabled,
+                   a.stripe_account_id
             FROM properties p
             JOIN accounts a ON p.account_id = a.id
-            WHERE p.id = $1 AND a.stripe_account_id IS NOT NULL
+            WHERE p.id = $1
         `, [property_id]);
         
         if (result.rows.length === 0) {
-            return res.status(400).json({ success: false, error: 'Property not configured for payments' });
+            return res.status(400).json({ success: false, error: 'Property not found' });
         }
         
-        const stripeAccountId = result.rows[0].stripe_account_id;
+        const prop = result.rows[0];
         
-        // Create payment intent on connected account
-        const paymentIntent = await stripe.paymentIntents.create({
-            amount: Math.round(amount * 100), // Convert to cents
-            currency: (currency || 'gbp').toLowerCase(),
-            metadata: {
-                property_id: property_id,
-                guest_email: booking_data?.email || '',
-                check_in: booking_data?.check_in || '',
-                check_out: booking_data?.check_out || ''
-            }
-        }, {
-            stripeAccount: stripeAccountId
-        });
-        
-        res.json({
-            success: true,
-            client_secret: paymentIntent.client_secret,
-            payment_intent_id: paymentIntent.id
-        });
+        // Use property's own Stripe keys if configured (legacy)
+        if (prop.stripe_enabled && prop.stripe_secret_key) {
+            const propertyStripe = new Stripe(prop.stripe_secret_key);
+            
+            paymentIntent = await propertyStripe.paymentIntents.create({
+                amount: Math.round(amount * 100),
+                currency: (currency || 'gbp').toLowerCase(),
+                metadata: {
+                    property_id: property_id,
+                    guest_email: booking_data?.email || '',
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            });
+            
+            return res.json({
+                success: true,
+                client_secret: paymentIntent.client_secret,
+                payment_intent_id: paymentIntent.id,
+                publishable_key: prop.stripe_publishable_key
+            });
+        }
+        // Fall back to Stripe Connect if account has it
+        else if (prop.stripe_account_id) {
+            paymentIntent = await stripe.paymentIntents.create({
+                amount: Math.round(amount * 100),
+                currency: (currency || 'gbp').toLowerCase(),
+                metadata: {
+                    property_id: property_id,
+                    guest_email: booking_data?.email || '',
+                    check_in: booking_data?.check_in || '',
+                    check_out: booking_data?.check_out || ''
+                }
+            }, {
+                stripeAccount: prop.stripe_account_id
+            });
+            
+            return res.json({
+                success: true,
+                client_secret: paymentIntent.client_secret,
+                payment_intent_id: paymentIntent.id
+            });
+        }
+        else {
+            return res.status(400).json({ success: false, error: 'Property not configured for payments. Please add Stripe keys in property settings.' });
+        }
         
     } catch (error) {
         console.error('Error creating payment intent:', error);
@@ -6630,6 +7230,9 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS allowed_checkout_days VARCHAR(20) DEFAULT '0,1,2,3,4,5,6'`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS min_nights INTEGER DEFAULT 1`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS max_nights INTEGER`);
+    // Add array columns for multi-select property/room targeting
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
     
     // Create vouchers table
     await pool.query(`
@@ -10678,6 +11281,565 @@ app.put('/api/db/properties/:id', async (req, res) => {
   }
 });
 
+// Save property Stripe settings
+app.put('/api/properties/:id/stripe', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { stripe_publishable_key, stripe_secret_key, stripe_enabled } = req.body;
+    
+    // Validate the keys if provided
+    if (stripe_secret_key && stripe_publishable_key) {
+      try {
+        // Test the secret key by making a simple API call
+        const testStripe = new Stripe(stripe_secret_key);
+        await testStripe.balance.retrieve();
+      } catch (stripeError) {
+        return res.json({ success: false, error: 'Invalid Stripe keys: ' + stripeError.message });
+      }
+    }
+    
+    const result = await pool.query(`
+      UPDATE properties 
+      SET stripe_publishable_key = $1,
+          stripe_secret_key = $2,
+          stripe_enabled = $3,
+          updated_at = NOW()
+      WHERE id = $4
+      RETURNING id, name, stripe_enabled
+    `, [stripe_publishable_key || null, stripe_secret_key || null, stripe_enabled || false, id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    console.log(`✅ Stripe settings saved for property ${id}`);
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    console.error('Save Stripe settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get property Stripe settings
+app.get('/api/properties/:id/stripe', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT id, name, stripe_publishable_key, stripe_enabled,
+             CASE WHEN stripe_secret_key IS NOT NULL THEN true ELSE false END as has_secret_key
+      FROM properties WHERE id = $1
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ success: true, stripe: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PAYMENT CONFIGURATIONS - Multi-provider support
+// Providers: stripe, paypal, airwallex
+// =====================================================
+
+const PAYMENT_PROVIDERS = {
+  stripe: {
+    name: 'Stripe',
+    fields: [
+      { key: 'publishable_key', label: 'Publishable Key', type: 'text', required: true, prefix: 'pk_' },
+      { key: 'secret_key', label: 'Secret Key', type: 'password', required: true, prefix: 'sk_' }
+    ],
+    helpUrl: 'https://dashboard.stripe.com/apikeys',
+    testEndpoint: 'balance'
+  },
+  paypal: {
+    name: 'PayPal',
+    fields: [
+      { key: 'client_id', label: 'Client ID', type: 'text', required: true },
+      { key: 'client_secret', label: 'Client Secret', type: 'password', required: true }
+    ],
+    helpUrl: 'https://developer.paypal.com/dashboard/applications',
+    testEndpoint: null // TODO: implement
+  },
+  airwallex: {
+    name: 'Airwallex',
+    fields: [
+      { key: 'client_id', label: 'Client ID', type: 'text', required: true },
+      { key: 'api_key', label: 'API Key', type: 'password', required: true }
+    ],
+    helpUrl: 'https://www.airwallex.com/docs',
+    testEndpoint: null // TODO: implement
+  }
+};
+
+// Get available payment providers
+app.get('/api/payment/providers', (req, res) => {
+  const providers = Object.entries(PAYMENT_PROVIDERS).map(([code, provider]) => ({
+    code,
+    name: provider.name,
+    fields: provider.fields,
+    helpUrl: provider.helpUrl,
+    available: code === 'stripe' // Only Stripe is fully implemented
+  }));
+  res.json({ success: true, providers });
+});
+
+// Get payment configurations for an account
+app.get('/api/accounts/:accountId/payment-configurations', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT pc.*, p.name as property_name
+      FROM payment_configurations pc
+      LEFT JOIN properties p ON pc.property_id = p.id
+      WHERE pc.account_id = $1
+      ORDER BY pc.property_id NULLS FIRST, pc.provider
+    `, [accountId]);
+    
+    // Don't expose secret credentials
+    const configs = result.rows.map(c => ({
+      ...c,
+      credentials: {
+        ...c.credentials,
+        secret_key: c.credentials?.secret_key ? '••••••••' : null,
+        client_secret: c.credentials?.client_secret ? '••••••••' : null,
+        api_key: c.credentials?.api_key ? '••••••••' : null
+      }
+    }));
+    
+    res.json({ success: true, configurations: configs });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get payment configuration for a specific property (or account default)
+app.get('/api/properties/:propertyId/payment-configuration', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    // First check for property-specific config
+    let result = await pool.query(`
+      SELECT pc.*, p.name as property_name, p.account_id
+      FROM payment_configurations pc
+      JOIN properties p ON pc.property_id = p.id
+      WHERE pc.property_id = $1 AND pc.is_enabled = true
+      ORDER BY pc.is_default DESC
+      LIMIT 1
+    `, [propertyId]);
+    
+    // Fall back to account-level config
+    if (result.rows.length === 0) {
+      result = await pool.query(`
+        SELECT pc.*, NULL as property_name, pc.account_id
+        FROM payment_configurations pc
+        JOIN properties p ON pc.account_id = p.account_id
+        WHERE p.id = $1 AND pc.property_id IS NULL AND pc.is_enabled = true
+        ORDER BY pc.is_default DESC
+        LIMIT 1
+      `, [propertyId]);
+    }
+    
+    // Also check legacy stripe fields on property
+    if (result.rows.length === 0) {
+      const legacyResult = await pool.query(`
+        SELECT id, stripe_publishable_key, stripe_secret_key, stripe_enabled
+        FROM properties WHERE id = $1 AND stripe_enabled = true
+      `, [propertyId]);
+      
+      if (legacyResult.rows.length > 0 && legacyResult.rows[0].stripe_secret_key) {
+        return res.json({
+          success: true,
+          configuration: {
+            provider: 'stripe',
+            is_enabled: true,
+            is_legacy: true,
+            credentials: {
+              publishable_key: legacyResult.rows[0].stripe_publishable_key
+            }
+          }
+        });
+      }
+    }
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, configuration: null });
+    }
+    
+    const config = result.rows[0];
+    res.json({
+      success: true,
+      configuration: {
+        ...config,
+        credentials: {
+          publishable_key: config.credentials?.publishable_key,
+          client_id: config.credentials?.client_id
+          // Don't expose secrets
+        }
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Save payment configuration
+app.post('/api/payment-configurations', async (req, res) => {
+  try {
+    const { account_id, property_id, provider, name, credentials, settings, is_enabled, is_default, test_mode } = req.body;
+    
+    if (!account_id || !provider) {
+      return res.json({ success: false, error: 'account_id and provider are required' });
+    }
+    
+    if (!PAYMENT_PROVIDERS[provider]) {
+      return res.json({ success: false, error: 'Invalid provider. Supported: ' + Object.keys(PAYMENT_PROVIDERS).join(', ') });
+    }
+    
+    // Validate credentials for Stripe
+    if (provider === 'stripe' && credentials?.secret_key) {
+      try {
+        const testStripe = new Stripe(credentials.secret_key);
+        await testStripe.balance.retrieve();
+      } catch (stripeError) {
+        return res.json({ success: false, error: 'Invalid Stripe credentials: ' + stripeError.message });
+      }
+    }
+    
+    // If setting as default, unset other defaults for this scope
+    if (is_default) {
+      if (property_id) {
+        await pool.query(`UPDATE payment_configurations SET is_default = false WHERE property_id = $1`, [property_id]);
+      } else {
+        await pool.query(`UPDATE payment_configurations SET is_default = false WHERE account_id = $1 AND property_id IS NULL`, [account_id]);
+      }
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO payment_configurations (account_id, property_id, provider, name, credentials, settings, is_enabled, is_default, test_mode)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (account_id, property_id, provider)
+      DO UPDATE SET 
+        name = EXCLUDED.name,
+        credentials = EXCLUDED.credentials,
+        settings = EXCLUDED.settings,
+        is_enabled = EXCLUDED.is_enabled,
+        is_default = EXCLUDED.is_default,
+        test_mode = EXCLUDED.test_mode,
+        updated_at = NOW()
+      RETURNING id, account_id, property_id, provider, name, is_enabled, is_default, test_mode, created_at, updated_at
+    `, [account_id, property_id || null, provider, name || PAYMENT_PROVIDERS[provider].name, credentials || {}, settings || {}, is_enabled || false, is_default || false, test_mode || false]);
+    
+    console.log(`✅ Payment configuration saved: ${provider} for ${property_id ? 'property ' + property_id : 'account ' + account_id}`);
+    res.json({ success: true, configuration: result.rows[0] });
+  } catch (error) {
+    console.error('Save payment config error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update payment configuration
+app.put('/api/payment-configurations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, credentials, settings, is_enabled, is_default, test_mode } = req.body;
+    
+    // Get existing config to check provider
+    const existing = await pool.query('SELECT * FROM payment_configurations WHERE id = $1', [id]);
+    if (existing.rows.length === 0) {
+      return res.json({ success: false, error: 'Configuration not found' });
+    }
+    
+    const config = existing.rows[0];
+    
+    // Merge credentials (don't lose existing secrets if not provided)
+    const mergedCredentials = {
+      ...config.credentials,
+      ...credentials
+    };
+    
+    // Validate Stripe credentials if changed
+    if (config.provider === 'stripe' && credentials?.secret_key && credentials.secret_key !== '••••••••') {
+      try {
+        const testStripe = new Stripe(credentials.secret_key);
+        await testStripe.balance.retrieve();
+      } catch (stripeError) {
+        return res.json({ success: false, error: 'Invalid Stripe credentials: ' + stripeError.message });
+      }
+    } else if (credentials?.secret_key === '••••••••') {
+      // Keep existing secret
+      delete mergedCredentials.secret_key;
+      mergedCredentials.secret_key = config.credentials?.secret_key;
+    }
+    
+    // If setting as default, unset other defaults
+    if (is_default) {
+      if (config.property_id) {
+        await pool.query(`UPDATE payment_configurations SET is_default = false WHERE property_id = $1 AND id != $2`, [config.property_id, id]);
+      } else {
+        await pool.query(`UPDATE payment_configurations SET is_default = false WHERE account_id = $1 AND property_id IS NULL AND id != $2`, [config.account_id, id]);
+      }
+    }
+    
+    const result = await pool.query(`
+      UPDATE payment_configurations SET
+        name = COALESCE($1, name),
+        credentials = $2,
+        settings = COALESCE($3, settings),
+        is_enabled = COALESCE($4, is_enabled),
+        is_default = COALESCE($5, is_default),
+        test_mode = COALESCE($6, test_mode),
+        updated_at = NOW()
+      WHERE id = $7
+      RETURNING id, account_id, property_id, provider, name, is_enabled, is_default, test_mode, updated_at
+    `, [name, mergedCredentials, settings, is_enabled, is_default, test_mode, id]);
+    
+    res.json({ success: true, configuration: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete payment configuration
+app.delete('/api/payment-configurations/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM payment_configurations WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Test payment configuration
+app.post('/api/payment-configurations/:id/test', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query('SELECT * FROM payment_configurations WHERE id = $1', [id]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Configuration not found' });
+    }
+    
+    const config = result.rows[0];
+    let testResult = { success: false, message: 'Provider not supported for testing' };
+    
+    if (config.provider === 'stripe' && config.credentials?.secret_key) {
+      try {
+        const testStripe = new Stripe(config.credentials.secret_key);
+        const balance = await testStripe.balance.retrieve();
+        testResult = {
+          success: true,
+          message: 'Connection successful',
+          details: {
+            currency: balance.available[0]?.currency || 'unknown',
+            available: balance.available[0]?.amount || 0
+          }
+        };
+      } catch (stripeError) {
+        testResult = { success: false, message: stripeError.message };
+      }
+    } else if (config.provider === 'paypal') {
+      testResult = { success: false, message: 'PayPal testing not yet implemented' };
+    } else if (config.provider === 'airwallex') {
+      testResult = { success: false, message: 'Airwallex testing not yet implemented' };
+    }
+    
+    // Save test result
+    await pool.query(`
+      UPDATE payment_configurations SET last_tested_at = NOW(), test_result = $1 WHERE id = $2
+    `, [testResult, id]);
+    
+    res.json({ success: true, test_result: testResult });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// PAYMENT SETUP TOKENS - Secure links for property owners
+// =====================================================
+
+// Generate setup token for property owner
+app.post('/api/payment-setup-tokens', async (req, res) => {
+  try {
+    const { account_id, property_id, provider, expires_hours = 72, created_by } = req.body;
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'account_id is required' });
+    }
+    
+    // Generate secure token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + expires_hours * 60 * 60 * 1000);
+    
+    const result = await pool.query(`
+      INSERT INTO payment_setup_tokens (token, account_id, property_id, provider, expires_at, created_by)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id, token, expires_at
+    `, [token, account_id, property_id || null, provider || null, expiresAt, created_by || null]);
+    
+    // Build setup URL
+    const setupUrl = `https://admin.gas.travel/payment-setup.html?token=${token}`;
+    
+    res.json({
+      success: true,
+      token: result.rows[0].token,
+      expires_at: result.rows[0].expires_at,
+      setup_url: setupUrl
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get setup token info (public - for the setup page)
+app.get('/api/payment-setup/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    
+    const result = await pool.query(`
+      SELECT t.*, a.name as account_name, p.name as property_name
+      FROM payment_setup_tokens t
+      JOIN accounts a ON t.account_id = a.id
+      LEFT JOIN properties p ON t.property_id = p.id
+      WHERE t.token = $1
+    `, [token]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid or expired token' });
+    }
+    
+    const tokenData = result.rows[0];
+    
+    if (tokenData.used_at) {
+      return res.json({ success: false, error: 'This setup link has already been used' });
+    }
+    
+    if (new Date(tokenData.expires_at) < new Date()) {
+      return res.json({ success: false, error: 'This setup link has expired' });
+    }
+    
+    res.json({
+      success: true,
+      setup: {
+        account_name: tokenData.account_name,
+        property_name: tokenData.property_name,
+        provider: tokenData.provider, // null means user can choose
+        providers: Object.entries(PAYMENT_PROVIDERS).map(([code, p]) => ({
+          code,
+          name: p.name,
+          fields: p.fields,
+          helpUrl: p.helpUrl,
+          available: code === 'stripe'
+        }))
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Complete payment setup via token (public)
+app.post('/api/payment-setup/:token', async (req, res) => {
+  try {
+    const { token } = req.params;
+    const { provider, credentials } = req.body;
+    
+    // Validate token
+    const tokenResult = await pool.query(`
+      SELECT * FROM payment_setup_tokens WHERE token = $1
+    `, [token]);
+    
+    if (tokenResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid token' });
+    }
+    
+    const tokenData = tokenResult.rows[0];
+    
+    if (tokenData.used_at) {
+      return res.json({ success: false, error: 'This setup link has already been used' });
+    }
+    
+    if (new Date(tokenData.expires_at) < new Date()) {
+      return res.json({ success: false, error: 'This setup link has expired' });
+    }
+    
+    const selectedProvider = tokenData.provider || provider;
+    if (!selectedProvider || !PAYMENT_PROVIDERS[selectedProvider]) {
+      return res.json({ success: false, error: 'Please select a valid payment provider' });
+    }
+    
+    // Validate credentials
+    if (selectedProvider === 'stripe') {
+      if (!credentials?.publishable_key || !credentials?.secret_key) {
+        return res.json({ success: false, error: 'Both Publishable Key and Secret Key are required' });
+      }
+      
+      try {
+        const testStripe = new Stripe(credentials.secret_key);
+        await testStripe.balance.retrieve();
+      } catch (stripeError) {
+        return res.json({ success: false, error: 'Invalid Stripe credentials: ' + stripeError.message });
+      }
+    }
+    
+    // Save configuration
+    await pool.query(`
+      INSERT INTO payment_configurations (account_id, property_id, provider, credentials, is_enabled, is_default)
+      VALUES ($1, $2, $3, $4, true, true)
+      ON CONFLICT (account_id, property_id, provider)
+      DO UPDATE SET credentials = EXCLUDED.credentials, is_enabled = true, updated_at = NOW()
+    `, [tokenData.account_id, tokenData.property_id, selectedProvider, credentials]);
+    
+    // Mark token as used
+    await pool.query(`UPDATE payment_setup_tokens SET used_at = NOW() WHERE token = $1`, [token]);
+    
+    console.log(`✅ Payment setup completed via token for ${tokenData.property_id ? 'property ' + tokenData.property_id : 'account ' + tokenData.account_id}`);
+    
+    res.json({ success: true, message: 'Payment configuration saved successfully!' });
+  } catch (error) {
+    console.error('Payment setup error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// List setup tokens for an account
+app.get('/api/accounts/:accountId/payment-setup-tokens', async (req, res) => {
+  try {
+    const { accountId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT t.*, p.name as property_name
+      FROM payment_setup_tokens t
+      LEFT JOIN properties p ON t.property_id = p.id
+      WHERE t.account_id = $1
+      ORDER BY t.created_at DESC
+    `, [accountId]);
+    
+    res.json({ success: true, tokens: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Revoke a setup token
+app.delete('/api/payment-setup-tokens/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM payment_setup_tokens WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // DELETE property - REQUIRES all rooms to be deleted first
 app.delete('/api/db/properties/:id', async (req, res) => {
   try {
@@ -10909,7 +12071,8 @@ app.post('/api/db/book', async (req, res) => {
     // 3a. If room is linked to Beds24, push the booking
     if (beds24RoomId) {
       try {
-        const accessToken = await getBeds24AccessToken(pool);
+        // Use property-specific token lookup for GasSync connections
+        const accessToken = await getBeds24AccessTokenForProperty(pool, property_id, room_id);
         
         // Build payments array if deposit was paid
         const payments = [];
@@ -11573,6 +12736,69 @@ async function getBeds24AccessToken(pool) {
   
   console.log('Got Beds24 access token');
   return tokenResponse.data.token;
+}
+
+// Helper to get Beds24 access token for a specific property via GasSync
+// This looks up the correct connection based on the property/room
+async function getBeds24AccessTokenForProperty(pool, propertyId, roomId) {
+  try {
+    // First try to find via GasSync - look up connection from room -> property -> connection
+    let connectionResult;
+    
+    if (roomId) {
+      // Look up via room's GasSync connection
+      connectionResult = await pool.query(`
+        SELECT gsc.id, gsc.credentials, gsc.access_token, gsc.refresh_token
+        FROM gas_sync_connections gsc
+        JOIN gas_sync_properties gsp ON gsp.connection_id = gsc.id
+        JOIN gas_sync_room_types gsrt ON gsrt.sync_property_id = gsp.id
+        JOIN bookable_units bu ON bu.id = gsrt.gas_room_id
+        WHERE bu.id = $1 AND gsc.adapter_code = 'beds24'
+        LIMIT 1
+      `, [roomId]);
+    }
+    
+    // If not found via room, try via property
+    if ((!connectionResult || connectionResult.rows.length === 0) && propertyId) {
+      connectionResult = await pool.query(`
+        SELECT gsc.id, gsc.credentials, gsc.access_token, gsc.refresh_token
+        FROM gas_sync_connections gsc
+        JOIN gas_sync_properties gsp ON gsp.connection_id = gsc.id
+        WHERE gsp.gas_property_id = $1 AND gsc.adapter_code = 'beds24'
+        LIMIT 1
+      `, [propertyId]);
+    }
+    
+    if (connectionResult && connectionResult.rows.length > 0) {
+      const conn = connectionResult.rows[0];
+      const credentials = typeof conn.credentials === 'string' 
+        ? JSON.parse(conn.credentials) 
+        : conn.credentials;
+      
+      const refreshToken = conn.refresh_token || credentials?.refreshToken;
+      
+      if (refreshToken) {
+        console.log('Using GasSync connection refresh token for property:', propertyId);
+        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: { 'refreshToken': refreshToken }
+        });
+        
+        if (tokenResponse.data.token) {
+          console.log('Got Beds24 access token via GasSync connection');
+          return tokenResponse.data.token;
+        }
+      }
+    }
+    
+    // Fallback to global token
+    console.log('No GasSync connection found, falling back to global token');
+    return await getBeds24AccessToken(pool);
+    
+  } catch (error) {
+    console.error('Error getting Beds24 token for property:', error.message);
+    // Fallback to global token
+    return await getBeds24AccessToken(pool);
+  }
 }
 
 // Helper to get Beds24 connection info including account_id
@@ -14438,6 +15664,7 @@ app.post('/api/admin/offers', async (req, res) => {
   try {
     const {
       name, description, property_id, room_id,
+      property_ids, room_ids,
       discount_type, discount_value, applies_to,
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
@@ -14448,7 +15675,30 @@ app.post('/api/admin/offers', async (req, res) => {
     
     let result;
     try {
-      // Try with new columns
+      // Try with array columns
+      result = await pool.query(`
+        INSERT INTO offers (
+          name, description, property_id, room_id, property_ids, room_ids,
+          discount_type, discount_value, applies_to,
+          min_nights, max_nights, min_guests, max_guests,
+          min_advance_days, max_advance_days,
+          valid_from, valid_until, valid_days_of_week,
+          allowed_checkin_days, allowed_checkout_days,
+          stackable, priority, active
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+        RETURNING *
+      `, [
+        name, description, property_id || null, room_id || null,
+        property_ids || null, room_ids || null,
+        discount_type || 'percentage', discount_value, applies_to || 'standard_price',
+        min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
+        min_advance_days || null, max_advance_days || null,
+        valid_from || null, valid_until || null, valid_days_of_week || null,
+        allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
+        stackable || false, priority || 0, active !== false
+      ]);
+    } catch (colErr) {
+      // Fallback without array columns
       result = await pool.query(`
         INSERT INTO offers (
           name, description, property_id, room_id,
@@ -14469,26 +15719,6 @@ app.post('/api/admin/offers', async (req, res) => {
         allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
         stackable || false, priority || 0, active !== false
       ]);
-    } catch (colErr) {
-      // Fallback without new columns
-      result = await pool.query(`
-        INSERT INTO offers (
-          name, description, property_id, room_id,
-          discount_type, discount_value, applies_to,
-          min_nights, max_nights, min_guests, max_guests,
-          min_advance_days, max_advance_days,
-          valid_from, valid_until, valid_days_of_week,
-          stackable, priority, active
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-        RETURNING *
-      `, [
-        name, description, property_id || null, room_id || null,
-        discount_type || 'percentage', discount_value, applies_to || 'standard_price',
-        min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
-        min_advance_days || null, max_advance_days || null,
-        valid_from || null, valid_until || null, valid_days_of_week || null,
-        stackable || false, priority || 0, active !== false
-      ]);
     }
     
     res.json({ success: true, data: result.rows[0] });
@@ -14502,48 +15732,90 @@ app.put('/api/admin/offers/:id', async (req, res) => {
   try {
     const {
       name, description, property_id, room_id,
+      property_ids, room_ids,
       discount_type, discount_value, applies_to,
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
-      stackable, priority, active
+      stackable, priority, active,
+      available_website, available_agents
     } = req.body;
     
     let result;
     try {
-      // Try with new columns
+      // Try with array columns
       result = await pool.query(`
         UPDATE offers SET
-          name = $1, description = $2, property_id = $3, room_id = $4,
-          discount_type = $5, discount_value = $6, applies_to = $7,
-          min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
-          min_advance_days = $12, max_advance_days = $13,
-          valid_from = $14, valid_until = $15, valid_days_of_week = $16,
-          allowed_checkin_days = $17, allowed_checkout_days = $18,
-          stackable = $19, priority = $20, active = $21, updated_at = NOW()
-        WHERE id = $22
+          name = COALESCE($1, name), 
+          description = COALESCE($2, description), 
+          property_id = $3, 
+          room_id = $4,
+          property_ids = $5,
+          room_ids = $6,
+          discount_type = COALESCE($7, discount_type), 
+          discount_value = COALESCE($8, discount_value), 
+          applies_to = COALESCE($9, applies_to),
+          min_nights = COALESCE($10, min_nights), 
+          max_nights = $11, 
+          min_guests = $12, 
+          max_guests = $13,
+          min_advance_days = $14, 
+          max_advance_days = $15,
+          valid_from = $16, 
+          valid_until = $17, 
+          valid_days_of_week = $18,
+          allowed_checkin_days = COALESCE($19, allowed_checkin_days), 
+          allowed_checkout_days = COALESCE($20, allowed_checkout_days),
+          stackable = COALESCE($21, stackable), 
+          priority = COALESCE($22, priority), 
+          active = COALESCE($23, active),
+          available_website = COALESCE($24, available_website),
+          available_agents = COALESCE($25, available_agents),
+          updated_at = NOW()
+        WHERE id = $26
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
+        property_ids || null, room_ids || null,
         discount_type, discount_value, applies_to,
         min_nights, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
-        allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
-        stackable, priority, active, req.params.id
+        allowed_checkin_days, allowed_checkout_days,
+        stackable, priority, active,
+        available_website, available_agents,
+        req.params.id
       ]);
     } catch (colErr) {
-      // Fallback without new columns
+      // Fallback without array columns
       result = await pool.query(`
         UPDATE offers SET
-          name = $1, description = $2, property_id = $3, room_id = $4,
-          discount_type = $5, discount_value = $6, applies_to = $7,
-          min_nights = $8, max_nights = $9, min_guests = $10, max_guests = $11,
-          min_advance_days = $12, max_advance_days = $13,
-          valid_from = $14, valid_until = $15, valid_days_of_week = $16,
-          stackable = $17, priority = $18, active = $19, updated_at = NOW()
-        WHERE id = $20
+          name = COALESCE($1, name), 
+          description = COALESCE($2, description), 
+          property_id = $3, 
+          room_id = $4,
+          discount_type = COALESCE($5, discount_type), 
+          discount_value = COALESCE($6, discount_value), 
+          applies_to = COALESCE($7, applies_to),
+          min_nights = COALESCE($8, min_nights), 
+          max_nights = $9, 
+          min_guests = $10, 
+          max_guests = $11,
+          min_advance_days = $12, 
+          max_advance_days = $13,
+          valid_from = $14, 
+          valid_until = $15, 
+          valid_days_of_week = $16,
+          allowed_checkin_days = COALESCE($17, allowed_checkin_days), 
+          allowed_checkout_days = COALESCE($18, allowed_checkout_days),
+          stackable = COALESCE($19, stackable), 
+          priority = COALESCE($20, priority), 
+          active = COALESCE($21, active),
+          available_website = COALESCE($22, available_website),
+          available_agents = COALESCE($23, available_agents),
+          updated_at = NOW()
+        WHERE id = $24
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -14551,7 +15823,10 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         min_nights, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
-        stackable, priority, active, req.params.id
+        allowed_checkin_days, allowed_checkout_days,
+        stackable, priority, active,
+        available_website, available_agents,
+        req.params.id
       ]);
     }
     
@@ -16561,7 +17836,18 @@ app.get('/api/availability/:roomId', async (req, res) => {
       return res.json({ success: false, error: 'from and to dates required' });
     }
     
-    // Get availability data - include standard_price if it exists
+    // Get room info including property currency
+    const roomInfo = await pool.query(`
+      SELECT bu.id, bu.name, bu.property_id, p.currency, p.country
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    const currency = roomInfo.rows[0]?.currency || 'GBP';
+    const currencySymbol = getCurrencySymbol(currency);
+    
+    // Get availability data - include standard_price and min_stay fields if they exist
     let availability;
     try {
       availability = await pool.query(`
@@ -16574,6 +17860,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
           is_available,
           is_blocked,
           min_stay,
+          cm_min_stay,
+          min_stay_override,
           source,
           notes
         FROM room_availability
@@ -16583,7 +17871,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
         ORDER BY date
       `, [roomId, from, to]);
     } catch (e) {
-      // Fallback if standard_price column doesn't exist
+      // Fallback if new columns don't exist
       availability = await pool.query(`
         SELECT 
           date,
@@ -16594,6 +17882,8 @@ app.get('/api/availability/:roomId', async (req, res) => {
           is_available,
           is_blocked,
           min_stay,
+          min_stay as cm_min_stay,
+          NULL as min_stay_override,
           source,
           notes
         FROM room_availability
@@ -16623,6 +17913,9 @@ app.get('/api/availability/:roomId', async (req, res) => {
         is_available: a.is_available,
         is_blocked: a.is_blocked,
         min_stay: a.min_stay,
+        cm_min_stay: a.cm_min_stay,
+        min_stay_override: a.min_stay_override,
+        effective_min_stay: a.min_stay_override || a.cm_min_stay || a.min_stay || 1,
         source: a.source
       };
     });
@@ -16636,7 +17929,6 @@ app.get('/api/availability/:roomId', async (req, res) => {
       `);
       
       const allCols = columnsResult.rows.map(r => r.column_name);
-      console.log('Bookings table columns:', allCols.join(', '));
       
       // Find check-in column
       let checkInCol = allCols.find(c => c === 'check_in') ||
@@ -16658,16 +17950,12 @@ app.get('/api/availability/:roomId', async (req, res) => {
                       allCols.find(c => c === 'unit_id');
       
       if (!checkInCol || !checkOutCol) {
-        console.log('Could not find check-in/out columns. Available:', allCols.join(', '));
         throw new Error('Booking columns not found');
       }
       
       if (!roomIdCol) {
-        console.log('Could not find room ID column. Skipping bookings.');
         throw new Error('Room ID column not found');
       }
-      
-      console.log(`Using columns: ${roomIdCol}, ${checkInCol}, ${checkOutCol}`);
       
       const bookings = await pool.query(`
         SELECT 
@@ -16718,7 +18006,7 @@ app.get('/api/availability/:roomId', async (req, res) => {
       });
     }
     
-    res.json({ success: true, availability: result });
+    res.json({ success: true, availability: result, currency, currency_symbol: currencySymbol });
   } catch (error) {
     console.error('Availability error:', error);
     res.json({ success: false, error: error.message });
@@ -17529,6 +18817,8 @@ app.post('/api/admin/migrate-availability', async (req, res) => {
       await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS direct_price DECIMAL(10,2)');
       await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS direct_discount_percent INTEGER');
       await client.query('ALTER TABLE room_availability ADD COLUMN IF NOT EXISTS source VARCHAR(20) DEFAULT \'manual\'');
+      // Extend source column to VARCHAR(50) if it's too short
+      await client.query('ALTER TABLE room_availability ALTER COLUMN source TYPE VARCHAR(50)').catch(() => {});
       // Migrate old price column to cm_price
       await client.query('UPDATE room_availability SET cm_price = price WHERE cm_price IS NULL AND price IS NOT NULL');
     } catch (e) {
@@ -19050,6 +20340,288 @@ app.post('/api/rooms/:id/features', async (req, res) => {
   }
 });
 
+// =====================================================
+// OCCUPANCY PRICING - Per-room settings
+// =====================================================
+
+// GET /api/rooms/:id/occupancy-settings - Get occupancy pricing settings
+app.get('/api/rooms/:id/occupancy-settings', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    
+    const result = await pool.query(`
+      SELECT 
+        bu.id,
+        bu.name,
+        bu.max_guests,
+        bu.pricing_mode,
+        bu.base_occupancy,
+        bu.extra_adult_type,
+        bu.extra_adult_charge,
+        bu.single_discount_type,
+        bu.single_discount_value,
+        bu.child_charge_type,
+        bu.child_charge,
+        bu.children_allowed,
+        p.child_max_age
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error getting occupancy settings:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/rooms/:id/occupancy-settings - Save occupancy pricing settings
+app.put('/api/rooms/:id/occupancy-settings', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const {
+      pricing_mode,
+      base_occupancy,
+      extra_adult_type,
+      extra_adult_charge,
+      single_discount_type,
+      single_discount_value,
+      child_charge_type,
+      child_charge,
+      children_allowed
+    } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE bookable_units SET
+        pricing_mode = COALESCE($1, pricing_mode),
+        base_occupancy = COALESCE($2, base_occupancy),
+        extra_adult_type = COALESCE($3, extra_adult_type),
+        extra_adult_charge = COALESCE($4, extra_adult_charge),
+        single_discount_type = COALESCE($5, single_discount_type),
+        single_discount_value = COALESCE($6, single_discount_value),
+        child_charge_type = COALESCE($7, child_charge_type),
+        child_charge = COALESCE($8, child_charge),
+        children_allowed = COALESCE($9, children_allowed),
+        updated_at = NOW()
+      WHERE id = $10
+      RETURNING *
+    `, [
+      pricing_mode,
+      base_occupancy,
+      extra_adult_type,
+      extra_adult_charge,
+      single_discount_type,
+      single_discount_value,
+      child_charge_type,
+      child_charge,
+      children_allowed,
+      roomId
+    ]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    console.log(`✅ Occupancy settings saved for room ${roomId}`);
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Error saving occupancy settings:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/properties/:id/child-max-age - Set property-level child max age
+app.put('/api/properties/:id/child-max-age', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { child_max_age } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE properties SET child_max_age = $1, updated_at = NOW()
+      WHERE id = $2
+      RETURNING id, name, child_max_age
+    `, [child_max_age || 12, id]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// MIN STAY - Per-date settings
+// =====================================================
+
+// GET /api/rooms/:id/min-stay - Get min stay settings for date range
+app.get('/api/rooms/:id/min-stay', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { start_date, end_date } = req.query;
+    
+    const result = await pool.query(`
+      SELECT date, cm_min_stay, min_stay_override,
+             COALESCE(min_stay_override, cm_min_stay, 1) as effective_min_stay
+      FROM room_availability
+      WHERE room_id = $1 
+        AND date >= $2 
+        AND date <= $3
+      ORDER BY date
+    `, [roomId, start_date, end_date]);
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// PUT /api/rooms/:id/min-stay - Save min stay overrides for date range
+app.put('/api/rooms/:id/min-stay', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { start_date, end_date, min_stay_override } = req.body;
+    
+    // Update or insert for each date in range
+    const startDate = new Date(start_date);
+    const endDate = new Date(end_date);
+    
+    for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+      const dateStr = d.toISOString().split('T')[0];
+      
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, min_stay_override)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (room_id, date) 
+        DO UPDATE SET min_stay_override = $3, updated_at = NOW()
+      `, [roomId, dateStr, min_stay_override || null]);
+    }
+    
+    console.log(`✅ Min stay override set to ${min_stay_override} for room ${roomId} from ${start_date} to ${end_date}`);
+    res.json({ success: true, message: 'Min stay updated' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// OCCUPANCY PRICE CALCULATOR - Helper endpoint
+// =====================================================
+
+// POST /api/rooms/:id/calculate-occupancy-price - Calculate price for specific occupancy
+app.post('/api/rooms/:id/calculate-occupancy-price', async (req, res) => {
+  try {
+    const roomId = req.params.id;
+    const { standard_price, adults, children } = req.body;
+    
+    // Get room occupancy settings
+    const roomResult = await pool.query(`
+      SELECT 
+        bu.*,
+        p.child_max_age
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    const room = roomResult.rows[0];
+    const basePrice = parseFloat(standard_price) || 0;
+    
+    // If per_room mode, just return standard price
+    if (room.pricing_mode === 'per_room') {
+      return res.json({
+        success: true,
+        price: basePrice,
+        breakdown: {
+          standard_price: basePrice,
+          adjustments: [],
+          final_price: basePrice
+        }
+      });
+    }
+    
+    // Calculate occupancy-adjusted price
+    const baseOccupancy = room.base_occupancy || 2;
+    const numAdults = parseInt(adults) || 1;
+    const numChildren = parseInt(children) || 0;
+    
+    let adjustedPrice = basePrice;
+    const adjustments = [];
+    
+    // Single occupancy discount
+    if (numAdults === 1 && numChildren === 0 && parseFloat(room.single_discount_value) > 0) {
+      let discount = 0;
+      if (room.single_discount_type === 'percent') {
+        discount = basePrice * (parseFloat(room.single_discount_value) / 100);
+      } else {
+        discount = parseFloat(room.single_discount_value);
+      }
+      adjustedPrice -= discount;
+      adjustments.push({
+        type: 'single_discount',
+        description: 'Single occupancy discount',
+        amount: -discount
+      });
+    }
+    
+    // Extra adults charge
+    const extraAdults = Math.max(0, numAdults - baseOccupancy);
+    if (extraAdults > 0 && parseFloat(room.extra_adult_charge) > 0) {
+      let extraCharge = 0;
+      if (room.extra_adult_type === 'percent') {
+        extraCharge = basePrice * (parseFloat(room.extra_adult_charge) / 100) * extraAdults;
+      } else {
+        extraCharge = parseFloat(room.extra_adult_charge) * extraAdults;
+      }
+      adjustedPrice += extraCharge;
+      adjustments.push({
+        type: 'extra_adults',
+        description: `${extraAdults} extra adult(s)`,
+        amount: extraCharge
+      });
+    }
+    
+    // Children charge
+    if (numChildren > 0 && room.child_charge_type !== 'free' && parseFloat(room.child_charge) > 0) {
+      let childCharge = 0;
+      if (room.child_charge_type === 'percent') {
+        childCharge = basePrice * (parseFloat(room.child_charge) / 100) * numChildren;
+      } else {
+        childCharge = parseFloat(room.child_charge) * numChildren;
+      }
+      adjustedPrice += childCharge;
+      adjustments.push({
+        type: 'children',
+        description: `${numChildren} child(ren)`,
+        amount: childCharge
+      });
+    }
+    
+    res.json({
+      success: true,
+      price: Math.round(adjustedPrice * 100) / 100,
+      breakdown: {
+        standard_price: basePrice,
+        base_occupancy: baseOccupancy,
+        adults: numAdults,
+        children: numChildren,
+        adjustments,
+        final_price: Math.round(adjustedPrice * 100) / 100
+      }
+    });
+  } catch (error) {
+    console.error('Error calculating occupancy price:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // =========================================================
 // BEDS24 WEBHOOK - Receive real-time updates
 // =========================================================
@@ -19106,15 +20678,29 @@ app.post('/api/webhooks/beds24', async (req, res) => {
           
           await client.query('BEGIN');
           
+          // If cancelled, update the GAS booking status
+          if (isCancelled && bookingId) {
+            const updateResult = await client.query(`
+              UPDATE bookings 
+              SET status = 'cancelled', cancelled_time = NOW(), updated_at = NOW()
+              WHERE beds24_booking_id = $1 AND status != 'cancelled'
+              RETURNING id
+            `, [bookingId.toString()]);
+            
+            if (updateResult.rowCount > 0) {
+              console.log(`✅ Cancelled GAS booking ${updateResult.rows[0].id} via webhook (Beds24 booking ${bookingId})`);
+            }
+          }
+          
           for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
             
             if (isCancelled) {
-              // Re-open the dates (only if source was webhook)
+              // Re-open the dates (include 'booking' source from GAS bookings)
               await client.query(`
                 UPDATE room_availability 
-                SET is_available = true, is_blocked = false, source = 'beds24_webhook_cancel', updated_at = NOW()
-                WHERE room_id = $1 AND date = $2 AND source LIKE 'beds24%'
+                SET is_available = true, is_blocked = false, source = 'beds24_cancel', updated_at = NOW()
+                WHERE room_id = $1 AND date = $2 AND source IN ('booking', 'beds24_sync', 'beds24_webhook', 'beds24_inventory', 'beds24_cancel')
               `, [ourRoomId, dateStr]);
             } else {
               // Block the dates
@@ -20603,6 +22189,56 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
   }
 });
 
+// Get occupancy settings for a room (PUBLIC API - for booking widget)
+app.get('/api/public/rooms/:roomId/occupancy-settings', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT 
+        bu.id,
+        bu.name,
+        bu.max_guests,
+        bu.max_adults,
+        bu.pricing_mode,
+        bu.base_occupancy,
+        bu.extra_adult_type,
+        bu.extra_adult_charge,
+        bu.single_discount_type,
+        bu.single_discount_value,
+        bu.child_charge_type,
+        bu.child_charge,
+        bu.children_allowed,
+        p.child_max_age,
+        p.currency
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [roomId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Room not found' });
+    }
+    
+    const room = result.rows[0];
+    const currencySymbol = getCurrencySymbol(room.currency);
+    
+    res.json({ 
+      success: true, 
+      data: {
+        ...room,
+        currency_symbol: currencySymbol,
+        // Calculate max adults and children for dropdowns
+        max_adults: room.max_adults || room.max_guests || 4,
+        max_children: room.children_allowed !== false ? Math.max(0, (room.max_guests || 4) - 1) : 0
+      }
+    });
+  } catch (error) {
+    console.error('Public occupancy settings error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get availability calendar (public)
 app.get('/api/public/availability/:unitId', async (req, res) => {
   try {
@@ -20655,12 +22291,14 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availMap[dateStr];
       
-      const dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked) : true;
       const dayPrice = dayData?.price || basePrice;
+      // Day is unavailable if: explicitly unavailable, blocked, OR no price set
+      const hasPrice = dayPrice && parseFloat(dayPrice) > 0;
+      const dayAvailable = dayData ? (dayData.is_available && !dayData.is_blocked && hasPrice) : (basePrice > 0);
       
       calendar.push({
         date: dateStr,
-        price: parseFloat(dayPrice),
+        price: parseFloat(dayPrice) || 0,
         available: dayAvailable,
         min_stay: dayData?.min_stay || 1
       });
@@ -20694,23 +22332,33 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
 // Calculate price for dates (public) - supports offers, vouchers, upsells
 app.post('/api/public/calculate-price', async (req, res) => {
   try {
-    const { unit_id, check_in, check_out, guests, voucher_code, upsells } = req.body;
+    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells } = req.body;
     
     if (!unit_id || !check_in || !check_out) {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
     }
     
-    // Get availability for date range
+    // Get availability for date range - include min_stay
     const availability = await pool.query(`
-      SELECT date, COALESCE(direct_price, cm_price) as price, is_available, is_blocked
+      SELECT date, 
+             COALESCE(standard_price, direct_price, cm_price) as price, 
+             is_available, 
+             is_blocked,
+             COALESCE(min_stay_override, min_stay, cm_min_stay, 1) as min_stay
       FROM room_availability
       WHERE room_id = $1 AND date >= $2 AND date < $3
       ORDER BY date
     `, [unit_id, check_in, check_out]);
     
-    // Get unit for base price
+    // Get unit with occupancy settings
     const unit = await pool.query(`
-      SELECT bu.base_price, bu.max_guests, bu.name, p.currency 
+      SELECT bu.base_price, bu.max_guests, bu.name, 
+             bu.pricing_mode, bu.base_occupancy, 
+             bu.extra_adult_type, bu.extra_adult_charge,
+             bu.single_discount_type, bu.single_discount_value,
+             bu.child_charge_type, bu.child_charge,
+             bu.children_allowed,
+             p.currency, p.child_max_age
       FROM bookable_units bu
       LEFT JOIN properties p ON bu.property_id = p.id
       WHERE bu.id = $1
@@ -20720,8 +22368,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
-    const basePrice = unit.rows[0].base_price || 0;
-    const currency = unit.rows[0].currency || 'GBP';
+    const roomData = unit.rows[0];
+    const basePrice = roomData.base_price || 0;
+    const currency = roomData.currency || 'GBP';
+    
+    // Parse guests - support both old (guests) and new (adults + children) format
+    const numAdults = parseInt(adults) || parseInt(guests) || 2;
+    const numChildren = parseInt(children) || 0;
+    const totalGuests = numAdults + numChildren;
     
     // Calculate nights
     const checkInDate = new Date(check_in);
@@ -20732,18 +22386,85 @@ app.post('/api/public/calculate-price', async (req, res) => {
       return res.json({ success: false, error: 'Invalid date range' });
     }
     
-    // Build nightly breakdown
+    // Check minimum stay requirement - use the max min_stay from any day in the range
+    let maxMinStay = 1;
+    let minStayDate = null;
+    for (const dayData of availability.rows) {
+      const dayMinStay = parseInt(dayData.min_stay) || 1;
+      if (dayMinStay > maxMinStay) {
+        maxMinStay = dayMinStay;
+        minStayDate = dayData.date;
+      }
+    }
+    
+    if (nights < maxMinStay) {
+      return res.json({ 
+        success: false, 
+        error: `Minimum stay of ${maxMinStay} nights required`,
+        min_stay_required: maxMinStay,
+        nights_selected: nights,
+        min_stay_date: minStayDate
+      });
+    }
+    
+    // Build nightly breakdown with occupancy adjustments
     const nightlyBreakdown = [];
     let accommodationTotal = 0;
+    let occupancyAdjustmentTotal = 0;
     let allAvailable = true;
+    
+    // Occupancy settings
+    const pricingMode = roomData.pricing_mode || 'per_room';
+    const baseOccupancy = parseInt(roomData.base_occupancy) || 2;
+    const extraAdultType = roomData.extra_adult_type || 'fixed';
+    const extraAdultCharge = parseFloat(roomData.extra_adult_charge) || 0;
+    const singleDiscountType = roomData.single_discount_type || 'fixed';
+    const singleDiscountValue = parseFloat(roomData.single_discount_value) || 0;
+    const childChargeType = roomData.child_charge_type || 'free';
+    const childCharge = parseFloat(roomData.child_charge) || 0;
     
     let current = new Date(check_in);
     for (let i = 0; i < nights; i++) {
       const dateStr = current.toISOString().split('T')[0];
       const dayData = availability.rows.find(a => a.date.toISOString().split('T')[0] === dateStr);
       
-      const nightPrice = dayData?.price || basePrice;
-      accommodationTotal += parseFloat(nightPrice);
+      let nightPrice = parseFloat(dayData?.price || basePrice);
+      let nightOccupancyAdjustment = 0;
+      
+      // Apply occupancy pricing if enabled
+      if (pricingMode === 'per_occupancy') {
+        // Single occupancy discount - only applies if base_occupancy is more than 1
+        // (i.e., room is normally for 2+ people but only 1 is staying)
+        if (numAdults === 1 && baseOccupancy > 1 && singleDiscountValue > 0) {
+          if (singleDiscountType === 'percent') {
+            nightOccupancyAdjustment = -(nightPrice * singleDiscountValue / 100);
+          } else {
+            nightOccupancyAdjustment = -singleDiscountValue;
+          }
+        }
+        // Extra adult charge - applies when MORE adults than base occupancy
+        else if (numAdults > baseOccupancy && extraAdultCharge > 0) {
+          const extraAdults = numAdults - baseOccupancy;
+          if (extraAdultType === 'percent') {
+            nightOccupancyAdjustment = nightPrice * (extraAdultCharge / 100) * extraAdults;
+          } else {
+            nightOccupancyAdjustment = extraAdultCharge * extraAdults;
+          }
+        }
+        
+        // Child charges
+        if (numChildren > 0 && childChargeType !== 'free' && childCharge > 0) {
+          if (childChargeType === 'percent') {
+            nightOccupancyAdjustment += nightPrice * (childCharge / 100) * numChildren;
+          } else {
+            nightOccupancyAdjustment += childCharge * numChildren;
+          }
+        }
+      }
+      
+      const adjustedNightPrice = nightPrice + nightOccupancyAdjustment;
+      accommodationTotal += adjustedNightPrice;
+      occupancyAdjustmentTotal += nightOccupancyAdjustment;
       
       if (dayData && (!dayData.is_available || dayData.is_blocked)) {
         allAvailable = false;
@@ -20751,10 +22472,26 @@ app.post('/api/public/calculate-price', async (req, res) => {
       
       nightlyBreakdown.push({
         date: dateStr,
-        price: parseFloat(nightPrice)
+        base_price: nightPrice,
+        occupancy_adjustment: nightOccupancyAdjustment,
+        price: adjustedNightPrice
       });
       
       current.setDate(current.getDate() + 1);
+    }
+    
+    // Build occupancy label for display
+    let occupancyLabel = '';
+    if (occupancyAdjustmentTotal !== 0) {
+      if (occupancyAdjustmentTotal < 0) {
+        occupancyLabel = 'Single occupancy discount';
+      } else if (numAdults > baseOccupancy) {
+        occupancyLabel = `Extra guest charge (${numAdults - baseOccupancy} extra adult${numAdults - baseOccupancy > 1 ? 's' : ''})`;
+      }
+      if (numChildren > 0 && childChargeType !== 'free') {
+        if (occupancyLabel) occupancyLabel += ' + ';
+        occupancyLabel += `${numChildren} child${numChildren > 1 ? 'ren' : ''}`;
+      }
     }
     
     // Check for applicable offers
@@ -20971,7 +22708,14 @@ app.post('/api/public/calculate-price', async (req, res) => {
       availability_debug: availabilityDebug,
       currency: currency,
       nights: nights,
-      room_name: unit.rows[0].name,
+      min_stay: maxMinStay,
+      room_name: roomData.name,
+      adults: numAdults,
+      children: numChildren,
+      total_guests: totalGuests,
+      pricing_mode: pricingMode,
+      occupancy_adjustment: occupancyAdjustmentTotal,
+      occupancy_label: occupancyLabel,
       accommodation_total: accommodationTotal,
       offer_discount: discount,
       offer_applied: offerApplied,
@@ -20987,6 +22731,44 @@ app.post('/api/public/calculate-price', async (req, res) => {
     });
   } catch (error) {
     console.error('Calculate price error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get min stay for a room's date range (public - for calendar display)
+app.get('/api/public/rooms/:roomId/min-stay', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { start_date, end_date } = req.query;
+    
+    const startDate = start_date || new Date().toISOString().split('T')[0];
+    const endDate = end_date || new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    const result = await pool.query(`
+      SELECT date, 
+             COALESCE(min_stay_override, min_stay, cm_min_stay, 1) as min_stay,
+             cm_min_stay
+      FROM room_availability
+      WHERE room_id = $1 AND date >= $2 AND date <= $3
+      ORDER BY date
+    `, [roomId, startDate, endDate]);
+    
+    // Also get default min stay from room settings
+    const roomResult = await pool.query(`
+      SELECT min_stay FROM bookable_units WHERE id = $1
+    `, [roomId]);
+    
+    const defaultMinStay = roomResult.rows[0]?.min_stay || 1;
+    
+    res.json({ 
+      success: true, 
+      default_min_stay: defaultMinStay,
+      dates: result.rows.map(r => ({
+        date: r.date,
+        min_stay: parseInt(r.min_stay) || defaultMinStay
+      }))
+    });
+  } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
@@ -21024,7 +22806,8 @@ app.post('/api/public/book', async (req, res) => {
     const beds24RoomId = unit.rows[0].beds24_room_id;
     if (beds24RoomId) {
       try {
-        const accessToken = await getBeds24AccessToken(pool);
+        // Use property-specific token lookup for GasSync connections
+        const accessToken = await getBeds24AccessTokenForProperty(pool, unit.rows[0].property_id, unit_id);
         if (accessToken) {
           console.log(`Real-time availability check for room ${beds24RoomId}: ${check_in} to ${check_out}`);
           
@@ -21176,7 +22959,8 @@ app.post('/api/public/book', async (req, res) => {
     // BEDS24 SYNC
     if (cmData?.beds24_room_id) {
       try {
-        const accessToken = await getBeds24AccessToken(pool);
+        // Use property-specific token lookup for GasSync connections
+        const accessToken = await getBeds24AccessTokenForProperty(pool, newBooking.property_id, unit_id);
         
         // Build payment array if deposit was taken
         const payments = [];
@@ -25811,129 +27595,15 @@ setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
 
-// Schedule GasSync availability sync every 15 minutes
+// OLD GasSync availability sync - DISABLED (replaced by tiered sync)
+// This was causing "column name does not exist" error
+// The tiered sync (startTieredSyncScheduler) now handles all availability syncing
+/*
 async function runGasSyncAvailabilitySync() {
-  try {
-    console.log('⏰ [Scheduled] Starting GasSync availability sync...');
-    
-    // Ensure room_availability table exists
-    await pool.query(`
-      CREATE TABLE IF NOT EXISTS room_availability (
-        id SERIAL PRIMARY KEY,
-        room_id INTEGER NOT NULL,
-        date DATE NOT NULL,
-        cm_price DECIMAL(10,2),
-        direct_price DECIMAL(10,2),
-        is_available BOOLEAN DEFAULT true,
-        is_blocked BOOLEAN DEFAULT false,
-        min_stay INTEGER DEFAULT 1,
-        max_stay INTEGER,
-        source VARCHAR(50),
-        created_at TIMESTAMP DEFAULT NOW(),
-        updated_at TIMESTAMP DEFAULT NOW(),
-        UNIQUE(room_id, date)
-      )
-    `);
-    
-    // Get all active GasSync connections
-    const connections = await pool.query(`
-      SELECT id, name, adapter_code FROM gas_sync_connections WHERE status = 'active'
-    `);
-    
-    for (const conn of connections.rows) {
-      if (conn.adapter_code === 'beds24') {
-        try {
-          // Call the availability sync endpoint internally
-          const propsResult = await pool.query(`
-            SELECT sp.id, sp.external_id, sp.name, sp.prop_key, sp.gas_property_id
-            FROM gas_sync_properties sp
-            WHERE sp.connection_id = $1 AND sp.prop_key IS NOT NULL AND sp.gas_property_id IS NOT NULL
-          `, [conn.id]);
-          
-          if (propsResult.rows.length === 0) continue;
-          
-          // Get access token
-          const connData = await pool.query('SELECT credentials FROM gas_sync_connections WHERE id = $1', [conn.id]);
-          const credentials = typeof connData.rows[0].credentials === 'string' 
-            ? JSON.parse(connData.rows[0].credentials) 
-            : connData.rows[0].credentials;
-          
-          const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-            refreshToken: credentials.refreshToken
-          });
-          const accessToken = tokenResponse.data.token;
-          
-          // Calculate date range (30 days for quick sync)
-          const startDate = new Date().toISOString().split('T')[0];
-          const endDate = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          
-          let roomsSynced = 0;
-          
-          for (const prop of propsResult.rows) {
-            // Get rooms for this property
-            const roomsResult = await pool.query(`
-              SELECT rt.external_id as beds24_room_id, bu.id as gas_room_id
-              FROM gas_sync_room_types rt
-              JOIN bookable_units bu ON bu.cm_room_id = rt.external_id::text
-              WHERE rt.sync_property_id = $1 AND bu.property_id = $2
-            `, [prop.id, prop.gas_property_id]);
-            
-            if (roomsResult.rows.length === 0) continue;
-            
-            // Rate limit
-            await new Promise(resolve => setTimeout(resolve, 500));
-            
-            const calendarResponse = await axios.post('https://beds24.com/api/v2/inventory/rooms/calendar', {
-              propertyId: parseInt(prop.external_id),
-              startDate,
-              endDate
-            }, {
-              headers: { 'token': accessToken, 'Content-Type': 'application/json' }
-            });
-            
-            const calendarData = calendarResponse.data;
-            if (calendarData && Array.isArray(calendarData)) {
-              for (const roomCal of calendarData) {
-                const beds24RoomId = roomCal.roomId?.toString();
-                const matchedRoom = roomsResult.rows.find(r => r.beds24_room_id?.toString() === beds24RoomId);
-                if (!matchedRoom) continue;
-                
-                const days = roomCal.days || roomCal.calendar || [];
-                for (const day of days) {
-                  const price = parseFloat(day.price) || parseFloat(day.price1) || null;
-                  const isAvailable = day.numAvail > 0 || day.available === true;
-                  const isBlocked = day.closed === true || day.numAvail === 0;
-                  const minStay = day.minStay || 1;
-                  
-                  await pool.query(`
-                    INSERT INTO room_availability (room_id, date, cm_price, is_available, is_blocked, min_stay, source, updated_at)
-                    VALUES ($1, $2, $3, $4, $5, $6, 'beds24', NOW())
-                    ON CONFLICT (room_id, date) 
-                    DO UPDATE SET cm_price = EXCLUDED.cm_price, is_available = EXCLUDED.is_available, 
-                      is_blocked = EXCLUDED.is_blocked, min_stay = EXCLUDED.min_stay, updated_at = NOW()
-                  `, [matchedRoom.gas_room_id, day.date, price, isAvailable, isBlocked, minStay]);
-                }
-                roomsSynced++;
-              }
-            }
-          }
-          
-          console.log(`⏰ [Scheduled] GasSync availability: ${conn.name} - ${roomsSynced} rooms synced`);
-          
-        } catch (connError) {
-          console.error(`⏰ [Scheduled] GasSync availability error for ${conn.name}:`, connError.message);
-        }
-      }
-    }
-    
-    console.log('⏰ [Scheduled] GasSync availability sync complete');
-  } catch (error) {
-    console.error('⏰ [Scheduled] GasSync availability sync error:', error.message);
-  }
+  // ... disabled - using tiered sync instead
 }
-
-// Run GasSync availability sync every 15 minutes
 setInterval(runGasSyncAvailabilitySync, 15 * 60 * 1000);
+*/
 
 // Run initial Beds24 sync 60 seconds after startup
 setTimeout(() => {
@@ -26358,8 +28028,7 @@ app.put('/api/gas-sync/connections/:id', async (req, res) => {
       credentials, 
       sync_enabled, 
       sync_interval_minutes,
-      external_account_name,
-      v1ApiKey  // V1 API key for Fixed Prices fallback
+      external_account_name 
     } = req.body;
     
     const updates = [];
@@ -26376,25 +28045,6 @@ app.put('/api/gas-sync/connections/:id', async (req, res) => {
         updates.push(`access_token = $${paramCount}`);
         values.push(credentials.token);
       }
-    }
-    
-    // Handle V1 API key - merge with existing api_key JSON
-    if (v1ApiKey !== undefined) {
-      // Get existing api_key data
-      const existing = await pool.query('SELECT api_key FROM gas_sync_connections WHERE id = $1', [id]);
-      let apiKeyData = {};
-      if (existing.rows[0]?.api_key) {
-        try {
-          apiKeyData = typeof existing.rows[0].api_key === 'string' 
-            ? JSON.parse(existing.rows[0].api_key) 
-            : existing.rows[0].api_key;
-        } catch (e) {}
-      }
-      apiKeyData.v1ApiKey = v1ApiKey;
-      
-      paramCount++;
-      updates.push(`api_key = $${paramCount}`);
-      values.push(JSON.stringify(apiKeyData));
     }
     
     if (sync_enabled !== undefined) {
@@ -27959,4 +29609,263 @@ app.get('/beds24-wizard', (req, res) => {
 app.listen(PORT, '0.0.0.0', () => {
   console.log('🚀 Server running on port ' + PORT);
   console.log('🔄 Auto-sync scheduled: Prices every 15min, Beds24 bookings every 15min, Inventory every 6hrs');
+  
+  // Start internal tiered availability sync scheduler
+  startTieredSyncScheduler();
 });
+
+// =====================================================
+// INTERNAL TIERED SYNC SCHEDULER
+// Runs automatically - no external cron needed
+// =====================================================
+
+async function runTieredSync() {
+  console.log('⏰ [Tiered Sync] Starting automatic sync...');
+  
+  try {
+    await ensureTierTrackingColumns();
+    
+    const now = new Date();
+    let totalRoomsSynced = 0;
+    let totalDaysUpdated = 0;
+    const errors = [];
+    
+    // Get all active Beds24 connections
+    const connections = await pool.query(`
+      SELECT * FROM gas_sync_connections 
+      WHERE adapter_code = 'beds24' AND sync_enabled = true AND status != 'syncing'
+    `);
+    
+    if (connections.rows.length === 0) {
+      console.log('⏰ [Tiered Sync] No active Beds24 connections found');
+      return;
+    }
+    
+    for (const conn of connections.rows) {
+      let accessToken = conn.access_token;
+      
+      // Always try to refresh token - access tokens expire quickly
+      if (conn.refresh_token) {
+        try {
+          const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+            headers: { 'refreshToken': conn.refresh_token }
+          });
+          accessToken = tokenResponse.data.token;
+          await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, conn.id]);
+          console.log(`⏰ [Tiered Sync] Refreshed token for connection ${conn.id} (${conn.name || 'unnamed'})`);
+        } catch (e) {
+          console.error(`⏰ [Tiered Sync] Token refresh failed for connection ${conn.id}: ${e.message}`);
+          errors.push({ connection: conn.id, error: 'Token refresh failed: ' + e.message });
+          continue;
+        }
+      }
+      
+      if (!accessToken) {
+        console.log(`⏰ [Tiered Sync] No token for connection ${conn.id}, skipping`);
+        continue;
+      }
+      
+      // Get rooms that need syncing for each tier
+      for (const tier of SYNC_TIERS) {
+        const tierColumn = `tier${tier.tier}_synced_at`;
+        const cutoffTime = new Date(now.getTime() - tier.intervalMinutes * 60 * 1000);
+        
+        // Find rooms due for this tier sync (limit 3 per tier per run for gentler rate limiting)
+        const roomsResult = await pool.query(`
+          SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+          FROM gas_sync_room_types rt
+          JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+          JOIN bookable_units bu ON bu.id = rt.gas_room_id
+          WHERE sp.connection_id = $1 
+            AND rt.gas_room_id IS NOT NULL
+            AND (rt.${tierColumn} IS NULL OR rt.${tierColumn} < $2)
+          ORDER BY rt.${tierColumn} ASC NULLS FIRST
+          LIMIT 3
+        `, [conn.id, cutoffTime]);
+        
+        if (roomsResult.rows.length === 0) continue;
+        
+        console.log(`⏰ [Tiered Sync] Tier ${tier.tier} (${tier.name}): ${roomsResult.rows.length} rooms due`);
+        
+        // Get V1 credentials from connection for fallback
+        const credentials = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials || '{}') : (conn.credentials || {});
+        const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
+        
+        for (const room of roomsResult.rows) {
+          try {
+            // Calculate date range for this tier
+            const startDate = new Date(now.getTime() + tier.startDay * 24 * 60 * 60 * 1000);
+            const endDate = new Date(now.getTime() + tier.endDay * 24 * 60 * 60 * 1000);
+            
+            // Get prop_key for this room's property
+            const propKeyResult = await pool.query(`
+              SELECT sp.prop_key FROM gas_sync_properties sp
+              JOIN gas_sync_room_types rt ON rt.sync_property_id = sp.id
+              WHERE rt.id = $1
+            `, [room.id]);
+            const propKey = propKeyResult.rows[0]?.prop_key;
+            
+            // Fetch calendar from Beds24 V2
+            const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+              headers: { 'token': accessToken },
+              params: {
+                roomId: parseInt(room.beds24_room_id),
+                startDate: startDate.toISOString().split('T')[0],
+                endDate: endDate.toISOString().split('T')[0],
+                includeNumAvail: true,
+                includePrices: true,
+                includeMinStay: true
+              }
+            });
+            
+            const calendarData = calResponse.data.data?.[0]?.calendar || [];
+            let daysUpdated = 0;
+            
+            // Check if V2 returned any prices (not just availability)
+            const hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
+            
+            // If V2 has no prices and we have V1 credentials, try V1 getPrice fallback
+            if (!hasAnyPrices && v1ApiKey && propKey) {
+              console.log(`  📦 ${room.name}: V2 returned no prices, trying V1 getPrice fallback...`);
+              
+              // V1 getPrice endpoint - gets calculated price for specific dates
+              try {
+                for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
+                  const dateStr = d.toISOString().split('T')[0];
+                  const nextDay = new Date(d);
+                  nextDay.setDate(nextDay.getDate() + 1);
+                  const departStr = nextDay.toISOString().split('T')[0];
+                  
+                  try {
+                    const v1Response = await axios.post('https://api.beds24.com/json/getPrice', {
+                      authentication: {
+                        apiKey: v1ApiKey,
+                        propKey: propKey
+                      },
+                      roomId: room.beds24_room_id,
+                      arrival: dateStr,
+                      departure: departStr,
+                      numAdult: 2
+                    });
+                    
+                    // Debug: log first V1 response to see format
+                    if (daysUpdated === 0) {
+                      console.log(`    V1 getPrice response for ${room.name}:`, JSON.stringify(v1Response.data).substring(0, 500));
+                    }
+                    
+                    // getPrice returns price info including calculated price
+                    const priceData = v1Response.data;
+                    const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || priceData?.roomPrice || null;
+                    const minStay = priceData?.minStay || priceData?.[0]?.minStay || 1;
+                    const isAvailable = priceData?.available !== false && priceData?.numAvail !== 0;
+                    
+                    if (price !== null) {
+                      await pool.query(`
+                        INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                        VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24-v1', NOW())
+                        ON CONFLICT (room_id, date) 
+                        DO UPDATE SET 
+                          cm_price = COALESCE($3, room_availability.cm_price),
+                          is_available = $4,
+                          is_blocked = $5,
+                          min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                          cm_min_stay = $6,
+                          source = 'beds24-v1',
+                          updated_at = NOW()
+                      `, [room.gas_room_id, dateStr, price, isAvailable, !isAvailable, minStay]);
+                      
+                      daysUpdated++;
+                    }
+                    
+                    // Small delay between V1 calls to avoid rate limits
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    
+                  } catch (dayErr) {
+                    // Skip individual day errors
+                    if (dayErr.response?.status === 429) throw dayErr; // Re-throw rate limits
+                  }
+                }
+              } catch (v1Error) {
+                console.log(`  ⚠️ V1 fallback failed for ${room.name}: ${v1Error.message}`);
+              }
+            } else {
+              // Process V2 calendar data
+              for (const entry of calendarData) {
+                const fromDate = new Date(entry.from);
+                const toDate = new Date(entry.to);
+                
+                for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+                  const dateStr = d.toISOString().split('T')[0];
+                  const numAvail = entry.numAvail || 0;
+                  const price = entry.price1 || null;
+                  const minStay = entry.minStay || 1;
+                  
+                  await pool.query(`
+                    INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+                    ON CONFLICT (room_id, date) 
+                    DO UPDATE SET 
+                      cm_price = COALESCE($3, room_availability.cm_price),
+                      is_available = $4,
+                      is_blocked = $5,
+                      min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                      cm_min_stay = $6,
+                      source = 'beds24',
+                      updated_at = NOW()
+                  `, [room.gas_room_id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+                  
+                  daysUpdated++;
+                }
+              }
+            }
+            
+            // Update tier sync timestamp
+            await pool.query(`UPDATE gas_sync_room_types SET ${tierColumn} = NOW() WHERE id = $1`, [room.id]);
+            
+            totalRoomsSynced++;
+            totalDaysUpdated += daysUpdated;
+            
+            console.log(`  ✓ ${room.name}: ${daysUpdated} days (Tier ${tier.tier})`);
+            
+            // Rate limit protection: wait 2 seconds between API calls
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+          } catch (roomError) {
+            console.error(`  ✗ ${room.name}: ${roomError.message}`);
+            errors.push({ room: room.id, name: room.name, tier: tier.tier, error: roomError.message });
+            
+            // If rate limited, stop and wait longer
+            if (roomError.response?.status === 429) {
+              console.log(`⏰ [Tiered Sync] Rate limited! Stopping this run.`);
+              return;
+            }
+          }
+        }
+      }
+    }
+    
+    if (totalRoomsSynced > 0) {
+      console.log(`⏰ [Tiered Sync] Complete: ${totalRoomsSynced} rooms, ${totalDaysUpdated} days updated`);
+    }
+    
+  } catch (error) {
+    console.error('⏰ [Tiered Sync] Error:', error.message);
+  }
+}
+
+function startTieredSyncScheduler() {
+  // Run every 15 minutes (900000ms)
+  const SYNC_INTERVAL = 15 * 60 * 1000;
+  
+  console.log('⏰ [Tiered Sync] Scheduler started - runs every 15 minutes');
+  
+  // Run first sync after 30 seconds (let server fully start)
+  setTimeout(() => {
+    runTieredSync();
+  }, 30000);
+  
+  // Then run every 15 minutes
+  setInterval(() => {
+    runTieredSync();
+  }, SYNC_INTERVAL);
+}
