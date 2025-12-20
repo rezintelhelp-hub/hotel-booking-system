@@ -24980,17 +24980,23 @@ app.post('/api/admin/blog', async (req, res) => {
             read_time_minutes, is_featured, is_published, published_at
         } = req.body;
         
-        // If property_id provided but no client_id, get it from the property
-        if (property_id && !client_id) {
+        console.log('Blog POST received:', { client_id, property_id, title });
+        
+        // Always try to get client_id from property if property_id is provided
+        if (property_id) {
             const propResult = await pool.query('SELECT client_id FROM properties WHERE id = $1', [property_id]);
-            if (propResult.rows[0]) {
+            console.log('Property lookup result:', propResult.rows[0]);
+            if (propResult.rows[0] && propResult.rows[0].client_id) {
                 client_id = propResult.rows[0].client_id;
             }
         }
         
+        // Fallback to 1 if still no client_id (for single-tenant setups)
         if (!client_id) {
-            return res.json({ success: false, error: 'Could not determine client_id' });
+            client_id = 1;
         }
+        
+        console.log('Final client_id:', client_id);
         
         // Generate slug if not provided
         const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -25013,6 +25019,7 @@ app.post('/api/admin/blog', async (req, res) => {
         
         res.json({ success: true, post: result.rows[0] });
     } catch (error) {
+        console.error('Blog POST error:', error);
         if (error.code === '23505') {
             res.json({ success: false, error: 'A post with this slug already exists' });
         } else {
@@ -25207,16 +25214,17 @@ app.post('/api/admin/attractions', async (req, res) => {
             is_featured, is_published, display_order
         } = req.body;
         
-        // If property_id provided but no client_id, get it from the property
-        if (property_id && !client_id) {
+        // Always try to get client_id from property if property_id is provided
+        if (property_id) {
             const propResult = await pool.query('SELECT client_id FROM properties WHERE id = $1', [property_id]);
-            if (propResult.rows[0]) {
+            if (propResult.rows[0] && propResult.rows[0].client_id) {
                 client_id = propResult.rows[0].client_id;
             }
         }
         
+        // Fallback to 1 if still no client_id
         if (!client_id) {
-            return res.json({ success: false, error: 'Could not determine client_id' });
+            client_id = 1;
         }
         
         const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
