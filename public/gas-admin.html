@@ -1512,7 +1512,7 @@
                         <span class="nav-icon">📅</span>
                         <span>Availability</span>
                     </a>
-                    <a class="nav-item client-only" data-view="channel-manager" href="#" onclick="navClick(this, 'channel-manager'); return false;" style="display: none;">
+                    <a class="nav-item" data-view="channel-manager" href="#" onclick="navClick(this, 'channel-manager'); return false;">
                         <span class="nav-icon">🔗</span>
                         <span>Channel Manager</span>
                     </a>
@@ -2851,7 +2851,7 @@
                                         <li>Prices and availability stay in sync across all channels</li>
                                     </ul>
                                     <p style="margin: 0.75rem 0 0 0; font-size: 0.875rem; color: #94a3b8;">
-                                        Having issues? Contact <a href="mailto:support@gas.travel" style="color: #3b82f6;">support@gas.travel</a>
+                                        Having issues? Contact <a href="/cdn-cgi/l/email-protection#a2d1d7d2d2cdd0d6e2c5c3d18cd6d0c3d4c7ce" style="color: #3b82f6;"><span class="__cf_email__" data-cfemail="5b282e2b2b34292f1b3c3a28752f293a2d3e37">[email&#160;protected]</span></a>
                                     </p>
                                 </div>
                             </div>
@@ -11994,7 +11994,7 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
-    <script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
         // =====================================================
         // AUTHENTICATION
         // =====================================================
@@ -14945,15 +14945,6 @@ Local honey and preserves"></textarea>
                     el.style.display = showMasterSections ? 'inline-flex' : 'none';
                 } else {
                     el.style.display = showMasterSections ? 'block' : 'none';
-                }
-            });
-            
-            // Client-only sections: show only when viewing a client (inverse of master-only)
-            document.querySelectorAll('.client-only').forEach(el => {
-                if (el.tagName === 'A') {
-                    el.style.display = isViewingClient ? 'flex' : 'none';
-                } else {
-                    el.style.display = isViewingClient ? 'block' : 'none';
                 }
             });
             
@@ -29029,14 +29020,10 @@ Local honey and preserves"></textarea>
                 const accountPropsData = await accountPropsResponse.json();
                 const accountPropertyIds = (accountPropsData.properties || []).map(p => p.id);
                 
-                console.log('CM Debug - Account property IDs:', accountPropertyIds);
-                console.log('CM Debug - Account properties:', accountPropsData.properties?.map(p => ({id: p.id, name: p.name})));
-                
-                // Get all connections
-                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                // Get connections filtered by account
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/gas-sync/connections${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
-                
-                console.log('CM Debug - Connections:', data.connections?.length);
                 
                 if (loading) loading.style.display = 'none';
                 
@@ -29047,17 +29034,13 @@ Local honey and preserves"></textarea>
                     
                     for (const c of data.connections) {
                         try {
-                            const propsResponse = await fetch(`/api/gas-sync/connections/${c.id}/properties`, { headers: authHeaders() });
+                            const propsResponse = await fetch(`/api/gas-sync/properties?connection_id=${c.id}`, { headers: authHeaders() });
                             const propsData = await propsResponse.json();
-                            console.log('CM Debug - Connection', c.id, 'synced properties:', propsData.properties?.map(p => ({name: p.name, gas_property_id: p.gas_property_id})));
-                            
                             if (propsData.success && propsData.properties) {
-                                // Filter to only properties that belong to this account (match gas_property_id)
+                                // Filter to only properties that belong to this account (match local_property_id)
                                 const matchingProps = propsData.properties.filter(p => 
-                                    accountPropertyIds.includes(p.gas_property_id)
+                                    accountPropertyIds.includes(p.local_property_id)
                                 );
-                                console.log('CM Debug - Matching props for connection', c.id, ':', matchingProps.length);
-                                
                                 if (matchingProps.length > 0) {
                                     accountSyncedProps = accountSyncedProps.concat(matchingProps.map(p => ({
                                         ...p, 
@@ -29071,8 +29054,6 @@ Local honey and preserves"></textarea>
                             console.error('Error loading properties:', e);
                         }
                     }
-                    
-                    console.log('CM Debug - Total matching synced props:', accountSyncedProps.length);
                     
                     // If no synced properties match this account, show no connection
                     if (accountSyncedProps.length === 0) {
@@ -29176,7 +29157,8 @@ Local honey and preserves"></textarea>
         // Dashboard
         async function loadGasSyncDashboard() {
             try {
-                const response = await fetch('/api/gas-sync/status', { headers: authHeaders() });
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/gas-sync/status${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -29212,7 +29194,8 @@ Local honey and preserves"></textarea>
 
         async function loadConnectionStatus() {
             try {
-                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/gas-sync/connections${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
                 
                 const container = document.getElementById('connectionStatusList');
@@ -29253,7 +29236,8 @@ Local honey and preserves"></textarea>
         // Connections
         async function loadGasSyncConnections() {
             try {
-                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/gas-sync/connections${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
                 
                 gasSyncConnections = data.connections || [];
@@ -29806,13 +29790,4 @@ Local honey and preserves"></textarea>
 
         function formatDate(dateString) {
             if (!dateString) return '-';
-            return new Date(dateString).toLocaleDateString();
-        }
-
-        function formatDateTime(dateString) {
-            if (!dateString) return '-';
-            return new Date(dateString).toLocaleString();
-        }
-    </script>
-</body>
-</html>
+            retur
