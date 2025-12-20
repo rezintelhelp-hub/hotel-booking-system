@@ -24970,8 +24970,8 @@ app.get('/api/admin/blog/:id', async (req, res) => {
 // Create blog post
 app.post('/api/admin/blog', async (req, res) => {
     try {
-        const {
-            client_id = 1,
+        let {
+            client_id,
             property_id,
             title, slug, excerpt, content, featured_image_url,
             category, tags,
@@ -24979,6 +24979,18 @@ app.post('/api/admin/blog', async (req, res) => {
             author_name, author_image_url,
             read_time_minutes, is_featured, is_published, published_at
         } = req.body;
+        
+        // If property_id provided but no client_id, get it from the property
+        if (property_id && !client_id) {
+            const propResult = await pool.query('SELECT client_id FROM properties WHERE id = $1', [property_id]);
+            if (propResult.rows[0]) {
+                client_id = propResult.rows[0].client_id;
+            }
+        }
+        
+        if (!client_id) {
+            return res.json({ success: false, error: 'Could not determine client_id' });
+        }
         
         // Generate slug if not provided
         const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -25186,14 +25198,26 @@ app.get('/api/admin/attractions/:id', async (req, res) => {
 // Create attraction
 app.post('/api/admin/attractions', async (req, res) => {
     try {
-        const {
-            client_id = 1, property_id,
+        let {
+            client_id, property_id,
             name, slug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
             category, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description,
             is_featured, is_published, display_order
         } = req.body;
+        
+        // If property_id provided but no client_id, get it from the property
+        if (property_id && !client_id) {
+            const propResult = await pool.query('SELECT client_id FROM properties WHERE id = $1', [property_id]);
+            if (propResult.rows[0]) {
+                client_id = propResult.rows[0].client_id;
+            }
+        }
+        
+        if (!client_id) {
+            return res.json({ success: false, error: 'Could not determine client_id' });
+        }
         
         const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         
