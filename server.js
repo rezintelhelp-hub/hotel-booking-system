@@ -674,6 +674,21 @@ async function runMigrations() {
       console.log('ℹ️  payment_setup_tokens:', setupTokenError.message);
     }
     
+    // Add property_id to blog_posts and attractions for multi-property support
+    try {
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS property_id INTEGER REFERENCES properties(id)`);
+      console.log('✅ blog_posts.property_id column ensured');
+    } catch (blogPropertyError) {
+      console.log('ℹ️  blog_posts.property_id:', blogPropertyError.message);
+    }
+    
+    try {
+      await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS property_id INTEGER REFERENCES properties(id)`);
+      console.log('✅ attractions.property_id column ensured');
+    } catch (attractionsPropertyError) {
+      console.log('ℹ️  attractions.property_id:', attractionsPropertyError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -24874,29 +24889,40 @@ app.post('/api/admin/branding', async (req, res) => {
 app.get('/api/admin/blog', async (req, res) => {
     try {
         const clientId = req.query.client_id || 1;
-        const { category, is_published, is_featured, limit, offset } = req.query;
+        const { property_id, category, is_published, is_featured, limit, offset } = req.query;
         
-        let query = `SELECT * FROM blog_posts WHERE client_id = $1`;
+        let query = `
+            SELECT bp.*, p.name as property_name 
+            FROM blog_posts bp
+            LEFT JOIN properties p ON bp.property_id = p.id
+            WHERE bp.client_id = $1
+        `;
         const params = [clientId];
         let paramIndex = 2;
         
+        if (property_id) {
+            query += ` AND bp.property_id = $${paramIndex}`;
+            params.push(property_id);
+            paramIndex++;
+        }
+        
         if (category) {
-            query += ` AND category = $${paramIndex}`;
+            query += ` AND bp.category = $${paramIndex}`;
             params.push(category);
             paramIndex++;
         }
         
         if (is_published !== undefined) {
-            query += ` AND is_published = $${paramIndex}`;
+            query += ` AND bp.is_published = $${paramIndex}`;
             params.push(is_published === 'true');
             paramIndex++;
         }
         
         if (is_featured === 'true') {
-            query += ` AND is_featured = true`;
+            query += ` AND bp.is_featured = true`;
         }
         
-        query += ` ORDER BY published_at DESC NULLS LAST, created_at DESC`;
+        query += ` ORDER BY bp.published_at DESC NULLS LAST, bp.created_at DESC`;
         
         if (limit) {
             query += ` LIMIT $${paramIndex}`;
@@ -24912,9 +24938,13 @@ app.get('/api/admin/blog', async (req, res) => {
         const result = await pool.query(query, params);
         
         // Get total count
-        const countResult = await pool.query(`
-            SELECT COUNT(*) FROM blog_posts WHERE client_id = $1
-        `, [clientId]);
+        let countQuery = `SELECT COUNT(*) FROM blog_posts WHERE client_id = $1`;
+        const countParams = [clientId];
+        if (property_id) {
+            countQuery += ` AND property_id = $2`;
+            countParams.push(property_id);
+        }
+        const countResult = await pool.query(countQuery, countParams);
         
         res.json({ 
             success: true, 
@@ -24942,6 +24972,7 @@ app.post('/api/admin/blog', async (req, res) => {
     try {
         const {
             client_id = 1,
+            property_id,
             title, slug, excerpt, content, featured_image_url,
             category, tags,
             meta_title, meta_description,
@@ -24954,15 +24985,15 @@ app.post('/api/admin/blog', async (req, res) => {
         
         const result = await pool.query(`
             INSERT INTO blog_posts (
-                client_id, title, slug, excerpt, content, featured_image_url,
+                client_id, property_id, title, slug, excerpt, content, featured_image_url,
                 category, tags, meta_title, meta_description,
                 author_name, author_image_url, read_time_minutes,
                 is_featured, is_published, published_at
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
             RETURNING *
         `, [
-            client_id, title, finalSlug, excerpt, content, featured_image_url,
+            client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
             category, tags || [], meta_title, meta_description,
             author_name, author_image_url, read_time_minutes || 5,
             is_featured || false, is_published !== false, published_at || new Date()
@@ -24983,6 +25014,7 @@ app.put('/api/admin/blog/:id', async (req, res) => {
     try {
         const { id } = req.params;
         const {
+            property_id,
             title, slug, excerpt, content, featured_image_url,
             category, tags,
             meta_title, meta_description,
@@ -24992,26 +25024,27 @@ app.put('/api/admin/blog/:id', async (req, res) => {
         
         const result = await pool.query(`
             UPDATE blog_posts SET
-                title = COALESCE($1, title),
-                slug = COALESCE($2, slug),
-                excerpt = $3,
-                content = $4,
-                featured_image_url = $5,
-                category = $6,
-                tags = COALESCE($7, tags),
-                meta_title = $8,
-                meta_description = $9,
-                author_name = $10,
-                author_image_url = $11,
-                read_time_minutes = COALESCE($12, read_time_minutes),
-                is_featured = COALESCE($13, is_featured),
-                is_published = COALESCE($14, is_published),
-                published_at = COALESCE($15, published_at),
+                property_id = COALESCE($1, property_id),
+                title = COALESCE($2, title),
+                slug = COALESCE($3, slug),
+                excerpt = $4,
+                content = $5,
+                featured_image_url = $6,
+                category = $7,
+                tags = COALESCE($8, tags),
+                meta_title = $9,
+                meta_description = $10,
+                author_name = $11,
+                author_image_url = $12,
+                read_time_minutes = COALESCE($13, read_time_minutes),
+                is_featured = COALESCE($14, is_featured),
+                is_published = COALESCE($15, is_published),
+                published_at = COALESCE($16, published_at),
                 updated_at = NOW()
-            WHERE id = $16
+            WHERE id = $17
             RETURNING *
         `, [
-            title, slug, excerpt, content, featured_image_url,
+            property_id, title, slug, excerpt, content, featured_image_url,
             category, tags, meta_title, meta_description,
             author_name, author_image_url, read_time_minutes,
             is_featured, is_published, published_at, id
