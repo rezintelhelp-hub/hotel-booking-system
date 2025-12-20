@@ -1512,7 +1512,7 @@
                         <span class="nav-icon">📅</span>
                         <span>Availability</span>
                     </a>
-                    <a class="nav-item" data-view="channel-manager" href="#" onclick="navClick(this, 'channel-manager'); return false;">
+                    <a class="nav-item client-only" data-view="channel-manager" href="#" onclick="navClick(this, 'channel-manager'); return false;" style="display: none;">
                         <span class="nav-icon">🔗</span>
                         <span>Channel Manager</span>
                     </a>
@@ -14945,6 +14945,15 @@ Local honey and preserves"></textarea>
                     el.style.display = showMasterSections ? 'inline-flex' : 'none';
                 } else {
                     el.style.display = showMasterSections ? 'block' : 'none';
+                }
+            });
+            
+            // Client-only sections: show only when viewing a client (inverse of master-only)
+            document.querySelectorAll('.client-only').forEach(el => {
+                if (el.tagName === 'A') {
+                    el.style.display = isViewingClient ? 'flex' : 'none';
+                } else {
+                    el.style.display = isViewingClient ? 'block' : 'none';
                 }
             });
             
