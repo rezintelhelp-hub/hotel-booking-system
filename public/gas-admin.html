@@ -8407,11 +8407,11 @@ Local honey and preserves"></textarea>
     </div>
 
     <!-- GasSync Connection Details Modal -->
-    <div id="connectionDetailsModal" class="modal">
+    <div id="connectionDetailsModal" class="modal" onclick="if(event.target === this) closeModal('connectionDetailsModal')">
         <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
-                <button class="close-btn" onclick="closeModal('connectionDetailsModal')" style="color: white;">&times;</button>
+                <button onclick="closeModal('connectionDetailsModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 0;">
                 <div class="gas-sync-tabs">
