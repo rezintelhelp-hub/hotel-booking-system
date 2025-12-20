@@ -577,7 +577,7 @@
             box-shadow: none;
         }
 
-        .btn-small {
+        .btn-small, .btn-sm {
             padding: 0.35rem 0.7rem;
             font-size: 0.75rem;
         }
@@ -1505,6 +1505,10 @@
                     <a class="nav-item" data-view="availability" href="#" onclick="navClick(this, 'availability'); return false;">
                         <span class="nav-icon">📅</span>
                         <span>Availability</span>
+                    </a>
+                    <a class="nav-item" data-view="channel-manager" href="#" onclick="navClick(this, 'channel-manager'); return false;">
+                        <span class="nav-icon">🔗</span>
+                        <span>Channel Manager</span>
                     </a>
                     </div>
                 </div>
@@ -2757,6 +2761,97 @@
                         </code>
                     </div>
                 </details>
+            </div>
+
+            <!-- Channel Manager View (Client-facing simple view) -->
+            <div id="channel-manager" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Channel Manager</h2>
+                            <p>Your property management system connection</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="channel-manager-content">
+                    <!-- Loading state -->
+                    <div id="cm-loading" class="card" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
+                        <p>Loading connection status...</p>
+                    </div>
+                    
+                    <!-- No connection state -->
+                    <div id="cm-no-connection" class="card" style="display: none; text-align: center; padding: 3rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🔌</div>
+                        <h3 style="margin-bottom: 0.5rem;">No Channel Manager Connected</h3>
+                        <p style="color: #6b7280; margin-bottom: 1.5rem;">Connect your property management system to automatically sync bookings and availability.</p>
+                        <p style="color: #9ca3af; font-size: 0.875rem;">Contact your account manager to set up a connection.</p>
+                    </div>
+                    
+                    <!-- Connected state -->
+                    <div id="cm-connected" style="display: none;">
+                        <!-- Status Card -->
+                        <div class="card" style="margin-bottom: 1.5rem;">
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <div id="cm-status-icon" style="width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2rem; background: #d1fae5;">
+                                    ✅
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                        <h3 style="margin: 0;" id="cm-provider-name">Beds24</h3>
+                                        <span id="cm-status-badge" style="padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: #d1fae5; color: #065f46;">Connected</span>
+                                    </div>
+                                    <p style="color: #6b7280; margin: 0; font-size: 0.875rem;" id="cm-last-sync">Last synced: 2 minutes ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Stats Cards -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                            <div class="card" style="text-align: center; padding: 1.5rem;">
+                                <div style="font-size: 2.5rem; font-weight: 700; color: #3b82f6;" id="cm-properties-count">0</div>
+                                <div style="color: #6b7280; font-size: 0.875rem;">Properties Synced</div>
+                            </div>
+                            <div class="card" style="text-align: center; padding: 1.5rem;">
+                                <div style="font-size: 2.5rem; font-weight: 700; color: #10b981;" id="cm-rooms-count">0</div>
+                                <div style="color: #6b7280; font-size: 0.875rem;">Rooms Synced</div>
+                            </div>
+                            <div class="card" style="text-align: center; padding: 1.5rem;">
+                                <div style="font-size: 2.5rem; font-weight: 700; color: #8b5cf6;" id="cm-bookings-count">0</div>
+                                <div style="color: #6b7280; font-size: 0.875rem;">Active Bookings</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Properties List -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Synced Properties</h3>
+                            </div>
+                            <div id="cm-properties-list">
+                                <!-- Properties will be rendered here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Help Section -->
+                        <div class="card" style="margin-top: 1.5rem; background: #f8fafc; border: 1px dashed #cbd5e1;">
+                            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                                <div style="font-size: 1.5rem;">💡</div>
+                                <div>
+                                    <h4 style="margin: 0 0 0.5rem 0;">How it works</h4>
+                                    <ul style="margin: 0; padding-left: 1.25rem; color: #64748b; font-size: 0.875rem;">
+                                        <li>Your bookings sync automatically every 15 minutes</li>
+                                        <li>New bookings from your website appear in <span id="cm-provider-name-inline">Beds24</span> instantly</li>
+                                        <li>Prices and availability stay in sync across all channels</li>
+                                    </ul>
+                                    <p style="margin: 0.75rem 0 0 0; font-size: 0.875rem; color: #94a3b8;">
+                                        Having issues? Contact <a href="mailto:support@gas.travel" style="color: #3b82f6;">support@gas.travel</a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Offers View -->
@@ -12942,6 +13037,7 @@ Local honey and preserves"></textarea>
             if (viewName === 'images') loadImages();
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'availability') loadAvailabilityView();
+            if (viewName === 'channel-manager') loadClientChannelManager();
             if (viewName === 'tasks') loadTasks();
             if (viewName === 'deploy-sites') {
                 checkVpsStatus();
@@ -28905,6 +29001,132 @@ Local honey and preserves"></textarea>
         let gasSyncConnections = [];
         let gasSyncAdapters = [];
         let selectedConnectionId = null;
+
+        // Client Channel Manager View (Simple view for clients)
+        async function loadClientChannelManager() {
+            const loading = document.getElementById('cm-loading');
+            const noConnection = document.getElementById('cm-no-connection');
+            const connected = document.getElementById('cm-connected');
+            
+            try {
+                // Get connections for current account
+                const response = await fetch(`/api/gas-sync/connections?account_id=${currentAccount?.id || ''}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (loading) loading.style.display = 'none';
+                
+                if (data.success && data.connections && data.connections.length > 0) {
+                    // Has connections - show connected state
+                    const conn = data.connections[0]; // Primary connection
+                    
+                    if (noConnection) noConnection.style.display = 'none';
+                    if (connected) connected.style.display = 'block';
+                    
+                    // Update status
+                    const providerName = document.getElementById('cm-provider-name');
+                    const providerNameInline = document.getElementById('cm-provider-name-inline');
+                    const statusBadge = document.getElementById('cm-status-badge');
+                    const statusIcon = document.getElementById('cm-status-icon');
+                    const lastSync = document.getElementById('cm-last-sync');
+                    
+                    if (providerName) providerName.textContent = conn.connection_name || conn.adapter_name;
+                    if (providerNameInline) providerNameInline.textContent = conn.adapter_name;
+                    
+                    // Status badge
+                    if (conn.status === 'connected') {
+                        if (statusBadge) {
+                            statusBadge.textContent = 'Connected';
+                            statusBadge.style.background = '#d1fae5';
+                            statusBadge.style.color = '#065f46';
+                        }
+                        if (statusIcon) {
+                            statusIcon.innerHTML = '✅';
+                            statusIcon.style.background = '#d1fae5';
+                        }
+                    } else if (conn.last_error) {
+                        if (statusBadge) {
+                            statusBadge.textContent = 'Issue Detected';
+                            statusBadge.style.background = '#fef3c7';
+                            statusBadge.style.color = '#92400e';
+                        }
+                        if (statusIcon) {
+                            statusIcon.innerHTML = '⚠️';
+                            statusIcon.style.background = '#fef3c7';
+                        }
+                    }
+                    
+                    // Last sync time
+                    if (lastSync) {
+                        if (conn.last_sync_at) {
+                            lastSync.textContent = 'Last synced: ' + formatTimeAgo(conn.last_sync_at);
+                        } else {
+                            lastSync.textContent = 'Never synced';
+                        }
+                    }
+                    
+                    // Stats - sum across all connections for this account
+                    let totalProperties = 0;
+                    let totalRooms = 0;
+                    let totalBookings = 0;
+                    
+                    data.connections.forEach(c => {
+                        totalProperties += parseInt(c.property_count) || 0;
+                        totalRooms += parseInt(c.room_type_count) || 0;
+                        totalBookings += parseInt(c.reservation_count) || 0;
+                    });
+                    
+                    const propsCount = document.getElementById('cm-properties-count');
+                    const roomsCount = document.getElementById('cm-rooms-count');
+                    const bookingsCount = document.getElementById('cm-bookings-count');
+                    
+                    if (propsCount) propsCount.textContent = totalProperties;
+                    if (roomsCount) roomsCount.textContent = totalRooms;
+                    if (bookingsCount) bookingsCount.textContent = totalBookings;
+                    
+                    // Load properties list
+                    const propsList = document.getElementById('cm-properties-list');
+                    if (propsList) {
+                        let allProps = [];
+                        for (const c of data.connections) {
+                            try {
+                                const propsResponse = await fetch(`/api/gas-sync/properties?connection_id=${c.id}`, { headers: authHeaders() });
+                                const propsData = await propsResponse.json();
+                                if (propsData.success && propsData.properties) {
+                                    allProps = allProps.concat(propsData.properties.map(p => ({...p, adapter_name: c.adapter_name})));
+                                }
+                            } catch (e) {
+                                console.error('Error loading properties:', e);
+                            }
+                        }
+                        
+                        if (allProps.length > 0) {
+                            propsList.innerHTML = allProps.map(prop => `
+                                <div style="display: flex; align-items: center; padding: 1rem; border-bottom: 1px solid #e5e7eb;">
+                                    <div style="flex: 1;">
+                                        <div style="font-weight: 600;">${prop.name}</div>
+                                        <div style="font-size: 0.875rem; color: #6b7280;">${prop.city || ''} ${prop.country || ''}</div>
+                                    </div>
+                                    <div style="text-align: right;">
+                                        <div style="font-size: 0.875rem; color: #6b7280;">${prop.room_type_count || 0} rooms</div>
+                                        <div style="font-size: 0.75rem; color: #10b981;">✓ Synced</div>
+                                    </div>
+                                </div>
+                            `).join('');
+                        } else {
+                            propsList.innerHTML = '<p style="padding: 1rem; color: #6b7280; text-align: center;">No properties synced yet</p>';
+                        }
+                    }
+                } else {
+                    // No connections
+                    if (noConnection) noConnection.style.display = 'block';
+                    if (connected) connected.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error loading channel manager:', error);
+                if (loading) loading.style.display = 'none';
+                if (noConnection) noConnection.style.display = 'block';
+            }
+        }
 
         // Dashboard
         async function loadGasSyncDashboard() {
