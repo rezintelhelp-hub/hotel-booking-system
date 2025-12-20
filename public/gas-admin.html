@@ -29020,9 +29020,8 @@ Local honey and preserves"></textarea>
                 const accountPropsData = await accountPropsResponse.json();
                 const accountPropertyIds = (accountPropsData.properties || []).map(p => p.id);
                 
-                // Get connections filtered by account
-                const queryString = buildQueryString();
-                const response = await fetch(`/api/gas-sync/connections${queryString}`, { headers: authHeaders() });
+                // Get all connections
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (loading) loading.style.display = 'none';
@@ -29157,8 +29156,7 @@ Local honey and preserves"></textarea>
         // Dashboard
         async function loadGasSyncDashboard() {
             try {
-                const queryString = buildQueryString();
-                const response = await fetch(`/api/gas-sync/status${queryString}`, { headers: authHeaders() });
+                const response = await fetch('/api/gas-sync/status', { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (data.success) {
@@ -29194,8 +29192,7 @@ Local honey and preserves"></textarea>
 
         async function loadConnectionStatus() {
             try {
-                const queryString = buildQueryString();
-                const response = await fetch(`/api/gas-sync/connections${queryString}`, { headers: authHeaders() });
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
                 
                 const container = document.getElementById('connectionStatusList');
@@ -29236,8 +29233,7 @@ Local honey and preserves"></textarea>
         // Connections
         async function loadGasSyncConnections() {
             try {
-                const queryString = buildQueryString();
-                const response = await fetch(`/api/gas-sync/connections${queryString}`, { headers: authHeaders() });
+                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
                 
                 gasSyncConnections = data.connections || [];
