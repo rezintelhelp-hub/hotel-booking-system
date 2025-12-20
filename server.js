@@ -25729,6 +25729,185 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
 });
 
 // =========================================================
+// SITEMAP & ROBOTS.TXT - SEO ENDPOINTS
+// =========================================================
+
+// Generate sitemap.xml for a client
+app.get('/api/public/client/:clientId/sitemap.xml', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const { baseUrl } = req.query; // Pass ?baseUrl=https://theadelphihotel.co.uk
+        
+        if (!baseUrl) {
+            return res.status(400).send('<!-- baseUrl query parameter required -->');
+        }
+        
+        const siteUrl = baseUrl.replace(/\/$/, ''); // Remove trailing slash
+        
+        // Get all data in parallel
+        const [pagesResult, roomsResult, blogResult, attractionsResult, propertiesResult] = await Promise.all([
+            pool.query(`SELECT page_type, slug, updated_at FROM client_pages WHERE client_id = $1 AND is_published = true`, [clientId]),
+            pool.query(`
+                SELECT r.slug, r.updated_at, p.slug as property_slug 
+                FROM rooms r 
+                JOIN properties p ON r.property_id = p.id 
+                WHERE p.client_id = $1 AND r.is_active = true
+            `, [clientId]),
+            pool.query(`SELECT slug, updated_at FROM blog_posts WHERE client_id = $1 AND is_published = true ORDER BY published_at DESC`, [clientId]),
+            pool.query(`SELECT slug, updated_at FROM attractions WHERE client_id = $1 AND is_published = true`, [clientId]),
+            pool.query(`SELECT slug, updated_at FROM properties WHERE client_id = $1`, [clientId])
+        ]);
+        
+        const urls = [];
+        const now = new Date().toISOString().split('T')[0];
+        
+        // Homepage - highest priority
+        urls.push({
+            loc: siteUrl + '/',
+            lastmod: now,
+            changefreq: 'daily',
+            priority: '1.0'
+        });
+        
+        // Book Now / Rooms page
+        urls.push({
+            loc: siteUrl + '/book-now/',
+            lastmod: now,
+            changefreq: 'daily',
+            priority: '0.9'
+        });
+        
+        // Individual rooms
+        roomsResult.rows.forEach(room => {
+            urls.push({
+                loc: siteUrl + '/room/' + room.slug + '/',
+                lastmod: room.updated_at ? new Date(room.updated_at).toISOString().split('T')[0] : now,
+                changefreq: 'weekly',
+                priority: '0.8'
+            });
+        });
+        
+        // Static pages (about, contact, etc.)
+        const pageMap = {
+            'about': '/about/',
+            'contact': '/contact/',
+            'gallery': '/gallery/',
+            'dining': '/dining/',
+            'terms': '/terms/',
+            'privacy': '/privacy/',
+            'faq': '/faq/'
+        };
+        
+        pagesResult.rows.forEach(page => {
+            if (pageMap[page.page_type]) {
+                urls.push({
+                    loc: siteUrl + pageMap[page.page_type],
+                    lastmod: page.updated_at ? new Date(page.updated_at).toISOString().split('T')[0] : now,
+                    changefreq: 'monthly',
+                    priority: '0.6'
+                });
+            }
+        });
+        
+        // Blog posts
+        if (blogResult.rows.length > 0) {
+            urls.push({
+                loc: siteUrl + '/blog/',
+                lastmod: now,
+                changefreq: 'weekly',
+                priority: '0.7'
+            });
+            
+            blogResult.rows.forEach(post => {
+                urls.push({
+                    loc: siteUrl + '/blog/' + post.slug + '/',
+                    lastmod: post.updated_at ? new Date(post.updated_at).toISOString().split('T')[0] : now,
+                    changefreq: 'monthly',
+                    priority: '0.6'
+                });
+            });
+        }
+        
+        // Attractions
+        if (attractionsResult.rows.length > 0) {
+            urls.push({
+                loc: siteUrl + '/attractions/',
+                lastmod: now,
+                changefreq: 'weekly',
+                priority: '0.7'
+            });
+            
+            attractionsResult.rows.forEach(attraction => {
+                urls.push({
+                    loc: siteUrl + '/attractions/' + attraction.slug + '/',
+                    lastmod: attraction.updated_at ? new Date(attraction.updated_at).toISOString().split('T')[0] : now,
+                    changefreq: 'monthly',
+                    priority: '0.5'
+                });
+            });
+        }
+        
+        // Build XML
+        let xml = '<?xml version="1.0" encoding="UTF-8"?>\n';
+        xml += '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n';
+        
+        urls.forEach(url => {
+            xml += '  <url>\n';
+            xml += '    <loc>' + url.loc + '</loc>\n';
+            xml += '    <lastmod>' + url.lastmod + '</lastmod>\n';
+            xml += '    <changefreq>' + url.changefreq + '</changefreq>\n';
+            xml += '    <priority>' + url.priority + '</priority>\n';
+            xml += '  </url>\n';
+        });
+        
+        xml += '</urlset>';
+        
+        res.set('Content-Type', 'application/xml');
+        res.send(xml);
+        
+    } catch (error) {
+        console.error('Sitemap error:', error);
+        res.status(500).send('<!-- Error generating sitemap: ' + error.message + ' -->');
+    }
+});
+
+// Generate robots.txt for a client
+app.get('/api/public/client/:clientId/robots.txt', async (req, res) => {
+    try {
+        const { clientId } = req.params;
+        const { baseUrl } = req.query;
+        
+        if (!baseUrl) {
+            return res.status(400).send('# baseUrl query parameter required');
+        }
+        
+        const siteUrl = baseUrl.replace(/\/$/, '');
+        
+        let robots = '';
+        robots += '# Robots.txt for ' + siteUrl + '\n';
+        robots += '# Generated by GAS\n\n';
+        robots += 'User-agent: *\n';
+        robots += 'Allow: /\n\n';
+        robots += '# Disallow admin and API paths\n';
+        robots += 'Disallow: /wp-admin/\n';
+        robots += 'Disallow: /wp-includes/\n';
+        robots += 'Disallow: /checkout/\n';
+        robots += 'Disallow: /cart/\n';
+        robots += 'Disallow: /my-account/\n';
+        robots += 'Disallow: /*?*\n\n';
+        robots += '# Sitemap\n';
+        robots += 'Sitemap: ' + siteUrl + '/sitemap.xml\n';
+        
+        res.set('Content-Type', 'text/plain');
+        res.send(robots);
+        
+    } catch (error) {
+        console.error('Robots.txt error:', error);
+        res.status(500).send('# Error generating robots.txt');
+    }
+});
+
+// =========================================================
 // WEBSITE BUILDER API
 // =========================================================
 
