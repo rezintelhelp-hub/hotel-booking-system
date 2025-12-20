@@ -25344,6 +25344,9 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         // Build pages object with full content
         const pagesObject = {};
         pages.forEach(page => {
+            // Check for SEO override from website_settings
+            const pageSettings = websiteSettings['page-' + page.page_type] || {};
+            
             pagesObject[page.page_type] = {
                 id: page.id,
                 page_type: page.page_type,
@@ -25351,8 +25354,9 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 title: page.title,
                 subtitle: page.subtitle,
                 content: page.content,
-                meta_title: page.meta_title,
-                meta_description: page.meta_description,
+                // Use website_settings SEO if set, otherwise fall back to client_pages
+                meta_title: pageSettings['meta-title'] || page.meta_title,
+                meta_description: pageSettings['meta-description'] || page.meta_description,
                 faq_schema: page.faq_schema,
                 is_published: page.is_published,
                 display_order: page.display_order,
@@ -25360,6 +25364,26 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 updated_at: page.updated_at
             };
         });
+        
+        // Add homepage SEO (from hero section)
+        const heroSettings = websiteSettings.hero || {};
+        pagesObject['home'] = {
+            page_type: 'home',
+            slug: '/',
+            meta_title: heroSettings['meta-title'] || websiteSettings.seo?.['meta-title'] || '',
+            meta_description: heroSettings['meta-description'] || websiteSettings.seo?.['meta-description'] || ''
+        };
+        
+        // Add rooms page SEO
+        const roomsSettings = websiteSettings['page-rooms'] || {};
+        if (!pagesObject['rooms']) {
+            pagesObject['rooms'] = {
+                page_type: 'rooms',
+                slug: '/book-now/',
+                meta_title: roomsSettings['meta-title'] || '',
+                meta_description: roomsSettings['meta-description'] || ''
+            };
+        }
         
         // Auto-generate footer links from website_settings or from what exists
         const footerQuickLinks = [];
