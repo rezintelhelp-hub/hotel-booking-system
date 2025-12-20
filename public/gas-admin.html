@@ -1506,6 +1506,10 @@
                         <span class="nav-icon">📅</span>
                         <span>Availability</span>
                     </a>
+                    <a class="nav-item client-connection" data-view="gas-sync-connections" href="#" onclick="navClick(this, 'gas-sync-connections'); return false;" style="display: none;">
+                        <span class="nav-icon">🔗</span>
+                        <span>Connection</span>
+                    </a>
                     </div>
                 </div>
 
@@ -14833,6 +14837,12 @@ Local honey and preserves"></textarea>
             
             document.querySelectorAll('.master-only').forEach(el => {
                 el.style.display = showMasterSections ? 'block' : 'none';
+            });
+            
+            // Client connection: show when client OR when master is viewing a client
+            const showClientConnection = !isMaster || isViewingClient;
+            document.querySelectorAll('.client-connection').forEach(el => {
+                el.style.display = showClientConnection ? 'flex' : 'none';
             });
             
             // Billing admin items: same logic
