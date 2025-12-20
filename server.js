@@ -16417,6 +16417,196 @@ app.put('/api/admin/service-requests/:id/status', async (req, res) => {
 });
 
 // =====================================================
+// VENDOR PORTAL API - For external vendors to access
+// =====================================================
+
+// Vendor login
+app.post('/api/vendor/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    
+    if (!email || !password) {
+      return res.json({ success: false, error: 'Email and password required' });
+    }
+    
+    // Find vendor by login email
+    const result = await pool.query(
+      'SELECT * FROM vendors WHERE login_email = $1 AND status = $2',
+      [email.toLowerCase(), 'active']
+    );
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid email or password' });
+    }
+    
+    const vendor = result.rows[0];
+    
+    // Check password (using crypto hash)
+    const crypto = require('crypto');
+    const passwordHash = crypto.createHash('sha256').update(password).digest('hex');
+    
+    if (vendor.password_hash !== passwordHash) {
+      return res.json({ success: false, error: 'Invalid email or password' });
+    }
+    
+    // Generate simple token
+    const token = crypto.randomBytes(32).toString('hex');
+    
+    // Store token (we'll use a simple in-memory approach, or you could add a tokens table)
+    // For simplicity, we'll encode vendor ID in token
+    const vendorToken = Buffer.from(JSON.stringify({ 
+      vendorId: vendor.id, 
+      exp: Date.now() + (24 * 60 * 60 * 1000) // 24 hours
+    })).toString('base64');
+    
+    res.json({ 
+      success: true, 
+      token: vendorToken,
+      vendor: {
+        id: vendor.id,
+        name: vendor.name,
+        email: vendor.email
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Helper to verify vendor token
+function verifyVendorToken(token) {
+  try {
+    const decoded = JSON.parse(Buffer.from(token, 'base64').toString());
+    if (decoded.exp < Date.now()) {
+      return null; // Expired
+    }
+    return decoded.vendorId;
+  } catch (e) {
+    return null;
+  }
+}
+
+// Get vendor's service requests
+app.get('/api/vendor/requests', async (req, res) => {
+  try {
+    const { token, status } = req.query;
+    
+    const vendorId = verifyVendorToken(token);
+    if (!vendorId) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    }
+    
+    // Get vendor permissions
+    const permResult = await pool.query(
+      'SELECT * FROM vendor_permissions WHERE vendor_id = $1',
+      [vendorId]
+    );
+    const perms = permResult.rows[0] || {};
+    
+    // Build query with only permitted fields
+    let selectFields = ['sr.id', 'sr.service_name', 'sr.quantity', 'sr.status', 'sr.created_at'];
+    
+    if (perms.can_see_guest_name) selectFields.push('b.guest_name');
+    if (perms.can_see_guest_email) selectFields.push('b.guest_email');
+    if (perms.can_see_guest_phone) selectFields.push('b.guest_phone');
+    if (perms.can_see_check_in_date) selectFields.push('b.check_in');
+    if (perms.can_see_check_out_date) selectFields.push('b.check_out');
+    if (perms.can_see_property_name) selectFields.push('p.name as property_name');
+    if (perms.can_see_room_name) selectFields.push('bu.name as room_name');
+    if (perms.can_see_guest_count) selectFields.push('b.guests');
+    if (perms.can_see_special_requests) selectFields.push('b.special_requests');
+    
+    let query = `
+      SELECT ${selectFields.join(', ')}
+      FROM service_requests sr
+      LEFT JOIN bookings b ON sr.booking_id = b.id
+      LEFT JOIN properties p ON b.property_id = p.id
+      LEFT JOIN bookable_units bu ON b.unit_id = bu.id
+      WHERE sr.vendor_id = $1
+    `;
+    const params = [vendorId];
+    
+    if (status) {
+      query += ' AND sr.status = $2';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY sr.created_at DESC LIMIT 100';
+    
+    const result = await pool.query(query, params);
+    
+    // Mark as viewed if first time
+    await pool.query(
+      'UPDATE service_requests SET viewed_at = NOW() WHERE vendor_id = $1 AND viewed_at IS NULL',
+      [vendorId]
+    );
+    
+    // Get stats
+    const statsResult = await pool.query(`
+      SELECT 
+        COUNT(*) FILTER (WHERE status = 'pending' OR status = 'notified') as pending,
+        COUNT(*) FILTER (WHERE status = 'confirmed') as confirmed,
+        COUNT(*) FILTER (WHERE status = 'completed') as completed
+      FROM service_requests WHERE vendor_id = $1
+    `, [vendorId]);
+    
+    res.json({ 
+      success: true, 
+      requests: result.rows,
+      stats: statsResult.rows[0]
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Vendor update request status
+app.put('/api/vendor/requests/:id/status', async (req, res) => {
+  try {
+    const { token, status, notes } = req.body;
+    
+    const vendorId = verifyVendorToken(token);
+    if (!vendorId) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    }
+    
+    // Verify this request belongs to the vendor
+    const checkResult = await pool.query(
+      'SELECT id FROM service_requests WHERE id = $1 AND vendor_id = $2',
+      [req.params.id, vendorId]
+    );
+    
+    if (checkResult.rows.length === 0) {
+      return res.status(403).json({ success: false, error: 'Not authorized' });
+    }
+    
+    // Update status
+    let updateFields = ['status = $1', 'updated_at = NOW()'];
+    let params = [status, req.params.id];
+    
+    if (status === 'confirmed') {
+      updateFields.push('confirmed_at = NOW()');
+    } else if (status === 'completed') {
+      updateFields.push('completed_at = NOW()');
+    }
+    
+    if (notes) {
+      updateFields.push('vendor_notes = $3');
+      params.push(notes);
+    }
+    
+    await pool.query(`
+      UPDATE service_requests SET ${updateFields.join(', ')}
+      WHERE id = $2
+    `, params);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // FEES API
 // =====================================================
 
