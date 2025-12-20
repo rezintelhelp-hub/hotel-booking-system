@@ -1506,6 +1506,10 @@
                         <span class="nav-icon">📅</span>
                         <span>Availability</span>
                     </a>
+                    <a class="nav-item" data-view="channel-manager" href="#" onclick="navClick(this, 'channel-manager'); return false;">
+                        <span class="nav-icon">🔗</span>
+                        <span>Channel Manager</span>
+                    </a>
                     </div>
                 </div>
 
@@ -2757,6 +2761,97 @@
                         </code>
                     </div>
                 </details>
+            </div>
+
+            <!-- Channel Manager View (Client-facing simple view) -->
+            <div id="channel-manager" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>Channel Manager</h2>
+                            <p>Your property management system connection</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="channel-manager-content">
+                    <!-- Loading state -->
+                    <div id="cm-loading" class="card" style="text-align: center; padding: 3rem;">
+                        <div style="font-size: 2rem; margin-bottom: 1rem;">⏳</div>
+                        <p>Loading connection status...</p>
+                    </div>
+                    
+                    <!-- No connection state -->
+                    <div id="cm-no-connection" class="card" style="display: none; text-align: center; padding: 3rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🔌</div>
+                        <h3 style="margin-bottom: 0.5rem;">No Channel Manager Connected</h3>
+                        <p style="color: #6b7280; margin-bottom: 1.5rem;">Connect your property management system to automatically sync bookings and availability.</p>
+                        <p style="color: #9ca3af; font-size: 0.875rem;">Contact your account manager to set up a connection.</p>
+                    </div>
+                    
+                    <!-- Connected state -->
+                    <div id="cm-connected" style="display: none;">
+                        <!-- Status Card -->
+                        <div class="card" style="margin-bottom: 1.5rem;">
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <div id="cm-status-icon" style="width: 64px; height: 64px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 2rem; background: #d1fae5;">
+                                    ✅
+                                </div>
+                                <div style="flex: 1;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                        <h3 style="margin: 0;" id="cm-provider-name">Beds24</h3>
+                                        <span id="cm-status-badge" style="padding: 0.25rem 0.75rem; border-radius: 9999px; font-size: 0.75rem; font-weight: 600; background: #d1fae5; color: #065f46;">Connected</span>
+                                    </div>
+                                    <p style="color: #6b7280; margin: 0; font-size: 0.875rem;" id="cm-last-sync">Last synced: 2 minutes ago</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Stats Cards -->
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                            <div class="card" style="text-align: center; padding: 1.5rem;">
+                                <div style="font-size: 2.5rem; font-weight: 700; color: #3b82f6;" id="cm-properties-count">0</div>
+                                <div style="color: #6b7280; font-size: 0.875rem;">Properties Synced</div>
+                            </div>
+                            <div class="card" style="text-align: center; padding: 1.5rem;">
+                                <div style="font-size: 2.5rem; font-weight: 700; color: #10b981;" id="cm-rooms-count">0</div>
+                                <div style="color: #6b7280; font-size: 0.875rem;">Rooms Synced</div>
+                            </div>
+                            <div class="card" style="text-align: center; padding: 1.5rem;">
+                                <div style="font-size: 2.5rem; font-weight: 700; color: #8b5cf6;" id="cm-bookings-count">0</div>
+                                <div style="color: #6b7280; font-size: 0.875rem;">Active Bookings</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Properties List -->
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title">Synced Properties</h3>
+                            </div>
+                            <div id="cm-properties-list">
+                                <!-- Properties will be rendered here -->
+                            </div>
+                        </div>
+                        
+                        <!-- Help Section -->
+                        <div class="card" style="margin-top: 1.5rem; background: #f8fafc; border: 1px dashed #cbd5e1;">
+                            <div style="display: flex; align-items: flex-start; gap: 1rem;">
+                                <div style="font-size: 1.5rem;">💡</div>
+                                <div>
+                                    <h4 style="margin: 0 0 0.5rem 0;">How it works</h4>
+                                    <ul style="margin: 0; padding-left: 1.25rem; color: #64748b; font-size: 0.875rem;">
+                                        <li>Your bookings sync automatically every 15 minutes</li>
+                                        <li>New bookings from your website appear in <span id="cm-provider-name-inline">Beds24</span> instantly</li>
+                                        <li>Prices and availability stay in sync across all channels</li>
+                                    </ul>
+                                    <p style="margin: 0.75rem 0 0 0; font-size: 0.875rem; color: #94a3b8;">
+                                        Having issues? Contact <a href="/cdn-cgi/l/email-protection#f88b8d8888978a8cb89f998bd68c8a998e9d94" style="color: #3b82f6;"><span class="__cf_email__" data-cfemail="83f0f6f3f3ecf1f7c3e4e2f0adf7f1e2f5e6ef">[email&#160;protected]</span></a>
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- Offers View -->
@@ -9702,18 +9797,25 @@ Local honey and preserves"></textarea>
                         </label>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div>
-                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Property</label>
-                                <select id="offer-property" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
-                                    <option value="">All Properties</option>
-                                </select>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Properties</label>
+                                <div id="offer-properties-list" style="border: 1px solid #d1d5db; border-radius: 8px; max-height: 150px; overflow-y: auto; padding: 0.5rem; background: white;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem; cursor: pointer; border-radius: 4px;" class="offer-prop-option">
+                                        <input type="checkbox" name="offer-properties" value="" checked onchange="filterRoomsBySelectedProperties()">
+                                        <span style="font-size: 0.9rem;">All Properties</span>
+                                    </label>
+                                </div>
                             </div>
                             <div>
-                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Room</label>
-                                <select id="offer-room" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
-                                    <option value="">All Rooms</option>
-                                </select>
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Rooms</label>
+                                <div id="offer-rooms-list" style="border: 1px solid #d1d5db; border-radius: 8px; max-height: 150px; overflow-y: auto; padding: 0.5rem; background: white;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem; cursor: pointer; border-radius: 4px;" class="offer-room-option">
+                                        <input type="checkbox" name="offer-rooms" value="" checked>
+                                        <span style="font-size: 0.9rem;">All Rooms</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
+                        <p style="font-size: 0.75rem; color: #6b7280; margin-top: 0.5rem;">💡 Select multiple properties and/or rooms, or leave "All" checked</p>
                     </div>
                     
                     <!-- Advanced Conditions -->
@@ -9822,12 +9924,10 @@ Local honey and preserves"></textarea>
                     
                     <!-- Active Toggle -->
                     <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
-                        <label style="position: relative; display: inline-block; width: 48px; height: 26px;">
-                            <input type="checkbox" id="offer-active" checked style="opacity: 0; width: 0; height: 0;">
-                            <span style="position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .3s; border-radius: 26px;"
-                                onclick="this.previousElementSibling.checked = !this.previousElementSibling.checked; this.style.backgroundColor = this.previousElementSibling.checked ? '#22c55e' : '#ccc';">
-                                <span style="position: absolute; content: ''; height: 20px; width: 20px; left: 3px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%; transform: translateX(0);"
-                                    id="toggle-dot"></span>
+                        <label class="toggle-switch" style="position: relative; display: inline-block; width: 48px; height: 26px; cursor: pointer;">
+                            <input type="checkbox" id="offer-active" checked style="opacity: 0; width: 0; height: 0;" onchange="updateOfferToggleVisual(this)">
+                            <span class="toggle-slider" id="offer-active-slider" style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background-color: #22c55e; transition: .3s; border-radius: 26px;">
+                                <span class="toggle-dot" id="offer-active-dot" style="position: absolute; height: 20px; width: 20px; left: 25px; bottom: 3px; background-color: white; transition: .3s; border-radius: 50%;"></span>
                             </span>
                         </label>
                         <span style="font-weight: 500; color: #374151;">Active</span>
@@ -11246,7 +11346,7 @@ Local honey and preserves"></textarea>
 
     <!-- Payment Settings Modal -->
     <div id="paymentSettingsModal" class="modal">
-        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
                     <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">💳 Payment Settings</h3>
@@ -11256,16 +11356,102 @@ Local honey and preserves"></textarea>
             </div>
             <div class="modal-body" style="padding: 1.5rem;">
                 <input type="hidden" id="payment-settings-property-id">
+                <input type="hidden" id="payment-settings-account-id">
                 
-                <!-- Enable/Disable -->
-                <div class="form-group" style="margin-bottom: 1.5rem;">
-                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-size: 1rem;">
-                        <input type="checkbox" id="payment-enabled" style="width: 20px; height: 20px;" checked>
-                        <strong>Enable Online Payments</strong>
-                    </label>
-                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin: 0.25rem 0 0 1.75rem;">
-                        Allow guests to pay deposits and balances online
-                    </p>
+                <!-- Payment Provider Selection -->
+                <div style="background: linear-gradient(135deg, #f0f9ff 0%, #e0e7ff 100%); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem; border: 1px solid #c7d2fe;">
+                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem; color: #4338ca;">🏦 Payment Provider</h4>
+                    
+                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                        <!-- Stripe -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; transition: all 0.2s;" id="provider-stripe-label">
+                            <input type="radio" name="payment-provider" value="stripe" id="payment-provider-stripe" style="width: 18px; height: 18px;" checked>
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/ba/Stripe_Logo%2C_revised_2016.svg" alt="Stripe" style="height: 24px;">
+                            <span style="flex: 1; font-weight: 500;">Stripe</span>
+                            <span style="font-size: 0.75rem; background: #10b981; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Recommended</span>
+                        </label>
+                        
+                        <!-- PayPal -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="provider-paypal-label">
+                            <input type="radio" name="payment-provider" value="paypal" id="payment-provider-paypal" style="width: 18px; height: 18px;" disabled>
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/b/b5/PayPal.svg" alt="PayPal" style="height: 24px;">
+                            <span style="flex: 1; font-weight: 500;">PayPal</span>
+                            <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
+                        </label>
+                        
+                        <!-- Airwallex -->
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; padding: 0.75rem; background: white; border-radius: 8px; border: 2px solid transparent; opacity: 0.5;" id="provider-airwallex-label">
+                            <input type="radio" name="payment-provider" value="airwallex" id="payment-provider-airwallex" style="width: 18px; height: 18px;" disabled>
+                            <span style="font-weight: 600; color: #e11d48;">Airwallex</span>
+                            <span style="flex: 1;"></span>
+                            <span style="font-size: 0.75rem; background: #94a3b8; color: white; padding: 0.15rem 0.5rem; border-radius: 10px;">Coming Soon</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Stripe API Keys Section -->
+                <div id="stripe-keys-section" style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0; font-size: 0.95rem;">🔑 Stripe API Keys</h4>
+                        <a href="https://dashboard.stripe.com/apikeys" target="_blank" style="font-size: 0.8rem; color: var(--accent);">
+                            Get keys from Stripe Dashboard →
+                        </a>
+                    </div>
+                    
+                    <div id="stripe-keys-status" style="margin-bottom: 1rem; padding: 0.75rem; border-radius: 8px; display: none;">
+                        <!-- Status will be shown here -->
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Publishable Key</label>
+                        <input type="text" class="form-input" id="stripe-publishable-key" placeholder="pk_live_... or pk_test_...">
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            Starts with pk_live_ (production) or pk_test_ (testing)
+                        </p>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Secret Key</label>
+                        <input type="password" class="form-input" id="stripe-secret-key" placeholder="sk_live_... or sk_test_...">
+                        <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">
+                            Starts with sk_live_ (production) or sk_test_ (testing)
+                        </p>
+                    </div>
+                    
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" class="btn btn-secondary" onclick="testStripeConnection()" style="font-size: 0.85rem;">
+                            🔍 Test Connection
+                        </button>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; margin-left: auto; font-size: 0.85rem;">
+                            <input type="checkbox" id="stripe-test-mode" style="width: 16px; height: 16px;">
+                            Test Mode
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Generate Setup Link (for property owners) -->
+                <div style="background: #fef3c7; border-radius: 12px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #fcd34d;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <span style="font-size: 1.25rem;">📧</span>
+                        <div style="flex: 1;">
+                            <strong style="font-size: 0.9rem;">Need to send to property owner?</strong>
+                            <p style="font-size: 0.8rem; color: #92400e; margin: 0.25rem 0 0 0;">
+                                Generate a secure link they can use to enter their own Stripe keys
+                            </p>
+                        </div>
+                        <button type="button" class="btn btn-secondary" onclick="generatePaymentSetupLink()" style="font-size: 0.8rem; white-space: nowrap;">
+                            🔗 Generate Link
+                        </button>
+                    </div>
+                    <div id="setup-link-result" style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: white; border-radius: 8px;">
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <input type="text" id="setup-link-url" class="form-input" readonly style="flex: 1; font-size: 0.8rem;">
+                            <button type="button" class="btn btn-small" onclick="copySetupLink()" style="font-size: 0.75rem;">📋 Copy</button>
+                        </div>
+                        <p style="font-size: 0.75rem; color: #92400e; margin: 0.5rem 0 0 0;">
+                            Link expires in 72 hours
+                        </p>
+                    </div>
                 </div>
                 
                 <!-- Deposit Settings -->
@@ -11309,39 +11495,6 @@ Local honey and preserves"></textarea>
                         <option value="EUR">🇪🇺 EUR (€)</option>
                         <option value="CHF">🇨🇭 CHF</option>
                     </select>
-                </div>
-                
-                <!-- Payment Methods -->
-                <div style="background: var(--bg-secondary); border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
-                    <h4 style="margin: 0 0 1rem 0; font-size: 0.95rem;">💳 Payment Methods</h4>
-                    
-                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                            <input type="checkbox" id="payment-method-card" checked style="width: 18px; height: 18px;">
-                            <span>Credit/Debit Card (via Stripe)</span>
-                        </label>
-                        <div id="stripe-connect-section" style="margin-left: 1.5rem; padding: 0.75rem; background: white; border-radius: 8px;">
-                            <div id="stripe-not-connected" style="display: flex; align-items: center; gap: 0.75rem;">
-                                <span style="color: var(--error);">⚠️ Stripe not connected</span>
-                                <button type="button" class="btn btn-small" onclick="connectStripe()" style="font-size: 0.8rem;">
-                                    Connect Stripe
-                                </button>
-                            </div>
-                            <div id="stripe-connected" style="display: none; color: var(--success);">
-                                ✓ Stripe connected
-                            </div>
-                        </div>
-                        
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; opacity: 0.5;">
-                            <input type="checkbox" id="payment-method-paypal" disabled style="width: 18px; height: 18px;">
-                            <span>PayPal (coming soon)</span>
-                        </label>
-                        
-                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; opacity: 0.5;">
-                            <input type="checkbox" id="payment-method-bank" disabled style="width: 18px; height: 18px;">
-                            <span>Bank Transfer (coming soon)</span>
-                        </label>
-                    </div>
                 </div>
                 
                 <!-- Cancellation Policy -->
@@ -11486,6 +11639,112 @@ Local honey and preserves"></textarea>
                     </div>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Occupancy Settings Modal -->
+    <div id="occupancySettingsModal" class="modal">
+        <div class="modal-content" style="max-width: 550px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #a78bfa 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" style="margin: 0; font-size: 1.25rem;">👥 Occupancy Pricing Settings</h3>
+                    <p style="margin: 0.25rem 0 0 0; font-size: 0.85rem; opacity: 0.9;" id="occupancy-room-name"></p>
+                </div>
+                <button class="modal-close" onclick="closeModal('occupancySettingsModal')" style="color: white; font-size: 1.5rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <input type="hidden" id="occupancy-room-id">
+                
+                <!-- Pricing Mode Toggle -->
+                <div style="background: #f5f3ff; border-radius: 12px; padding: 1.25rem; margin-bottom: 1.5rem;">
+                    <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                        <input type="checkbox" id="occupancy-enabled" style="width: 22px; height: 22px; accent-color: #7c3aed;">
+                        <div>
+                            <strong style="font-size: 1rem;">Enable Occupancy Pricing</strong>
+                            <p style="font-size: 0.8rem; color: #6b7280; margin: 0.25rem 0 0 0;">
+                                Charge different rates based on number of guests
+                            </p>
+                        </div>
+                    </label>
+                </div>
+                
+                <div id="occupancy-settings-fields">
+                    <!-- Base Occupancy -->
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label class="form-label">Base Occupancy (included in standard price)</label>
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <select id="occupancy-base" class="form-input" style="max-width: 100px;">
+                                <!-- Options populated dynamically based on max_guests -->
+                            </select>
+                            <span style="font-size: 0.85rem; color: #6b7280;">Max guests: <span id="occupancy-max-guests">4</span></span>
+                        </div>
+                    </div>
+                    
+                    <!-- Single Occupancy Discount -->
+                    <div id="single-discount-section" style="background: #f0fdf4; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <label class="form-label" style="color: #166534; margin-bottom: 0.75rem;">💰 Single Occupancy Discount</label>
+                        <div id="single-discount-fields" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <select id="single-discount-type" class="form-input" style="width: 120px;">
+                                <option value="fixed">Fixed (£)</option>
+                                <option value="percent">Percent (%)</option>
+                            </select>
+                            <input type="number" id="single-discount-value" class="form-input" value="0" min="0" style="width: 80px;">
+                            <span style="font-size: 0.85rem; color: #166534;">off per night</span>
+                        </div>
+                        <p id="single-discount-disabled-msg" style="display: none; margin: 0.5rem 0 0 0; font-size: 0.8rem; color: #6b7280; font-style: italic;">
+                            ℹ️ Not applicable when base occupancy is 1 (can't book 0 guests)
+                        </p>
+                    </div>
+                    
+                    <!-- Extra Adult Charge -->
+                    <div id="extra-adult-section" style="background: #fef2f2; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <label class="form-label" style="color: #991b1b; margin-bottom: 0.75rem;">💵 Extra Adult Charge</label>
+                        <div id="extra-adult-fields" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <select id="extra-adult-type" class="form-input" style="width: 120px;">
+                                <option value="fixed">Fixed (£)</option>
+                                <option value="percent">Percent (%)</option>
+                            </select>
+                            <input type="number" id="extra-adult-charge" class="form-input" value="0" min="0" style="width: 80px;">
+                            <span style="font-size: 0.85rem; color: #991b1b;">per extra adult/night</span>
+                        </div>
+                        <p id="extra-adult-disabled-msg" style="display: none; margin: 0.5rem 0 0 0; font-size: 0.8rem; color: #6b7280; font-style: italic;">
+                            ℹ️ Not applicable when base occupancy equals max guests
+                        </p>
+                    </div>
+                    
+                    <!-- Children Allowed Toggle -->
+                    <div style="background: #f0f9ff; border-radius: 10px; padding: 1rem; margin-bottom: 1rem; border: 1px solid #bae6fd;">
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                            <input type="checkbox" id="children-allowed" checked style="width: 20px; height: 20px; accent-color: #0284c7;">
+                            <div>
+                                <strong style="color: #0369a1;">Allow Children</strong>
+                                <p style="font-size: 0.75rem; color: #6b7280; margin: 0.15rem 0 0 0;">
+                                    Uncheck to hide children selector on booking widget
+                                </p>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <!-- Child Charge -->
+                    <div id="child-charge-section" style="background: #eff6ff; border-radius: 10px; padding: 1rem; margin-bottom: 1rem;">
+                        <label class="form-label" style="color: #1e40af; margin-bottom: 0.75rem;">👶 Child Charge <span style="font-size: 0.75rem; font-weight: normal;">(under <span id="child-max-age-display">12</span> years)</span></label>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <select id="child-charge-type" class="form-input" style="width: 120px;">
+                                <option value="free">Free</option>
+                                <option value="fixed">Fixed (£)</option>
+                                <option value="percent">Percent (%)</option>
+                            </select>
+                            <input type="number" id="child-charge" class="form-input" value="0" min="0" style="width: 80px;" disabled>
+                            <span style="font-size: 0.85rem; color: #1e40af;">per child/night</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border);">
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('occupancySettingsModal')">Cancel</button>
+                    <button type="button" class="btn" style="background: #7c3aed; border-color: #7c3aed;" onclick="saveOccupancySettings()">💾 Save Settings</button>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -11729,7 +11988,7 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
-    <script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
         // =====================================================
         // AUTHENTICATION
         // =====================================================
@@ -12778,6 +13037,7 @@ Local honey and preserves"></textarea>
             if (viewName === 'images') loadImages();
             if (viewName === 'amenities') loadAmenities();
             if (viewName === 'availability') loadAvailabilityView();
+            if (viewName === 'channel-manager') loadChannelManagerView();
             if (viewName === 'tasks') loadTasks();
             if (viewName === 'deploy-sites') {
                 checkVpsStatus();
@@ -14505,13 +14765,26 @@ Local honey and preserves"></textarea>
                                         }
                                     </td>
                                     <td>
-                                        ${account.stripe_account_id 
-                                            ? `<div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                <span class="badge badge-success">✓ Connected</span>
-                                                <button class="btn btn-secondary btn-small" onclick="disconnectStripe(${account.id}, '${account.name}')" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; color: #dc2626;">Disconnect</button>
-                                               </div>`
-                                            : `<button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Connect</button>`
-                                        }
+                                        ${(() => {
+                                            const propCount = parseInt(account.property_count) || 0;
+                                            const stripePropsCount = parseInt(account.stripe_properties_count) || 0;
+                                            const hasAccountStripe = !!account.stripe_account_id;
+                                            
+                                            if (hasAccountStripe) {
+                                                return `<div style="display: flex; align-items: center; gap: 0.5rem;">
+                                                    <span class="badge badge-success">✓ Connected</span>
+                                                    <button class="btn btn-secondary btn-small" onclick="disconnectStripe(${account.id}, '${account.name}')" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; color: #dc2626;">Disconnect</button>
+                                                </div>`;
+                                            } else if (stripePropsCount > 0 && stripePropsCount >= propCount && propCount > 0) {
+                                                return `<span class="badge badge-success" style="cursor: default;">✓ ${stripePropsCount}/${propCount} Properties</span>`;
+                                            } else if (stripePropsCount > 0) {
+                                                return `<span class="badge badge-warning" style="cursor: default;">⚡ ${stripePropsCount}/${propCount} Properties</span>`;
+                                            } else if (propCount === 0) {
+                                                return `<span style="color: var(--text-muted); font-size: 0.85rem;">No properties</span>`;
+                                            } else {
+                                                return `<button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Connect</button>`;
+                                            }
+                                        })()}
                                     </td>
                                     <td>
                                         <span id="account-plan-${account.id}" class="badge badge-secondary" style="cursor: pointer;" onclick="openAssignPlanModal(${account.id}, \`${account.name.replace(/`/g, "'")}\`)">
@@ -19364,6 +19637,153 @@ Local honey and preserves"></textarea>
         let gridData = {}; // roomId -> { date -> data }
         const GRID_DAYS = 14; // Show 2 weeks at a time
         
+        // =========================================================
+        // CHANNEL MANAGER VIEW (Client-facing simple view)
+        // =========================================================
+        
+        async function loadChannelManagerView() {
+            const loading = document.getElementById('cm-loading');
+            const noConnection = document.getElementById('cm-no-connection');
+            const connected = document.getElementById('cm-connected');
+            
+            // Show loading
+            loading.style.display = 'block';
+            noConnection.style.display = 'none';
+            connected.style.display = 'none';
+            
+            try {
+                // Get GasSync connections for current account
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/gas-sync/connections${queryString}`);
+                const data = await response.json();
+                
+                loading.style.display = 'none';
+                
+                if (!data.success || !data.connections || data.connections.length === 0) {
+                    // No connection found
+                    noConnection.style.display = 'block';
+                    return;
+                }
+                
+                // Get first connection (clients only have one)
+                const conn = data.connections[0];
+                
+                // Update status based on connection state
+                const statusIcon = document.getElementById('cm-status-icon');
+                const statusBadge = document.getElementById('cm-status-badge');
+                const providerName = document.getElementById('cm-provider-name');
+                const providerNameInline = document.getElementById('cm-provider-name-inline');
+                const lastSync = document.getElementById('cm-last-sync');
+                
+                // Provider name
+                const providerNames = {
+                    'beds24': 'Beds24',
+                    'hostaway': 'Hostaway',
+                    'smoobu': 'Smoobu',
+                    'calry': 'Calry'
+                };
+                const displayName = providerNames[conn.adapter_code] || conn.adapter_code;
+                providerName.textContent = displayName;
+                if (providerNameInline) providerNameInline.textContent = displayName;
+                
+                // Status
+                const isHealthy = conn.status === 'connected' && !conn.last_error;
+                if (isHealthy) {
+                    statusIcon.innerHTML = '✅';
+                    statusIcon.style.background = '#d1fae5';
+                    statusBadge.textContent = 'Connected';
+                    statusBadge.style.background = '#d1fae5';
+                    statusBadge.style.color = '#065f46';
+                } else if (conn.last_error) {
+                    statusIcon.innerHTML = '⚠️';
+                    statusIcon.style.background = '#fef3c7';
+                    statusBadge.textContent = 'Issue Detected';
+                    statusBadge.style.background = '#fef3c7';
+                    statusBadge.style.color = '#92400e';
+                } else {
+                    statusIcon.innerHTML = '🔄';
+                    statusIcon.style.background = '#e0f2fe';
+                    statusBadge.textContent = 'Syncing';
+                    statusBadge.style.background = '#e0f2fe';
+                    statusBadge.style.color = '#0369a1';
+                }
+                
+                // Last sync time
+                if (conn.last_sync_at) {
+                    const syncTime = new Date(conn.last_sync_at);
+                    const now = new Date();
+                    const diffMins = Math.floor((now - syncTime) / 60000);
+                    
+                    if (diffMins < 1) {
+                        lastSync.textContent = 'Last synced: Just now';
+                    } else if (diffMins < 60) {
+                        lastSync.textContent = `Last synced: ${diffMins} minute${diffMins > 1 ? 's' : ''} ago`;
+                    } else if (diffMins < 1440) {
+                        const hours = Math.floor(diffMins / 60);
+                        lastSync.textContent = `Last synced: ${hours} hour${hours > 1 ? 's' : ''} ago`;
+                    } else {
+                        lastSync.textContent = `Last synced: ${syncTime.toLocaleDateString()}`;
+                    }
+                } else {
+                    lastSync.textContent = 'Last synced: Never';
+                }
+                
+                // Stats
+                document.getElementById('cm-properties-count').textContent = conn.property_count || '0';
+                document.getElementById('cm-rooms-count').textContent = conn.room_type_count || '0';
+                document.getElementById('cm-bookings-count').textContent = conn.reservation_count || '0';
+                
+                // Load properties list
+                await loadChannelManagerProperties(conn.id);
+                
+                // Show connected state
+                connected.style.display = 'block';
+                
+            } catch (error) {
+                console.error('Error loading channel manager:', error);
+                loading.style.display = 'none';
+                noConnection.style.display = 'block';
+            }
+        }
+        
+        async function loadChannelManagerProperties(connectionId) {
+            const listEl = document.getElementById('cm-properties-list');
+            
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${connectionId}/properties`);
+                const data = await response.json();
+                
+                if (!data.success || !data.properties || data.properties.length === 0) {
+                    listEl.innerHTML = '<p style="padding: 1rem; color: #6b7280;">No properties synced yet.</p>';
+                    return;
+                }
+                
+                listEl.innerHTML = data.properties.map(prop => `
+                    <div style="display: flex; align-items: center; padding: 1rem; border-bottom: 1px solid #e5e7eb;">
+                        <div style="width: 48px; height: 48px; border-radius: 8px; background: #f3f4f6; display: flex; align-items: center; justify-content: center; margin-right: 1rem; font-size: 1.5rem;">
+                            🏨
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="font-weight: 600;">${prop.name}</div>
+                            <div style="color: #6b7280; font-size: 0.875rem;">${prop.city || ''} ${prop.country || ''}</div>
+                        </div>
+                        <div style="text-align: right;">
+                            <div style="font-weight: 600; color: #3b82f6;">${prop.room_type_count || 0} rooms</div>
+                            <div style="color: #10b981; font-size: 0.875rem;">✓ Synced</div>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading properties:', error);
+                listEl.innerHTML = '<p style="padding: 1rem; color: #ef4444;">Error loading properties.</p>';
+            }
+        }
+
+        // =========================================================
+        // AVAILABILITY VIEW
+        // =========================================================
+        
         let allRooms = []; // Store all rooms for filtering
         let availabilityViewLoaded = false;
         
@@ -19909,6 +20329,25 @@ Local honey and preserves"></textarea>
                 const response = await fetch(`/api/availability/${roomId}?from=${fromDate}&to=${toDate}`);
                 const data = await response.json();
                 
+                // Get currency from response (defaults to £ for UK properties)
+                const currencySymbol = data.currency_symbol || '£';
+                
+                // Get occupancy settings for this room
+                let occupancySettings = {};
+                try {
+                    const occResponse = await fetch(`/api/rooms/${roomId}/occupancy-settings`);
+                    const occData = await occResponse.json();
+                    if (occData.success) {
+                        occupancySettings = occData.data;
+                    }
+                } catch (e) {
+                    console.log('Could not load occupancy settings:', e);
+                }
+                
+                // Attach occupancy settings to data for grid rendering
+                data.occupancy_settings = occupancySettings;
+                data.currency_symbol = currencySymbol;
+                
                 // Get offers for this room
                 const offersResponse = await fetch('/api/admin/offers');
                 const offersData = await offersResponse.json();
@@ -19958,7 +20397,47 @@ Local honey and preserves"></textarea>
                     const refPrice = dayData.cm_price || '-';
                     const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                     html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f1f5f9'}; color: #475569; font-weight: 600;">
-                        ${refPrice !== '-' ? '$' + parseFloat(refPrice).toFixed(0) : '-'}
+                        ${refPrice !== '-' ? currencySymbol + parseFloat(refPrice).toFixed(0) : '-'}
+                    </td>`;
+                });
+                html += `</tr>`;
+                
+                // ══════════════════════════════════════════════════════════════
+                // ROW 1b: Min Stay (CM) - Shows CM min stay, editable override
+                // ══════════════════════════════════════════════════════════════
+                html += `
+                    <tr style="background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                        <td style="padding: 0.5rem 0.75rem; position: sticky; left: 0; background: #f8fafc; z-index: 1;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <span style="font-size: 1rem;">📅</span>
+                                <div>
+                                    <strong style="font-size: 0.85rem;">Min Stay</strong>
+                                    <div style="font-size: 0.7rem; color: #64748b;">CM default / Override</div>
+                                </div>
+                            </div>
+                        </td>`;
+                
+                dates.forEach(d => {
+                    const dateStr = d.toISOString().split('T')[0];
+                    const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
+                    const cmMinStay = dayData.cm_min_stay || dayData.min_stay || 1;
+                    const override = dayData.min_stay_override;
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<td style="padding: 0.25rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f8fafc'}; font-size: 0.85rem;">
+                        <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+                            <span style="color: #94a3b8; font-size: 0.7rem;">${cmMinStay}</span>
+                            <input type="number" 
+                                value="${override || ''}" 
+                                data-room="${roomId}" 
+                                data-date="${dateStr}"
+                                data-field="min_stay"
+                                class="min-stay-input"
+                                style="width: 40px; padding: 0.2rem; text-align: center; border: 1px solid #cbd5e1; border-radius: 4px; font-size: 0.8rem;"
+                                onchange="markMinStayChanged(this)"
+                                placeholder="-"
+                                min="1"
+                                max="30">
+                        </div>
                     </td>`;
                 });
                 html += `</tr>`;
@@ -19996,6 +20475,97 @@ Local honey and preserves"></textarea>
                     </td>`;
                 });
                 html += `</tr>`;
+                
+                // ══════════════════════════════════════════════════════════════
+                // OCCUPANCY PRICING SECTION - Based on room settings
+                // ══════════════════════════════════════════════════════════════
+                const occSettings = data.occupancy_settings || {};
+                const pricingMode = occSettings.pricing_mode || 'per_room';
+                const maxGuests = occSettings.max_guests || 4;
+                const baseOccupancy = occSettings.base_occupancy || 2;
+                
+                html += `
+                    <tr>
+                        <td colspan="${dates.length + 1}" style="padding: 0.5rem 0.75rem; background: #ede9fe; border-top: 2px solid #c4b5fd;">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                    <span style="font-size: 1rem;">👥</span>
+                                    <strong style="color: #5b21b6;">OCCUPANCY PRICING</strong>
+                                    <span style="font-size: 0.75rem; color: #7c3aed; background: white; padding: 0.15rem 0.5rem; border-radius: 10px;">
+                                        ${pricingMode === 'per_occupancy' ? 'Active' : 'Per Room (flat)'}
+                                    </span>
+                                </div>
+                                <button onclick="openOccupancySettings(${roomId})" class="btn btn-small" style="font-size: 0.75rem; padding: 0.25rem 0.75rem; background: #7c3aed; border-color: #7c3aed;">
+                                    ⚙️ Configure
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+                
+                // Only show occupancy rows if pricing_mode is 'per_occupancy'
+                if (pricingMode === 'per_occupancy') {
+                    // Generate rows for each occupancy level
+                    for (let guests = 1; guests <= maxGuests; guests++) {
+                        const isBase = guests === baseOccupancy;
+                        const label = guests === 1 ? '1 Adult' : `${guests} Guests`;
+                        const sublabel = isBase ? '(base rate)' : (guests < baseOccupancy ? 'discount applied' : 'extra charge');
+                        
+                        html += `
+                            <tr style="background: #faf5ff; border-bottom: 1px solid #e9d5ff;">
+                                <td style="padding: 0.5rem 0.75rem; position: sticky; left: 0; background: #faf5ff; z-index: 1;">
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; padding-left: 1rem;">
+                                        <span style="font-size: 0.9rem;">${'👤'.repeat(Math.min(guests, 4))}</span>
+                                        <div>
+                                            <span style="font-weight: ${isBase ? '600' : '400'}; color: ${isBase ? '#5b21b6' : '#6b7280'};">${label}</span>
+                                            <div style="font-size: 0.65rem; color: #9ca3af;">${sublabel}</div>
+                                        </div>
+                                    </div>
+                                </td>`;
+                        
+                        dates.forEach(d => {
+                            const dateStr = d.toISOString().split('T')[0];
+                            const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
+                            const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price) || 0;
+                            
+                            // Calculate occupancy-adjusted price
+                            let adjPrice = stdPrice;
+                            // Single discount only applies when base occupancy is more than 1
+                            // (i.e., room is for 2+ people but only 1 is staying)
+                            if (guests === 1 && baseOccupancy > 1 && parseFloat(occSettings.single_discount_value) > 0) {
+                                // Single occupancy discount
+                                if (occSettings.single_discount_type === 'percent') {
+                                    adjPrice = stdPrice * (1 - parseFloat(occSettings.single_discount_value) / 100);
+                                } else {
+                                    adjPrice = stdPrice - parseFloat(occSettings.single_discount_value);
+                                }
+                            } else if (guests > baseOccupancy) {
+                                // Extra guests charge
+                                const extraGuests = guests - baseOccupancy;
+                                if (occSettings.extra_adult_type === 'percent') {
+                                    adjPrice = stdPrice * (1 + (parseFloat(occSettings.extra_adult_charge) / 100) * extraGuests);
+                                } else {
+                                    adjPrice = stdPrice + (parseFloat(occSettings.extra_adult_charge) * extraGuests);
+                                }
+                            }
+                            
+                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                            const priceColor = isBase ? '#5b21b6' : (adjPrice < stdPrice ? '#16a34a' : (adjPrice > stdPrice ? '#dc2626' : '#6b7280'));
+                            
+                            html += `<td style="padding: 0.5rem; text-align: center; background: ${isWeekend ? '#f5f3ff' : '#faf5ff'}; color: ${priceColor}; font-size: 0.85rem;">
+                                ${stdPrice > 0 ? currencySymbol + Math.round(adjPrice) : '-'}
+                            </td>`;
+                        });
+                        html += `</tr>`;
+                    }
+                } else {
+                    // Just show a helper row when per_room mode
+                    html += `
+                        <tr style="background: #faf5ff;">
+                            <td colspan="${dates.length + 1}" style="padding: 0.75rem; text-align: center; color: #7c3aed; font-size: 0.85rem;">
+                                💡 Enable "Per Occupancy" pricing to set different rates for 1, 2, 3+ guests
+                            </td>
+                        </tr>`;
+                }
                 
                 // ══════════════════════════════════════════════════════════════
                 // OFFERS SECTION - Calculated from STANDARD PRICE
@@ -20041,7 +20611,7 @@ Local honey and preserves"></textarea>
                             
                             const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                             html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9c3' : '#fffbeb'}; color: #b45309; font-weight: 500;">
-                                ${stdPrice > 0 ? '$' + offerPrice.toFixed(0) : '-'}
+                                ${stdPrice > 0 ? currencySymbol + offerPrice.toFixed(0) : '-'}
                             </td>`;
                         });
                         
@@ -20097,6 +20667,232 @@ Local honey and preserves"></textarea>
             } else {
                 input.style.background = '';
                 input.style.borderColor = '#86efac';
+            }
+        }
+        
+        // =====================================================
+        // MIN STAY HANDLING
+        // =====================================================
+        function markMinStayChanged(input) {
+            input.style.background = '#fef3c7';
+            input.style.borderColor = '#f59e0b';
+        }
+        
+        async function saveMinStayChanges() {
+            const inputs = document.querySelectorAll('.min-stay-input');
+            let saved = 0;
+            
+            for (const input of inputs) {
+                if (input.style.background === 'rgb(254, 243, 199)') { // Changed inputs
+                    const roomId = input.dataset.room;
+                    const date = input.dataset.date;
+                    const value = input.value ? parseInt(input.value) : null;
+                    
+                    try {
+                        await fetch(`/api/rooms/${roomId}/min-stay`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                            body: JSON.stringify({
+                                start_date: date,
+                                end_date: date,
+                                min_stay_override: value
+                            })
+                        });
+                        input.style.background = '';
+                        input.style.borderColor = '#cbd5e1';
+                        saved++;
+                    } catch (e) {
+                        console.error('Error saving min stay:', e);
+                    }
+                }
+            }
+            
+            if (saved > 0) {
+                showNotification(`Saved ${saved} min stay change(s)`, 'success');
+            }
+        }
+        
+        // =====================================================
+        // OCCUPANCY SETTINGS MODAL
+        // =====================================================
+        async function openOccupancySettings(roomId) {
+            document.getElementById('occupancy-room-id').value = roomId;
+            
+            // Load room data
+            try {
+                const response = await fetch(`/api/rooms/${roomId}/occupancy-settings`);
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const settings = data.data;
+                    const maxGuests = settings.max_guests || 4;
+                    
+                    document.getElementById('occupancy-room-name').textContent = settings.name || 'Room';
+                    document.getElementById('occupancy-max-guests').textContent = maxGuests;
+                    
+                    // Populate base occupancy dropdown based on max_guests
+                    const baseSelect = document.getElementById('occupancy-base');
+                    baseSelect.innerHTML = '';
+                    for (let i = 1; i <= maxGuests; i++) {
+                        const option = document.createElement('option');
+                        option.value = i;
+                        option.textContent = i === 1 ? '1 adult' : `${i} adults`;
+                        baseSelect.appendChild(option);
+                    }
+                    
+                    document.getElementById('occupancy-enabled').checked = settings.pricing_mode === 'per_occupancy';
+                    document.getElementById('occupancy-base').value = settings.base_occupancy || Math.min(2, maxGuests);
+                    
+                    document.getElementById('single-discount-type').value = settings.single_discount_type || 'fixed';
+                    document.getElementById('single-discount-value').value = settings.single_discount_value || 0;
+                    
+                    document.getElementById('extra-adult-type').value = settings.extra_adult_type || 'fixed';
+                    document.getElementById('extra-adult-charge').value = settings.extra_adult_charge || 0;
+                    
+                    // Children allowed toggle
+                    document.getElementById('children-allowed').checked = settings.children_allowed !== false;
+                    toggleChildrenAllowed();
+                    
+                    document.getElementById('child-charge-type').value = settings.child_charge_type || 'free';
+                    document.getElementById('child-charge').value = settings.child_charge || 0;
+                    document.getElementById('child-max-age-display').textContent = settings.child_max_age || 12;
+                    
+                    // Enable/disable child charge input based on type
+                    toggleChildChargeInput();
+                    // Update fields visibility based on enabled state
+                    toggleOccupancyFields();
+                    // Update which fields are available based on base vs max
+                    updateOccupancyFieldsAvailability();
+                }
+            } catch (error) {
+                console.error('Error loading occupancy settings:', error);
+            }
+            
+            openModal('occupancySettingsModal');
+        }
+        
+        function toggleOccupancyFields() {
+            const enabled = document.getElementById('occupancy-enabled').checked;
+            const fieldsContainer = document.getElementById('occupancy-settings-fields');
+            fieldsContainer.style.opacity = enabled ? '1' : '0.5';
+            fieldsContainer.style.pointerEvents = enabled ? 'auto' : 'none';
+        }
+        
+        function toggleChildChargeInput() {
+            const type = document.getElementById('child-charge-type').value;
+            const input = document.getElementById('child-charge');
+            input.disabled = type === 'free';
+            if (type === 'free') input.value = 0;
+        }
+        
+        function toggleChildrenAllowed() {
+            const allowed = document.getElementById('children-allowed').checked;
+            const childChargeSection = document.getElementById('child-charge-section');
+            if (childChargeSection) {
+                childChargeSection.style.opacity = allowed ? '1' : '0.4';
+                childChargeSection.style.pointerEvents = allowed ? 'auto' : 'none';
+            }
+        }
+        
+        // Update which occupancy fields are available based on base vs max
+        function updateOccupancyFieldsAvailability() {
+            const baseOccupancy = parseInt(document.getElementById('occupancy-base').value) || 1;
+            const maxGuests = parseInt(document.getElementById('occupancy-max-guests').textContent) || 4;
+            
+            // Single Discount: only available if base > 1 (someone can book fewer than base)
+            const singleSection = document.getElementById('single-discount-section');
+            const singleFields = document.getElementById('single-discount-fields');
+            const singleMsg = document.getElementById('single-discount-disabled-msg');
+            
+            if (baseOccupancy <= 1) {
+                singleSection.style.opacity = '0.5';
+                singleFields.style.pointerEvents = 'none';
+                singleMsg.style.display = 'block';
+                document.getElementById('single-discount-type').disabled = true;
+                document.getElementById('single-discount-value').disabled = true;
+            } else {
+                singleSection.style.opacity = '1';
+                singleFields.style.pointerEvents = 'auto';
+                singleMsg.style.display = 'none';
+                document.getElementById('single-discount-type').disabled = false;
+                document.getElementById('single-discount-value').disabled = false;
+            }
+            
+            // Extra Adult: only available if base < max (someone can book more than base)
+            const extraSection = document.getElementById('extra-adult-section');
+            const extraFields = document.getElementById('extra-adult-fields');
+            const extraMsg = document.getElementById('extra-adult-disabled-msg');
+            
+            if (baseOccupancy >= maxGuests) {
+                extraSection.style.opacity = '0.5';
+                extraFields.style.pointerEvents = 'none';
+                extraMsg.style.display = 'block';
+                document.getElementById('extra-adult-type').disabled = true;
+                document.getElementById('extra-adult-charge').disabled = true;
+            } else {
+                extraSection.style.opacity = '1';
+                extraFields.style.pointerEvents = 'auto';
+                extraMsg.style.display = 'none';
+                document.getElementById('extra-adult-type').disabled = false;
+                document.getElementById('extra-adult-charge').disabled = false;
+            }
+        }
+        
+        // Add event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            const occupancyEnabled = document.getElementById('occupancy-enabled');
+            if (occupancyEnabled) {
+                occupancyEnabled.addEventListener('change', toggleOccupancyFields);
+            }
+            const childChargeType = document.getElementById('child-charge-type');
+            if (childChargeType) {
+                childChargeType.addEventListener('change', toggleChildChargeInput);
+            }
+            const childrenAllowed = document.getElementById('children-allowed');
+            if (childrenAllowed) {
+                childrenAllowed.addEventListener('change', toggleChildrenAllowed);
+            }
+            const occupancyBase = document.getElementById('occupancy-base');
+            if (occupancyBase) {
+                occupancyBase.addEventListener('change', updateOccupancyFieldsAvailability);
+            }
+        });
+        
+        async function saveOccupancySettings() {
+            const roomId = document.getElementById('occupancy-room-id').value;
+            const enabled = document.getElementById('occupancy-enabled').checked;
+            
+            const settings = {
+                pricing_mode: enabled ? 'per_occupancy' : 'per_room',
+                base_occupancy: parseInt(document.getElementById('occupancy-base').value) || 2,
+                single_discount_type: document.getElementById('single-discount-type').value,
+                single_discount_value: parseFloat(document.getElementById('single-discount-value').value) || 0,
+                extra_adult_type: document.getElementById('extra-adult-type').value,
+                extra_adult_charge: parseFloat(document.getElementById('extra-adult-charge').value) || 0,
+                children_allowed: document.getElementById('children-allowed').checked,
+                child_charge_type: document.getElementById('child-charge-type').value,
+                child_charge: parseFloat(document.getElementById('child-charge').value) || 0
+            };
+            
+            try {
+                const response = await fetch(`/api/rooms/${roomId}/occupancy-settings`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(settings)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Occupancy settings saved!', 'success');
+                    closeModal('occupancySettingsModal');
+                    // Reload the pricing grid to show changes
+                    loadOffersPricingGrid();
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error saving settings', 'error');
             }
         }
         
@@ -21311,6 +22107,7 @@ Local honey and preserves"></textarea>
                     <thead>
                         <tr style="border-bottom: 2px solid var(--border);">
                             <th style="text-align: left; padding: 0.5rem;">Offer</th>
+                            <th style="text-align: left; padding: 0.5rem;">Applies To</th>
                             <th style="text-align: center; padding: 0.5rem;">Own Website</th>
                             <th style="text-align: center; padding: 0.5rem;">Travel Agents</th>
                             <th style="text-align: center; padding: 0.5rem;">Status</th>
@@ -21322,10 +22119,30 @@ Local honey and preserves"></textarea>
             
             for (const offer of offers) {
                 const isStandard = offer.id === 'standard' || offer.name === 'Standard Price';
+                
+                // Build "Applies To" text - handle arrays
+                let appliesTo = 'All Properties';
+                if (offer.room_ids && offer.room_ids.length > 0) {
+                    appliesTo = offer.room_ids.length + ' Room' + (offer.room_ids.length > 1 ? 's' : '');
+                } else if (offer.property_ids && offer.property_ids.length > 0) {
+                    appliesTo = offer.property_ids.length + ' Propert' + (offer.property_ids.length > 1 ? 'ies' : 'y');
+                } else if (offer.room_name) {
+                    appliesTo = offer.room_name;
+                } else if (offer.property_name) {
+                    appliesTo = offer.property_name;
+                } else if (offer.room_id) {
+                    appliesTo = 'Room #' + offer.room_id;
+                } else if (offer.property_id) {
+                    appliesTo = 'Property #' + offer.property_id;
+                }
+                
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
                             <strong>${isStandard ? '⭐ ' : '🏷️ '}${offer.name}</strong>
+                        </td>
+                        <td style="padding: 0.75rem; font-size: 0.85rem; color: #6b7280;">
+                            ${appliesTo}
                         </td>
                         <td style="text-align: center; padding: 0.75rem;">
                             <input type="checkbox" ${isStandard || offer.available_website !== false ? 'checked' : ''} 
@@ -21387,6 +22204,7 @@ Local honey and preserves"></textarea>
             document.getElementById('offer-id').value = '';
             document.getElementById('offer-modal-title').innerHTML = '🏷️ Create New Offer';
             document.getElementById('offer-active').checked = true;
+            updateOfferToggleVisual(document.getElementById('offer-active'));
             
             // Reset all check-in/check-out day checkboxes to checked
             ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].forEach(day => {
@@ -21425,17 +22243,148 @@ Local honey and preserves"></textarea>
                 const response = await fetch(`/api/db/properties${queryString}`);
                 const data = await response.json();
                 
-                const propSelect = document.getElementById('offer-property');
-                propSelect.innerHTML = '<option value="">All Properties</option>';
+                const propList = document.getElementById('offer-properties-list');
+                propList.innerHTML = `
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem; cursor: pointer; border-radius: 4px; background: #f0fdf4;" class="offer-prop-option">
+                        <input type="checkbox" name="offer-properties" value="" checked onchange="handleAllPropertiesChange(this)">
+                        <span style="font-size: 0.9rem; font-weight: 500;">✓ All Properties</span>
+                    </label>
+                `;
                 
                 if (data.success && data.data) {
                     data.data.forEach(p => {
-                        propSelect.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                        propList.innerHTML += `
+                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem; cursor: pointer; border-radius: 4px;" class="offer-prop-option" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+                                <input type="checkbox" name="offer-properties" value="${p.id}" onchange="handlePropertyCheckChange(this)">
+                                <span style="font-size: 0.9rem;">${p.name}</span>
+                            </label>
+                        `;
                     });
                 }
+                
+                // Load all rooms initially
+                await loadRoomsForOfferCheckboxes('');
             } catch (error) {
                 console.error('Error loading properties:', error);
             }
+        }
+        
+        function handleAllPropertiesChange(checkbox) {
+            const allCheckboxes = document.querySelectorAll('input[name="offer-properties"]');
+            if (checkbox.checked) {
+                // Uncheck all individual properties
+                allCheckboxes.forEach(cb => {
+                    if (cb.value !== '') cb.checked = false;
+                });
+            }
+            filterRoomsBySelectedProperties();
+        }
+        
+        function handlePropertyCheckChange(checkbox) {
+            const allCheckbox = document.querySelector('input[name="offer-properties"][value=""]');
+            if (checkbox.checked) {
+                // Uncheck "All Properties"
+                allCheckbox.checked = false;
+            } else {
+                // If no properties selected, check "All"
+                const anySelected = document.querySelectorAll('input[name="offer-properties"]:checked');
+                if (anySelected.length === 0) {
+                    allCheckbox.checked = true;
+                }
+            }
+            filterRoomsBySelectedProperties();
+        }
+        
+        function filterRoomsBySelectedProperties() {
+            const selectedProps = [];
+            document.querySelectorAll('input[name="offer-properties"]:checked').forEach(cb => {
+                if (cb.value !== '') selectedProps.push(cb.value);
+            });
+            loadRoomsForOfferCheckboxes(selectedProps);
+        }
+        
+        async function loadRoomsForOfferCheckboxes(propertyIds) {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/bookable-units${queryString}`);
+                const data = await response.json();
+                
+                const roomList = document.getElementById('offer-rooms-list');
+                roomList.innerHTML = `
+                    <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem; cursor: pointer; border-radius: 4px; background: #f0fdf4;" class="offer-room-option">
+                        <input type="checkbox" name="offer-rooms" value="" checked onchange="handleAllRoomsChange(this)">
+                        <span style="font-size: 0.9rem; font-weight: 500;">✓ All Rooms</span>
+                    </label>
+                `;
+                
+                if (data.success && data.data) {
+                    let rooms = data.data;
+                    // Filter by selected properties if any
+                    if (Array.isArray(propertyIds) && propertyIds.length > 0) {
+                        rooms = rooms.filter(r => propertyIds.includes(String(r.property_id)));
+                    }
+                    
+                    rooms.forEach(r => {
+                        roomList.innerHTML += `
+                            <label style="display: flex; align-items: center; gap: 0.5rem; padding: 0.35rem; cursor: pointer; border-radius: 4px;" class="offer-room-option" onmouseover="this.style.background='#f3f4f6'" onmouseout="this.style.background='transparent'">
+                                <input type="checkbox" name="offer-rooms" value="${r.id}" onchange="handleRoomCheckChange(this)">
+                                <span style="font-size: 0.9rem;">${r.name}</span>
+                            </label>
+                        `;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading rooms:', error);
+            }
+        }
+        
+        function handleAllRoomsChange(checkbox) {
+            const allCheckboxes = document.querySelectorAll('input[name="offer-rooms"]');
+            if (checkbox.checked) {
+                allCheckboxes.forEach(cb => {
+                    if (cb.value !== '') cb.checked = false;
+                });
+            }
+        }
+        
+        function handleRoomCheckChange(checkbox) {
+            const allCheckbox = document.querySelector('input[name="offer-rooms"][value=""]');
+            if (checkbox.checked) {
+                allCheckbox.checked = false;
+            } else {
+                const anySelected = document.querySelectorAll('input[name="offer-rooms"]:checked');
+                if (anySelected.length === 0) {
+                    allCheckbox.checked = true;
+                }
+            }
+        }
+        
+        function updateOfferToggleVisual(checkbox) {
+            const slider = document.getElementById('offer-active-slider');
+            const dot = document.getElementById('offer-active-dot');
+            if (checkbox.checked) {
+                slider.style.backgroundColor = '#22c55e';
+                dot.style.left = '25px';
+            } else {
+                slider.style.backgroundColor = '#ccc';
+                dot.style.left = '3px';
+            }
+        }
+        
+        function getSelectedOfferProperties() {
+            const selected = [];
+            document.querySelectorAll('input[name="offer-properties"]:checked').forEach(cb => {
+                if (cb.value !== '') selected.push(parseInt(cb.value));
+            });
+            return selected.length > 0 ? selected : null;
+        }
+        
+        function getSelectedOfferRooms() {
+            const selected = [];
+            document.querySelectorAll('input[name="offer-rooms"]:checked').forEach(cb => {
+                if (cb.value !== '') selected.push(parseInt(cb.value));
+            });
+            return selected.length > 0 ? selected : null;
         }
         
         async function editOffer(id) {
@@ -21458,6 +22407,7 @@ Local honey and preserves"></textarea>
                     document.getElementById('offer-valid-until').value = offer.valid_until || '';
                     document.getElementById('offer-priority').value = offer.priority || 0;
                     document.getElementById('offer-active').checked = offer.active;
+                    updateOfferToggleVisual(document.getElementById('offer-active'));
                     
                     // Set check-in day checkboxes
                     const checkinDays = (offer.allowed_checkin_days || '0,1,2,3,4,5,6').split(',').map(d => d.trim());
@@ -21476,7 +22426,32 @@ Local honey and preserves"></textarea>
                     document.getElementById('offer-modal-title').innerHTML = '✏️ Edit Offer';
                     updateDiscountDisplay();
                     await loadPropertiesForOfferDropdown();
-                    document.getElementById('offer-property').value = offer.property_id || '';
+                    
+                    // Set property checkboxes based on offer data
+                    const propertyIds = offer.property_ids || (offer.property_id ? [offer.property_id] : []);
+                    if (propertyIds.length === 0) {
+                        // All properties
+                        document.querySelector('input[name="offer-properties"][value=""]').checked = true;
+                    } else {
+                        document.querySelector('input[name="offer-properties"][value=""]').checked = false;
+                        propertyIds.forEach(pid => {
+                            const cb = document.querySelector(`input[name="offer-properties"][value="${pid}"]`);
+                            if (cb) cb.checked = true;
+                        });
+                    }
+                    
+                    // Load and set room checkboxes
+                    await loadRoomsForOfferCheckboxes(propertyIds);
+                    const roomIds = offer.room_ids || (offer.room_id ? [offer.room_id] : []);
+                    if (roomIds.length === 0) {
+                        document.querySelector('input[name="offer-rooms"][value=""]').checked = true;
+                    } else {
+                        document.querySelector('input[name="offer-rooms"][value=""]').checked = false;
+                        roomIds.forEach(rid => {
+                            const cb = document.querySelector(`input[name="offer-rooms"][value="${rid}"]`);
+                            if (cb) cb.checked = true;
+                        });
+                    }
                     
                     openModal('addOfferModal');
                 }
@@ -21496,13 +22471,21 @@ Local honey and preserves"></textarea>
         
         async function saveOffer() {
             const id = document.getElementById('offer-id').value;
+            
+            // Get selected properties and rooms from checkboxes
+            const selectedPropertyIds = getSelectedOfferProperties();
+            const selectedRoomIds = getSelectedOfferRooms();
+            
             const offerData = {
                 name: document.getElementById('offer-name').value,
                 description: document.getElementById('offer-description').value,
                 discount_type: document.getElementById('offer-discount-type').value,
                 discount_value: parseFloat(document.getElementById('offer-discount-value').value),
-                property_id: document.getElementById('offer-property').value || null,
-                room_id: document.getElementById('offer-room').value || null,
+                property_ids: selectedPropertyIds,
+                room_ids: selectedRoomIds,
+                // Keep legacy single property_id/room_id for backward compatibility
+                property_id: selectedPropertyIds && selectedPropertyIds.length === 1 ? selectedPropertyIds[0] : null,
+                room_id: selectedRoomIds && selectedRoomIds.length === 1 ? selectedRoomIds[0] : null,
                 min_nights: parseInt(document.getElementById('offer-min-nights').value) || 1,
                 max_nights: parseInt(document.getElementById('offer-max-nights').value) || null,
                 min_advance_days: parseInt(document.getElementById('offer-min-advance').value) || null,
@@ -26967,40 +27950,71 @@ Local honey and preserves"></textarea>
             document.getElementById('payment-settings-property-name').textContent = propertyName;
             
             // Reset form
-            document.getElementById('payment-enabled').checked = true;
+            document.getElementById('payment-provider-stripe').checked = true;
+            document.getElementById('stripe-publishable-key').value = '';
+            document.getElementById('stripe-secret-key').value = '';
+            document.getElementById('stripe-test-mode').checked = false;
+            document.getElementById('stripe-keys-status').style.display = 'none';
+            document.getElementById('setup-link-result').style.display = 'none';
             document.getElementById('payment-deposit-type').value = 'percentage';
             document.getElementById('payment-deposit-amount').value = 25;
             document.getElementById('payment-balance-days').value = 14;
             document.getElementById('payment-currency').value = 'GBP';
-            document.getElementById('payment-method-card').checked = true;
             document.getElementById('payment-cancellation').value = '';
             
-            // Load existing settings
+            // Get property's account_id
+            try {
+                const propRes = await fetch(`/api/db/properties/${propertyId}`);
+                const propData = await propRes.json();
+                if (propData.success) {
+                    document.getElementById('payment-settings-account-id').value = propData.data.account_id;
+                }
+            } catch (e) {
+                console.error('Error getting property:', e);
+            }
+            
+            // Load existing payment configuration
+            try {
+                const response = await fetch(`/api/properties/${propertyId}/payment-configuration`);
+                const data = await response.json();
+                
+                if (data.success && data.configuration) {
+                    const config = data.configuration;
+                    
+                    // Show configured status
+                    const statusEl = document.getElementById('stripe-keys-status');
+                    if (config.is_enabled) {
+                        statusEl.innerHTML = '<span style="color: var(--success);">✅ Stripe connected and enabled</span>';
+                        statusEl.style.background = '#d1fae5';
+                        statusEl.style.display = 'block';
+                    }
+                    
+                    // Fill in publishable key (secret is hidden)
+                    if (config.credentials?.publishable_key) {
+                        document.getElementById('stripe-publishable-key').value = config.credentials.publishable_key;
+                        document.getElementById('stripe-secret-key').placeholder = '••••••••••••••••••••';
+                    }
+                    
+                    if (config.test_mode) {
+                        document.getElementById('stripe-test-mode').checked = true;
+                    }
+                }
+            } catch (error) {
+                console.error('Error loading payment config:', error);
+            }
+            
+            // Also load legacy payment settings
             try {
                 const response = await fetch(`/api/property/${propertyId}/payment-settings`);
                 const data = await response.json();
                 
                 if (data.success && data.data) {
                     const settings = data.data;
-                    document.getElementById('payment-enabled').checked = settings.payment_enabled !== false;
                     document.getElementById('payment-deposit-type').value = settings.deposit_type || 'percentage';
                     document.getElementById('payment-deposit-amount').value = settings.deposit_amount || 25;
                     document.getElementById('payment-balance-days').value = settings.balance_due_days || 14;
                     document.getElementById('payment-currency').value = settings.currency || 'GBP';
                     document.getElementById('payment-cancellation').value = settings.cancellation_policy || '';
-                    
-                    // Payment methods
-                    const methods = settings.accepted_methods || ['card'];
-                    document.getElementById('payment-method-card').checked = methods.includes('card');
-                    
-                    // Stripe status
-                    if (settings.stripe_connected) {
-                        document.getElementById('stripe-not-connected').style.display = 'none';
-                        document.getElementById('stripe-connected').style.display = 'block';
-                    } else {
-                        document.getElementById('stripe-not-connected').style.display = 'flex';
-                        document.getElementById('stripe-connected').style.display = 'none';
-                    }
                     
                     updateDepositSymbol();
                 }
@@ -27047,17 +28061,51 @@ Local honey and preserves"></textarea>
         
         async function savePaymentSettings() {
             const propertyId = document.getElementById('payment-settings-property-id').value;
+            const accountId = document.getElementById('payment-settings-account-id').value;
             
-            const acceptedMethods = [];
-            if (document.getElementById('payment-method-card').checked) acceptedMethods.push('card');
+            const publishableKey = document.getElementById('stripe-publishable-key').value.trim();
+            const secretKey = document.getElementById('stripe-secret-key').value.trim();
+            const testMode = document.getElementById('stripe-test-mode').checked;
             
+            // If Stripe keys provided, save to payment_configurations
+            if (publishableKey && secretKey) {
+                try {
+                    const configResponse = await fetch('/api/payment-configurations', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({
+                            account_id: parseInt(accountId),
+                            property_id: parseInt(propertyId),
+                            provider: 'stripe',
+                            credentials: {
+                                publishable_key: publishableKey,
+                                secret_key: secretKey
+                            },
+                            is_enabled: true,
+                            is_default: true,
+                            test_mode: testMode
+                        })
+                    });
+                    
+                    const configData = await configResponse.json();
+                    if (!configData.success) {
+                        showNotification('Error saving Stripe keys: ' + configData.error, 'error');
+                        return;
+                    }
+                } catch (error) {
+                    showNotification('Error saving Stripe configuration', 'error');
+                    return;
+                }
+            }
+            
+            // Save deposit/payment settings
             const settings = {
-                payment_enabled: document.getElementById('payment-enabled').checked,
+                payment_enabled: true,
                 deposit_type: document.getElementById('payment-deposit-type').value,
                 deposit_amount: parseFloat(document.getElementById('payment-deposit-amount').value) || 25,
                 balance_due_days: parseInt(document.getElementById('payment-balance-days').value) || 14,
                 currency: document.getElementById('payment-currency').value,
-                accepted_methods: acceptedMethods,
+                accepted_methods: ['card'],
                 cancellation_policy: document.getElementById('payment-cancellation').value
             };
             
@@ -27080,9 +28128,103 @@ Local honey and preserves"></textarea>
             }
         }
         
-        function connectStripe() {
-            // For now, just show a message - Stripe Connect implementation later
-            showNotification('Stripe Connect integration coming soon! Contact support for setup assistance.', 'info', 5000);
+        async function testStripeConnection() {
+            const secretKey = document.getElementById('stripe-secret-key').value.trim();
+            const publishableKey = document.getElementById('stripe-publishable-key').value.trim();
+            
+            if (!secretKey || !publishableKey) {
+                showNotification('Please enter both Publishable Key and Secret Key', 'warning');
+                return;
+            }
+            
+            const statusEl = document.getElementById('stripe-keys-status');
+            statusEl.innerHTML = '<span style="color: var(--text-secondary);">🔄 Testing connection...</span>';
+            statusEl.style.background = '#f1f5f9';
+            statusEl.style.display = 'block';
+            
+            try {
+                // Save temporarily to test
+                const propertyId = document.getElementById('payment-settings-property-id').value;
+                const accountId = document.getElementById('payment-settings-account-id').value;
+                
+                const response = await fetch('/api/payment-configurations', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        account_id: parseInt(accountId),
+                        property_id: parseInt(propertyId),
+                        provider: 'stripe',
+                        credentials: {
+                            publishable_key: publishableKey,
+                            secret_key: secretKey
+                        },
+                        is_enabled: false  // Don't enable until explicitly saved
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Now test the connection
+                    const testResponse = await fetch(`/api/payment-configurations/${data.configuration.id}/test`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                    });
+                    
+                    const testData = await testResponse.json();
+                    
+                    if (testData.success && testData.test_result?.success) {
+                        statusEl.innerHTML = '<span style="color: var(--success);">✅ Connection successful! Keys are valid.</span>';
+                        statusEl.style.background = '#d1fae5';
+                    } else {
+                        statusEl.innerHTML = `<span style="color: var(--error);">❌ ${testData.test_result?.message || testData.error}</span>`;
+                        statusEl.style.background = '#fee2e2';
+                    }
+                } else {
+                    statusEl.innerHTML = `<span style="color: var(--error);">❌ ${data.error}</span>`;
+                    statusEl.style.background = '#fee2e2';
+                }
+            } catch (error) {
+                statusEl.innerHTML = '<span style="color: var(--error);">❌ Connection test failed</span>';
+                statusEl.style.background = '#fee2e2';
+            }
+        }
+        
+        async function generatePaymentSetupLink() {
+            const propertyId = document.getElementById('payment-settings-property-id').value;
+            const accountId = document.getElementById('payment-settings-account-id').value;
+            
+            try {
+                const response = await fetch('/api/payment-setup-tokens', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        account_id: parseInt(accountId),
+                        property_id: parseInt(propertyId),
+                        provider: 'stripe',
+                        expires_hours: 72
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('setup-link-url').value = data.setup_url;
+                    document.getElementById('setup-link-result').style.display = 'block';
+                    showNotification('Setup link generated!', 'success');
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error generating link', 'error');
+            }
+        }
+        
+        function copySetupLink() {
+            const input = document.getElementById('setup-link-url');
+            input.select();
+            document.execCommand('copy');
+            showNotification('Link copied to clipboard!', 'success');
         }
 
         // Load client-facing billing page
@@ -28056,7 +29198,7 @@ Local honey and preserves"></textarea>
                         <div class="connection-status-item">
                             <div class="status-dot ${conn.status}"></div>
                             <div style="flex: 1;">
-                                <strong>${conn.external_account_name || conn.adapter_name}</strong>
+                                <strong>${conn.connection_name || conn.external_account_name || conn.adapter_name}</strong>
                                 <div style="font-size: 12px; color: #6b7280;">
                                     ${conn.adapter_name} • ${conn.property_count} properties
                                 </div>
@@ -28100,7 +29242,7 @@ Local honey and preserves"></textarea>
                             <div class="connection-card-header">
                                 <div class="connection-logo">${getAdapterEmoji(conn.adapter_code)}</div>
                                 <div class="connection-info">
-                                    <h4>${conn.external_account_name || 'Unnamed'}</h4>
+                                    <h4>${conn.connection_name || conn.external_account_name || 'Unnamed'}</h4>
                                     <div class="adapter-name">${conn.adapter_name}</div>
                                 </div>
                                 <span class="connection-status-badge ${conn.status}">${conn.status}</span>
@@ -28161,7 +29303,7 @@ Local honey and preserves"></textarea>
                 if (select) {
                     const currentValue = select.value;
                     select.innerHTML = '<option value="">All Connections</option>' +
-                        gasSyncConnections.map(c => `<option value="${c.id}">${c.external_account_name || c.adapter_name}</option>`).join('');
+                        gasSyncConnections.map(c => `<option value="${c.id}">${c.connection_name || c.external_account_name || c.adapter_name}</option>`).join('');
                     select.value = currentValue;
                 }
             });
@@ -28640,13 +29782,4 @@ Local honey and preserves"></textarea>
 
         function formatDate(dateString) {
             if (!dateString) return '-';
-            return new Date(dateString).toLocaleDateString();
-        }
-
-        function formatDateTime(dateString) {
-            if (!dateString) return '-';
-            return new Date(dateString).toLocaleString();
-        }
-    </script>
-</body>
-</html>
+            retur
