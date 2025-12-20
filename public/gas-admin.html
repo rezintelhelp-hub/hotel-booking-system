@@ -28945,7 +28945,7 @@ Local honey and preserves"></textarea>
 
         async function loadConnectionStatus() {
             try {
-                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                const response = await fetch('/api/gas-sync/connections' + buildQueryString(), { headers: authHeaders() });
                 const data = await response.json();
                 
                 const container = document.getElementById('connectionStatusList');
@@ -28986,7 +28986,7 @@ Local honey and preserves"></textarea>
         // Connections
         async function loadGasSyncConnections() {
             try {
-                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                const response = await fetch('/api/gas-sync/connections' + buildQueryString(), { headers: authHeaders() });
                 const data = await response.json();
                 
                 gasSyncConnections = data.connections || [];
