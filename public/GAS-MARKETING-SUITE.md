@@ -718,22 +718,39 @@ CREATE INDEX idx_faqs_account ON faqs(account_id);
 
 ## Build Phases
 
-### Phase 1 - SEO Foundation (Free Tier) ✅ IN PROGRESS
+### Phase 1 - SEO Foundation (Free Tier) ✅ COMPLETE
 - [x] FAQs table created (Migration 004)
 - [x] FAQs API endpoints (CRUD + public + schema)
 - [x] FAQs admin UI in gas-admin.html
 - [x] FAQ Schema markup generation endpoint
-- [ ] SEO settings table (add to Migration 004)
-- [ ] Add SEO to GAS Booking plugin (wp_head hook)
-- [ ] Auto-generate meta title/description for properties
-- [ ] Add Open Graph and Twitter Card tags
-- [ ] Generate Schema.org LodgingBusiness markup
-- [ ] Inject FAQPage schema on WordPress
-- [ ] Add Google Analytics injection option
-- [ ] Create sitemap.xml endpoint
-- [ ] Create robots.txt endpoint
+- [x] SEO tab in Website Builder (GAS Admin)
+- [x] Per-page SEO fields (meta title/description for each page)
+- [x] SEO injection in GAS Booking plugin (wp_head hook)
+- [x] Page-type detection for WordPress
+- [x] Add Open Graph and Twitter Card tags
+- [x] Generate Schema.org LodgingBusiness markup
+- [x] Inject FAQPage schema on WordPress
+- [x] Google Analytics 4 injection
+- [x] Google Tag Manager injection
+- [x] Facebook Pixel injection
+- [x] Sitemap.xml endpoint
+- [x] Robots.txt endpoint
+- [x] Per-page SEO sync from GAS Admin to WordPress
 
-### Phase 2 - Content System (SEO Pro)
+**Endpoints Added:**
+- `GET /api/public/faqs/:clientId` - Public FAQs list
+- `GET /api/public/faqs/:clientId/schema` - FAQPage JSON-LD
+- `GET /api/public/client/:clientId/sitemap.xml?baseUrl=...` - Dynamic sitemap
+- `GET /api/public/client/:clientId/robots.txt?baseUrl=...` - Dynamic robots.txt
+
+**WordPress Plugin (v1.0.114):**
+- SEO tab with all settings
+- Auto-injects meta tags per page type
+- LodgingBusiness schema injection
+- FAQPage schema injection (cached 1 hour)
+- Analytics scripts injection
+
+### Phase 2 - Content System (SEO Pro) ⬜ NEXT
 - [ ] Blog posts CRUD in GAS Admin
 - [ ] Blog sync to WordPress (or use GAS Blog plugin)
 - [ ] Attractions CRUD in GAS Admin
@@ -789,57 +806,63 @@ CREATE INDEX idx_faqs_account ON faqs(account_id);
 
 ## API Endpoints
 
-### SEO
+### SEO & Sitemap (Phase 1 - Complete)
 ```
-GET  /api/admin/seo-settings?property_id=X
-PUT  /api/admin/seo-settings/:propertyId
-GET  /api/public/seo/property/:propertyId    # Returns meta + schema
-GET  /api/public/seo/room/:roomId            # Returns room SEO
-GET  /api/public/sitemap/:accountId          # Sitemap XML
+# Site Configuration (includes SEO settings)
+GET  /api/public/client/:clientId/site-config
+
+# Sitemap & Robots
+GET  /api/public/client/:clientId/sitemap.xml?baseUrl=https://example.com
+GET  /api/public/client/:clientId/robots.txt?baseUrl=https://example.com
 ```
 
-### FAQs
+### FAQs (Phase 1 - Complete)
 ```
-GET    /api/admin/faqs?property_id=X
+# Admin (authenticated)
+GET    /api/admin/faqs?account_id=X
 GET    /api/admin/faqs/:id
 POST   /api/admin/faqs
 PUT    /api/admin/faqs/:id
 DELETE /api/admin/faqs/:id
 POST   /api/admin/faqs/reorder
-GET    /api/public/faqs/:propertyId          # For website display
-GET    /api/public/faqs/:propertyId/schema   # JSON-LD FAQPage
+
+# Public
+GET    /api/public/faqs/:clientId              # For website display
+GET    /api/public/faqs/:clientId/schema       # JSON-LD FAQPage
 ```
 
-### Blogs
+### Blogs (Phase 2 - Pending)
 ```
 GET    /api/admin/blogs
 POST   /api/admin/blogs
 PUT    /api/admin/blogs/:id
 DELETE /api/admin/blogs/:id
-GET    /api/public/blogs/:accountId
-GET    /api/public/blog/:slug
+GET    /api/public/client/:clientId/blog
+GET    /api/public/client/:clientId/blog/:slug
 ```
 
-### Attractions
+### Attractions (Phase 2 - Pending)
 ```
-GET    /api/admin/attractions?property_id=X
+GET    /api/admin/attractions?account_id=X
 POST   /api/admin/attractions
 PUT    /api/admin/attractions/:id
 DELETE /api/admin/attractions/:id
-GET    /api/public/attractions/:propertyId
+GET    /api/public/client/:clientId/attractions
+GET    /api/public/client/:clientId/attractions/:slug
 ```
 
 ---
 
 ## WordPress Plugin Development Notes
 
-### Adding SEO to GAS Booking Plugin
+### GAS Booking Plugin SEO Features (v1.0.114)
 
-The SEO injection will be added to the existing GAS Booking plugin rather than creating a separate plugin. This ensures:
+The SEO injection is built into the GAS Booking plugin:
 
 1. **No extra plugin installation** - SEO comes free with booking
 2. **Unified sync mechanism** - Uses existing site-config sync
 3. **Works with any theme** - Injects via standard `wp_head()` hook
+4. **Per-page SEO** - Detects page type and uses specific meta tags
 
 #### Implementation Approach (Baby Steps)
 
