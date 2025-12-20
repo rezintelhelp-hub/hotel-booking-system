@@ -1506,7 +1506,7 @@
                         <span class="nav-icon">📅</span>
                         <span>Availability</span>
                     </a>
-                    <a class="nav-item client-connection" data-view="gas-sync-connections" href="#" onclick="navClick(this, 'gas-sync-connections'); return false;" style="display: none;">
+                    <a class="nav-item client-connection" data-view="client-connection-view" href="#" onclick="navClick(this, 'client-connection-view'); return false;" style="display: none;">
                         <span class="nav-icon">🔗</span>
                         <span>Connection</span>
                     </a>
@@ -8246,7 +8246,7 @@ Local honey and preserves"></textarea>
                             <h2>🔗 Channel Manager Connections</h2>
                             <p>Manage your channel manager integrations</p>
                         </div>
-                        <div class="header-actions">
+                        <div class="header-actions master-only" style="display: none;">
                             <button class="btn btn-primary" onclick="showAddConnectionModal()">
                                 <span>➕</span> Add Connection
                             </button>
@@ -8256,6 +8256,22 @@ Local honey and preserves"></textarea>
                 
                 <div id="connectionsGrid" class="connections-grid">
                     <p style="color: var(--text-secondary);">Loading connections...</p>
+                </div>
+            </div>
+
+            <!-- Simple Client Connection View -->
+            <div id="client-connection-view" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🔗 Connection Status</h2>
+                            <p>Your channel manager connection</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div id="clientConnectionInfo" class="card" style="max-width: 500px;">
+                    <p style="color: var(--text-secondary);">Loading...</p>
                 </div>
             </div>
 
@@ -13016,6 +13032,7 @@ Local honey and preserves"></textarea>
             // GasSync views
             if (viewName === 'gas-sync-dashboard') loadGasSyncDashboard();
             if (viewName === 'gas-sync-connections') loadGasSyncConnections();
+            if (viewName === 'client-connection-view') loadClientConnectionView();
             if (viewName === 'gas-sync-properties') { loadGasSyncConnections().then(() => loadSyncedProperties()); }
             if (viewName === 'gas-sync-logs') { loadGasSyncConnections().then(() => loadSyncLogs()); }
             
@@ -19209,7 +19226,7 @@ Local honey and preserves"></textarea>
                     modal.remove();
                 } else {
                     modal.classList.remove('active');
-                    // Don't set display:none - let CSS handle visibility via .active class
+                    modal.style.display = 'none';
                 }
             }
         }
@@ -28993,6 +29010,58 @@ Local honey and preserves"></textarea>
             }
         }
 
+        // Simple client connection view
+        async function loadClientConnectionView() {
+            const container = document.getElementById('clientConnectionInfo');
+            try {
+                const response = await fetch('/api/gas-sync/connections' + buildQueryString(), { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.connections && data.connections.length > 0) {
+                    const conn = data.connections[0];
+                    const statusColor = conn.status === 'connected' ? '#10b981' : '#ef4444';
+                    const statusText = conn.status === 'connected' ? 'Active' : 'Inactive';
+                    
+                    container.innerHTML = `
+                        <div style="padding: 1.5rem;">
+                            <div style="display: grid; gap: 1rem;">
+                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                                    <span style="color: var(--text-secondary);">Connected To</span>
+                                    <strong>${conn.adapter_name || 'Channel Manager'}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                                    <span style="color: var(--text-secondary);">Properties</span>
+                                    <strong>${conn.property_count || 0}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0; border-bottom: 1px solid var(--border-color);">
+                                    <span style="color: var(--text-secondary);">Room Types</span>
+                                    <strong>${conn.room_type_count || 0}</strong>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; padding: 0.75rem 0;">
+                                    <span style="color: var(--text-secondary);">Status</span>
+                                    <span style="display: inline-flex; align-items: center; gap: 0.5rem;">
+                                        <span style="width: 8px; height: 8px; border-radius: 50%; background: ${statusColor};"></span>
+                                        <strong>${statusText}</strong>
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="padding: 2rem; text-align: center;">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🔌</div>
+                            <h3>No Connection</h3>
+                            <p style="color: var(--text-secondary);">No channel manager connected yet.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading client connection:', error);
+                container.innerHTML = '<p style="color: var(--text-secondary); padding: 1rem;">Error loading connection info.</p>';
+            }
+        }
+
         // Connections
         async function loadGasSyncConnections() {
             try {
@@ -29002,6 +29071,9 @@ Local honey and preserves"></textarea>
                 gasSyncConnections = data.connections || [];
                 
                 const grid = document.getElementById('connectionsGrid');
+                const isMaster = currentAccount && currentAccount.role === 'master_admin';
+                const isViewingClient = selectedAccountId !== null;
+                const showControls = isMaster && !isViewingClient;
                 
                 if (gasSyncConnections.length > 0) {
                     grid.innerHTML = gasSyncConnections.map(conn => `
@@ -29035,26 +29107,40 @@ Local honey and preserves"></textarea>
                                 ${conn.last_error ? '<br><span style="color: #ef4444;">Error: ' + conn.last_error.substring(0, 50) + '...</span>' : ''}
                             </div>
                             
+                            ${showControls ? `
                             <div class="connection-actions">
                                 <button class="btn btn-secondary btn-sm" onclick="triggerSync(${conn.id})">🔄 Sync</button>
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionDetails(${conn.id})">⚙️ Details</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})">🗑️</button>
                             </div>
+                            ` : ''}
                         </div>
                     `).join('');
                 } else {
-                    grid.innerHTML = `
-                        <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
-                            <div style="font-size: 64px; margin-bottom: 20px;">🔌</div>
-                            <h3>No Channel Managers Connected</h3>
-                            <p style="color: var(--text-secondary); margin-bottom: 20px;">
-                                Connect your channel managers to sync properties, availability, and reservations
-                            </p>
-                            <button class="btn btn-primary btn-lg" onclick="showAddConnectionModal()">
-                                ➕ Add Your First Connection
-                            </button>
-                        </div>
-                    `;
+                    if (showControls) {
+                        grid.innerHTML = `
+                            <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                                <div style="font-size: 64px; margin-bottom: 20px;">🔌</div>
+                                <h3>No Channel Managers Connected</h3>
+                                <p style="color: var(--text-secondary); margin-bottom: 20px;">
+                                    Connect your channel managers to sync properties, availability, and reservations
+                                </p>
+                                <button class="btn btn-primary btn-lg" onclick="showAddConnectionModal()">
+                                    ➕ Add Your First Connection
+                                </button>
+                            </div>
+                        `;
+                    } else {
+                        grid.innerHTML = `
+                            <div style="grid-column: 1 / -1; text-align: center; padding: 60px;">
+                                <div style="font-size: 64px; margin-bottom: 20px;">🔌</div>
+                                <h3>No Connections</h3>
+                                <p style="color: var(--text-secondary);">
+                                    Contact your administrator to set up a channel manager connection.
+                                </p>
+                            </div>
+                        `;
+                    }
                 }
                 
                 populateConnectionFilters();
