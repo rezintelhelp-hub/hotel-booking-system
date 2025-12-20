@@ -1532,6 +1532,10 @@
                         <span class="nav-icon">🎁</span>
                         <span>Upsells</span>
                     </a>
+                    <a class="nav-item" data-view="vendors" href="#" onclick="navClick(this, 'vendors'); return false;">
+                        <span class="nav-icon">🤝</span>
+                        <span>Vendors</span>
+                    </a>
                     <a class="nav-item" data-view="taxes" href="#" onclick="navClick(this, 'taxes'); return false;">
                         <span class="nav-icon">🏛️</span>
                         <span>Taxes</span>
@@ -3329,6 +3333,68 @@
                             <p>Click any preset above or create a custom upsell</p>
                             <button class="btn" onclick="openAddUpsellModal()">Create Custom Upsell</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vendors View -->
+            <div id="vendors" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>External Vendors</h2>
+                            <p>Manage third-party service providers linked to your upsells and vouchers</p>
+                        </div>
+                        <button class="btn" onclick="openAddVendorModal()">
+                            <span>+</span>
+                            <span>Add Vendor</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Info Banner -->
+                <div class="card" style="background: linear-gradient(135deg, #dbeafe 0%, #e0e7ff 100%); border: 1px solid #93c5fd; margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-start;">
+                        <div style="font-size: 1.5rem;">💡</div>
+                        <div>
+                            <h4 style="margin: 0 0 0.5rem 0; color: #1e40af;">How External Vendors Work</h4>
+                            <p style="margin: 0; color: #1e3a8a; font-size: 0.9rem;">
+                                When a guest purchases an upsell or voucher linked to an external vendor (like a taxi company or tour operator), 
+                                the vendor receives an email notification. They can then log in to view booking details and confirm the service.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Vendors List -->
+                <div class="card">
+                    <div id="vendors-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">🤝</div>
+                            <h3>No Vendors Configured</h3>
+                            <p>Add external vendors like taxi companies, tour operators, or local services</p>
+                            <button class="btn" onclick="openAddVendorModal()">Add Your First Vendor</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Service Requests Section -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">📋 Service Requests</h3>
+                        <select id="service-requests-filter" class="form-input" style="width: auto;" onchange="loadServiceRequests()">
+                            <option value="">All Statuses</option>
+                            <option value="pending">Pending</option>
+                            <option value="notified">Notified</option>
+                            <option value="confirmed">Confirmed</option>
+                            <option value="completed">Completed</option>
+                            <option value="cancelled">Cancelled</option>
+                        </select>
+                    </div>
+                    <div id="service-requests-list">
+                        <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                            Service requests will appear here when guests purchase external vendor services.
+                        </p>
                     </div>
                 </div>
             </div>
@@ -10092,6 +10158,35 @@ Local honey and preserves"></textarea>
                             style="padding: 0.75rem; border-radius: 8px; width: 120px;">
                     </div>
                     
+                    <!-- Internal/External Toggle -->
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
+                            🤝 Provider Type
+                        </label>
+                        <div style="display: flex; gap: 1rem; margin-bottom: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; border-radius: 8px; border: 2px solid #e5e7eb; background: white;" id="upsell-internal-label">
+                                <input type="radio" name="upsell-provider-type" value="internal" checked onchange="toggleUpsellProviderType()">
+                                <span>🏠 Internal</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; padding: 0.5rem 1rem; border-radius: 8px; border: 2px solid #e5e7eb; background: white;" id="upsell-external-label">
+                                <input type="radio" name="upsell-provider-type" value="external" onchange="toggleUpsellProviderType()">
+                                <span>🚗 External Vendor</span>
+                            </label>
+                        </div>
+                        <div id="upsell-vendor-section" style="display: none;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Select Vendor</label>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <select id="upsell-vendor" class="form-input" style="flex: 1; padding: 0.6rem; border-radius: 8px;">
+                                    <option value="">Select a vendor...</option>
+                                </select>
+                                <button type="button" class="btn btn-secondary" onclick="openAddVendorModal()" style="white-space: nowrap;">+ New Vendor</button>
+                            </div>
+                            <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.5rem;">
+                                External vendors will be notified when this upsell is purchased.
+                            </p>
+                        </div>
+                    </div>
+                    
                     <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
                         <input type="checkbox" id="upsell-active" checked style="width: 18px; height: 18px;">
                         <span style="font-weight: 500; color: #374151;">Active</span>
@@ -10102,6 +10197,156 @@ Local honey and preserves"></textarea>
                 <button class="btn btn-secondary" onclick="closeModal('addUpsellModal')" style="border-radius: 8px;">Cancel</button>
                 <button class="btn" onclick="saveUpsell()" style="border-radius: 8px; background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
                     💾 Save Upsell
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Vendor Modal -->
+    <div id="addVendorModal" class="modal">
+        <div class="modal-content" style="max-width: 900px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="vendor-modal-title" style="margin: 0;">🤝 Add Vendor</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">External service provider for upsells and vouchers</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('addVendorModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="vendor-form">
+                    <input type="hidden" id="vendor-id">
+                    
+                    <!-- Basic Info -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                                Company Name <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="text" id="vendor-name" class="form-input" placeholder="e.g., ABC Taxis" required
+                                style="padding: 0.75rem; border-radius: 8px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                                Contact Person
+                            </label>
+                            <input type="text" id="vendor-contact" class="form-input" placeholder="e.g., John Smith"
+                                style="padding: 0.75rem; border-radius: 8px;">
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                                Notification Email <span style="color: #ef4444;">*</span>
+                            </label>
+                            <input type="email" id="vendor-email" class="form-input" placeholder="bookings@abctaxis.com" required
+                                style="padding: 0.75rem; border-radius: 8px;">
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                                Phone
+                            </label>
+                            <input type="tel" id="vendor-phone" class="form-input" placeholder="+44 123 456 7890"
+                                style="padding: 0.75rem; border-radius: 8px;">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                            Address
+                        </label>
+                        <textarea id="vendor-address" class="form-input" rows="2" placeholder="Company address"
+                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                            Internal Notes <span style="color: #9ca3af; font-weight: normal;">(only visible to you)</span>
+                        </label>
+                        <textarea id="vendor-notes" class="form-input" rows="2" placeholder="Any notes about this vendor..."
+                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
+                    </div>
+                    
+                    <!-- Vendor Portal Login -->
+                    <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #166534; margin-bottom: 0.75rem; display: block;">
+                            🔐 Vendor Portal Login
+                        </label>
+                        <p style="font-size: 0.85rem; color: #15803d; margin-bottom: 0.75rem;">
+                            Create login credentials so the vendor can view booking details and confirm services.
+                        </p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Login Email</label>
+                                <input type="email" id="vendor-login-email" class="form-input" placeholder="login@abctaxis.com"
+                                    style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Password</label>
+                                <input type="password" id="vendor-password" class="form-input" placeholder="Create password"
+                                    style="padding: 0.6rem; border-radius: 8px;">
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Data Permissions -->
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
+                            👁️ Data Visibility - What can this vendor see?
+                        </label>
+                        <p style="font-size: 0.85rem; color: #a16207; margin-bottom: 0.75rem;">
+                            Choose what booking information this vendor can access when they log in.
+                        </p>
+                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-guest-name" checked> Guest Name
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-guest-phone" checked> Guest Phone
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-guest-email"> Guest Email
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-check-in" checked> Check-in Date
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-check-out" checked> Check-out Date
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-property" checked> Property Name
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-room"> Room Name
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-guest-count" checked> Guest Count
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-requests" checked> Special Requests
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-address"> Guest Address
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; font-size: 0.85rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-total"> Booking Total
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                        <select id="vendor-status" class="form-input" style="width: auto; padding: 0.5rem;">
+                            <option value="active">Active</option>
+                            <option value="inactive">Inactive</option>
+                        </select>
+                        <span style="font-weight: 500; color: #374151;">Vendor Status</span>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f9fafb; border-radius: 0 0 16px 16px;">
+                <button class="btn btn-secondary" onclick="closeModal('addVendorModal')" style="border-radius: 8px;">Cancel</button>
+                <button class="btn" onclick="saveVendor()" style="border-radius: 8px; background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);">
+                    💾 Save Vendor
                 </button>
             </div>
         </div>
@@ -12969,6 +13214,7 @@ Local honey and preserves"></textarea>
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
             if (viewName === 'upsells') loadUpsells();
+            if (viewName === 'vendors') { loadVendors(); loadServiceRequests(); }
             if (viewName === 'fees') loadFees();
             if (viewName === 'taxes') loadTaxes();
             if (viewName === 'payments') initPaymentsView();
@@ -23580,10 +23826,13 @@ Local honey and preserves"></textarea>
             };
             
             for (const upsell of upsells) {
+                const vendorBadge = upsell.is_external ? 
+                    `<span class="badge badge-info" style="font-size: 0.7rem; margin-left: 0.5rem;">🚗 ${upsell.vendor_name || 'External'}</span>` : '';
+                    
                 html += `
                     <tr style="border-bottom: 1px solid var(--border);">
                         <td style="padding: 0.75rem;">
-                            <strong>${upsell.name}</strong>
+                            <strong>${upsell.name}</strong>${vendorBadge}
                             ${upsell.description ? `<br><small style="color: var(--text-secondary);">${upsell.description}</small>` : ''}
                         </td>
                         <td style="padding: 0.75rem; font-weight: 600; color: #059669;">$${parseFloat(upsell.price).toFixed(2)}</td>
@@ -23612,6 +23861,11 @@ Local honey and preserves"></textarea>
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
             document.getElementById('upsell-room').style.display = 'block';
             
+            // Reset provider type to internal
+            document.querySelector('input[name="upsell-provider-type"][value="internal"]').checked = true;
+            document.getElementById('upsell-vendor-section').style.display = 'none';
+            loadVendorsForUpsellModal();
+            
             // Pre-select property from page filter
             const selectedProperty = document.getElementById('upsells-property-select')?.value;
             loadUpsellPropertiesForModal().then(() => {
@@ -23621,6 +23875,46 @@ Local honey and preserves"></textarea>
                 }
             });
             openModal('addUpsellModal');
+        }
+        
+        function toggleUpsellProviderType() {
+            const isExternal = document.querySelector('input[name="upsell-provider-type"]:checked')?.value === 'external';
+            document.getElementById('upsell-vendor-section').style.display = isExternal ? 'block' : 'none';
+            
+            // Update radio button styling
+            const internalLabel = document.getElementById('upsell-internal-label');
+            const externalLabel = document.getElementById('upsell-external-label');
+            
+            if (isExternal) {
+                internalLabel.style.borderColor = '#e5e7eb';
+                internalLabel.style.background = 'white';
+                externalLabel.style.borderColor = '#6366f1';
+                externalLabel.style.background = '#eef2ff';
+            } else {
+                externalLabel.style.borderColor = '#e5e7eb';
+                externalLabel.style.background = 'white';
+                internalLabel.style.borderColor = '#10b981';
+                internalLabel.style.background = '#ecfdf5';
+            }
+        }
+        
+        async function loadVendorsForUpsellModal() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/vendors${queryString}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                const select = document.getElementById('upsell-vendor');
+                select.innerHTML = '<option value="">Select a vendor...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(v => {
+                        select.innerHTML += `<option value="${v.id}">${v.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading vendors:', error);
+            }
         }
         
         async function loadUpsellPropertiesForModal() {
@@ -23714,6 +24008,22 @@ Local honey and preserves"></textarea>
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
             document.getElementById('upsell-room').style.display = 'block';
             
+            // Set provider type and vendor
+            if (upsell.is_external) {
+                document.querySelector('input[name="upsell-provider-type"][value="external"]').checked = true;
+                document.getElementById('upsell-vendor-section').style.display = 'block';
+            } else {
+                document.querySelector('input[name="upsell-provider-type"][value="internal"]').checked = true;
+                document.getElementById('upsell-vendor-section').style.display = 'none';
+            }
+            toggleUpsellProviderType();
+            
+            // Load vendors and set selected
+            await loadVendorsForUpsellModal();
+            if (upsell.vendor_id) {
+                document.getElementById('upsell-vendor').value = upsell.vendor_id;
+            }
+            
             // Load properties first
             await loadUpsellPropertiesForModal();
             
@@ -23761,6 +24071,10 @@ Local honey and preserves"></textarea>
                 roomId = document.getElementById('upsell-room').value || null;
             }
             
+            // Get vendor info
+            const isExternal = document.querySelector('input[name="upsell-provider-type"]:checked')?.value === 'external';
+            const vendorId = isExternal ? (document.getElementById('upsell-vendor').value || null) : null;
+            
             const upsellData = {
                 name: document.getElementById('upsell-name').value,
                 description: document.getElementById('upsell-description').value,
@@ -23770,7 +24084,9 @@ Local honey and preserves"></textarea>
                 property_id: document.getElementById('upsell-property').value || null,
                 room_id: roomId,
                 room_ids: roomIds,
-                active: document.getElementById('upsell-active').checked
+                active: document.getElementById('upsell-active').checked,
+                is_external: isExternal,
+                vendor_id: vendorId
             };
             
             try {
@@ -23810,6 +24126,332 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 alert('Error deleting upsell: ' + error.message);
+            }
+        }
+
+        // =====================================================
+        // VENDORS FUNCTIONS
+        // =====================================================
+        
+        let vendorsData = [];
+        
+        async function loadVendors() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/vendors${queryString}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    vendorsData = data.data || [];
+                    renderVendors(vendorsData);
+                }
+            } catch (error) {
+                console.error('Error loading vendors:', error);
+            }
+        }
+        
+        function renderVendors(vendors) {
+            const container = document.getElementById('vendors-list');
+            if (!container) return;
+            
+            if (!vendors || vendors.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🤝</div>
+                        <h3>No Vendors Configured</h3>
+                        <p>Add external vendors like taxi companies, tour operators, or local services</p>
+                        <button class="btn" onclick="openAddVendorModal()">Add Your First Vendor</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="table-container">
+                    <table style="width: 100%; border-collapse: collapse;">
+                        <thead>
+                            <tr style="border-bottom: 1px solid var(--border);">
+                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Vendor</th>
+                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Contact</th>
+                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Linked Items</th>
+                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Pending</th>
+                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Status</th>
+                                <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${vendors.map(v => `
+                                <tr style="border-bottom: 1px solid var(--border);">
+                                    <td style="padding: 12px 8px;">
+                                        <div style="display: flex; align-items: center; gap: 12px;">
+                                            <div style="width: 40px; height: 40px; background: linear-gradient(135deg, #6366f1, #4f46e5); border-radius: 10px; display: flex; align-items: center; justify-content: center; color: white; font-weight: 600;">${v.name.charAt(0)}</div>
+                                            <div>
+                                                <strong>${v.name}</strong>
+                                                ${v.contact_name ? `<div style="font-size: 0.85rem; color: var(--text-secondary);">${v.contact_name}</div>` : ''}
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td style="padding: 12px 8px;">
+                                        <div style="font-size: 0.9rem;">${v.email}</div>
+                                        ${v.phone ? `<div style="font-size: 0.85rem; color: var(--text-secondary);">${v.phone}</div>` : ''}
+                                    </td>
+                                    <td style="padding: 12px 8px;">
+                                        ${parseInt(v.upsell_count) > 0 ? `<span class="badge badge-success">${v.upsell_count} upsell${v.upsell_count > 1 ? 's' : ''}</span>` : ''}
+                                        ${parseInt(v.voucher_count) > 0 ? `<span class="badge badge-info">${v.voucher_count} voucher${v.voucher_count > 1 ? 's' : ''}</span>` : ''}
+                                        ${parseInt(v.upsell_count) === 0 && parseInt(v.voucher_count) === 0 ? '<span style="color: var(--text-secondary);">None</span>' : ''}
+                                    </td>
+                                    <td style="padding: 12px 8px;">
+                                        ${parseInt(v.pending_requests) > 0 ? `<span class="badge badge-warning">${v.pending_requests}</span>` : '<span style="color: var(--text-secondary);">0</span>'}
+                                    </td>
+                                    <td style="padding: 12px 8px;">
+                                        <span class="badge ${v.status === 'active' ? 'badge-success' : 'badge-secondary'}">${v.status}</span>
+                                    </td>
+                                    <td style="padding: 12px 8px;">
+                                        <div style="display: flex; gap: 0.5rem;">
+                                            <button class="btn btn-secondary btn-small" onclick="editVendor(${v.id})">Edit</button>
+                                            <button class="btn btn-secondary btn-small" onclick="deleteVendor(${v.id})" style="color: #dc2626;">Delete</button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function openAddVendorModal() {
+            document.getElementById('vendor-form').reset();
+            document.getElementById('vendor-id').value = '';
+            document.getElementById('vendor-modal-title').innerHTML = '🤝 Add Vendor';
+            document.getElementById('vendor-status').value = 'active';
+            
+            // Reset permissions to defaults
+            document.getElementById('perm-guest-name').checked = true;
+            document.getElementById('perm-guest-phone').checked = true;
+            document.getElementById('perm-guest-email').checked = false;
+            document.getElementById('perm-check-in').checked = true;
+            document.getElementById('perm-check-out').checked = true;
+            document.getElementById('perm-property').checked = true;
+            document.getElementById('perm-room').checked = false;
+            document.getElementById('perm-guest-count').checked = true;
+            document.getElementById('perm-requests').checked = true;
+            document.getElementById('perm-address').checked = false;
+            document.getElementById('perm-total').checked = false;
+            
+            openModal('addVendorModal');
+        }
+        
+        async function editVendor(id) {
+            try {
+                const response = await fetch(`/api/admin/vendors/${id}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.data) {
+                    const v = data.data;
+                    document.getElementById('vendor-id').value = v.id;
+                    document.getElementById('vendor-modal-title').innerHTML = '🤝 Edit Vendor';
+                    document.getElementById('vendor-name').value = v.name || '';
+                    document.getElementById('vendor-contact').value = v.contact_name || '';
+                    document.getElementById('vendor-email').value = v.email || '';
+                    document.getElementById('vendor-phone').value = v.phone || '';
+                    document.getElementById('vendor-address').value = v.address || '';
+                    document.getElementById('vendor-notes').value = v.notes || '';
+                    document.getElementById('vendor-login-email').value = v.login_email || '';
+                    document.getElementById('vendor-password').value = '';
+                    document.getElementById('vendor-status').value = v.status || 'active';
+                    
+                    // Set permissions
+                    if (v.permissions) {
+                        document.getElementById('perm-guest-name').checked = v.permissions.can_see_guest_name !== false;
+                        document.getElementById('perm-guest-phone').checked = v.permissions.can_see_guest_phone !== false;
+                        document.getElementById('perm-guest-email').checked = v.permissions.can_see_guest_email || false;
+                        document.getElementById('perm-check-in').checked = v.permissions.can_see_check_in_date !== false;
+                        document.getElementById('perm-check-out').checked = v.permissions.can_see_check_out_date !== false;
+                        document.getElementById('perm-property').checked = v.permissions.can_see_property_name !== false;
+                        document.getElementById('perm-room').checked = v.permissions.can_see_room_name || false;
+                        document.getElementById('perm-guest-count').checked = v.permissions.can_see_guest_count !== false;
+                        document.getElementById('perm-requests').checked = v.permissions.can_see_special_requests !== false;
+                        document.getElementById('perm-address').checked = v.permissions.can_see_guest_address || false;
+                        document.getElementById('perm-total').checked = v.permissions.can_see_booking_total || false;
+                    }
+                    
+                    openModal('addVendorModal');
+                }
+            } catch (error) {
+                alert('Error loading vendor: ' + error.message);
+            }
+        }
+        
+        async function saveVendor() {
+            const id = document.getElementById('vendor-id').value;
+            
+            const vendorData = {
+                account_id: currentAccount?.id || viewingAccountId || 1,
+                name: document.getElementById('vendor-name').value,
+                contact_name: document.getElementById('vendor-contact').value,
+                email: document.getElementById('vendor-email').value,
+                phone: document.getElementById('vendor-phone').value,
+                address: document.getElementById('vendor-address').value,
+                notes: document.getElementById('vendor-notes').value,
+                login_email: document.getElementById('vendor-login-email').value || null,
+                password: document.getElementById('vendor-password').value || null,
+                status: document.getElementById('vendor-status').value,
+                permissions: {
+                    can_see_guest_name: document.getElementById('perm-guest-name').checked,
+                    can_see_guest_phone: document.getElementById('perm-guest-phone').checked,
+                    can_see_guest_email: document.getElementById('perm-guest-email').checked,
+                    can_see_check_in_date: document.getElementById('perm-check-in').checked,
+                    can_see_check_out_date: document.getElementById('perm-check-out').checked,
+                    can_see_property_name: document.getElementById('perm-property').checked,
+                    can_see_room_name: document.getElementById('perm-room').checked,
+                    can_see_guest_count: document.getElementById('perm-guest-count').checked,
+                    can_see_special_requests: document.getElementById('perm-requests').checked,
+                    can_see_guest_address: document.getElementById('perm-address').checked,
+                    can_see_booking_total: document.getElementById('perm-total').checked
+                }
+            };
+            
+            try {
+                const url = id ? `/api/admin/vendors/${id}` : '/api/admin/vendors';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(vendorData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeModal('addVendorModal');
+                    loadVendors();
+                    // Also refresh vendor dropdown in upsell modal if it's open
+                    loadVendorsForUpsellModal();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error saving vendor: ' + error.message);
+            }
+        }
+        
+        async function deleteVendor(id) {
+            if (!confirm('Delete this vendor? Any linked upsells/vouchers will be converted to internal.')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/vendors/${id}`, { method: 'DELETE', headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadVendors();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error deleting vendor: ' + error.message);
+            }
+        }
+        
+        async function loadServiceRequests() {
+            const status = document.getElementById('service-requests-filter')?.value;
+            const container = document.getElementById('service-requests-list');
+            if (!container) return;
+            
+            try {
+                const queryString = buildQueryString();
+                let url = `/api/admin/service-requests${queryString}`;
+                if (status) {
+                    url += (queryString ? '&' : '?') + `status=${status}`;
+                }
+                
+                const response = await fetch(url, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.data && data.data.length > 0) {
+                    container.innerHTML = `
+                        <div class="table-container">
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--border);">
+                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Service</th>
+                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Vendor</th>
+                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Guest</th>
+                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Dates</th>
+                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Status</th>
+                                        <th style="text-align: left; padding: 12px 8px; font-weight: 500; color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase;">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.data.map(r => `
+                                        <tr style="border-bottom: 1px solid var(--border);">
+                                            <td style="padding: 12px 8px;">
+                                                <strong>${r.service_name}</strong>
+                                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Qty: ${r.quantity} | £${parseFloat(r.total_price || 0).toFixed(2)}</div>
+                                            </td>
+                                            <td style="padding: 12px 8px;">${r.vendor_name || '-'}</td>
+                                            <td style="padding: 12px 8px;">${r.guest_name || '-'}</td>
+                                            <td style="padding: 12px 8px;">
+                                                ${r.check_in ? new Date(r.check_in).toLocaleDateString() : '-'}
+                                                ${r.check_out ? ` - ${new Date(r.check_out).toLocaleDateString()}` : ''}
+                                            </td>
+                                            <td style="padding: 12px 8px;">
+                                                <span class="badge ${getServiceStatusBadgeClass(r.status)}">${r.status}</span>
+                                            </td>
+                                            <td style="padding: 12px 8px;">
+                                                <select onchange="updateServiceRequestStatus(${r.id}, this.value)" class="form-input" style="padding: 0.25rem; font-size: 0.85rem; width: auto;">
+                                                    <option value="pending" ${r.status === 'pending' ? 'selected' : ''}>Pending</option>
+                                                    <option value="notified" ${r.status === 'notified' ? 'selected' : ''}>Notified</option>
+                                                    <option value="confirmed" ${r.status === 'confirmed' ? 'selected' : ''}>Confirmed</option>
+                                                    <option value="completed" ${r.status === 'completed' ? 'selected' : ''}>Completed</option>
+                                                    <option value="cancelled" ${r.status === 'cancelled' ? 'selected' : ''}>Cancelled</option>
+                                                </select>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">
+                            No service requests found.
+                        </p>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading service requests:', error);
+            }
+        }
+        
+        function getServiceStatusBadgeClass(status) {
+            switch(status) {
+                case 'pending': return 'badge-warning';
+                case 'notified': return 'badge-info';
+                case 'confirmed': return 'badge-success';
+                case 'completed': return 'badge-success';
+                case 'cancelled': return 'badge-secondary';
+                default: return 'badge-secondary';
+            }
+        }
+        
+        async function updateServiceRequestStatus(id, status) {
+            try {
+                const response = await fetch(`/api/admin/service-requests/${id}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status })
+                });
+                
+                const data = await response.json();
+                if (!data.success) {
+                    alert('Error: ' + data.error);
+                    loadServiceRequests();
+                }
+            } catch (error) {
+                alert('Error updating status: ' + error.message);
             }
         }
 
