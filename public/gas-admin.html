@@ -693,6 +693,12 @@
             background: var(--bg-primary);
             color: var(--text-primary);
         }
+        
+        /* White close button on dark headers */
+        .modal-close[style*="color: white"]:hover {
+            background: rgba(255,255,255,0.2);
+            color: white;
+        }
 
         /* Template Selection */
         .template-option {
@@ -8502,7 +8508,7 @@ Local honey and preserves"></textarea>
         <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
-                <button class="close-btn" onclick="closeModal('connectionDetailsModal')" style="color: white;">&times;</button>
+                <button class="modal-close" onclick="closeModal('connectionDetailsModal')" style="color: white; font-size: 1.5rem;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 0;">
                 <div class="gas-sync-tabs">
@@ -24431,7 +24437,7 @@ Local honey and preserves"></textarea>
                         <div class="modal-content" style="max-width: 600px;">
                             <div class="modal-header">
                                 <h3>Payment Details</h3>
-                                <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
+                                <button class="modal-close" onclick="this.closest('.modal').remove()">×</button>
                             </div>
                             <div class="modal-body">
                                 ${html}
