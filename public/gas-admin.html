@@ -14696,18 +14696,15 @@ Local honey and preserves"></textarea>
                                             const hasAccountStripe = !!account.stripe_account_id;
                                             
                                             if (hasAccountStripe) {
-                                                return `<div style="display: flex; align-items: center; gap: 0.5rem;">
-                                                    <span class="badge badge-success">✓ Connected</span>
-                                                    <button class="btn btn-secondary btn-small" onclick="disconnectStripe(${account.id}, '${account.name}')" style="font-size: 0.7rem; padding: 0.15rem 0.4rem; color: #dc2626;">Disconnect</button>
-                                                </div>`;
+                                                return `<span class="badge badge-success">✓ Connected</span>`;
                                             } else if (stripePropsCount > 0 && stripePropsCount >= propCount && propCount > 0) {
-                                                return `<span class="badge badge-success" style="cursor: default;">✓ ${stripePropsCount}/${propCount} Properties</span>`;
+                                                return `<span class="badge badge-success">✓ ${stripePropsCount}/${propCount} Properties</span>`;
                                             } else if (stripePropsCount > 0) {
-                                                return `<span class="badge badge-warning" style="cursor: default;">⚡ ${stripePropsCount}/${propCount} Properties</span>`;
+                                                return `<span class="badge badge-warning">⚡ ${stripePropsCount}/${propCount} Properties</span>`;
                                             } else if (propCount === 0) {
                                                 return `<span style="color: var(--text-muted); font-size: 0.85rem;">No properties</span>`;
                                             } else {
-                                                return `<button class="btn btn-secondary btn-small" onclick="connectStripeForAccount(${account.id})" style="font-size: 0.75rem; padding: 0.2rem 0.5rem;">Connect</button>`;
+                                                return `<span style="color: var(--text-muted); font-size: 0.85rem;">Not connected</span>`;
                                             }
                                         })()}
                                     </td>
