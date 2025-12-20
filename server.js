@@ -16607,6 +16607,189 @@ app.put('/api/vendor/requests/:id/status', async (req, res) => {
 });
 
 // =====================================================
+// FAQS API - SEO Foundation
+// =====================================================
+
+// Get FAQs for property or account
+app.get('/api/admin/faqs', async (req, res) => {
+  try {
+    const { account_id, property_id } = req.query;
+    
+    let query = 'SELECT * FROM faqs WHERE 1=1';
+    const params = [];
+    
+    if (property_id) {
+      params.push(property_id);
+      query += ` AND property_id = $${params.length}`;
+    } else if (account_id) {
+      params.push(account_id);
+      query += ` AND account_id = $${params.length}`;
+    }
+    
+    query += ' ORDER BY display_order ASC, id ASC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single FAQ
+app.get('/api/admin/faqs/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM faqs WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'FAQ not found' });
+    }
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create FAQ
+app.post('/api/admin/faqs', async (req, res) => {
+  try {
+    const { account_id, property_id, question, answer, category, display_order, show_on_website, include_in_schema, active } = req.body;
+    
+    if (!question || !answer) {
+      return res.json({ success: false, error: 'Question and answer are required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO faqs (account_id, property_id, question, answer, category, display_order, show_on_website, include_in_schema, active)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [
+      account_id || null,
+      property_id || null,
+      question,
+      answer,
+      category || null,
+      display_order || 0,
+      show_on_website !== false,
+      include_in_schema !== false,
+      active !== false
+    ]);
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update FAQ
+app.put('/api/admin/faqs/:id', async (req, res) => {
+  try {
+    const { question, answer, category, display_order, show_on_website, include_in_schema, active } = req.body;
+    
+    const result = await pool.query(`
+      UPDATE faqs SET
+        question = COALESCE($1, question),
+        answer = COALESCE($2, answer),
+        category = $3,
+        display_order = COALESCE($4, display_order),
+        show_on_website = COALESCE($5, show_on_website),
+        include_in_schema = COALESCE($6, include_in_schema),
+        active = COALESCE($7, active),
+        updated_at = NOW()
+      WHERE id = $8
+      RETURNING *
+    `, [question, answer, category, display_order, show_on_website, include_in_schema, active, req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'FAQ not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete FAQ
+app.delete('/api/admin/faqs/:id', async (req, res) => {
+  try {
+    const result = await pool.query('DELETE FROM faqs WHERE id = $1 RETURNING id', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'FAQ not found' });
+    }
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Reorder FAQs
+app.post('/api/admin/faqs/reorder', async (req, res) => {
+  try {
+    const { order } = req.body; // Array of { id, display_order }
+    
+    if (!order || !Array.isArray(order)) {
+      return res.json({ success: false, error: 'Order array required' });
+    }
+    
+    for (const item of order) {
+      await pool.query('UPDATE faqs SET display_order = $1 WHERE id = $2', [item.display_order, item.id]);
+    }
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Public endpoint - Get FAQs for property (for website display)
+app.get('/api/public/faqs/:propertyId', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT id, question, answer, category 
+      FROM faqs 
+      WHERE property_id = $1 AND active = true AND show_on_website = true
+      ORDER BY display_order ASC, id ASC
+    `, [req.params.propertyId]);
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Public endpoint - Get FAQ Schema JSON-LD for property
+app.get('/api/public/faqs/:propertyId/schema', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT question, answer 
+      FROM faqs 
+      WHERE property_id = $1 AND active = true AND include_in_schema = true
+      ORDER BY display_order ASC, id ASC
+    `, [req.params.propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, data: null });
+    }
+    
+    const schema = {
+      "@context": "https://schema.org",
+      "@type": "FAQPage",
+      "mainEntity": result.rows.map(faq => ({
+        "@type": "Question",
+        "name": faq.question,
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": faq.answer
+        }
+      }))
+    };
+    
+    res.json({ success: true, data: schema });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // FEES API
 // =====================================================
 
@@ -20013,6 +20196,87 @@ app.post('/api/admin/migrate-003-vendor-system', async (req, res) => {
       success: true,
       message: 'Vendor system created successfully',
       tables: ['vendors', 'vendor_permissions', 'service_requests', 'vendor_notifications']
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Migration 004: SEO Foundation - FAQs and SEO Settings
+app.post('/api/admin/migrate-004-seo-foundation', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🔄 Running Migration 004: SEO Foundation...');
+    
+    // 1. Create FAQs table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS faqs (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER,
+        property_id INTEGER,
+        
+        question TEXT NOT NULL,
+        answer TEXT NOT NULL,
+        
+        category VARCHAR(100),
+        display_order INTEGER DEFAULT 0,
+        
+        show_on_website BOOLEAN DEFAULT true,
+        include_in_schema BOOLEAN DEFAULT true,
+        
+        active BOOLEAN DEFAULT true,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created faqs table');
+    
+    await client.query('CREATE INDEX IF NOT EXISTS idx_faqs_property ON faqs(property_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_faqs_account ON faqs(account_id)');
+    
+    // 2. Create SEO Settings table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS seo_settings (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER,
+        property_id INTEGER,
+        
+        custom_title VARCHAR(70),
+        custom_description VARCHAR(170),
+        keywords TEXT[],
+        
+        google_search_console_site VARCHAR(255),
+        google_analytics_id VARCHAR(50),
+        google_tag_manager_id VARCHAR(50),
+        facebook_pixel_id VARCHAR(50),
+        
+        auto_generate_meta BOOLEAN DEFAULT true,
+        include_schema_markup BOOLEAN DEFAULT true,
+        
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        
+        UNIQUE(property_id)
+      )
+    `);
+    console.log('   ✓ Created seo_settings table');
+    
+    await client.query('CREATE INDEX IF NOT EXISTS idx_seo_settings_property ON seo_settings(property_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_seo_settings_account ON seo_settings(account_id)');
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'SEO Foundation created successfully',
+      tables: ['faqs', 'seo_settings']
     });
     
   } catch (error) {
