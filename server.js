@@ -15856,21 +15856,25 @@ app.get('/api/admin/vouchers', async (req, res) => {
     if (propertyId) {
       // Filter by specific property
       result = await pool.query(`
-        SELECT v.* FROM vouchers v
+        SELECT v.*, vnd.name as vendor_name FROM vouchers v
+        LEFT JOIN vendors vnd ON v.vendor_id = vnd.id
         WHERE v.property_id = $1
         ORDER BY v.created_at DESC
       `, [propertyId]);
     } else if (accountId) {
       // Filter by account - only vouchers linked to properties owned by this account
       result = await pool.query(`
-        SELECT v.* FROM vouchers v
+        SELECT v.*, vnd.name as vendor_name FROM vouchers v
         LEFT JOIN properties p ON v.property_id = p.id
+        LEFT JOIN vendors vnd ON v.vendor_id = vnd.id
         WHERE p.account_id = $1
         ORDER BY v.created_at DESC
       `, [accountId]);
     } else {
       result = await pool.query(`
-        SELECT * FROM vouchers ORDER BY created_at DESC
+        SELECT v.*, vnd.name as vendor_name FROM vouchers v
+        LEFT JOIN vendors vnd ON v.vendor_id = vnd.id
+        ORDER BY v.created_at DESC
       `);
     }
     res.json({ success: true, data: result.rows });
@@ -15882,7 +15886,11 @@ app.get('/api/admin/vouchers', async (req, res) => {
 // Get single voucher
 app.get('/api/admin/vouchers/:id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM vouchers WHERE id = $1', [req.params.id]);
+    const result = await pool.query(`
+      SELECT v.*, vnd.name as vendor_name FROM vouchers v
+      LEFT JOIN vendors vnd ON v.vendor_id = vnd.id
+      WHERE v.id = $1
+    `, [req.params.id]);
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -15897,7 +15905,8 @@ app.post('/api/admin/vouchers', async (req, res) => {
       discount_type, discount_value, applies_to,
       min_nights, min_total, max_uses, single_use_per_guest,
       property_ids, room_ids,
-      valid_from, valid_until, active
+      valid_from, valid_until, active,
+      is_external, vendor_id
     } = req.body;
     
     const result = await pool.query(`
@@ -15906,15 +15915,17 @@ app.post('/api/admin/vouchers', async (req, res) => {
         discount_type, discount_value, applies_to,
         min_nights, min_total, max_uses, single_use_per_guest,
         property_ids, room_ids,
-        valid_from, valid_until, active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        valid_from, valid_until, active,
+        is_external, vendor_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `, [
       code.toUpperCase(), name, description,
       discount_type || 'percentage', discount_value, applies_to || 'total',
       min_nights || 1, min_total || null, max_uses || null, single_use_per_guest || false,
       property_ids || null, room_ids || null,
-      valid_from || null, valid_until || null, active !== false
+      valid_from || null, valid_until || null, active !== false,
+      is_external || false, vendor_id || null
     ]);
     
     res.json({ success: true, data: result.rows[0] });
@@ -15935,7 +15946,8 @@ app.put('/api/admin/vouchers/:id', async (req, res) => {
       discount_type, discount_value, applies_to,
       min_nights, min_total, max_uses, single_use_per_guest,
       property_ids, room_ids,
-      valid_from, valid_until, active
+      valid_from, valid_until, active,
+      is_external, vendor_id
     } = req.body;
     
     const result = await pool.query(`
@@ -15944,15 +15956,19 @@ app.put('/api/admin/vouchers/:id', async (req, res) => {
         discount_type = $4, discount_value = $5, applies_to = $6,
         min_nights = $7, min_total = $8, max_uses = $9, single_use_per_guest = $10,
         property_ids = $11, room_ids = $12,
-        valid_from = $13, valid_until = $14, active = $15, updated_at = NOW()
-      WHERE id = $16
+        valid_from = $13, valid_until = $14, active = $15,
+        is_external = $16, vendor_id = $17,
+        updated_at = NOW()
+      WHERE id = $18
       RETURNING *
     `, [
       code.toUpperCase(), name, description,
       discount_type, discount_value, applies_to,
       min_nights, min_total || null, max_uses || null, single_use_per_guest,
       property_ids || null, room_ids || null,
-      valid_from || null, valid_until || null, active, req.params.id
+      valid_from || null, valid_until || null, active,
+      is_external || false, vendor_id || null,
+      req.params.id
     ]);
     
     res.json({ success: true, data: result.rows[0] });
@@ -15987,10 +16003,12 @@ app.get('/api/admin/upsells', async (req, res) => {
       result = await pool.query(`
         SELECT u.*, 
                p.name as property_name,
-               r.name as room_name
+               r.name as room_name,
+               v.name as vendor_name
         FROM upsells u
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
+        LEFT JOIN vendors v ON u.vendor_id = v.id
         WHERE u.property_id = $1
         ORDER BY u.name
       `, [propertyId]);
@@ -15998,10 +16016,12 @@ app.get('/api/admin/upsells', async (req, res) => {
       result = await pool.query(`
         SELECT u.*, 
                p.name as property_name,
-               r.name as room_name
+               r.name as room_name,
+               v.name as vendor_name
         FROM upsells u
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
+        LEFT JOIN vendors v ON u.vendor_id = v.id
         WHERE p.account_id = $1 OR u.property_id IS NULL
         ORDER BY u.name
       `, [accountId]);
@@ -16009,10 +16029,12 @@ app.get('/api/admin/upsells', async (req, res) => {
       result = await pool.query(`
         SELECT u.*, 
                p.name as property_name,
-               r.name as room_name
+               r.name as room_name,
+               v.name as vendor_name
         FROM upsells u
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
+        LEFT JOIN vendors v ON u.vendor_id = v.id
         ORDER BY u.name
       `);
     }
@@ -16024,13 +16046,13 @@ app.get('/api/admin/upsells', async (req, res) => {
 
 app.post('/api/admin/upsells', async (req, res) => {
   try {
-    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active } = req.body;
+    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
     
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO upsells (name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [name, description, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false]);
+    `, [name, description, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, is_external || false, vendor_id || null]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -16040,7 +16062,7 @@ app.post('/api/admin/upsells', async (req, res) => {
 
 app.put('/api/admin/upsells/:id', async (req, res) => {
   try {
-    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active } = req.body;
+    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
     
     const result = await pool.query(`
       UPDATE upsells SET
@@ -16053,10 +16075,12 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         room_id = $7,
         room_ids = $8,
         active = COALESCE($9, active),
+        is_external = COALESCE($10, is_external),
+        vendor_id = $11,
         updated_at = NOW()
-      WHERE id = $10
+      WHERE id = $12
       RETURNING *
-    `, [name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, req.params.id]);
+    `, [name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -16068,6 +16092,325 @@ app.delete('/api/admin/upsells/:id', async (req, res) => {
   try {
     await pool.query('DELETE FROM upsells WHERE id = $1', [req.params.id]);
     res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// VENDORS API - External vendor management
+// =====================================================
+
+// Get all vendors for an account
+app.get('/api/admin/vendors', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    let result;
+    
+    if (accountId) {
+      result = await pool.query(`
+        SELECT v.*, 
+               (SELECT COUNT(*) FROM upsells WHERE vendor_id = v.id) as upsell_count,
+               (SELECT COUNT(*) FROM vouchers WHERE vendor_id = v.id) as voucher_count,
+               (SELECT COUNT(*) FROM service_requests WHERE vendor_id = v.id AND status = 'pending') as pending_requests
+        FROM vendors v
+        WHERE v.account_id = $1
+        ORDER BY v.name
+      `, [accountId]);
+    } else {
+      result = await pool.query(`
+        SELECT v.*, 
+               a.name as account_name,
+               (SELECT COUNT(*) FROM upsells WHERE vendor_id = v.id) as upsell_count,
+               (SELECT COUNT(*) FROM vouchers WHERE vendor_id = v.id) as voucher_count,
+               (SELECT COUNT(*) FROM service_requests WHERE vendor_id = v.id AND status = 'pending') as pending_requests
+        FROM vendors v
+        LEFT JOIN accounts a ON v.account_id = a.id
+        ORDER BY v.name
+      `);
+    }
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single vendor with permissions
+app.get('/api/admin/vendors/:id', async (req, res) => {
+  try {
+    const vendorResult = await pool.query('SELECT * FROM vendors WHERE id = $1', [req.params.id]);
+    if (vendorResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Vendor not found' });
+    }
+    
+    const permResult = await pool.query('SELECT * FROM vendor_permissions WHERE vendor_id = $1', [req.params.id]);
+    
+    res.json({ 
+      success: true, 
+      data: {
+        ...vendorResult.rows[0],
+        permissions: permResult.rows[0] || null
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create vendor
+app.post('/api/admin/vendors', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const { account_id, name, contact_name, email, phone, address, notes, login_email, password, permissions } = req.body;
+    
+    // Hash password if provided
+    let passwordHash = null;
+    if (password) {
+      const bcrypt = require('bcrypt');
+      passwordHash = await bcrypt.hash(password, 10);
+    }
+    
+    // Create vendor
+    const vendorResult = await client.query(`
+      INSERT INTO vendors (account_id, name, contact_name, email, phone, address, notes, login_email, password_hash)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      RETURNING *
+    `, [account_id, name, contact_name, email, phone, address, notes, login_email, passwordHash]);
+    
+    const vendor = vendorResult.rows[0];
+    
+    // Create default permissions (or custom if provided)
+    const perms = permissions || {};
+    await client.query(`
+      INSERT INTO vendor_permissions (
+        vendor_id, can_see_guest_name, can_see_guest_email, can_see_guest_phone,
+        can_see_check_in_date, can_see_check_out_date, can_see_property_name,
+        can_see_room_name, can_see_booking_total, can_see_guest_count,
+        can_see_special_requests, can_see_guest_address
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    `, [
+      vendor.id,
+      perms.can_see_guest_name !== false,
+      perms.can_see_guest_email || false,
+      perms.can_see_guest_phone !== false,
+      perms.can_see_check_in_date !== false,
+      perms.can_see_check_out_date !== false,
+      perms.can_see_property_name !== false,
+      perms.can_see_room_name || false,
+      perms.can_see_booking_total || false,
+      perms.can_see_guest_count !== false,
+      perms.can_see_special_requests !== false,
+      perms.can_see_guest_address || false
+    ]);
+    
+    await client.query('COMMIT');
+    res.json({ success: true, data: vendor });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Update vendor
+app.put('/api/admin/vendors/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    const { name, contact_name, email, phone, address, notes, login_email, password, status, permissions } = req.body;
+    
+    // Update password if provided
+    let passwordUpdate = '';
+    let params = [name, contact_name, email, phone, address, notes, login_email, status || 'active', req.params.id];
+    
+    if (password) {
+      const bcrypt = require('bcrypt');
+      const passwordHash = await bcrypt.hash(password, 10);
+      passwordUpdate = ', password_hash = $10';
+      params.push(passwordHash);
+    }
+    
+    await client.query(`
+      UPDATE vendors SET
+        name = $1, contact_name = $2, email = $3, phone = $4,
+        address = $5, notes = $6, login_email = $7, status = $8,
+        updated_at = NOW()
+        ${passwordUpdate}
+      WHERE id = $9
+    `, params);
+    
+    // Update permissions if provided
+    if (permissions) {
+      await client.query(`
+        INSERT INTO vendor_permissions (
+          vendor_id, can_see_guest_name, can_see_guest_email, can_see_guest_phone,
+          can_see_check_in_date, can_see_check_out_date, can_see_property_name,
+          can_see_room_name, can_see_booking_total, can_see_guest_count,
+          can_see_special_requests, can_see_guest_address
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (vendor_id) DO UPDATE SET
+          can_see_guest_name = $2, can_see_guest_email = $3, can_see_guest_phone = $4,
+          can_see_check_in_date = $5, can_see_check_out_date = $6, can_see_property_name = $7,
+          can_see_room_name = $8, can_see_booking_total = $9, can_see_guest_count = $10,
+          can_see_special_requests = $11, can_see_guest_address = $12,
+          updated_at = NOW()
+      `, [
+        req.params.id,
+        permissions.can_see_guest_name !== false,
+        permissions.can_see_guest_email || false,
+        permissions.can_see_guest_phone !== false,
+        permissions.can_see_check_in_date !== false,
+        permissions.can_see_check_out_date !== false,
+        permissions.can_see_property_name !== false,
+        permissions.can_see_room_name || false,
+        permissions.can_see_booking_total || false,
+        permissions.can_see_guest_count !== false,
+        permissions.can_see_special_requests !== false,
+        permissions.can_see_guest_address || false
+      ]);
+    }
+    
+    await client.query('COMMIT');
+    
+    const result = await pool.query('SELECT * FROM vendors WHERE id = $1', [req.params.id]);
+    res.json({ success: true, data: result.rows[0] });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Delete vendor
+app.delete('/api/admin/vendors/:id', async (req, res) => {
+  try {
+    // First unlink from upsells/vouchers
+    await pool.query('UPDATE upsells SET vendor_id = NULL, is_external = false WHERE vendor_id = $1', [req.params.id]);
+    await pool.query('UPDATE vouchers SET vendor_id = NULL, is_external = false WHERE vendor_id = $1', [req.params.id]);
+    
+    await pool.query('DELETE FROM vendors WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get service requests for a vendor
+app.get('/api/admin/vendors/:id/requests', async (req, res) => {
+  try {
+    const { status } = req.query;
+    let query = `
+      SELECT sr.*, b.guest_name, b.check_in, b.check_out, p.name as property_name
+      FROM service_requests sr
+      LEFT JOIN bookings b ON sr.booking_id = b.id
+      LEFT JOIN properties p ON b.property_id = p.id
+      WHERE sr.vendor_id = $1
+    `;
+    const params = [req.params.id];
+    
+    if (status) {
+      query += ' AND sr.status = $2';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY sr.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get all service requests (for property owner dashboard)
+app.get('/api/admin/service-requests', async (req, res) => {
+  try {
+    const { account_id, status, vendor_id } = req.query;
+    
+    let query = `
+      SELECT sr.*, 
+             v.name as vendor_name, v.email as vendor_email,
+             b.guest_name, b.check_in, b.check_out,
+             p.name as property_name
+      FROM service_requests sr
+      LEFT JOIN vendors v ON sr.vendor_id = v.id
+      LEFT JOIN bookings b ON sr.booking_id = b.id
+      LEFT JOIN properties p ON b.property_id = p.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 0;
+    
+    if (account_id) {
+      paramCount++;
+      query += ` AND v.account_id = $${paramCount}`;
+      params.push(account_id);
+    }
+    
+    if (status) {
+      paramCount++;
+      query += ` AND sr.status = $${paramCount}`;
+      params.push(status);
+    }
+    
+    if (vendor_id) {
+      paramCount++;
+      query += ` AND sr.vendor_id = $${paramCount}`;
+      params.push(vendor_id);
+    }
+    
+    query += ' ORDER BY sr.created_at DESC LIMIT 100';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update service request status
+app.put('/api/admin/service-requests/:id/status', async (req, res) => {
+  try {
+    const { status, vendor_notes, cancellation_reason } = req.body;
+    
+    let updateFields = ['status = $1', 'updated_at = NOW()'];
+    let params = [status, req.params.id];
+    let paramCount = 2;
+    
+    // Set timestamp based on status
+    if (status === 'confirmed') {
+      updateFields.push('confirmed_at = NOW()');
+    } else if (status === 'completed') {
+      updateFields.push('completed_at = NOW()');
+    } else if (status === 'cancelled') {
+      updateFields.push('cancelled_at = NOW()');
+      if (cancellation_reason) {
+        paramCount++;
+        updateFields.push(`cancellation_reason = $${paramCount}`);
+        params.splice(paramCount - 1, 0, cancellation_reason);
+      }
+    }
+    
+    if (vendor_notes) {
+      paramCount++;
+      updateFields.push(`vendor_notes = $${paramCount}`);
+      params.splice(paramCount - 1, 0, vendor_notes);
+    }
+    
+    const result = await pool.query(`
+      UPDATE service_requests SET ${updateFields.join(', ')}
+      WHERE id = $2
+      RETURNING *
+    `, params);
+    
+    res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -19347,6 +19690,139 @@ app.post('/api/admin/migrate-002-image-management', async (req, res) => {
       success: true,
       message: 'Image management system created successfully',
       tables: ['property_images', 'room_images']
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Migration error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Migration 003: External Vendor System
+app.post('/api/admin/migrate-003-vendor-system', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    
+    console.log('🔄 Running Migration 003: External Vendor System...');
+    
+    // 1. Create vendors table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS vendors (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        contact_name VARCHAR(255),
+        email VARCHAR(255) NOT NULL,
+        phone VARCHAR(50),
+        address TEXT,
+        notes TEXT,
+        login_email VARCHAR(255) UNIQUE,
+        password_hash VARCHAR(255),
+        status VARCHAR(20) DEFAULT 'active',
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created vendors table');
+    
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vendors_account ON vendors(account_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vendors_email ON vendors(login_email)');
+    
+    // 2. Create vendor_permissions table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS vendor_permissions (
+        id SERIAL PRIMARY KEY,
+        vendor_id INTEGER REFERENCES vendors(id) ON DELETE CASCADE,
+        can_see_guest_name BOOLEAN DEFAULT true,
+        can_see_guest_email BOOLEAN DEFAULT false,
+        can_see_guest_phone BOOLEAN DEFAULT true,
+        can_see_check_in_date BOOLEAN DEFAULT true,
+        can_see_check_out_date BOOLEAN DEFAULT true,
+        can_see_property_name BOOLEAN DEFAULT true,
+        can_see_room_name BOOLEAN DEFAULT false,
+        can_see_booking_total BOOLEAN DEFAULT false,
+        can_see_guest_count BOOLEAN DEFAULT true,
+        can_see_special_requests BOOLEAN DEFAULT true,
+        can_see_guest_address BOOLEAN DEFAULT false,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(vendor_id)
+      )
+    `);
+    console.log('   ✓ Created vendor_permissions table');
+    
+    // 3. Create service_requests table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS service_requests (
+        id SERIAL PRIMARY KEY,
+        booking_id INTEGER NOT NULL,
+        vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL,
+        source_type VARCHAR(20) NOT NULL,
+        source_id INTEGER NOT NULL,
+        service_name VARCHAR(255) NOT NULL,
+        quantity INTEGER DEFAULT 1,
+        unit_price DECIMAL(10,2),
+        total_price DECIMAL(10,2),
+        service_date DATE,
+        service_time TIME,
+        service_notes TEXT,
+        status VARCHAR(30) DEFAULT 'pending',
+        notified_at TIMESTAMP,
+        viewed_at TIMESTAMP,
+        confirmed_at TIMESTAMP,
+        completed_at TIMESTAMP,
+        cancelled_at TIMESTAMP,
+        cancellation_reason TEXT,
+        vendor_notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created service_requests table');
+    
+    await client.query('CREATE INDEX IF NOT EXISTS idx_service_requests_booking ON service_requests(booking_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_service_requests_vendor ON service_requests(vendor_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_service_requests_status ON service_requests(status)');
+    
+    // 4. Add vendor support to existing tables
+    await client.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS is_external BOOLEAN DEFAULT false');
+    await client.query('ALTER TABLE upsells ADD COLUMN IF NOT EXISTS vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL');
+    console.log('   ✓ Added vendor columns to upsells');
+    
+    await client.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS is_external BOOLEAN DEFAULT false');
+    await client.query('ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL');
+    console.log('   ✓ Added vendor columns to vouchers');
+    
+    // 5. Create vendor_notifications table
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS vendor_notifications (
+        id SERIAL PRIMARY KEY,
+        vendor_id INTEGER REFERENCES vendors(id) ON DELETE CASCADE,
+        service_request_id INTEGER REFERENCES service_requests(id) ON DELETE CASCADE,
+        notification_type VARCHAR(50) NOT NULL,
+        email_to VARCHAR(255),
+        email_subject VARCHAR(255),
+        email_sent BOOLEAN DEFAULT false,
+        sent_at TIMESTAMP,
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    console.log('   ✓ Created vendor_notifications table');
+    
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vendor_notifications_vendor ON vendor_notifications(vendor_id)');
+    await client.query('CREATE INDEX IF NOT EXISTS idx_vendor_notifications_request ON vendor_notifications(service_request_id)');
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: 'Vendor system created successfully',
+      tables: ['vendors', 'vendor_permissions', 'service_requests', 'vendor_notifications']
     });
     
   } catch (error) {
