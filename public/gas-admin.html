@@ -29029,9 +29029,14 @@ Local honey and preserves"></textarea>
                 const accountPropsData = await accountPropsResponse.json();
                 const accountPropertyIds = (accountPropsData.properties || []).map(p => p.id);
                 
+                console.log('CM Debug - Account property IDs:', accountPropertyIds);
+                console.log('CM Debug - Account properties:', accountPropsData.properties?.map(p => ({id: p.id, name: p.name})));
+                
                 // Get all connections
                 const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
                 const data = await response.json();
+                
+                console.log('CM Debug - Connections:', data.connections?.length);
                 
                 if (loading) loading.style.display = 'none';
                 
@@ -29044,11 +29049,15 @@ Local honey and preserves"></textarea>
                         try {
                             const propsResponse = await fetch(`/api/gas-sync/connections/${c.id}/properties`, { headers: authHeaders() });
                             const propsData = await propsResponse.json();
+                            console.log('CM Debug - Connection', c.id, 'synced properties:', propsData.properties?.map(p => ({name: p.name, gas_property_id: p.gas_property_id})));
+                            
                             if (propsData.success && propsData.properties) {
                                 // Filter to only properties that belong to this account (match gas_property_id)
                                 const matchingProps = propsData.properties.filter(p => 
                                     accountPropertyIds.includes(p.gas_property_id)
                                 );
+                                console.log('CM Debug - Matching props for connection', c.id, ':', matchingProps.length);
+                                
                                 if (matchingProps.length > 0) {
                                     accountSyncedProps = accountSyncedProps.concat(matchingProps.map(p => ({
                                         ...p, 
@@ -29062,6 +29071,8 @@ Local honey and preserves"></textarea>
                             console.error('Error loading properties:', e);
                         }
                     }
+                    
+                    console.log('CM Debug - Total matching synced props:', accountSyncedProps.length);
                     
                     // If no synced properties match this account, show no connection
                     if (accountSyncedProps.length === 0) {
