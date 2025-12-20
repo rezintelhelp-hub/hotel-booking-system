@@ -1561,6 +1561,16 @@
                     </div>
                 </div>
 
+                <div class="nav-section">
+                    <div class="nav-label" onclick="toggleNavSection(this)">SEO & Content</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="faqs" href="#" onclick="navClick(this, 'faqs'); return false;">
+                        <span class="nav-icon">❓</span>
+                        <span>FAQs</span>
+                    </a>
+                    </div>
+                </div>
+
                 <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Website Builder</div>
                     <div class="nav-section-items">
@@ -3969,6 +3979,95 @@
                         <div class="empty-icon">📣</div>
                         <h3>Select a Property</h3>
                         <p>Choose a property above to manage its marketing features and tags</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- FAQs View -->
+            <div id="faqs" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>❓ FAQs</h2>
+                            <p>Frequently asked questions for your properties - improves SEO with FAQ schema markup</p>
+                        </div>
+                        <button class="btn" onclick="openAddFaqModal()">
+                            <span>+</span>
+                            <span>Add FAQ</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Property Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: flex-end; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Select Property</label>
+                            <select id="faqs-property-select" class="form-input" onchange="loadFaqsForProperty()">
+                                <option value="">Select Property...</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Category Filter</label>
+                            <select id="faqs-category-filter" class="form-input" onchange="filterFaqsByCategory()">
+                                <option value="">All Categories</option>
+                                <option value="check-in">Check-in/Check-out</option>
+                                <option value="amenities">Amenities</option>
+                                <option value="policies">Policies</option>
+                                <option value="location">Location</option>
+                                <option value="booking">Booking</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Quick Add Common FAQs -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">⚡ Quick Add Common FAQs</h3>
+                        <button class="btn btn-secondary" onclick="toggleFaqPresets()" id="toggle-faq-presets-btn" style="font-size: 0.85rem;">
+                            Show Templates ▼
+                        </button>
+                    </div>
+                    <div id="faq-presets" style="display: none;">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0.5rem;">
+                            <button class="preset-btn" onclick="quickAddFaq('What time is check-in?', 'Check-in is from 3:00 PM. Early check-in may be available on request, subject to availability.', 'check-in')">🕐 Check-in time</button>
+                            <button class="preset-btn" onclick="quickAddFaq('What time is check-out?', 'Check-out is by 11:00 AM. Late check-out may be available on request for an additional fee.', 'check-in')">🕐 Check-out time</button>
+                            <button class="preset-btn" onclick="quickAddFaq('Is parking available?', 'Yes, free private parking is available on-site. No reservation is needed.', 'amenities')">🅿️ Parking</button>
+                            <button class="preset-btn" onclick="quickAddFaq('Is WiFi available?', 'Yes, free high-speed WiFi is available throughout the property.', 'amenities')">📶 WiFi</button>
+                            <button class="preset-btn" onclick="quickAddFaq('Are pets allowed?', 'Pets are welcome by prior arrangement. Please contact us in advance to discuss.', 'policies')">🐾 Pet policy</button>
+                            <button class="preset-btn" onclick="quickAddFaq('What is the cancellation policy?', 'Free cancellation up to 7 days before arrival. Cancellations within 7 days are charged at 50% of the booking total.', 'policies')">❌ Cancellation</button>
+                            <button class="preset-btn" onclick="quickAddFaq('Is smoking allowed?', 'This is a strictly non-smoking property. Smoking is not permitted anywhere on the premises.', 'policies')">🚭 Smoking</button>
+                            <button class="preset-btn" onclick="quickAddFaq('How far is the nearest beach?', 'The nearest beach is approximately 10 minutes walk from the property.', 'location')">🏖️ Beach distance</button>
+                            <button class="preset-btn" onclick="quickAddFaq('How do I get directions?', 'Full directions will be sent in your booking confirmation. The property is easily accessible by car and public transport.', 'location')">🗺️ Directions</button>
+                            <button class="preset-btn" onclick="quickAddFaq('Is there a security deposit?', 'A refundable security deposit may be required. This will be returned within 7 days of check-out, subject to inspection.', 'booking')">💰 Deposit</button>
+                            <button class="preset-btn" onclick="quickAddFaq('Can I request an early check-in?', 'Early check-in may be possible subject to availability. Please contact us at least 24 hours before arrival to request.', 'check-in')">⏰ Early check-in</button>
+                            <button class="preset-btn" onclick="quickAddFaq('Is breakfast included?', 'Breakfast is available as an optional extra. Please select this option during booking or contact us to add it.', 'amenities')">🍳 Breakfast</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schema Preview -->
+                <div class="card" style="margin-bottom: 1rem; display: none;" id="faq-schema-preview-card">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                        <h3 style="margin: 0;">📋 Schema Preview</h3>
+                        <button class="btn btn-secondary" onclick="copyFaqSchema()" style="font-size: 0.85rem;">Copy JSON-LD</button>
+                    </div>
+                    <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
+                        This structured data helps search engines display your FAQs in search results.
+                    </p>
+                    <pre id="faq-schema-preview" style="background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; font-size: 0.8rem; overflow-x: auto; max-height: 200px;"></pre>
+                </div>
+
+                <!-- FAQs List -->
+                <div class="card">
+                    <div id="faqs-list">
+                        <div class="empty-state">
+                            <div class="empty-icon">❓</div>
+                            <h3>Select a Property</h3>
+                            <p>Choose a property above to manage its FAQs</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -10351,6 +10450,88 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+    <!-- Add FAQ Modal -->
+    <div id="addFaqModal" class="modal">
+        <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <div>
+                    <h3 class="modal-title" id="faq-modal-title" style="margin: 0;">❓ Add FAQ</h3>
+                    <p style="margin: 0.5rem 0 0 0; opacity: 0.9; font-size: 0.9rem;">Help guests find answers and improve your SEO</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('addFaqModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="faq-form">
+                    <input type="hidden" id="faq-id">
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                            Question <span style="color: #ef4444;">*</span>
+                        </label>
+                        <input type="text" id="faq-question" class="form-input" placeholder="e.g., What time is check-in?" required
+                            style="padding: 0.75rem; border-radius: 8px;">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                            Answer <span style="color: #ef4444;">*</span>
+                        </label>
+                        <textarea id="faq-answer" class="form-input" rows="4" placeholder="Provide a clear, helpful answer..." required
+                            style="padding: 0.75rem; border-radius: 8px;"></textarea>
+                        <p style="font-size: 0.8rem; color: #6b7280; margin-top: 0.25rem;">
+                            Keep answers concise but informative. This appears in search results.
+                        </p>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.25rem;">
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                                Category
+                            </label>
+                            <select id="faq-category" class="form-input" style="padding: 0.75rem; border-radius: 8px;">
+                                <option value="">Select category...</option>
+                                <option value="check-in">Check-in/Check-out</option>
+                                <option value="amenities">Amenities</option>
+                                <option value="policies">Policies</option>
+                                <option value="location">Location</option>
+                                <option value="booking">Booking</option>
+                                <option value="other">Other</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label style="font-weight: 600; color: #374151; margin-bottom: 0.5rem; display: block;">
+                                Display Order
+                            </label>
+                            <input type="number" id="faq-order" class="form-input" placeholder="0" min="0"
+                                style="padding: 0.75rem; border-radius: 8px;">
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; flex-wrap: wrap; gap: 1rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="faq-show-website" checked style="width: 18px; height: 18px;">
+                            <span style="font-weight: 500; color: #374151;">Show on website</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="faq-include-schema" checked style="width: 18px; height: 18px;">
+                            <span style="font-weight: 500; color: #374151;">Include in SEO schema</span>
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                            <input type="checkbox" id="faq-active" checked style="width: 18px; height: 18px;">
+                            <span style="font-weight: 500; color: #374151;">Active</span>
+                        </label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer" style="padding: 1rem 1.5rem; background: #f9fafb; border-radius: 0 0 16px 16px;">
+                <button class="btn btn-secondary" onclick="closeModal('addFaqModal')" style="border-radius: 8px;">Cancel</button>
+                <button class="btn" onclick="saveFaq()" style="border-radius: 8px; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                    💾 Save FAQ
+                </button>
+            </div>
+        </div>
+    </div>
+
     <!-- Add Fee Modal -->
     <div id="addFeeModal" class="modal">
         <div class="modal-content" style="max-width: 900px; border-radius: 16px;">
@@ -13220,6 +13401,7 @@ Local honey and preserves"></textarea>
             if (viewName === 'deposit-rules') initDepositRulesView();
             if (viewName === 'bookings') loadBookings();
             if (viewName === 'marketing') loadMarketingProperties();
+            if (viewName === 'faqs') loadFaqs();
             if (viewName === 'wb-header') loadWebsiteSection('header');
             if (viewName === 'wb-hero') loadWebsiteSection('hero');
             if (viewName === 'wb-intro') loadWebsiteSection('intro');
@@ -24451,6 +24633,318 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 alert('Error updating status: ' + error.message);
+            }
+        }
+
+        // =====================================================
+        // FAQS FUNCTIONS
+        // =====================================================
+        
+        let faqsData = [];
+        
+        async function loadFaqsPropertySelect() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('faqs-property-select');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select Property...</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${p.name}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading properties for FAQs:', error);
+            }
+        }
+        
+        async function loadFaqs() {
+            await loadFaqsPropertySelect();
+        }
+        
+        async function loadFaqsForProperty() {
+            const propertyId = document.getElementById('faqs-property-select')?.value;
+            const container = document.getElementById('faqs-list');
+            
+            if (!propertyId) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">❓</div>
+                        <h3>Select a Property</h3>
+                        <p>Choose a property above to manage its FAQs</p>
+                    </div>
+                `;
+                document.getElementById('faq-schema-preview-card').style.display = 'none';
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/admin/faqs?property_id=${propertyId}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    faqsData = data.data || [];
+                    renderFaqs(faqsData);
+                    updateFaqSchemaPreview();
+                }
+            } catch (error) {
+                console.error('Error loading FAQs:', error);
+            }
+        }
+        
+        function filterFaqsByCategory() {
+            const category = document.getElementById('faqs-category-filter')?.value;
+            if (category) {
+                const filtered = faqsData.filter(f => f.category === category);
+                renderFaqs(filtered);
+            } else {
+                renderFaqs(faqsData);
+            }
+        }
+        
+        function renderFaqs(faqs) {
+            const container = document.getElementById('faqs-list');
+            const propertyId = document.getElementById('faqs-property-select')?.value;
+            
+            if (!propertyId) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">❓</div>
+                        <h3>Select a Property</h3>
+                        <p>Choose a property above to manage its FAQs</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            if (!faqs || faqs.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">❓</div>
+                        <h3>No FAQs Yet</h3>
+                        <p>Add frequently asked questions to help guests and improve your SEO</p>
+                        <button class="btn" onclick="openAddFaqModal()">Add Your First FAQ</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            const categoryLabels = {
+                'check-in': '🕐 Check-in/Check-out',
+                'amenities': '🛋️ Amenities',
+                'policies': '📋 Policies',
+                'location': '📍 Location',
+                'booking': '📅 Booking',
+                'other': '📌 Other'
+            };
+            
+            container.innerHTML = `
+                <div style="margin-bottom: 1rem; display: flex; justify-content: space-between; align-items: center;">
+                    <span style="color: var(--text-secondary);">${faqs.length} FAQ${faqs.length !== 1 ? 's' : ''}</span>
+                </div>
+                ${faqs.map((faq, index) => `
+                    <div style="border: 1px solid var(--border); border-radius: 12px; padding: 1rem; margin-bottom: 0.75rem; background: white;">
+                        <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem;">
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                    <strong style="font-size: 1rem;">${faq.question}</strong>
+                                    ${faq.category ? `<span class="badge badge-secondary" style="font-size: 0.7rem;">${categoryLabels[faq.category] || faq.category}</span>` : ''}
+                                </div>
+                                <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">${faq.answer}</p>
+                                <div style="margin-top: 0.5rem; display: flex; gap: 0.5rem;">
+                                    ${faq.show_on_website ? '<span class="badge badge-success" style="font-size: 0.65rem;">Website</span>' : ''}
+                                    ${faq.include_in_schema ? '<span class="badge badge-info" style="font-size: 0.65rem;">SEO Schema</span>' : ''}
+                                    ${!faq.active ? '<span class="badge badge-secondary" style="font-size: 0.65rem;">Inactive</span>' : ''}
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-secondary btn-small" onclick="editFaq(${faq.id})">Edit</button>
+                                <button class="btn btn-secondary btn-small" onclick="deleteFaq(${faq.id})" style="color: #dc2626;">Delete</button>
+                            </div>
+                        </div>
+                    </div>
+                `).join('')}
+            `;
+        }
+        
+        function updateFaqSchemaPreview() {
+            const schemaCard = document.getElementById('faq-schema-preview-card');
+            const schemaPreview = document.getElementById('faq-schema-preview');
+            
+            const schemaFaqs = faqsData.filter(f => f.include_in_schema && f.active);
+            
+            if (schemaFaqs.length === 0) {
+                schemaCard.style.display = 'none';
+                return;
+            }
+            
+            schemaCard.style.display = 'block';
+            
+            const schema = {
+                "@context": "https://schema.org",
+                "@type": "FAQPage",
+                "mainEntity": schemaFaqs.map(faq => ({
+                    "@type": "Question",
+                    "name": faq.question,
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": faq.answer
+                    }
+                }))
+            };
+            
+            schemaPreview.textContent = JSON.stringify(schema, null, 2);
+        }
+        
+        function copyFaqSchema() {
+            const schemaPreview = document.getElementById('faq-schema-preview');
+            navigator.clipboard.writeText(schemaPreview.textContent).then(() => {
+                alert('Schema JSON-LD copied to clipboard!');
+            });
+        }
+        
+        function toggleFaqPresets() {
+            const presets = document.getElementById('faq-presets');
+            const btn = document.getElementById('toggle-faq-presets-btn');
+            
+            if (presets.style.display === 'none') {
+                presets.style.display = 'block';
+                btn.textContent = 'Hide Templates ▲';
+            } else {
+                presets.style.display = 'none';
+                btn.textContent = 'Show Templates ▼';
+            }
+        }
+        
+        async function quickAddFaq(question, answer, category) {
+            const propertyId = document.getElementById('faqs-property-select')?.value;
+            if (!propertyId) {
+                alert('Please select a property first');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/faqs', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        property_id: propertyId,
+                        question,
+                        answer,
+                        category,
+                        show_on_website: true,
+                        include_in_schema: true,
+                        active: true
+                    })
+                });
+                
+                const data = await response.json();
+                if (data.success) {
+                    loadFaqsForProperty();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error adding FAQ: ' + error.message);
+            }
+        }
+        
+        function openAddFaqModal() {
+            document.getElementById('faq-form').reset();
+            document.getElementById('faq-id').value = '';
+            document.getElementById('faq-modal-title').innerHTML = '❓ Add FAQ';
+            document.getElementById('faq-show-website').checked = true;
+            document.getElementById('faq-include-schema').checked = true;
+            document.getElementById('faq-active').checked = true;
+            openModal('addFaqModal');
+        }
+        
+        function editFaq(id) {
+            const faq = faqsData.find(f => f.id === id);
+            if (!faq) return;
+            
+            document.getElementById('faq-id').value = faq.id;
+            document.getElementById('faq-question').value = faq.question || '';
+            document.getElementById('faq-answer').value = faq.answer || '';
+            document.getElementById('faq-category').value = faq.category || '';
+            document.getElementById('faq-order').value = faq.display_order || 0;
+            document.getElementById('faq-show-website').checked = faq.show_on_website !== false;
+            document.getElementById('faq-include-schema').checked = faq.include_in_schema !== false;
+            document.getElementById('faq-active').checked = faq.active !== false;
+            document.getElementById('faq-modal-title').innerHTML = '✏️ Edit FAQ';
+            openModal('addFaqModal');
+        }
+        
+        async function saveFaq() {
+            const id = document.getElementById('faq-id').value;
+            const propertyId = document.getElementById('faqs-property-select')?.value;
+            
+            if (!propertyId) {
+                alert('Please select a property first');
+                return;
+            }
+            
+            const faqData = {
+                property_id: propertyId,
+                question: document.getElementById('faq-question').value,
+                answer: document.getElementById('faq-answer').value,
+                category: document.getElementById('faq-category').value || null,
+                display_order: parseInt(document.getElementById('faq-order').value) || 0,
+                show_on_website: document.getElementById('faq-show-website').checked,
+                include_in_schema: document.getElementById('faq-include-schema').checked,
+                active: document.getElementById('faq-active').checked
+            };
+            
+            if (!faqData.question || !faqData.answer) {
+                alert('Question and answer are required');
+                return;
+            }
+            
+            try {
+                const url = id ? `/api/admin/faqs/${id}` : '/api/admin/faqs';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(faqData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    closeModal('addFaqModal');
+                    loadFaqsForProperty();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error saving FAQ: ' + error.message);
+            }
+        }
+        
+        async function deleteFaq(id) {
+            if (!confirm('Delete this FAQ?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/faqs/${id}`, { 
+                    method: 'DELETE', 
+                    headers: authHeaders() 
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    loadFaqsForProperty();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error deleting FAQ: ' + error.message);
             }
         }
 
