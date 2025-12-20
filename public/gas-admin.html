@@ -28955,7 +28955,7 @@ Local honey and preserves"></textarea>
                         <div class="connection-status-item">
                             <div class="status-dot ${conn.status}"></div>
                             <div style="flex: 1;">
-                                <strong>${conn.external_account_name || conn.adapter_name}</strong>
+                                <strong>${conn.connection_name || conn.external_account_name || conn.adapter_name}</strong>
                                 <div style="font-size: 12px; color: #6b7280;">
                                     ${conn.adapter_name} • ${conn.property_count} properties
                                 </div>
@@ -28999,7 +28999,7 @@ Local honey and preserves"></textarea>
                             <div class="connection-card-header">
                                 <div class="connection-logo">${getAdapterEmoji(conn.adapter_code)}</div>
                                 <div class="connection-info">
-                                    <h4>${conn.external_account_name || 'Unnamed'}</h4>
+                                    <h4>${conn.connection_name || conn.external_account_name || 'Unnamed'}</h4>
                                     <div class="adapter-name">${conn.adapter_name}</div>
                                 </div>
                                 <span class="connection-status-badge ${conn.status}">${conn.status}</span>
@@ -29060,7 +29060,7 @@ Local honey and preserves"></textarea>
                 if (select) {
                     const currentValue = select.value;
                     select.innerHTML = '<option value="">All Connections</option>' +
-                        gasSyncConnections.map(c => `<option value="${c.id}">${c.external_account_name || c.adapter_name}</option>`).join('');
+                        gasSyncConnections.map(c => `<option value="${c.id}">${c.connection_name || c.external_account_name || c.adapter_name}</option>`).join('');
                     select.value = currentValue;
                 }
             });
