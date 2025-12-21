@@ -25031,6 +25031,146 @@ app.post('/api/admin/branding', async (req, res) => {
 // BLOG POSTS
 // =========================================================
 
+// AI Generate Blog Post from Keyword
+app.post('/api/admin/blog/generate', async (req, res) => {
+    try {
+        const { keyword, property_id, language = 'en' } = req.body;
+        
+        if (!keyword) {
+            return res.json({ success: false, error: 'keyword is required' });
+        }
+        
+        // Get property details for context
+        let propertyContext = '';
+        let propertyName = '';
+        if (property_id) {
+            const propResult = await pool.query(`
+                SELECT p.*, a.name as account_name 
+                FROM properties p 
+                LEFT JOIN accounts a ON p.client_id = a.id 
+                WHERE p.id = $1
+            `, [property_id]);
+            
+            if (propResult.rows[0]) {
+                const prop = propResult.rows[0];
+                propertyName = prop.name;
+                propertyContext = `
+Property: ${prop.name}
+Location: ${prop.address || ''}, ${prop.city || ''}, ${prop.region || ''}, ${prop.country || ''}
+Type: ${prop.property_type || 'Holiday accommodation'}
+Description: ${prop.description || ''}
+`;
+            }
+        }
+        
+        // Get nearby attractions for context
+        let attractionsContext = '';
+        if (property_id) {
+            const attractionsResult = await pool.query(`
+                SELECT name, description, category 
+                FROM attractions 
+                WHERE property_id = $1 AND is_published = true
+                LIMIT 5
+            `, [property_id]);
+            
+            if (attractionsResult.rows.length > 0) {
+                attractionsContext = '\nNearby Attractions:\n' + 
+                    attractionsResult.rows.map(a => `- ${a.name} (${a.category}): ${a.description || ''}`).join('\n');
+            }
+        }
+        
+        const languageNames = {
+            'en': 'English',
+            'es': 'Spanish',
+            'de': 'German',
+            'fr': 'French',
+            'it': 'Italian',
+            'nl': 'Dutch',
+            'pt': 'Portuguese',
+            'pl': 'Polish'
+        };
+        
+        const languageName = languageNames[language] || 'English';
+        
+        console.log(`Generating blog post for keyword: "${keyword}" in ${languageName}`);
+        
+        const prompt = `You are a professional travel and hospitality content writer. Write an engaging, SEO-optimized blog post about the following topic.
+
+Keyword to target: "${keyword}"
+Language: ${languageName}
+${propertyContext}
+${attractionsContext}
+
+Requirements:
+1. Write a compelling title that includes the keyword naturally
+2. Write 600-800 words of high-quality, engaging content
+3. Include the keyword naturally 3-5 times throughout the article
+4. Structure with clear headings (H2, H3)
+5. Include practical tips or information visitors would find useful
+6. End with a subtle call-to-action encouraging booking
+7. Write in ${languageName}
+
+Return your response in this exact JSON format:
+{
+    "title": "The blog post title",
+    "excerpt": "A 150-character summary for SEO",
+    "content": "The full blog post content in HTML format with <h2>, <h3>, <p> tags",
+    "meta_title": "SEO title (max 60 chars)",
+    "meta_description": "SEO description (max 160 chars)",
+    "suggested_tags": ["tag1", "tag2", "tag3"]
+}`;
+
+        const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: prompt }]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
+        });
+        
+        const responseText = claudeResponse.data.content[0].text;
+        
+        // Parse the JSON response
+        let blogData;
+        try {
+            // Extract JSON from response (handle markdown code blocks)
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                blogData = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('No JSON found in response');
+            }
+        } catch (parseError) {
+            console.error('Failed to parse AI response:', parseError);
+            return res.json({ success: false, error: 'Failed to parse AI response' });
+        }
+        
+        res.json({
+            success: true,
+            blog: {
+                title: blogData.title,
+                excerpt: blogData.excerpt,
+                content: blogData.content,
+                meta_title: blogData.meta_title,
+                meta_description: blogData.meta_description,
+                suggested_tags: blogData.suggested_tags || [],
+                keyword: keyword,
+                property_id: property_id,
+                property_name: propertyName,
+                language: language
+            }
+        });
+        
+    } catch (error) {
+        console.error('AI Blog generation error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Get all blog posts
 app.get('/api/admin/blog', async (req, res) => {
     try {
