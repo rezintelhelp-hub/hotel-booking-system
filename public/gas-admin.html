@@ -6283,7 +6283,10 @@
                             <h2>📝 Blog</h2>
                             <p>Manage your blog posts and articles</p>
                         </div>
-                        <button class="btn" onclick="openBlogModal()">+ New Post</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="openAiBlogModalFromBlog()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 AI Generate</button>
+                            <button class="btn" onclick="openBlogModal()">+ New Post</button>
+                        </div>
                     </div>
                 </div>
 
@@ -27940,6 +27943,9 @@ Local honey and preserves"></textarea>
         }
 
         async function generateBlogFromKeyword(keyword) {
+            // Store the keyword for use in Blog section
+            sessionStorage.setItem('ai-blog-keyword', keyword);
+            
             // Get the site URL from dropdown to determine property
             const siteUrl = document.getElementById('seo-site-select')?.value;
             
@@ -27950,11 +27956,27 @@ Local honey and preserves"></textarea>
                 if (site && site.property_ids) {
                     const propIds = typeof site.property_ids === 'string' ? JSON.parse(site.property_ids) : site.property_ids;
                     propertyId = propIds[0];
+                    sessionStorage.setItem('ai-blog-property-id', propertyId);
                 }
             }
             
-            // Show generating modal
-            openAiBlogModal(keyword, propertyId);
+            // Navigate to Blog section and open AI modal
+            showView('app-blog');
+            setTimeout(() => {
+                openAiBlogModal(keyword, propertyId);
+            }, 300);
+        }
+        
+        function openAiBlogModalFromBlog() {
+            // Check if coming from SEO with a keyword
+            const storedKeyword = sessionStorage.getItem('ai-blog-keyword') || '';
+            const storedPropertyId = sessionStorage.getItem('ai-blog-property-id') || document.getElementById('blog-property-select')?.value || null;
+            
+            // Clear stored values
+            sessionStorage.removeItem('ai-blog-keyword');
+            sessionStorage.removeItem('ai-blog-property-id');
+            
+            openAiBlogModal(storedKeyword, storedPropertyId);
         }
         
         function openAiBlogModal(keyword, propertyId) {
@@ -28111,9 +28133,9 @@ Local honey and preserves"></textarea>
             const propertyIdEl = document.getElementById('ai-blog-property-id');
             const propertyId = propertyIdEl.value;
             
-            // Get client_id from property
-            let clientId = getClientId();
-            if (propertyId && !clientId) {
+            // Get client_id from property (always fetch fresh to ensure correct FK)
+            let clientId = null;
+            if (propertyId) {
                 try {
                     const propResponse = await fetch(`/api/db/properties/${propertyId}`);
                     const propData = await propResponse.json();
@@ -28123,6 +28145,11 @@ Local honey and preserves"></textarea>
                 } catch (e) {
                     console.error('Could not get client_id from property');
                 }
+            }
+            
+            // Fallback to client 1 if no client_id found
+            if (!clientId) {
+                clientId = 1;
             }
             
             const blogData = {
@@ -28151,10 +28178,9 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     showNotification(publish ? 'Blog published!' : 'Blog saved as draft', 'success');
                     closeAiBlogModal();
-                    // Refresh blog list if on that view
-                    if (document.getElementById('app-blog-posts-list')) {
-                        loadAppBlogPosts();
-                    }
+                    // Switch to Blog view and refresh
+                    showView('app-blog');
+                    loadAppBlogPosts();
                 } else {
                     throw new Error(data.error || 'Failed to save blog');
                 }
