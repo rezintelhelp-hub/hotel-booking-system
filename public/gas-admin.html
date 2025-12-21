@@ -19203,7 +19203,7 @@ Local honey and preserves"></textarea>
                                         <button onclick="editWebsite(${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-color: #6366f1;">✏️ Edit</button>
                                         <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
                                         <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
-                                        <button onclick="deleteDeployedSite(${site.id}, '${site.site_name || site.slug}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
+                                        ${isMaster ? `<button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}') " class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>` : ''}
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
@@ -27636,10 +27636,11 @@ Local honey and preserves"></textarea>
             try {
                 // Pass account_id for non-master users to filter sites
                 let url = '/api/admin/seo/sites';
-                const accountId = getClientId();
                 const isMaster = currentAccount && currentAccount.role === 'master_admin';
-                if (accountId && !isMaster) {
-                    url += `?account_id=${accountId}`;
+                
+                // Non-master users only see their own sites
+                if (!isMaster && currentAccount && currentAccount.id) {
+                    url += `?account_id=${currentAccount.id}`;
                 }
                 
                 const response = await fetch(url);
