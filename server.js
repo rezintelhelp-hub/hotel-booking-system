@@ -25696,6 +25696,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     google_analytics_id: websiteSettings.seo?.['google-analytics-id'] || '',
                     google_tag_manager_id: websiteSettings.seo?.['google-tag-manager-id'] || '',
                     facebook_pixel_id: websiteSettings.seo?.['facebook-pixel-id'] || '',
+                    google_site_verification: websiteSettings.seo?.['google-site-verification'] || '',
                     
                     // Legacy fields for backwards compatibility
                     site_title: branding.site_title || contact.business_name,
