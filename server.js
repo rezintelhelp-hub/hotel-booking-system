@@ -25489,6 +25489,13 @@ app.get('/api/admin/seo/sites', async (req, res) => {
             permission: site.permissionLevel
         }));
         
+        // Filter out domain properties and parent domains (only keep actual site URLs)
+        sites = sites.filter(site => 
+            !site.url.startsWith('sc-domain:') && 
+            site.url !== 'https://sites.gas.travel/' &&
+            site.url !== 'https://sites.gas.travel'
+        );
+        
         // If account_id provided, filter to only sites belonging to that account
         if (account_id && account_id !== 'null') {
             const accountSites = await pool.query(
