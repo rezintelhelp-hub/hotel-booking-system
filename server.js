@@ -24915,10 +24915,10 @@ app.get('/api/admin/blog', async (req, res) => {
         const params = [];
         let paramIndex = 1;
         
-        // Only filter by client_id if it's set (non-master users)
-        if (clientId) {
+        // Only filter by client_id if it's a valid number (non-master users)
+        if (clientId && clientId !== 'null' && clientId !== 'undefined' && !isNaN(clientId)) {
             query += ` AND bp.client_id = $${paramIndex}`;
-            params.push(clientId);
+            params.push(parseInt(clientId));
             paramIndex++;
         }
         
@@ -25187,9 +25187,10 @@ app.get('/api/admin/attractions', async (req, res) => {
         const params = [];
         let paramIndex = 1;
         
-        if (clientId) {
+        // Only add client_id filter if it's a valid number
+        if (clientId && clientId !== 'null' && clientId !== 'undefined' && !isNaN(clientId)) {
             query += ` AND a.client_id = $${paramIndex}`;
-            params.push(clientId);
+            params.push(parseInt(clientId));
             paramIndex++;
         }
         
