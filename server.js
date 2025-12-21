@@ -25663,6 +25663,40 @@ app.post('/api/admin/seo/add-site', async (req, res) => {
     }
 });
 
+// Remove site from Search Console
+app.post('/api/admin/seo/remove-site', async (req, res) => {
+    try {
+        if (!searchConsole) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const { site_url } = req.body;
+        
+        if (!site_url) {
+            return res.json({ success: false, error: 'site_url is required' });
+        }
+        
+        console.log(`Removing site from Search Console: ${site_url}`);
+        
+        // Remove the site from Search Console
+        await searchConsole.sites.delete({
+            siteUrl: site_url
+        });
+        
+        console.log(`Site removed from Search Console: ${site_url}`);
+        
+        res.json({ 
+            success: true, 
+            site_url,
+            message: 'Site removed from Search Console'
+        });
+        
+    } catch (error) {
+        console.error('Remove Search Console site error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Verify a Search Console site
 app.post('/api/admin/seo/verify-site', async (req, res) => {
     try {
