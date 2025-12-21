@@ -27634,7 +27634,15 @@ Local honey and preserves"></textarea>
 
         async function loadSeoSites() {
             try {
-                const response = await fetch('/api/admin/seo/sites');
+                // Pass account_id for non-master users to filter sites
+                let url = '/api/admin/seo/sites';
+                const accountId = getAccountId();
+                const isMaster = currentAccount && currentAccount.role === 'master_admin';
+                if (accountId && !isMaster) {
+                    url += `?account_id=${accountId}`;
+                }
+                
+                const response = await fetch(url);
                 const data = await response.json();
                 
                 const select = document.getElementById('seo-site-select');
