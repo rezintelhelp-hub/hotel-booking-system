@@ -18,6 +18,47 @@ const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// Google APIs for Analytics & Search Console
+const { google } = require('googleapis');
+let googleAuth = null;
+let searchConsole = null;
+let analyticsAdmin = null;
+let analyticsData = null;
+
+// Initialize Google Auth from service account
+function initGoogleAuth() {
+  try {
+    const serviceAccountJson = process.env.GOOGLE_SERVICE_ACCOUNT;
+    if (!serviceAccountJson) {
+      console.log('ℹ️  GOOGLE_SERVICE_ACCOUNT not configured - Google APIs disabled');
+      return false;
+    }
+    
+    const credentials = JSON.parse(serviceAccountJson);
+    googleAuth = new google.auth.GoogleAuth({
+      credentials,
+      scopes: [
+        'https://www.googleapis.com/auth/webmasters.readonly',
+        'https://www.googleapis.com/auth/analytics.readonly',
+        'https://www.googleapis.com/auth/analytics.edit'
+      ]
+    });
+    
+    searchConsole = google.searchconsole({ version: 'v1', auth: googleAuth });
+    analyticsAdmin = google.analyticsadmin({ version: 'v1beta', auth: googleAuth });
+    analyticsData = google.analyticsdata({ version: 'v1beta', auth: googleAuth });
+    
+    console.log('✅ Google APIs initialized successfully');
+    return true;
+  } catch (error) {
+    console.error('❌ Failed to initialize Google APIs:', error.message);
+    return false;
+  }
+}
+
+// Initialize on startup
+initGoogleAuth();
+
 // GasSync - Channel Manager Integration Layer
 let getAdapter, getAvailableAdapters, getAdapterInfo, getAdapterGroups, SyncManager;
 try {
@@ -25150,6 +25191,252 @@ app.post('/api/admin/blog-categories', async (req, res) => {
         
         res.json({ success: true, category: result.rows[0] });
     } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =========================================================
+// GOOGLE SEARCH CONSOLE & ANALYTICS APIs
+// =========================================================
+
+// Get Search Console keywords for a site
+app.get('/api/admin/seo/keywords', async (req, res) => {
+    try {
+        if (!searchConsole) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const { site_url, start_date, end_date, limit = 50 } = req.query;
+        
+        if (!site_url) {
+            return res.json({ success: false, error: 'site_url required' });
+        }
+        
+        // Default to last 28 days if not specified
+        const endDate = end_date || new Date().toISOString().split('T')[0];
+        const startDate = start_date || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const response = await searchConsole.searchanalytics.query({
+            siteUrl: site_url,
+            requestBody: {
+                startDate: startDate,
+                endDate: endDate,
+                dimensions: ['query'],
+                rowLimit: parseInt(limit),
+                dataState: 'final'
+            }
+        });
+        
+        const keywords = (response.data.rows || []).map(row => ({
+            keyword: row.keys[0],
+            clicks: row.clicks,
+            impressions: row.impressions,
+            ctr: (row.ctr * 100).toFixed(2),
+            position: row.position.toFixed(1)
+        }));
+        
+        res.json({ 
+            success: true, 
+            keywords,
+            period: { start: startDate, end: endDate },
+            total: keywords.length
+        });
+    } catch (error) {
+        console.error('Search Console keywords error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get Search Console pages performance
+app.get('/api/admin/seo/pages', async (req, res) => {
+    try {
+        if (!searchConsole) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const { site_url, start_date, end_date, limit = 50 } = req.query;
+        
+        if (!site_url) {
+            return res.json({ success: false, error: 'site_url required' });
+        }
+        
+        const endDate = end_date || new Date().toISOString().split('T')[0];
+        const startDate = start_date || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const response = await searchConsole.searchanalytics.query({
+            siteUrl: site_url,
+            requestBody: {
+                startDate: startDate,
+                endDate: endDate,
+                dimensions: ['page'],
+                rowLimit: parseInt(limit),
+                dataState: 'final'
+            }
+        });
+        
+        const pages = (response.data.rows || []).map(row => ({
+            page: row.keys[0],
+            clicks: row.clicks,
+            impressions: row.impressions,
+            ctr: (row.ctr * 100).toFixed(2),
+            position: row.position.toFixed(1)
+        }));
+        
+        res.json({ 
+            success: true, 
+            pages,
+            period: { start: startDate, end: endDate },
+            total: pages.length
+        });
+    } catch (error) {
+        console.error('Search Console pages error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get Search Console site summary (totals)
+app.get('/api/admin/seo/summary', async (req, res) => {
+    try {
+        if (!searchConsole) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const { site_url, start_date, end_date } = req.query;
+        
+        if (!site_url) {
+            return res.json({ success: false, error: 'site_url required' });
+        }
+        
+        const endDate = end_date || new Date().toISOString().split('T')[0];
+        const startDate = start_date || new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        // Get current period
+        const currentResponse = await searchConsole.searchanalytics.query({
+            siteUrl: site_url,
+            requestBody: {
+                startDate: startDate,
+                endDate: endDate,
+                dataState: 'final'
+            }
+        });
+        
+        // Get previous period for comparison
+        const daysDiff = Math.round((new Date(endDate) - new Date(startDate)) / (1000 * 60 * 60 * 24));
+        const prevEndDate = new Date(new Date(startDate).getTime() - 1 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        const prevStartDate = new Date(new Date(prevEndDate).getTime() - daysDiff * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const prevResponse = await searchConsole.searchanalytics.query({
+            siteUrl: site_url,
+            requestBody: {
+                startDate: prevStartDate,
+                endDate: prevEndDate,
+                dataState: 'final'
+            }
+        });
+        
+        const current = currentResponse.data.rows?.[0] || { clicks: 0, impressions: 0, ctr: 0, position: 0 };
+        const previous = prevResponse.data.rows?.[0] || { clicks: 0, impressions: 0, ctr: 0, position: 0 };
+        
+        res.json({ 
+            success: true,
+            current: {
+                clicks: current.clicks || 0,
+                impressions: current.impressions || 0,
+                ctr: ((current.ctr || 0) * 100).toFixed(2),
+                position: (current.position || 0).toFixed(1)
+            },
+            previous: {
+                clicks: previous.clicks || 0,
+                impressions: previous.impressions || 0,
+                ctr: ((previous.ctr || 0) * 100).toFixed(2),
+                position: (previous.position || 0).toFixed(1)
+            },
+            change: {
+                clicks: current.clicks - (previous.clicks || 0),
+                impressions: current.impressions - (previous.impressions || 0),
+                ctr: (((current.ctr || 0) - (previous.ctr || 0)) * 100).toFixed(2),
+                position: ((previous.position || 0) - (current.position || 0)).toFixed(1) // Inverted: lower is better
+            },
+            period: { 
+                current: { start: startDate, end: endDate },
+                previous: { start: prevStartDate, end: prevEndDate }
+            }
+        });
+    } catch (error) {
+        console.error('Search Console summary error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// List sites in Search Console
+app.get('/api/admin/seo/sites', async (req, res) => {
+    try {
+        if (!searchConsole) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const response = await searchConsole.sites.list();
+        
+        const sites = (response.data.siteEntry || []).map(site => ({
+            url: site.siteUrl,
+            permission: site.permissionLevel
+        }));
+        
+        res.json({ success: true, sites });
+    } catch (error) {
+        console.error('Search Console sites error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get SEO opportunities (keywords ranking 5-20 with high impressions)
+app.get('/api/admin/seo/opportunities', async (req, res) => {
+    try {
+        if (!searchConsole) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const { site_url } = req.query;
+        
+        if (!site_url) {
+            return res.json({ success: false, error: 'site_url required' });
+        }
+        
+        const endDate = new Date().toISOString().split('T')[0];
+        const startDate = new Date(Date.now() - 28 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        
+        const response = await searchConsole.searchanalytics.query({
+            siteUrl: site_url,
+            requestBody: {
+                startDate: startDate,
+                endDate: endDate,
+                dimensions: ['query'],
+                rowLimit: 500,
+                dataState: 'final'
+            }
+        });
+        
+        // Filter for opportunities: position 5-20 with decent impressions
+        const opportunities = (response.data.rows || [])
+            .filter(row => row.position >= 5 && row.position <= 20 && row.impressions >= 10)
+            .sort((a, b) => b.impressions - a.impressions)
+            .slice(0, 20)
+            .map(row => ({
+                keyword: row.keys[0],
+                clicks: row.clicks,
+                impressions: row.impressions,
+                ctr: (row.ctr * 100).toFixed(2),
+                position: row.position.toFixed(1),
+                potential: Math.round(row.impressions * 0.1) // Estimated clicks if moved to top 3
+            }));
+        
+        res.json({ 
+            success: true, 
+            opportunities,
+            suggestion: 'These keywords rank 5-20 with good impressions. Create content to boost rankings!'
+        });
+    } catch (error) {
+        console.error('Search Console opportunities error:', error);
         res.json({ success: false, error: error.message });
     }
 });
