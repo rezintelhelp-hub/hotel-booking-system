@@ -6400,6 +6400,10 @@
                                 <option value="90">Last 90 days</option>
                             </select>
                         </div>
+                        <div class="master-only" style="align-self: flex-end;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">&nbsp;</label>
+                            <button class="btn" onclick="deleteSeoSite()" style="background: #ef4444; padding: 0.5rem 1rem;">🗑️ Remove Site</button>
+                        </div>
                     </div>
                 </div>
 
@@ -27661,6 +27665,37 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 console.error('Error loading SEO sites:', error);
+            }
+        }
+
+        async function deleteSeoSite() {
+            const siteUrl = document.getElementById('seo-site-select')?.value;
+            if (!siteUrl) {
+                showNotification('Please select a site first', 'error');
+                return;
+            }
+            
+            if (!confirm(`Are you sure you want to remove "${siteUrl}" from Search Console and GA4?\n\nThis will:\n• Remove from Google Search Console\n• Optionally delete GA4 property\n\nThe website itself will NOT be deleted.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/admin/seo/remove-site', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ site_url: siteUrl })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Site removed from Search Console', 'success');
+                    loadSeoSites(); // Refresh dropdown
+                } else {
+                    showNotification('Error: ' + (data.error || 'Failed to remove site'), 'error');
+                }
+            } catch (error) {
+                console.error('Delete SEO site error:', error);
+                showNotification('Error removing site', 'error');
             }
         }
 
