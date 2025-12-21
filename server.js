@@ -730,6 +730,14 @@ async function runMigrations() {
       console.log('ℹ️  attractions.property_id:', attractionsPropertyError.message);
     }
     
+    try {
+      await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS ga4_measurement_id VARCHAR(50)`);
+      await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS ga4_property_id VARCHAR(100)`);
+      console.log('✅ deployed_sites GA4 columns ensured');
+    } catch (ga4ColError) {
+      console.log('ℹ️  deployed_sites GA4 columns:', ga4ColError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -9153,6 +9161,8 @@ app.get('/api/setup-deploy', async (req, res) => {
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS site_name VARCHAR(255)`);
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS custom_domain VARCHAR(255)`);
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS template VARCHAR(50) DEFAULT 'developer-light'`);
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS ga4_measurement_id VARCHAR(50)`);
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS ga4_property_id VARCHAR(100)`);
     
     // Add website_url column to bookable_units if it doesn't exist
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_url VARCHAR(255)`);
@@ -9594,6 +9604,70 @@ app.post('/api/deploy/create', async (req, res) => {
             'UPDATE bookable_units SET website_url = $1 WHERE id = $2',
             [data.site.url, roomId]
           );
+        }
+        
+        // Auto-setup Google Analytics & Search Console
+        if (analyticsAdmin && searchConsole) {
+          try {
+            console.log(`[Deploy] Setting up Google Analytics for ${site_name}...`);
+            
+            // Create GA4 property
+            const propertyResponse = await analyticsAdmin.properties.create({
+              requestBody: {
+                parent: `accounts/${GA4_ACCOUNT_ID}`,
+                displayName: site_name,
+                timeZone: 'Europe/London',
+                currencyCode: 'GBP',
+                industryCategory: 'TRAVEL',
+                propertyType: 'PROPERTY_TYPE_ORDINARY'
+              }
+            });
+            
+            const propertyId = propertyResponse.data.name;
+            console.log(`[Deploy] Created GA4 property: ${propertyId}`);
+            
+            // Create web data stream
+            const streamResponse = await analyticsAdmin.properties.dataStreams.create({
+              parent: propertyId,
+              requestBody: {
+                type: 'WEB_DATA_STREAM',
+                displayName: `${site_name} - Website`,
+                webStreamData: {
+                  defaultUri: data.site.url
+                }
+              }
+            });
+            
+            const measurementId = streamResponse.data.webStreamData?.measurementId;
+            console.log(`[Deploy] Created data stream: ${measurementId}`);
+            
+            // Save GA4 ID to deployed_sites
+            await pool.query(
+              'UPDATE deployed_sites SET ga4_measurement_id = $1, ga4_property_id = $2 WHERE site_url = $3',
+              [measurementId, propertyId, data.site.url]
+            );
+            
+            // Add to Search Console
+            console.log(`[Deploy] Adding to Search Console: ${data.site.url}`);
+            await searchConsole.sites.add({
+              siteUrl: data.site.url
+            });
+            console.log(`[Deploy] Site added to Search Console`);
+            
+            // Push GA4 ID to WordPress via settings sync
+            try {
+              await pushSettingsToWordPress(data.site.url, 'seo', {
+                'google-analytics-id': measurementId
+              });
+              console.log(`[Deploy] Pushed GA4 ID to WordPress`);
+            } catch (wpError) {
+              console.error(`[Deploy] Failed to push GA4 to WordPress:`, wpError.message);
+            }
+            
+          } catch (googleError) {
+            console.error(`[Deploy] Google setup failed (non-blocking):`, googleError.message);
+            // Don't fail the deployment - this is nice-to-have
+          }
         }
       } catch (dbError) {
         console.error('[Deploy] WordPress site created but database save failed:', dbError);
