@@ -27634,12 +27634,15 @@ Local honey and preserves"></textarea>
 
         async function loadSeoSites() {
             try {
-                // Pass account_id for non-master users to filter sites
+                // Pass account_id to filter sites
                 let url = '/api/admin/seo/sites';
                 const isMaster = currentAccount && currentAccount.role === 'master_admin';
                 
-                // Non-master users only see their own sites
-                if (!isMaster && currentAccount && currentAccount.id) {
+                // If viewing as a specific client (selectedAccountId), filter to that account
+                // Or if non-master user, filter to their own account
+                if (selectedAccountId) {
+                    url += `?account_id=${selectedAccountId}`;
+                } else if (!isMaster && currentAccount && currentAccount.id) {
                     url += `?account_id=${currentAccount.id}`;
                 }
                 
