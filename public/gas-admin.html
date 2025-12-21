@@ -6504,6 +6504,35 @@
                         <p style="opacity: 0.9;">Load SEO data to get AI-powered content suggestions based on your keyword performance.</p>
                     </div>
                 </div>
+
+                <!-- Site Health -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">🏥 Site Health</h3>
+                        <button class="btn" onclick="loadSiteHealth()" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Check Health</button>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Google PageSpeed Insights - real performance data to ignore fake SEO salespeople.</p>
+                    
+                    <div id="site-health-results">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            <p>Select a site and click "Check Health" to run a performance audit.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- GA4 Traffic Stats -->
+                <div class="card" style="margin-top: 1.5rem;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3 style="margin: 0;">📈 Traffic Overview</h3>
+                        <button class="btn" onclick="loadGa4Traffic()" style="padding: 0.4rem 0.8rem; font-size: 0.85rem;">Load Traffic</button>
+                    </div>
+                    
+                    <div id="ga4-traffic-results">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            <p>Select a site and click "Load Traffic" to see visitor analytics.</p>
+                        </div>
+                    </div>
+                </div>
             </div>
 
             <!-- API Documentation View -->
@@ -27873,6 +27902,188 @@ Local honey and preserves"></textarea>
             const div = document.createElement('div');
             div.textContent = text;
             return div.innerHTML;
+        }
+
+        async function loadSiteHealth() {
+            const siteUrl = document.getElementById('seo-site-select')?.value;
+            if (!siteUrl) {
+                showNotification('Please select a site first', 'error');
+                return;
+            }
+            
+            const container = document.getElementById('site-health-results');
+            container.innerHTML = '<div style="text-align: center; padding: 2rem;"><p>⏳ Running PageSpeed analysis... (this takes 10-20 seconds)</p></div>';
+            
+            try {
+                const response = await fetch(`/api/admin/seo/pagespeed?url=${encodeURIComponent(siteUrl)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const m = data.mobile;
+                    const d = data.desktop;
+                    
+                    const getScoreColor = (score) => {
+                        if (score >= 90) return '#34a853';
+                        if (score >= 50) return '#fbbc04';
+                        return '#ea4335';
+                    };
+                    
+                    const getScoreLabel = (score) => {
+                        if (score >= 90) return 'Excellent';
+                        if (score >= 50) return 'Needs Work';
+                        return 'Poor';
+                    };
+                    
+                    container.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem;">
+                            <!-- Mobile Scores -->
+                            <div style="background: var(--bg-primary); padding: 1.5rem; border-radius: 8px;">
+                                <h4 style="margin: 0 0 1rem 0;">📱 Mobile</h4>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 2.5rem; font-weight: bold; color: ${getScoreColor(m.performance)};">${m.performance}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Performance</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 2.5rem; font-weight: bold; color: ${getScoreColor(m.accessibility)};">${m.accessibility}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Accessibility</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 2.5rem; font-weight: bold; color: ${getScoreColor(m.bestPractices)};">${m.bestPractices}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Best Practices</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 2.5rem; font-weight: bold; color: ${getScoreColor(m.seo)};">${m.seo}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">SEO</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Desktop Scores -->
+                            <div style="background: var(--bg-primary); padding: 1.5rem; border-radius: 8px;">
+                                <h4 style="margin: 0 0 1rem 0;">🖥️ Desktop</h4>
+                                <div style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 2.5rem; font-weight: bold; color: ${getScoreColor(d.performance)};">${d.performance}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Performance</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 2.5rem; font-weight: bold; color: ${getScoreColor(d.accessibility)};">${d.accessibility}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Accessibility</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 2.5rem; font-weight: bold; color: ${getScoreColor(d.bestPractices)};">${d.bestPractices}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">Best Practices</div>
+                                    </div>
+                                    <div style="text-align: center;">
+                                        <div style="font-size: 2.5rem; font-weight: bold; color: ${getScoreColor(d.seo)};">${d.seo}</div>
+                                        <div style="font-size: 0.8rem; color: var(--text-secondary);">SEO</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Verdict -->
+                        <div style="margin-top: 1.5rem; padding: 1rem; background: ${m.performance >= 70 ? '#d1fae5' : '#fef3c7'}; border-radius: 8px;">
+                            <strong>${m.performance >= 70 ? '✅ Your site is performing well!' : '⚠️ Some improvements recommended.'}</strong>
+                            <p style="margin: 0.5rem 0 0 0; font-size: 0.9rem;">
+                                ${m.performance >= 70 
+                                    ? 'If someone contacts you about "fixing" your website speed, they\'re likely trying to sell you something you don\'t need.' 
+                                    : 'Consider optimizing images and reducing unused JavaScript for better performance.'}
+                            </p>
+                        </div>
+                    `;
+                } else {
+                    container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ea4335;"><p>Error: ${data.error}</p></div>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ea4335;"><p>Error loading PageSpeed data</p></div>`;
+            }
+        }
+
+        async function loadGa4Traffic() {
+            const siteUrl = document.getElementById('seo-site-select')?.value;
+            if (!siteUrl) {
+                showNotification('Please select a site first', 'error');
+                return;
+            }
+            
+            const container = document.getElementById('ga4-traffic-results');
+            container.innerHTML = '<div style="text-align: center; padding: 2rem;"><p>⏳ Loading analytics...</p></div>';
+            
+            try {
+                const response = await fetch(`/api/admin/seo/ga4-stats?site_url=${encodeURIComponent(siteUrl)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const stats = data.stats;
+                    
+                    container.innerHTML = `
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                            <div style="text-align: center; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: bold; color: #4285f4;">${stats.users?.toLocaleString() || 0}</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Users (28 days)</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: bold; color: #34a853;">${stats.sessions?.toLocaleString() || 0}</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Sessions</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: bold; color: #fbbc04;">${stats.pageViews?.toLocaleString() || 0}</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Page Views</div>
+                            </div>
+                            <div style="text-align: center; padding: 1rem; background: var(--bg-primary); border-radius: 8px;">
+                                <div style="font-size: 2rem; font-weight: bold; color: #ea4335;">${stats.avgSessionDuration || '0:00'}</div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">Avg Duration</div>
+                            </div>
+                        </div>
+                        
+                        ${stats.topPages && stats.topPages.length > 0 ? `
+                        <h4 style="margin: 0 0 0.75rem 0;">📄 Top Pages</h4>
+                        <table style="font-size: 0.9rem;">
+                            <thead>
+                                <tr>
+                                    <th>Page</th>
+                                    <th style="text-align: right;">Views</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${stats.topPages.map(p => `
+                                    <tr>
+                                        <td>${p.page}</td>
+                                        <td style="text-align: right;">${p.views?.toLocaleString() || 0}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        ` : ''}
+                        
+                        ${stats.trafficSources && stats.trafficSources.length > 0 ? `
+                        <h4 style="margin: 1.5rem 0 0.75rem 0;">🌐 Traffic Sources</h4>
+                        <table style="font-size: 0.9rem;">
+                            <thead>
+                                <tr>
+                                    <th>Source</th>
+                                    <th style="text-align: right;">Sessions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${stats.trafficSources.map(s => `
+                                    <tr>
+                                        <td>${s.source}</td>
+                                        <td style="text-align: right;">${s.sessions?.toLocaleString() || 0}</td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                        ` : ''}
+                    `;
+                } else {
+                    container.innerHTML = `<div style="text-align: center; padding: 2rem; color: var(--text-secondary);"><p>${data.error || 'No data available yet. Analytics data appears 24-48 hours after setup.'}</p></div>`;
+                }
+            } catch (error) {
+                container.innerHTML = `<div style="text-align: center; padding: 2rem; color: #ea4335;"><p>Error loading traffic data</p></div>`;
+            }
         }
 
         // =====================================================
