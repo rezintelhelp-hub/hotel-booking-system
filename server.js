@@ -27894,10 +27894,13 @@ setTimeout(() => {
   runBeds24InventorySync();
 }, 60 * 1000);
 
-// Run initial GasSync availability sync 2 minutes after startup (staggered to avoid API overload)
+// OLD: Run initial GasSync availability sync - DISABLED (function is commented out)
+// Using tiered sync instead which starts automatically
+/*
 setTimeout(() => {
   runGasSyncAvailabilitySync();
 }, 120 * 1000);
+*/
 
 // =====================================================
 // GASSYNC API ROUTES
