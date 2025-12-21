@@ -9741,7 +9741,9 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
       status,
       custom_domain,
       template,
-      wp_username
+      wp_username,
+      ga4_measurement_id,
+      ga4_property_id
     } = req.body;
     
     // Build dynamic UPDATE query based on provided fields
@@ -9800,6 +9802,14 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
     if (wp_username !== undefined) {
       updates.push(`wp_username = $${paramIndex++}`);
       values.push(wp_username);
+    }
+    if (ga4_measurement_id !== undefined) {
+      updates.push(`ga4_measurement_id = $${paramIndex++}`);
+      values.push(ga4_measurement_id);
+    }
+    if (ga4_property_id !== undefined) {
+      updates.push(`ga4_property_id = $${paramIndex++}`);
+      values.push(ga4_property_id);
     }
     
     if (updates.length === 0) {
