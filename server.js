@@ -38,7 +38,7 @@ function initGoogleAuth() {
     googleAuth = new google.auth.GoogleAuth({
       credentials,
       scopes: [
-        'https://www.googleapis.com/auth/webmasters.readonly',
+        'https://www.googleapis.com/auth/webmasters',
         'https://www.googleapis.com/auth/analytics.readonly',
         'https://www.googleapis.com/auth/analytics.edit'
       ]
