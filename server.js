@@ -9836,6 +9836,27 @@ app.put('/api/admin/deployed-sites/:id', async (req, res) => {
   }
 });
 
+// Delete deployed site
+app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { permanent } = req.query;
+    
+    if (permanent === 'true') {
+      // Permanently delete
+      await pool.query('DELETE FROM deployed_sites WHERE id = $1', [id]);
+      res.json({ success: true, message: 'Site permanently deleted' });
+    } else {
+      // Soft delete - just change status
+      await pool.query("UPDATE deployed_sites SET status = 'deleted', updated_at = NOW() WHERE id = $1", [id]);
+      res.json({ success: true, message: 'Site marked as deleted' });
+    }
+  } catch (error) {
+    console.error('Delete deployed site error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get all deployed sites
 app.get('/api/admin/deployed-sites', async (req, res) => {
   try {
@@ -25459,12 +25480,28 @@ app.get('/api/admin/seo/sites', async (req, res) => {
             return res.json({ success: false, error: 'Google APIs not configured' });
         }
         
+        const { account_id } = req.query;
+        
         const response = await searchConsole.sites.list();
         
-        const sites = (response.data.siteEntry || []).map(site => ({
+        let sites = (response.data.siteEntry || []).map(site => ({
             url: site.siteUrl,
             permission: site.permissionLevel
         }));
+        
+        // If account_id provided, filter to only sites belonging to that account
+        if (account_id && account_id !== 'null') {
+            const accountSites = await pool.query(
+                'SELECT site_url FROM deployed_sites WHERE account_id = $1 AND status != $2',
+                [account_id, 'deleted']
+            );
+            const accountUrls = accountSites.rows.map(r => r.site_url);
+            
+            // Filter to only sites that belong to this account
+            sites = sites.filter(site => 
+                accountUrls.some(url => site.url.includes(url.replace(/\/$/, '')) || url.includes(site.url.replace(/\/$/, '')))
+            );
+        }
         
         res.json({ success: true, sites });
     } catch (error) {
