@@ -27939,10 +27939,229 @@ Local honey and preserves"></textarea>
             `;
         }
 
-        function generateBlogFromKeyword(keyword) {
-            // Open blog modal and pre-fill with AI generation request
-            showNotification('AI blog generation coming soon! Keyword: ' + keyword, 'info');
-            // TODO: Integrate with AI content generation
+        async function generateBlogFromKeyword(keyword) {
+            // Get the site URL from dropdown to determine property
+            const siteUrl = document.getElementById('seo-site-select')?.value;
+            
+            // Find property_id from deployed sites
+            let propertyId = null;
+            if (siteUrl && deployedSitesCache) {
+                const site = deployedSitesCache.find(s => siteUrl.includes(s.site_url?.replace(/\/$/, '')) || s.site_url?.includes(siteUrl.replace(/\/$/, '')));
+                if (site && site.property_ids) {
+                    const propIds = typeof site.property_ids === 'string' ? JSON.parse(site.property_ids) : site.property_ids;
+                    propertyId = propIds[0];
+                }
+            }
+            
+            // Show generating modal
+            openAiBlogModal(keyword, propertyId);
+        }
+        
+        function openAiBlogModal(keyword, propertyId) {
+            // Create modal HTML
+            const modalHtml = `
+                <div id="ai-blog-modal" class="modal" style="display: flex;">
+                    <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
+                        <div class="modal-header">
+                            <h2>🤖 AI Blog Generator</h2>
+                            <button class="modal-close" onclick="closeAiBlogModal()">&times;</button>
+                        </div>
+                        <div class="modal-body">
+                            <div id="ai-blog-form">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                    <div>
+                                        <label style="font-weight: 600;">Target Keyword</label>
+                                        <input type="text" id="ai-blog-keyword" class="form-input" value="${keyword}" />
+                                    </div>
+                                    <div>
+                                        <label style="font-weight: 600;">Language</label>
+                                        <select id="ai-blog-language" class="form-input">
+                                            <option value="en">English</option>
+                                            <option value="es">Spanish</option>
+                                            <option value="de">German</option>
+                                            <option value="fr">French</option>
+                                            <option value="it">Italian</option>
+                                            <option value="nl">Dutch</option>
+                                            <option value="pt">Portuguese</option>
+                                            <option value="pl">Polish</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <input type="hidden" id="ai-blog-property-id" value="${propertyId || ''}" />
+                                <button class="btn" onclick="generateAiBlog()" id="ai-generate-btn" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                    ✨ Generate Blog Post
+                                </button>
+                            </div>
+                            
+                            <div id="ai-blog-loading" style="display: none; text-align: center; padding: 3rem;">
+                                <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
+                                <h3>AI is writing your blog post...</h3>
+                                <p style="color: var(--text-secondary);">This usually takes 15-30 seconds</p>
+                            </div>
+                            
+                            <div id="ai-blog-result" style="display: none;">
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="font-weight: 600;">Title</label>
+                                    <input type="text" id="ai-blog-title" class="form-input" />
+                                </div>
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="font-weight: 600;">Excerpt</label>
+                                    <textarea id="ai-blog-excerpt" class="form-input" rows="2"></textarea>
+                                </div>
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="font-weight: 600;">Content</label>
+                                    <textarea id="ai-blog-content" class="form-input" rows="15" style="font-family: monospace;"></textarea>
+                                </div>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                    <div>
+                                        <label style="font-weight: 600;">Meta Title (SEO)</label>
+                                        <input type="text" id="ai-blog-meta-title" class="form-input" />
+                                    </div>
+                                    <div>
+                                        <label style="font-weight: 600;">Meta Description (SEO)</label>
+                                        <input type="text" id="ai-blog-meta-desc" class="form-input" />
+                                    </div>
+                                </div>
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="font-weight: 600;">Suggested Tags</label>
+                                    <input type="text" id="ai-blog-tags" class="form-input" placeholder="tag1, tag2, tag3" />
+                                </div>
+                                <div style="display: flex; gap: 1rem;">
+                                    <button class="btn" onclick="saveAiBlog(false)" style="flex: 1;">💾 Save as Draft</button>
+                                    <button class="btn" onclick="saveAiBlog(true)" style="flex: 1; background: #10b981;">🚀 Publish</button>
+                                    <button class="btn btn-secondary" onclick="generateAiBlog()" style="flex: 0.5;">🔄 Regenerate</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove existing modal if any
+            const existingModal = document.getElementById('ai-blog-modal');
+            if (existingModal) existingModal.remove();
+            
+            // Add modal to page
+            document.body.insertAdjacentHTML('beforeend', modalHtml);
+        }
+        
+        function closeAiBlogModal() {
+            const modal = document.getElementById('ai-blog-modal');
+            if (modal) modal.remove();
+        }
+        
+        async function generateAiBlog() {
+            const keyword = document.getElementById('ai-blog-keyword').value;
+            const language = document.getElementById('ai-blog-language').value;
+            const propertyId = document.getElementById('ai-blog-property-id').value;
+            
+            if (!keyword) {
+                showNotification('Please enter a keyword', 'error');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('ai-blog-form').style.display = 'none';
+            document.getElementById('ai-blog-result').style.display = 'none';
+            document.getElementById('ai-blog-loading').style.display = 'block';
+            
+            try {
+                const response = await fetch('/api/admin/blog/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        keyword,
+                        language,
+                        property_id: propertyId || null
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    // Fill in the form
+                    document.getElementById('ai-blog-title').value = data.blog.title || '';
+                    document.getElementById('ai-blog-excerpt').value = data.blog.excerpt || '';
+                    document.getElementById('ai-blog-content').value = data.blog.content || '';
+                    document.getElementById('ai-blog-meta-title').value = data.blog.meta_title || '';
+                    document.getElementById('ai-blog-meta-desc').value = data.blog.meta_description || '';
+                    document.getElementById('ai-blog-tags').value = (data.blog.suggested_tags || []).join(', ');
+                    
+                    // Store property info for saving
+                    document.getElementById('ai-blog-property-id').value = data.blog.property_id || propertyId || '';
+                    document.getElementById('ai-blog-property-id').dataset.language = language;
+                    
+                    // Show result
+                    document.getElementById('ai-blog-loading').style.display = 'none';
+                    document.getElementById('ai-blog-result').style.display = 'block';
+                    
+                    showNotification('Blog post generated!', 'success');
+                } else {
+                    throw new Error(data.error || 'Failed to generate blog');
+                }
+            } catch (error) {
+                console.error('AI generation error:', error);
+                document.getElementById('ai-blog-loading').style.display = 'none';
+                document.getElementById('ai-blog-form').style.display = 'block';
+                showNotification('Error generating blog: ' + error.message, 'error');
+            }
+        }
+        
+        async function saveAiBlog(publish) {
+            const propertyIdEl = document.getElementById('ai-blog-property-id');
+            const propertyId = propertyIdEl.value;
+            
+            // Get client_id from property
+            let clientId = getClientId();
+            if (propertyId && !clientId) {
+                try {
+                    const propResponse = await fetch(`/api/db/properties/${propertyId}`);
+                    const propData = await propResponse.json();
+                    if (propData.success && propData.data) {
+                        clientId = propData.data.client_id;
+                    }
+                } catch (e) {
+                    console.error('Could not get client_id from property');
+                }
+            }
+            
+            const blogData = {
+                title: document.getElementById('ai-blog-title').value,
+                slug: document.getElementById('ai-blog-title').value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+                excerpt: document.getElementById('ai-blog-excerpt').value,
+                content: document.getElementById('ai-blog-content').value,
+                meta_title: document.getElementById('ai-blog-meta-title').value,
+                meta_description: document.getElementById('ai-blog-meta-desc').value,
+                category: 'General',
+                is_published: publish,
+                is_featured: false,
+                client_id: clientId,
+                property_id: propertyId || null
+            };
+            
+            try {
+                const response = await fetch('/api/admin/blog', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(blogData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(publish ? 'Blog published!' : 'Blog saved as draft', 'success');
+                    closeAiBlogModal();
+                    // Refresh blog list if on that view
+                    if (document.getElementById('app-blog-posts-list')) {
+                        loadAppBlogPosts();
+                    }
+                } else {
+                    throw new Error(data.error || 'Failed to save blog');
+                }
+            } catch (error) {
+                console.error('Save blog error:', error);
+                showNotification('Error saving blog: ' + error.message, 'error');
+            }
         }
 
         function escapeHtml(text) {
