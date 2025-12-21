@@ -24888,17 +24888,39 @@ app.post('/api/admin/branding', async (req, res) => {
 // Get all blog posts
 app.get('/api/admin/blog', async (req, res) => {
     try {
-        const clientId = req.query.client_id || 1;
-        const { property_id, category, is_published, is_featured, limit, offset } = req.query;
+        let { client_id, property_id, category, is_published, is_featured, limit, offset } = req.query;
+        
+        // Handle null/undefined/empty client_id - for master users, show all or filter by property
+        let clientId = client_id;
+        if (!clientId || clientId === 'null' || clientId === 'undefined') {
+            // If property_id is provided, get client_id from property
+            if (property_id) {
+                const propResult = await pool.query('SELECT client_id FROM properties WHERE id = $1', [property_id]);
+                if (propResult.rows[0]) {
+                    clientId = propResult.rows[0].client_id;
+                }
+            }
+            // If still no clientId, return all posts (master view) or default to 1
+            if (!clientId) {
+                clientId = null; // Will show all posts
+            }
+        }
         
         let query = `
             SELECT bp.*, p.name as property_name 
             FROM blog_posts bp
             LEFT JOIN properties p ON bp.property_id = p.id
-            WHERE bp.client_id = $1
+            WHERE 1=1
         `;
-        const params = [clientId];
-        let paramIndex = 2;
+        const params = [];
+        let paramIndex = 1;
+        
+        // Only filter by client_id if it's set (non-master users)
+        if (clientId) {
+            query += ` AND bp.client_id = $${paramIndex}`;
+            params.push(clientId);
+            paramIndex++;
+        }
         
         if (property_id) {
             query += ` AND bp.property_id = $${paramIndex}`;
@@ -24935,13 +24957,21 @@ app.get('/api/admin/blog', async (req, res) => {
             params.push(parseInt(offset));
         }
         
+        console.log('Blog GET query:', query, 'params:', params);
+        
         const result = await pool.query(query, params);
         
         // Get total count
-        let countQuery = `SELECT COUNT(*) FROM blog_posts WHERE client_id = $1`;
-        const countParams = [clientId];
+        let countQuery = `SELECT COUNT(*) FROM blog_posts WHERE 1=1`;
+        const countParams = [];
+        let countParamIndex = 1;
+        if (clientId) {
+            countQuery += ` AND client_id = $${countParamIndex}`;
+            countParams.push(clientId);
+            countParamIndex++;
+        }
         if (property_id) {
-            countQuery += ` AND property_id = $2`;
+            countQuery += ` AND property_id = $${countParamIndex}`;
             countParams.push(property_id);
         }
         const countResult = await pool.query(countQuery, countParams);
@@ -24952,6 +24982,7 @@ app.get('/api/admin/blog', async (req, res) => {
             total: parseInt(countResult.rows[0].count)
         });
     } catch (error) {
+        console.error('Blog GET error:', error);
         res.json({ success: false, error: error.message });
     }
 });
@@ -25130,17 +25161,37 @@ app.post('/api/admin/blog-categories', async (req, res) => {
 // Get all attractions
 app.get('/api/admin/attractions', async (req, res) => {
     try {
-        const clientId = req.query.client_id || 1;
-        const { category, property_id, is_published, is_featured, limit } = req.query;
+        let { client_id, category, property_id, is_published, is_featured, limit } = req.query;
+        
+        // Handle null/undefined/empty client_id
+        let clientId = client_id;
+        if (!clientId || clientId === 'null' || clientId === 'undefined') {
+            if (property_id) {
+                const propResult = await pool.query('SELECT client_id FROM properties WHERE id = $1', [property_id]);
+                if (propResult.rows[0]) {
+                    clientId = propResult.rows[0].client_id;
+                }
+            }
+            if (!clientId) {
+                clientId = null; // Will show all attractions
+            }
+        }
         
         let query = `
-            SELECT a.*, 
+            SELECT a.*, p.name as property_name,
                 (SELECT image_url FROM attraction_images WHERE attraction_id = a.id ORDER BY is_primary DESC, display_order LIMIT 1) as image_url
             FROM attractions a 
-            WHERE a.client_id = $1
+            LEFT JOIN properties p ON a.property_id = p.id
+            WHERE 1=1
         `;
-        const params = [clientId];
-        let paramIndex = 2;
+        const params = [];
+        let paramIndex = 1;
+        
+        if (clientId) {
+            query += ` AND a.client_id = $${paramIndex}`;
+            params.push(clientId);
+            paramIndex++;
+        }
         
         if (category) {
             query += ` AND a.category = $${paramIndex}`;
@@ -25174,6 +25225,7 @@ app.get('/api/admin/attractions', async (req, res) => {
         const result = await pool.query(query, params);
         res.json({ success: true, attractions: result.rows });
     } catch (error) {
+        console.error('Attractions GET error:', error);
         res.json({ success: false, error: error.message });
     }
 });
