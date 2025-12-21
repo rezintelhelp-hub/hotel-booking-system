@@ -25648,6 +25648,146 @@ app.post('/api/admin/seo/verify-site', async (req, res) => {
     }
 });
 
+// PageSpeed Insights - Site Health Check
+app.get('/api/admin/seo/pagespeed', async (req, res) => {
+    try {
+        const { url } = req.query;
+        
+        if (!url) {
+            return res.json({ success: false, error: 'url is required' });
+        }
+        
+        console.log(`Running PageSpeed analysis for: ${url}`);
+        
+        // Fetch both mobile and desktop scores
+        const [mobileResponse, desktopResponse] = await Promise.all([
+            fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=mobile&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO`),
+            fetch(`https://www.googleapis.com/pagespeedonline/v5/runPagespeed?url=${encodeURIComponent(url)}&strategy=desktop&category=PERFORMANCE&category=ACCESSIBILITY&category=BEST_PRACTICES&category=SEO`)
+        ]);
+        
+        const mobileData = await mobileResponse.json();
+        const desktopData = await desktopResponse.json();
+        
+        const extractScores = (data) => {
+            const categories = data.lighthouseResult?.categories || {};
+            return {
+                performance: Math.round((categories.performance?.score || 0) * 100),
+                accessibility: Math.round((categories.accessibility?.score || 0) * 100),
+                bestPractices: Math.round((categories['best-practices']?.score || 0) * 100),
+                seo: Math.round((categories.seo?.score || 0) * 100)
+            };
+        };
+        
+        res.json({
+            success: true,
+            url,
+            mobile: extractScores(mobileData),
+            desktop: extractScores(desktopData)
+        });
+        
+    } catch (error) {
+        console.error('PageSpeed error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// GA4 Traffic Stats
+app.get('/api/admin/seo/ga4-stats', async (req, res) => {
+    try {
+        if (!analyticsData) {
+            return res.json({ success: false, error: 'Google Analytics API not configured' });
+        }
+        
+        const { site_url } = req.query;
+        
+        if (!site_url) {
+            return res.json({ success: false, error: 'site_url is required' });
+        }
+        
+        // Look up the GA4 property ID from deployed_sites
+        const siteResult = await pool.query(
+            'SELECT ga4_property_id, ga4_measurement_id FROM deployed_sites WHERE site_url = $1',
+            [site_url]
+        );
+        
+        if (!siteResult.rows[0]?.ga4_property_id) {
+            return res.json({ success: false, error: 'No GA4 property linked to this site' });
+        }
+        
+        const propertyId = siteResult.rows[0].ga4_property_id;
+        console.log(`Fetching GA4 stats for property: ${propertyId}`);
+        
+        // Fetch basic metrics
+        const response = await analyticsData.properties.runReport({
+            property: propertyId,
+            requestBody: {
+                dateRanges: [{ startDate: '28daysAgo', endDate: 'today' }],
+                metrics: [
+                    { name: 'activeUsers' },
+                    { name: 'sessions' },
+                    { name: 'screenPageViews' },
+                    { name: 'averageSessionDuration' }
+                ]
+            }
+        });
+        
+        const row = response.data.rows?.[0]?.metricValues || [];
+        const avgDuration = parseFloat(row[3]?.value || 0);
+        const minutes = Math.floor(avgDuration / 60);
+        const seconds = Math.floor(avgDuration % 60);
+        
+        // Fetch top pages
+        const pagesResponse = await analyticsData.properties.runReport({
+            property: propertyId,
+            requestBody: {
+                dateRanges: [{ startDate: '28daysAgo', endDate: 'today' }],
+                dimensions: [{ name: 'pagePath' }],
+                metrics: [{ name: 'screenPageViews' }],
+                limit: 10,
+                orderBys: [{ metric: { metricName: 'screenPageViews' }, desc: true }]
+            }
+        });
+        
+        const topPages = (pagesResponse.data.rows || []).map(r => ({
+            page: r.dimensionValues[0].value,
+            views: parseInt(r.metricValues[0].value)
+        }));
+        
+        // Fetch traffic sources
+        const sourcesResponse = await analyticsData.properties.runReport({
+            property: propertyId,
+            requestBody: {
+                dateRanges: [{ startDate: '28daysAgo', endDate: 'today' }],
+                dimensions: [{ name: 'sessionSource' }],
+                metrics: [{ name: 'sessions' }],
+                limit: 10,
+                orderBys: [{ metric: { metricName: 'sessions' }, desc: true }]
+            }
+        });
+        
+        const trafficSources = (sourcesResponse.data.rows || []).map(r => ({
+            source: r.dimensionValues[0].value || '(direct)',
+            sessions: parseInt(r.metricValues[0].value)
+        }));
+        
+        res.json({
+            success: true,
+            stats: {
+                users: parseInt(row[0]?.value || 0),
+                sessions: parseInt(row[1]?.value || 0),
+                pageViews: parseInt(row[2]?.value || 0),
+                avgSessionDuration: `${minutes}:${seconds.toString().padStart(2, '0')}`,
+                topPages,
+                trafficSources
+            }
+        });
+        
+    } catch (error) {
+        console.error('GA4 stats error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // =========================================================
 // ATTRACTIONS
 // =========================================================
