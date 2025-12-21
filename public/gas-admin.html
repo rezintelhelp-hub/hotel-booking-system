@@ -1677,6 +1677,10 @@
                         <span>Reviews</span>
                         <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
+                    <a class="nav-item" data-view="app-seo" href="#" onclick="showView('app-seo'); return false;">
+                        <span class="nav-icon">📊</span>
+                        <span>SEO Analytics</span>
+                    </a>
                     </div>
                 </div>
 
@@ -6363,6 +6367,119 @@
                             <p>Add guest reviews to build trust with potential guests</p>
                             <button class="btn" style="margin-top: 1rem;" onclick="openReviewModal()">Add Your First Review</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- SEO Analytics View -->
+            <div id="app-seo" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📊 SEO Analytics</h2>
+                            <p>Search performance and keyword insights from Google Search Console</p>
+                        </div>
+                        <button class="btn" onclick="loadSeoData()" style="background: #4285f4;">↻ Refresh</button>
+                    </div>
+                </div>
+
+                <!-- Site Selector -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 300px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Website</label>
+                            <select id="seo-site-select" class="form-input" onchange="loadSeoData()">
+                                <option value="">Select a verified site...</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Period</label>
+                            <select id="seo-period-select" class="form-input" onchange="loadSeoData()">
+                                <option value="7">Last 7 days</option>
+                                <option value="28" selected>Last 28 days</option>
+                                <option value="90">Last 90 days</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Summary Cards -->
+                <div id="seo-summary-cards" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2rem; font-weight: bold; color: #4285f4;" id="seo-total-clicks">-</div>
+                        <div style="color: var(--text-secondary); margin-top: 0.25rem;">Total Clicks</div>
+                        <div id="seo-clicks-change" style="font-size: 0.85rem; margin-top: 0.5rem;"></div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2rem; font-weight: bold; color: #34a853;" id="seo-total-impressions">-</div>
+                        <div style="color: var(--text-secondary); margin-top: 0.25rem;">Impressions</div>
+                        <div id="seo-impressions-change" style="font-size: 0.85rem; margin-top: 0.5rem;"></div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2rem; font-weight: bold; color: #fbbc04;" id="seo-avg-ctr">-</div>
+                        <div style="color: var(--text-secondary); margin-top: 0.25rem;">Avg CTR</div>
+                        <div id="seo-ctr-change" style="font-size: 0.85rem; margin-top: 0.5rem;"></div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div style="font-size: 2rem; font-weight: bold; color: #ea4335;" id="seo-avg-position">-</div>
+                        <div style="color: var(--text-secondary); margin-top: 0.25rem;">Avg Position</div>
+                        <div id="seo-position-change" style="font-size: 0.85rem; margin-top: 0.5rem;"></div>
+                    </div>
+                </div>
+
+                <!-- Tabs for Keywords / Pages / Opportunities -->
+                <div class="card">
+                    <div style="display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: -1.5rem -1.5rem 1.5rem -1.5rem; padding: 0 1.5rem;">
+                        <button class="seo-tab active" data-tab="keywords" onclick="switchSeoTab('keywords')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid #4285f4; font-weight: 600; color: #4285f4;">
+                            🔍 Top Keywords
+                        </button>
+                        <button class="seo-tab" data-tab="opportunities" onclick="switchSeoTab('opportunities')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-secondary);">
+                            💡 Opportunities
+                        </button>
+                        <button class="seo-tab" data-tab="pages" onclick="switchSeoTab('pages')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid transparent; color: var(--text-secondary);">
+                            📄 Top Pages
+                        </button>
+                    </div>
+
+                    <!-- Keywords Tab -->
+                    <div id="seo-tab-keywords" class="seo-tab-content">
+                        <div id="seo-keywords-list">
+                            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
+                                <h3 style="margin-bottom: 0.5rem;">Select a site to view keywords</h3>
+                                <p>See which search terms bring visitors to your website</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Opportunities Tab -->
+                    <div id="seo-tab-opportunities" class="seo-tab-content" style="display: none;">
+                        <div id="seo-opportunities-list">
+                            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <div style="font-size: 3rem; margin-bottom: 1rem;">💡</div>
+                                <h3 style="margin-bottom: 0.5rem;">SEO Opportunities</h3>
+                                <p>Keywords ranking 5-20 with high impressions - your low-hanging fruit!</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pages Tab -->
+                    <div id="seo-tab-pages" class="seo-tab-content" style="display: none;">
+                        <div id="seo-pages-list">
+                            <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <div style="font-size: 3rem; margin-bottom: 1rem;">📄</div>
+                                <h3 style="margin-bottom: 0.5rem;">Top Pages</h3>
+                                <p>See which pages perform best in search results</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- AI Recommendations -->
+                <div class="card" style="margin-top: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <h3 style="margin: 0 0 1rem 0;">🤖 AI Content Recommendations</h3>
+                    <div id="seo-ai-recommendations">
+                        <p style="opacity: 0.9;">Load SEO data to get AI-powered content suggestions based on your keyword performance.</p>
                     </div>
                 </div>
             </div>
@@ -13540,6 +13657,7 @@ Local honey and preserves"></textarea>
             // New sidebar views
             if (viewName === 'app-blog') loadAppBlogPosts();
             if (viewName === 'app-attractions') loadAppAttractions();
+            if (viewName === 'app-seo') loadSeoSites();
             if (viewName === 'api-docs') {
                 const urlInput = document.getElementById('api-docs-base-url');
                 if (urlInput) urlInput.value = window.location.origin;
@@ -27457,6 +27575,282 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error loading properties for attractions:', error);
             }
+        }
+
+        // =====================================================
+        // SEO ANALYTICS FUNCTIONS
+        // =====================================================
+
+        async function loadSeoSites() {
+            try {
+                const response = await fetch('/api/admin/seo/sites');
+                const data = await response.json();
+                
+                const select = document.getElementById('seo-site-select');
+                if (!select) return;
+                
+                select.innerHTML = '<option value="">Select a verified site...</option>';
+                
+                if (data.success && data.sites) {
+                    data.sites.forEach(site => {
+                        select.innerHTML += `<option value="${site.url}">${site.url}</option>`;
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading SEO sites:', error);
+            }
+        }
+
+        async function loadSeoData() {
+            const siteUrl = document.getElementById('seo-site-select')?.value;
+            if (!siteUrl) return;
+            
+            const days = document.getElementById('seo-period-select')?.value || 28;
+            const endDate = new Date().toISOString().split('T')[0];
+            const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+            
+            // Load all data in parallel
+            await Promise.all([
+                loadSeoSummary(siteUrl, startDate, endDate),
+                loadSeoKeywords(siteUrl, startDate, endDate),
+                loadSeoPages(siteUrl, startDate, endDate),
+                loadSeoOpportunities(siteUrl)
+            ]);
+        }
+
+        async function loadSeoSummary(siteUrl, startDate, endDate) {
+            try {
+                const response = await fetch(`/api/admin/seo/summary?site_url=${encodeURIComponent(siteUrl)}&start_date=${startDate}&end_date=${endDate}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('seo-total-clicks').textContent = data.current.clicks.toLocaleString();
+                    document.getElementById('seo-total-impressions').textContent = data.current.impressions.toLocaleString();
+                    document.getElementById('seo-avg-ctr').textContent = data.current.ctr + '%';
+                    document.getElementById('seo-avg-position').textContent = data.current.position;
+                    
+                    // Show change indicators
+                    updateChangeIndicator('seo-clicks-change', data.change.clicks, '');
+                    updateChangeIndicator('seo-impressions-change', data.change.impressions, '');
+                    updateChangeIndicator('seo-ctr-change', data.change.ctr, '%');
+                    updateChangeIndicator('seo-position-change', data.change.position, '', true); // Inverted for position
+                }
+            } catch (error) {
+                console.error('Error loading SEO summary:', error);
+            }
+        }
+
+        function updateChangeIndicator(elementId, value, suffix, inverted = false) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+            
+            const numValue = parseFloat(value);
+            const isPositive = inverted ? numValue > 0 : numValue > 0;
+            const color = isPositive ? '#34a853' : numValue < 0 ? '#ea4335' : '#666';
+            const arrow = numValue > 0 ? '↑' : numValue < 0 ? '↓' : '';
+            
+            el.innerHTML = `<span style="color: ${color}">${arrow} ${Math.abs(numValue).toLocaleString()}${suffix}</span>`;
+        }
+
+        async function loadSeoKeywords(siteUrl, startDate, endDate) {
+            try {
+                const response = await fetch(`/api/admin/seo/keywords?site_url=${encodeURIComponent(siteUrl)}&start_date=${startDate}&end_date=${endDate}&limit=50`);
+                const data = await response.json();
+                
+                const container = document.getElementById('seo-keywords-list');
+                if (!container) return;
+                
+                if (data.success && data.keywords && data.keywords.length > 0) {
+                    container.innerHTML = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Keyword</th>
+                                    <th style="text-align: right;">Clicks</th>
+                                    <th style="text-align: right;">Impressions</th>
+                                    <th style="text-align: right;">CTR</th>
+                                    <th style="text-align: right;">Position</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.keywords.map(kw => `
+                                    <tr>
+                                        <td><strong>${escapeHtml(kw.keyword)}</strong></td>
+                                        <td style="text-align: right;">${kw.clicks.toLocaleString()}</td>
+                                        <td style="text-align: right;">${kw.impressions.toLocaleString()}</td>
+                                        <td style="text-align: right;">${kw.ctr}%</td>
+                                        <td style="text-align: right;"><span class="badge ${parseFloat(kw.position) <= 10 ? 'badge-success' : 'badge-secondary'}">${kw.position}</span></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <p>No keyword data available yet. Data usually appears 2-3 days after verification.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading keywords:', error);
+            }
+        }
+
+        async function loadSeoPages(siteUrl, startDate, endDate) {
+            try {
+                const response = await fetch(`/api/admin/seo/pages?site_url=${encodeURIComponent(siteUrl)}&start_date=${startDate}&end_date=${endDate}&limit=30`);
+                const data = await response.json();
+                
+                const container = document.getElementById('seo-pages-list');
+                if (!container) return;
+                
+                if (data.success && data.pages && data.pages.length > 0) {
+                    container.innerHTML = `
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Page</th>
+                                    <th style="text-align: right;">Clicks</th>
+                                    <th style="text-align: right;">Impressions</th>
+                                    <th style="text-align: right;">CTR</th>
+                                    <th style="text-align: right;">Position</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.pages.map(page => {
+                                    const shortUrl = page.page.replace(/^https?:\/\/[^\/]+/, '');
+                                    return `
+                                        <tr>
+                                            <td><a href="${page.page}" target="_blank" style="color: #4285f4;">${shortUrl || '/'}</a></td>
+                                            <td style="text-align: right;">${page.clicks.toLocaleString()}</td>
+                                            <td style="text-align: right;">${page.impressions.toLocaleString()}</td>
+                                            <td style="text-align: right;">${page.ctr}%</td>
+                                            <td style="text-align: right;">${page.position}</td>
+                                        </tr>
+                                    `;
+                                }).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <p>No page data available yet.</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading pages:', error);
+            }
+        }
+
+        async function loadSeoOpportunities(siteUrl) {
+            try {
+                const response = await fetch(`/api/admin/seo/opportunities?site_url=${encodeURIComponent(siteUrl)}`);
+                const data = await response.json();
+                
+                const container = document.getElementById('seo-opportunities-list');
+                if (!container) return;
+                
+                if (data.success && data.opportunities && data.opportunities.length > 0) {
+                    container.innerHTML = `
+                        <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; margin-bottom: 1rem;">
+                            <strong>💡 ${data.suggestion}</strong>
+                        </div>
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Keyword</th>
+                                    <th style="text-align: right;">Position</th>
+                                    <th style="text-align: right;">Impressions</th>
+                                    <th style="text-align: right;">Current Clicks</th>
+                                    <th style="text-align: right;">Potential</th>
+                                    <th>Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                ${data.opportunities.map(opp => `
+                                    <tr>
+                                        <td><strong>${escapeHtml(opp.keyword)}</strong></td>
+                                        <td style="text-align: right;"><span class="badge badge-warning">#${opp.position}</span></td>
+                                        <td style="text-align: right;">${opp.impressions.toLocaleString()}</td>
+                                        <td style="text-align: right;">${opp.clicks}</td>
+                                        <td style="text-align: right; color: #34a853; font-weight: 600;">+${opp.potential}</td>
+                                        <td><button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="generateBlogFromKeyword('${escapeHtml(opp.keyword)}')">📝 Write Blog</button></td>
+                                    </tr>
+                                `).join('')}
+                            </tbody>
+                        </table>
+                    `;
+                    
+                    // Update AI recommendations
+                    updateAiRecommendations(data.opportunities);
+                } else {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <p>No opportunities found yet. Keep building content!</p>
+                        </div>
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading opportunities:', error);
+            }
+        }
+
+        function switchSeoTab(tab) {
+            // Update tab buttons
+            document.querySelectorAll('.seo-tab').forEach(btn => {
+                btn.style.borderBottomColor = 'transparent';
+                btn.style.color = 'var(--text-secondary)';
+                btn.style.fontWeight = 'normal';
+            });
+            const activeBtn = document.querySelector(`.seo-tab[data-tab="${tab}"]`);
+            if (activeBtn) {
+                activeBtn.style.borderBottomColor = '#4285f4';
+                activeBtn.style.color = '#4285f4';
+                activeBtn.style.fontWeight = '600';
+            }
+            
+            // Show/hide tab content
+            document.querySelectorAll('.seo-tab-content').forEach(content => {
+                content.style.display = 'none';
+            });
+            const activeContent = document.getElementById(`seo-tab-${tab}`);
+            if (activeContent) {
+                activeContent.style.display = 'block';
+            }
+        }
+
+        function updateAiRecommendations(opportunities) {
+            const container = document.getElementById('seo-ai-recommendations');
+            if (!container || !opportunities.length) return;
+            
+            const topKeywords = opportunities.slice(0, 3).map(o => o.keyword);
+            
+            container.innerHTML = `
+                <p style="margin-bottom: 1rem;">Based on your Search Console data, here are content ideas:</p>
+                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                    ${topKeywords.map(kw => `
+                        <div style="background: rgba(255,255,255,0.1); padding: 0.75rem 1rem; border-radius: 6px; display: flex; justify-content: space-between; align-items: center;">
+                            <span>Write a blog post about "<strong>${escapeHtml(kw)}</strong>"</span>
+                            <button onclick="generateBlogFromKeyword('${escapeHtml(kw)}')" style="background: white; color: #764ba2; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; font-weight: 600;">Generate →</button>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        function generateBlogFromKeyword(keyword) {
+            // Open blog modal and pre-fill with AI generation request
+            showNotification('AI blog generation coming soon! Keyword: ' + keyword, 'info');
+            // TODO: Integrate with AI content generation
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
         // =====================================================
