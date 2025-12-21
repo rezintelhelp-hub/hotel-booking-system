@@ -25441,6 +25441,151 @@ app.get('/api/admin/seo/opportunities', async (req, res) => {
     }
 });
 
+// Auto-create GA4 property for a new site
+const GA4_ACCOUNT_ID = '378182832';
+
+app.post('/api/admin/seo/create-property', async (req, res) => {
+    try {
+        if (!analyticsAdmin) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const { property_name, site_url, timezone = 'Europe/London', currency = 'GBP' } = req.body;
+        
+        if (!property_name || !site_url) {
+            return res.json({ success: false, error: 'property_name and site_url are required' });
+        }
+        
+        console.log(`Creating GA4 property: ${property_name} for ${site_url}`);
+        
+        // Step 1: Create the GA4 property
+        const propertyResponse = await analyticsAdmin.properties.create({
+            requestBody: {
+                parent: `accounts/${GA4_ACCOUNT_ID}`,
+                displayName: property_name,
+                timeZone: timezone,
+                currencyCode: currency,
+                industryCategory: 'TRAVEL',
+                propertyType: 'PROPERTY_TYPE_ORDINARY'
+            }
+        });
+        
+        const propertyId = propertyResponse.data.name; // Format: properties/123456789
+        console.log(`Created GA4 property: ${propertyId}`);
+        
+        // Step 2: Create a web data stream
+        const streamResponse = await analyticsAdmin.properties.dataStreams.create({
+            parent: propertyId,
+            requestBody: {
+                type: 'WEB_DATA_STREAM',
+                displayName: `${property_name} - Website`,
+                webStreamData: {
+                    defaultUri: site_url
+                }
+            }
+        });
+        
+        const measurementId = streamResponse.data.webStreamData?.measurementId;
+        console.log(`Created data stream with Measurement ID: ${measurementId}`);
+        
+        res.json({ 
+            success: true, 
+            property_id: propertyId,
+            measurement_id: measurementId,
+            message: `GA4 property created: ${measurementId}`
+        });
+        
+    } catch (error) {
+        console.error('Create GA4 property error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Add site to Search Console and get verification token
+app.post('/api/admin/seo/add-site', async (req, res) => {
+    try {
+        if (!searchConsole) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const { site_url } = req.body;
+        
+        if (!site_url) {
+            return res.json({ success: false, error: 'site_url is required' });
+        }
+        
+        console.log(`Adding site to Search Console: ${site_url}`);
+        
+        // Add the site
+        await searchConsole.sites.add({
+            siteUrl: site_url
+        });
+        
+        // Get verification token
+        const tokenResponse = await searchConsole.webResource.getToken({
+            requestBody: {
+                verificationMethod: 'META',
+                site: {
+                    type: 'SITE',
+                    identifier: site_url
+                }
+            }
+        });
+        
+        const verificationToken = tokenResponse.data.token;
+        
+        res.json({ 
+            success: true, 
+            site_url,
+            verification_token: verificationToken,
+            message: 'Site added. Add verification meta tag to complete.'
+        });
+        
+    } catch (error) {
+        console.error('Add Search Console site error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Verify a Search Console site
+app.post('/api/admin/seo/verify-site', async (req, res) => {
+    try {
+        if (!searchConsole) {
+            return res.json({ success: false, error: 'Google APIs not configured' });
+        }
+        
+        const { site_url } = req.body;
+        
+        if (!site_url) {
+            return res.json({ success: false, error: 'site_url is required' });
+        }
+        
+        console.log(`Verifying site in Search Console: ${site_url}`);
+        
+        // Attempt verification
+        const verifyResponse = await searchConsole.webResource.insert({
+            requestBody: {
+                site: {
+                    type: 'SITE',
+                    identifier: site_url
+                },
+                verificationMethod: 'META'
+            }
+        });
+        
+        res.json({ 
+            success: true, 
+            site_url,
+            verified: true,
+            message: 'Site verified successfully'
+        });
+        
+    } catch (error) {
+        console.error('Verify Search Console site error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // =========================================================
 // ATTRACTIONS
 // =========================================================
