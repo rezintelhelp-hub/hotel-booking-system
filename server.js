@@ -25516,29 +25516,17 @@ app.post('/api/admin/seo/add-site', async (req, res) => {
         
         console.log(`Adding site to Search Console: ${site_url}`);
         
-        // Add the site
+        // Add the site - service account becomes owner
         await searchConsole.sites.add({
             siteUrl: site_url
         });
         
-        // Get verification token
-        const tokenResponse = await searchConsole.webResource.getToken({
-            requestBody: {
-                verificationMethod: 'META',
-                site: {
-                    type: 'SITE',
-                    identifier: site_url
-                }
-            }
-        });
-        
-        const verificationToken = tokenResponse.data.token;
+        console.log(`Site added to Search Console: ${site_url}`);
         
         res.json({ 
             success: true, 
             site_url,
-            verification_token: verificationToken,
-            message: 'Site added. Add verification meta tag to complete.'
+            message: 'Site added to Search Console successfully'
         });
         
     } catch (error) {
