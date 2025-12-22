@@ -10033,6 +10033,973 @@ app.get('/api/setup-deploy', async (req, res) => {
 });
 
 // =====================================================
+// PARTNER API SYSTEM - For Channel Manager Integration
+// =====================================================
+
+// Setup partner tables
+app.get('/api/setup-partners', async (req, res) => {
+  try {
+    // Partners table - companies like Elevate that integrate with GAS
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS partners (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        code VARCHAR(50) UNIQUE NOT NULL,
+        contact_name VARCHAR(255),
+        contact_email VARCHAR(255),
+        api_key VARCHAR(64) UNIQUE,
+        api_secret VARCHAR(64),
+        webhook_url VARCHAR(500),
+        webhook_secret VARCHAR(64),
+        permissions JSONB DEFAULT '["sync:read", "sync:write", "website:read", "website:write"]',
+        rate_limit_per_minute INTEGER DEFAULT 60,
+        is_active BOOLEAN DEFAULT true,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Partner API key requests - pending approvals
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS partner_key_requests (
+        id SERIAL PRIMARY KEY,
+        company_name VARCHAR(255) NOT NULL,
+        contact_name VARCHAR(255) NOT NULL,
+        contact_email VARCHAR(255) NOT NULL,
+        website VARCHAR(500),
+        use_case TEXT,
+        status VARCHAR(20) DEFAULT 'pending',
+        reviewed_by INTEGER,
+        reviewed_at TIMESTAMP,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    // Link accounts to partners
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS partner_id INTEGER REFERENCES partners(id)`);
+    await pool.query(`ALTER TABLE accounts ADD COLUMN IF NOT EXISTS partner_external_id VARCHAR(255)`);
+    
+    // Partner API request logs
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS partner_api_logs (
+        id SERIAL PRIMARY KEY,
+        partner_id INTEGER REFERENCES partners(id),
+        endpoint VARCHAR(255),
+        method VARCHAR(10),
+        status_code INTEGER,
+        request_body JSONB,
+        response_time_ms INTEGER,
+        error_message TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    res.json({ success: true, message: 'Partner tables created' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Partner authentication middleware
+async function authenticatePartner(req, res, next) {
+  const apiKey = req.headers['x-partner-key'];
+  
+  if (!apiKey) {
+    return res.status(401).json({ 
+      success: false, 
+      error: 'Partner API key required. Include X-Partner-Key header.' 
+    });
+  }
+  
+  try {
+    const result = await pool.query(`
+      SELECT * FROM partners WHERE api_key = $1 AND is_active = true
+    `, [apiKey]);
+    
+    if (result.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid or inactive partner API key' });
+    }
+    
+    req.partner = result.rows[0];
+    
+    // Log the request (async, don't wait)
+    const startTime = Date.now();
+    res.on('finish', () => {
+      pool.query(`
+        INSERT INTO partner_api_logs (partner_id, endpoint, method, status_code, response_time_ms)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [req.partner.id, req.path, req.method, res.statusCode, Date.now() - startTime]).catch(() => {});
+    });
+    
+    next();
+  } catch (error) {
+    console.error('Partner auth error:', error);
+    res.status(500).json({ success: false, error: 'Authentication error' });
+  }
+}
+
+// Check partner permission
+function hasPartnerPermission(req, permission) {
+  if (!req.partner || !req.partner.permissions) return false;
+  const perms = typeof req.partner.permissions === 'string' 
+    ? JSON.parse(req.partner.permissions) 
+    : req.partner.permissions;
+  return perms.includes(permission) || perms.includes('*');
+}
+
+// =====================================================
+// PARTNER KEY REQUEST ENDPOINTS
+// =====================================================
+
+// Request a partner API key (public endpoint)
+app.post('/api/partner/request-key', async (req, res) => {
+  try {
+    const { company_name, contact_name, contact_email, website, use_case } = req.body;
+    
+    if (!company_name || !contact_name || !contact_email) {
+      return res.json({ success: false, error: 'Company name, contact name, and email are required' });
+    }
+    
+    // Check for existing pending request
+    const existing = await pool.query(`
+      SELECT id FROM partner_key_requests 
+      WHERE contact_email = $1 AND status = 'pending'
+    `, [contact_email]);
+    
+    if (existing.rows.length > 0) {
+      return res.json({ success: false, error: 'A pending request already exists for this email' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO partner_key_requests (company_name, contact_name, contact_email, website, use_case)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING *
+    `, [company_name, contact_name, contact_email, website, use_case]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Request submitted. We will review and contact you within 2 business days.',
+      request_id: result.rows[0].id
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Admin: List partner key requests
+app.get('/api/admin/partner-requests', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM partner_key_requests ORDER BY created_at DESC
+    `);
+    res.json({ success: true, requests: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Admin: Approve partner request and create partner
+app.post('/api/admin/partner-requests/:id/approve', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { permissions } = req.body;
+    
+    // Get the request
+    const reqResult = await pool.query('SELECT * FROM partner_key_requests WHERE id = $1', [id]);
+    if (reqResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Request not found' });
+    }
+    const request = reqResult.rows[0];
+    
+    // Generate API key and secret
+    const crypto = require('crypto');
+    const apiKey = 'gp_' + crypto.randomBytes(32).toString('hex');
+    const apiSecret = crypto.randomBytes(32).toString('hex');
+    const webhookSecret = 'whsec_' + crypto.randomBytes(24).toString('hex');
+    
+    // Create partner code from company name
+    const code = request.company_name.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 50);
+    
+    // Create the partner
+    const partnerResult = await pool.query(`
+      INSERT INTO partners (name, code, contact_name, contact_email, api_key, api_secret, webhook_secret, permissions)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `, [
+      request.company_name, 
+      code, 
+      request.contact_name, 
+      request.contact_email, 
+      apiKey, 
+      apiSecret, 
+      webhookSecret,
+      permissions || ['sync:read', 'sync:write', 'website:read', 'website:write']
+    ]);
+    
+    // Update request status
+    await pool.query(`
+      UPDATE partner_key_requests SET status = 'approved', reviewed_at = NOW() WHERE id = $1
+    `, [id]);
+    
+    res.json({ 
+      success: true, 
+      partner: partnerResult.rows[0],
+      credentials: {
+        api_key: apiKey,
+        api_secret: apiSecret,
+        webhook_secret: webhookSecret
+      }
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Admin: List all partners
+app.get('/api/admin/partners', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT p.*, 
+        (SELECT COUNT(*) FROM accounts WHERE partner_id = p.id) as client_count,
+        (SELECT COUNT(*) FROM partner_api_logs WHERE partner_id = p.id AND created_at > NOW() - INTERVAL '24 hours') as requests_24h
+      FROM partners p
+      ORDER BY p.created_at DESC
+    `);
+    res.json({ success: true, partners: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// GASSYNC PARTNER API - Calry-Compatible Schema
+// =====================================================
+
+// Create/Update Property (Calry-compatible)
+app.post('/api/partner/v1/properties', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { 
+      external_id,       // Partner's property ID
+      account_external_id, // Partner's client ID
+      name,
+      description,
+      address,
+      city,
+      country,
+      postcode,
+      latitude,
+      longitude,
+      email,
+      phone,
+      website,
+      check_in_time,
+      check_out_time,
+      currency,
+      timezone,
+      images,           // Array of image URLs
+      policies          // JSON object
+    } = req.body;
+    
+    if (!external_id || !name) {
+      return res.json({ success: false, error: 'external_id and name are required' });
+    }
+    
+    // Find or create account for this partner's client
+    let accountId = null;
+    if (account_external_id) {
+      const accResult = await pool.query(`
+        SELECT id FROM accounts 
+        WHERE partner_id = $1 AND partner_external_id = $2
+      `, [req.partner.id, account_external_id]);
+      
+      if (accResult.rows.length > 0) {
+        accountId = accResult.rows[0].id;
+      } else {
+        // Create account for this client
+        const newAcc = await pool.query(`
+          INSERT INTO accounts (name, partner_id, partner_external_id, role)
+          VALUES ($1, $2, $3, 'client')
+          RETURNING id
+        `, [`${req.partner.name} Client - ${account_external_id}`, req.partner.id, account_external_id]);
+        accountId = newAcc.rows[0].id;
+      }
+    }
+    
+    // Upsert property
+    const result = await pool.query(`
+      INSERT INTO properties (
+        account_id, cm_property_id, name, description, 
+        address, city, country, postcode,
+        latitude, longitude, email, phone, website_url,
+        check_in_time, check_out_time, currency, timezone
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+      ON CONFLICT (cm_property_id) WHERE cm_property_id IS NOT NULL
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        address = EXCLUDED.address,
+        city = EXCLUDED.city,
+        country = EXCLUDED.country,
+        postcode = EXCLUDED.postcode,
+        latitude = EXCLUDED.latitude,
+        longitude = EXCLUDED.longitude,
+        email = EXCLUDED.email,
+        phone = EXCLUDED.phone,
+        website_url = EXCLUDED.website_url,
+        check_in_time = EXCLUDED.check_in_time,
+        check_out_time = EXCLUDED.check_out_time,
+        currency = EXCLUDED.currency,
+        timezone = EXCLUDED.timezone,
+        updated_at = NOW()
+      RETURNING *
+    `, [
+      accountId, external_id, name, description,
+      address, city, country, postcode,
+      latitude, longitude, email, phone, website,
+      check_in_time || '15:00', check_out_time || '11:00', currency || 'GBP', timezone || 'Europe/London'
+    ]);
+    
+    res.json({ success: true, property: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Properties
+app.get('/api/partner/v1/properties', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:read')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { account_external_id } = req.query;
+    
+    let query = `
+      SELECT p.*, a.partner_external_id as account_external_id
+      FROM properties p
+      LEFT JOIN accounts a ON p.account_id = a.id
+      WHERE a.partner_id = $1
+    `;
+    const params = [req.partner.id];
+    
+    if (account_external_id) {
+      query += ` AND a.partner_external_id = $2`;
+      params.push(account_external_id);
+    }
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, properties: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create/Update Unit (Room) - Calry-compatible
+app.post('/api/partner/v1/units', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const {
+      external_id,        // Partner's unit ID
+      property_external_id, // Partner's property ID
+      name,
+      description,
+      room_type,          // e.g., 'double', 'twin', 'suite'
+      max_occupancy,
+      default_occupancy,
+      bed_configuration,  // e.g., '1 King' or '2 Singles'
+      size_sqm,
+      base_price,
+      currency,
+      amenities,          // Array of strings
+      images              // Array of image URLs
+    } = req.body;
+    
+    if (!external_id || !property_external_id || !name) {
+      return res.json({ success: false, error: 'external_id, property_external_id, and name are required' });
+    }
+    
+    // Find property by external ID
+    const propResult = await pool.query(`
+      SELECT p.id FROM properties p
+      JOIN accounts a ON p.account_id = a.id
+      WHERE p.cm_property_id = $1 AND a.partner_id = $2
+    `, [property_external_id, req.partner.id]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    const propertyId = propResult.rows[0].id;
+    
+    // Upsert room
+    const result = await pool.query(`
+      INSERT INTO bookable_units (
+        property_id, cm_room_id, name, description,
+        room_type, max_occupancy, default_occupancy,
+        bed_type, size_sqm, base_price, currency
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+      ON CONFLICT (cm_room_id) WHERE cm_room_id IS NOT NULL
+      DO UPDATE SET
+        name = EXCLUDED.name,
+        description = EXCLUDED.description,
+        room_type = EXCLUDED.room_type,
+        max_occupancy = EXCLUDED.max_occupancy,
+        default_occupancy = EXCLUDED.default_occupancy,
+        bed_type = EXCLUDED.bed_type,
+        size_sqm = EXCLUDED.size_sqm,
+        base_price = EXCLUDED.base_price,
+        currency = EXCLUDED.currency,
+        updated_at = NOW()
+      RETURNING *
+    `, [
+      propertyId, external_id, name, description,
+      room_type, max_occupancy || 2, default_occupancy || 2,
+      bed_configuration, size_sqm, base_price, currency || 'GBP'
+    ]);
+    
+    res.json({ success: true, unit: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Units
+app.get('/api/partner/v1/units', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:read')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { property_external_id } = req.query;
+    
+    let query = `
+      SELECT bu.*, p.cm_property_id as property_external_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE a.partner_id = $1
+    `;
+    const params = [req.partner.id];
+    
+    if (property_external_id) {
+      query += ` AND p.cm_property_id = $2`;
+      params.push(property_external_id);
+    }
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, units: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update Availability - Calry-compatible
+app.post('/api/partner/v1/availability', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const {
+      unit_external_id,
+      availability        // Array of { date, available, price, min_stay, max_stay }
+    } = req.body;
+    
+    if (!unit_external_id || !availability || !Array.isArray(availability)) {
+      return res.json({ success: false, error: 'unit_external_id and availability array required' });
+    }
+    
+    // Find room
+    const roomResult = await pool.query(`
+      SELECT bu.id FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE bu.cm_room_id = $1 AND a.partner_id = $2
+    `, [unit_external_id, req.partner.id]);
+    
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Unit not found' });
+    }
+    const roomId = roomResult.rows[0].id;
+    
+    // Upsert availability records
+    for (const day of availability) {
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, available, price, min_stay, max_stay)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (room_id, date) DO UPDATE SET
+          available = EXCLUDED.available,
+          price = EXCLUDED.price,
+          min_stay = EXCLUDED.min_stay,
+          max_stay = EXCLUDED.max_stay,
+          updated_at = NOW()
+      `, [roomId, day.date, day.available !== false, day.price, day.min_stay || 1, day.max_stay]);
+    }
+    
+    res.json({ success: true, updated: availability.length });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Availability
+app.get('/api/partner/v1/availability', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:read')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { unit_external_id, start_date, end_date } = req.query;
+    
+    if (!unit_external_id) {
+      return res.json({ success: false, error: 'unit_external_id required' });
+    }
+    
+    const result = await pool.query(`
+      SELECT ra.date, ra.available, ra.price, ra.min_stay, ra.max_stay
+      FROM room_availability ra
+      JOIN bookable_units bu ON ra.room_id = bu.id
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE bu.cm_room_id = $1 AND a.partner_id = $2
+        AND ra.date >= COALESCE($3, CURRENT_DATE)
+        AND ra.date <= COALESCE($4, CURRENT_DATE + INTERVAL '365 days')
+      ORDER BY ra.date
+    `, [unit_external_id, req.partner.id, start_date, end_date]);
+    
+    res.json({ success: true, availability: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create/Update Reservation - Calry-compatible
+app.post('/api/partner/v1/reservations', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const {
+      external_id,          // Partner's reservation ID
+      unit_external_id,
+      status,               // 'confirmed', 'cancelled', 'pending'
+      check_in,
+      check_out,
+      guest_first_name,
+      guest_last_name,
+      guest_email,
+      guest_phone,
+      num_guests,
+      num_adults,
+      num_children,
+      total_price,
+      currency,
+      source,               // e.g., 'booking.com', 'direct', 'airbnb'
+      notes,
+      special_requests
+    } = req.body;
+    
+    if (!external_id || !unit_external_id || !check_in || !check_out) {
+      return res.json({ success: false, error: 'external_id, unit_external_id, check_in, and check_out required' });
+    }
+    
+    // Find room and property
+    const roomResult = await pool.query(`
+      SELECT bu.id as room_id, p.id as property_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE bu.cm_room_id = $1 AND a.partner_id = $2
+    `, [unit_external_id, req.partner.id]);
+    
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Unit not found' });
+    }
+    const { room_id, property_id } = roomResult.rows[0];
+    
+    // Upsert reservation
+    const result = await pool.query(`
+      INSERT INTO bookings (
+        property_id, room_id, cm_booking_id, status,
+        check_in, check_out, guest_first_name, guest_last_name,
+        guest_email, guest_phone, num_guests, num_adults, num_children,
+        total_price, currency, source, notes, special_requests
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
+      ON CONFLICT (cm_booking_id) WHERE cm_booking_id IS NOT NULL
+      DO UPDATE SET
+        status = EXCLUDED.status,
+        check_in = EXCLUDED.check_in,
+        check_out = EXCLUDED.check_out,
+        guest_first_name = EXCLUDED.guest_first_name,
+        guest_last_name = EXCLUDED.guest_last_name,
+        guest_email = EXCLUDED.guest_email,
+        guest_phone = EXCLUDED.guest_phone,
+        num_guests = EXCLUDED.num_guests,
+        num_adults = EXCLUDED.num_adults,
+        num_children = EXCLUDED.num_children,
+        total_price = EXCLUDED.total_price,
+        currency = EXCLUDED.currency,
+        source = EXCLUDED.source,
+        notes = EXCLUDED.notes,
+        special_requests = EXCLUDED.special_requests,
+        updated_at = NOW()
+      RETURNING *
+    `, [
+      property_id, room_id, external_id, status || 'confirmed',
+      check_in, check_out, guest_first_name, guest_last_name,
+      guest_email, guest_phone, num_guests || num_adults || 1, num_adults, num_children,
+      total_price, currency || 'GBP', source, notes, special_requests
+    ]);
+    
+    res.json({ success: true, reservation: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Reservations
+app.get('/api/partner/v1/reservations', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:read')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { property_external_id, unit_external_id, start_date, end_date, status } = req.query;
+    
+    let query = `
+      SELECT b.*, bu.cm_room_id as unit_external_id, p.cm_property_id as property_external_id
+      FROM bookings b
+      JOIN bookable_units bu ON b.room_id = bu.id
+      JOIN properties p ON b.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE a.partner_id = $1
+    `;
+    const params = [req.partner.id];
+    let paramIndex = 2;
+    
+    if (property_external_id) {
+      query += ` AND p.cm_property_id = $${paramIndex++}`;
+      params.push(property_external_id);
+    }
+    if (unit_external_id) {
+      query += ` AND bu.cm_room_id = $${paramIndex++}`;
+      params.push(unit_external_id);
+    }
+    if (start_date) {
+      query += ` AND b.check_out >= $${paramIndex++}`;
+      params.push(start_date);
+    }
+    if (end_date) {
+      query += ` AND b.check_in <= $${paramIndex++}`;
+      params.push(end_date);
+    }
+    if (status) {
+      query += ` AND b.status = $${paramIndex++}`;
+      params.push(status);
+    }
+    
+    query += ` ORDER BY b.check_in DESC`;
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, reservations: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update Rates - Calry-compatible
+app.post('/api/partner/v1/rates', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'sync:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const {
+      unit_external_id,
+      rates                 // Array of { date, price, currency }
+    } = req.body;
+    
+    if (!unit_external_id || !rates || !Array.isArray(rates)) {
+      return res.json({ success: false, error: 'unit_external_id and rates array required' });
+    }
+    
+    // Find room
+    const roomResult = await pool.query(`
+      SELECT bu.id FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      JOIN accounts a ON p.account_id = a.id
+      WHERE bu.cm_room_id = $1 AND a.partner_id = $2
+    `, [unit_external_id, req.partner.id]);
+    
+    if (roomResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Unit not found' });
+    }
+    const roomId = roomResult.rows[0].id;
+    
+    // Update prices in availability table
+    for (const rate of rates) {
+      await pool.query(`
+        INSERT INTO room_availability (room_id, date, price, available)
+        VALUES ($1, $2, $3, true)
+        ON CONFLICT (room_id, date) DO UPDATE SET
+          price = EXCLUDED.price,
+          updated_at = NOW()
+      `, [roomId, rate.date, rate.price]);
+    }
+    
+    res.json({ success: true, updated: rates.length });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// WEBSITE BUILDER PARTNER API
+// =====================================================
+
+// Create Website for Partner's Client
+app.post('/api/partner/v1/websites', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'website:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const {
+      account_external_id,
+      property_external_id,
+      site_name,
+      template,            // 'developer-light' or 'developer-dark'
+      pricing_tier         // 'standard', 'corporate', etc.
+    } = req.body;
+    
+    if (!account_external_id || !site_name) {
+      return res.json({ success: false, error: 'account_external_id and site_name required' });
+    }
+    
+    // Find account
+    const accResult = await pool.query(`
+      SELECT id FROM accounts 
+      WHERE partner_id = $1 AND partner_external_id = $2
+    `, [req.partner.id, account_external_id]);
+    
+    if (accResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Account not found. Create property first.' });
+    }
+    const accountId = accResult.rows[0].id;
+    
+    // Find property if specified
+    let propertyId = null;
+    let roomIds = [];
+    if (property_external_id) {
+      const propResult = await pool.query(`
+        SELECT id FROM properties WHERE cm_property_id = $1 AND account_id = $2
+      `, [property_external_id, accountId]);
+      if (propResult.rows.length > 0) {
+        propertyId = propResult.rows[0].id;
+        // Get all rooms for this property
+        const roomsResult = await pool.query('SELECT id FROM bookable_units WHERE property_id = $1', [propertyId]);
+        roomIds = roomsResult.rows.map(r => r.id);
+      }
+    }
+    
+    // Create deployed site record
+    const slug = site_name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+    const result = await pool.query(`
+      INSERT INTO deployed_sites (
+        account_id, property_id, room_ids, site_name, slug, 
+        template, pricing_tier, status
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, 'development')
+      RETURNING *
+    `, [accountId, propertyId, JSON.stringify(roomIds), site_name, slug, 
+        template || 'developer-light', pricing_tier || 'standard']);
+    
+    res.json({ success: true, website: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Websites
+app.get('/api/partner/v1/websites', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'website:read')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { account_external_id } = req.query;
+    
+    let query = `
+      SELECT ds.*, a.partner_external_id as account_external_id
+      FROM deployed_sites ds
+      JOIN accounts a ON ds.account_id = a.id
+      WHERE a.partner_id = $1
+    `;
+    const params = [req.partner.id];
+    
+    if (account_external_id) {
+      query += ` AND a.partner_external_id = $2`;
+      params.push(account_external_id);
+    }
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, websites: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update Website Section
+app.put('/api/partner/v1/websites/:websiteId/:section', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'website:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { websiteId, section } = req.params;
+    const settings = req.body;
+    
+    // Verify website belongs to partner's client
+    const wsResult = await pool.query(`
+      SELECT ds.id FROM deployed_sites ds
+      JOIN accounts a ON ds.account_id = a.id
+      WHERE ds.id = $1 AND a.partner_id = $2
+    `, [websiteId, req.partner.id]);
+    
+    if (wsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    // Valid sections
+    const validSections = [
+      'header', 'hero', 'intro', 'featured', 'about', 
+      'reviews', 'contact', 'footer', 'colors', 'seo'
+    ];
+    
+    if (!validSections.includes(section)) {
+      return res.json({ success: false, error: `Invalid section. Must be one of: ${validSections.join(', ')}` });
+    }
+    
+    // Upsert website settings
+    const result = await pool.query(`
+      INSERT INTO website_settings (deployed_site_id, section, settings)
+      VALUES ($1, $2, $3)
+      ON CONFLICT (deployed_site_id, section) DO UPDATE SET
+        settings = EXCLUDED.settings,
+        updated_at = NOW()
+      RETURNING *
+    `, [websiteId, section, JSON.stringify(settings)]);
+    
+    res.json({ success: true, section, settings: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get Website Section
+app.get('/api/partner/v1/websites/:websiteId/:section', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'website:read')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { websiteId, section } = req.params;
+    
+    // Verify website belongs to partner's client
+    const result = await pool.query(`
+      SELECT ws.settings FROM website_settings ws
+      JOIN deployed_sites ds ON ws.deployed_site_id = ds.id
+      JOIN accounts a ON ds.account_id = a.id
+      WHERE ds.id = $1 AND ws.section = $2 AND a.partner_id = $3
+    `, [websiteId, section, req.partner.id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: true, section, settings: {} });
+    }
+    
+    res.json({ success: true, section, settings: result.rows[0].settings });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get All Website Settings
+app.get('/api/partner/v1/websites/:websiteId/all-settings', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'website:read')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { websiteId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT ws.section, ws.settings FROM website_settings ws
+      JOIN deployed_sites ds ON ws.deployed_site_id = ds.id
+      JOIN accounts a ON ds.account_id = a.id
+      WHERE ds.id = $1 AND a.partner_id = $2
+    `, [websiteId, req.partner.id]);
+    
+    // Convert to object keyed by section
+    const settings = {};
+    result.rows.forEach(row => {
+      settings[row.section] = row.settings;
+    });
+    
+    res.json({ success: true, settings });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Deploy Website (trigger WordPress creation)
+app.post('/api/partner/v1/websites/:websiteId/deploy', authenticatePartner, async (req, res) => {
+  if (!hasPartnerPermission(req, 'website:write')) {
+    return res.status(403).json({ success: false, error: 'Permission denied' });
+  }
+  
+  try {
+    const { websiteId } = req.params;
+    
+    // Verify website belongs to partner's client
+    const wsResult = await pool.query(`
+      SELECT ds.* FROM deployed_sites ds
+      JOIN accounts a ON ds.account_id = a.id
+      WHERE ds.id = $1 AND a.partner_id = $2
+    `, [websiteId, req.partner.id]);
+    
+    if (wsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Website not found' });
+    }
+    
+    const website = wsResult.rows[0];
+    
+    // TODO: Trigger actual WordPress deployment via VPS
+    // For now, just update status
+    await pool.query(`
+      UPDATE deployed_sites SET status = 'deploying', updated_at = NOW()
+      WHERE id = $1
+    `, [websiteId]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Deployment initiated',
+      website_id: websiteId,
+      status: 'deploying'
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // DEPLOYED SITES SETTINGS - Clean Per-Site Architecture
 // =====================================================
 
