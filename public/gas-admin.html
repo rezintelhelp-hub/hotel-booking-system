@@ -2674,6 +2674,12 @@
                                 <option value="">All Properties</option>
                             </select>
                         </div>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="show-hidden-rooms" onchange="filterGridByProperty()">
+                                <span style="font-size: 0.85rem; color: #6b7280;">Show hidden rooms</span>
+                            </label>
+                        </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
                             <button class="btn btn-secondary" onclick="refreshCalendar()" title="Refresh calendar data" style="padding: 0.5rem 0.75rem;">🔄</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(-7)">‹‹</button>
@@ -17388,14 +17394,15 @@ Local honey and preserves"></textarea>
                                         <th>Capacity</th>
                                         <th>Qty</th>
                                         <th>Status</th>
+                                        <th>Visible</th>
                                         <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     ${data.data.map(unit => `
-                                        <tr>
+                                        <tr style="${unit.is_hidden ? 'opacity: 0.6;' : ''}">
                                             <td><code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; font-size: 0.8rem;">${unit.id}</code></td>
-                                            <td><strong>${unit.name}</strong></td>
+                                            <td><strong>${unit.name}</strong>${unit.is_hidden ? ' <span style="color: #9ca3af; font-size: 0.8rem;">(hidden)</span>' : ''}</td>
                                             <td>${unit.unit_type || 'N/A'}</td>
                                             <td>${unit.max_guests || '-'} guests</td>
                                             <td>${unit.quantity || 1}</td>
@@ -17403,6 +17410,11 @@ Local honey and preserves"></textarea>
                                                 <span class="badge ${(unit.status === 'available' || unit.status === 'active') ? 'badge-success' : unit.status === 'maintenance' ? 'badge-warning' : 'badge-secondary'}">
                                                     ${(unit.status === 'available' || unit.status === 'active') ? '✅' : unit.status === 'maintenance' ? '🔧' : '❌'} ${unit.status || 'available'}
                                                 </span>
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-secondary btn-small" onclick="toggleRoomVisibility(${unit.id}, ${!unit.is_hidden})" title="${unit.is_hidden ? 'Show on calendar' : 'Hide from calendar'}">
+                                                    ${unit.is_hidden ? '👁️ Show' : '🙈 Hide'}
+                                                </button>
                                             </td>
                                             <td><button class="btn btn-secondary btn-small" onclick="editRoom(${unit.id})">Edit</button></td>
                                         </tr>
@@ -17425,6 +17437,27 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error loading rooms:', error);
                 container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading rooms</p>';
+            }
+        }
+        
+        async function toggleRoomVisibility(roomId, hide) {
+            try {
+                const response = await fetch(`/api/admin/rooms/${roomId}/visibility`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ is_hidden: hide })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(hide ? 'Room hidden from calendar' : 'Room visible on calendar', 'success');
+                    loadRoomsForProperty(); // Refresh the list
+                } else {
+                    showNotification('Error updating room visibility', 'error');
+                }
+            } catch (error) {
+                console.error('Error toggling visibility:', error);
+                showNotification('Error updating room visibility', 'error');
             }
         }
         
@@ -20279,12 +20312,14 @@ Local honey and preserves"></textarea>
                 
                 if (data.success && data.data) {
                     allRooms = data.data;
-                    gridRooms = data.data;
+                    // Filter out hidden rooms by default
+                    const showHidden = document.getElementById('show-hidden-rooms')?.checked || false;
+                    gridRooms = showHidden ? data.data : data.data.filter(r => !r.is_hidden);
                     
-                    // Populate edit room select
+                    // Populate edit room select (only visible rooms by default)
                     const select = document.getElementById('edit-room-select');
                     select.innerHTML = '<option value="">All Rooms</option>' +
-                        data.data.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+                        gridRooms.map(r => `<option value="${r.id}">${r.name}${r.is_hidden ? ' (hidden)' : ''}</option>`).join('');
                 }
             } catch (error) {
                 console.error('Error loading rooms:', error);
@@ -20296,26 +20331,35 @@ Local honey and preserves"></textarea>
         function filterGridByProperty() {
             const propFilter = document.getElementById('grid-property-filter');
             const propertyId = propFilter.value;
+            const showHidden = document.getElementById('show-hidden-rooms')?.checked || false;
             
             console.log('=== FILTER DEBUG ===');
             console.log('Selected property ID:', propertyId);
+            console.log('Show hidden:', showHidden);
             console.log('allRooms count:', allRooms.length);
             
+            // Start with all rooms
+            let filteredRooms = [...allRooms];
+            
+            // Filter by property if selected
             if (propertyId) {
-                gridRooms = allRooms.filter(r => {
-                    const match = String(r.property_id) === String(propertyId);
-                    return match;
-                });
-                console.log('Filtered to', gridRooms.length, 'rooms for property', propertyId);
-            } else {
-                gridRooms = [...allRooms];
-                console.log('Showing all', gridRooms.length, 'rooms');
+                filteredRooms = filteredRooms.filter(r => String(r.property_id) === String(propertyId));
+                console.log('After property filter:', filteredRooms.length, 'rooms');
             }
+            
+            // Filter out hidden rooms unless checkbox is checked
+            if (!showHidden) {
+                filteredRooms = filteredRooms.filter(r => !r.is_hidden);
+                console.log('After hidden filter:', filteredRooms.length, 'rooms');
+            }
+            
+            gridRooms = filteredRooms;
+            console.log('Final gridRooms:', gridRooms.length, 'rooms');
             
             // Update edit room select with filtered rooms
             const select = document.getElementById('edit-room-select');
             select.innerHTML = '<option value="">All Rooms</option>' +
-                gridRooms.map(r => `<option value="${r.id}">${r.name}</option>`).join('');
+                gridRooms.map(r => `<option value="${r.id}">${r.name}${r.is_hidden ? ' (hidden)' : ''}</option>`).join('');
             
             // Make sure we preserve the dropdown selection
             propFilter.value = propertyId;
