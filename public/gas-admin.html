@@ -27943,11 +27943,23 @@ Local honey and preserves"></textarea>
                         </div>
                         <div class="modal-body">
                             <div id="ai-blog-form">
-                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
-                                    <div>
-                                        <label style="font-weight: 600;">Target Keyword</label>
-                                        <input type="text" id="ai-blog-keyword" class="form-input" value="${keyword}" />
+                                <!-- Topic Suggestions -->
+                                <div style="margin-bottom: 1.5rem;">
+                                    <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">💡 Suggested Topics</label>
+                                    <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 0.75rem;">Click a suggestion or type your own topic below</p>
+                                    <div id="ai-blog-suggestions" style="max-height: 200px; overflow-y: auto; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem;">
+                                        <div style="text-align: center; padding: 1rem; color: var(--text-secondary);">Loading suggestions...</div>
                                     </div>
+                                </div>
+                                
+                                <!-- Custom Topic Input -->
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="font-weight: 600;">✏️ Your Topic / Keyword</label>
+                                    <input type="text" id="ai-blog-keyword" class="form-input" value="${keyword || ''}" placeholder="e.g. Things to do in Blackpool, Pet-friendly beaches..." />
+                                </div>
+                                
+                                <!-- Language and Property -->
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                                     <div>
                                         <label style="font-weight: 600;">Language</label>
                                         <select id="ai-blog-language" class="form-input">
@@ -27961,9 +27973,23 @@ Local honey and preserves"></textarea>
                                             <option value="pl">Polish</option>
                                         </select>
                                     </div>
+                                    <div>
+                                        <label style="font-weight: 600;">Category</label>
+                                        <select id="ai-blog-category" class="form-input">
+                                            <option value="General">General</option>
+                                            <option value="Local Guide">Local Guide</option>
+                                            <option value="Travel Tips">Travel Tips</option>
+                                            <option value="Events">Events</option>
+                                            <option value="Food & Drink">Food & Drink</option>
+                                            <option value="Activities">Activities</option>
+                                            <option value="Seasonal">Seasonal</option>
+                                        </select>
+                                    </div>
                                 </div>
+                                
                                 <input type="hidden" id="ai-blog-property-id" value="${propertyId || ''}" />
-                                <button class="btn" onclick="generateAiBlog()" id="ai-generate-btn" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                
+                                <button class="btn" onclick="generateAiBlog()" id="ai-generate-btn" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1rem;">
                                     ✨ Generate Blog Post
                                 </button>
                             </div>
@@ -27985,26 +28011,50 @@ Local honey and preserves"></textarea>
                                 </div>
                                 <div style="margin-bottom: 1rem;">
                                     <label style="font-weight: 600;">Content</label>
-                                    <textarea id="ai-blog-content" class="form-input" rows="15" style="font-family: monospace;"></textarea>
+                                    <textarea id="ai-blog-content" class="form-input" rows="12" style="font-family: monospace;"></textarea>
                                 </div>
                                 <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
                                     <div>
                                         <label style="font-weight: 600;">Meta Title (SEO)</label>
-                                        <input type="text" id="ai-blog-meta-title" class="form-input" />
+                                        <input type="text" id="ai-blog-meta-title" class="form-input" maxlength="60" />
                                     </div>
                                     <div>
                                         <label style="font-weight: 600;">Meta Description (SEO)</label>
-                                        <input type="text" id="ai-blog-meta-desc" class="form-input" />
+                                        <input type="text" id="ai-blog-meta-desc" class="form-input" maxlength="160" />
                                     </div>
                                 </div>
+                                
+                                <!-- Featured Image -->
                                 <div style="margin-bottom: 1rem;">
-                                    <label style="font-weight: 600;">Suggested Tags</label>
-                                    <input type="text" id="ai-blog-tags" class="form-input" placeholder="tag1, tag2, tag3" />
+                                    <label style="font-weight: 600;">Featured Image URL</label>
+                                    <input type="text" id="ai-blog-image" class="form-input" placeholder="https://... (paste image URL or leave blank)" />
+                                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">⚠️ Use your own images to avoid copyright issues</p>
                                 </div>
+                                
+                                <!-- Scheduling Options -->
+                                <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                                    <label style="font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                                        <input type="checkbox" id="ai-blog-schedule" onchange="toggleScheduleOptions()" />
+                                        ⏰ Schedule for later
+                                    </label>
+                                    <div id="ai-blog-schedule-options" style="display: none; margin-top: 1rem;">
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                            <div>
+                                                <label>Publish Date</label>
+                                                <input type="date" id="ai-blog-schedule-date" class="form-input" />
+                                            </div>
+                                            <div>
+                                                <label>Publish Time</label>
+                                                <input type="time" id="ai-blog-schedule-time" class="form-input" value="09:00" />
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
                                 <div style="display: flex; gap: 1rem;">
                                     <button class="btn" onclick="saveAiBlog(false)" style="flex: 1;">💾 Save as Draft</button>
                                     <button class="btn" onclick="saveAiBlog(true)" style="flex: 1; background: #10b981;">🚀 Publish</button>
-                                    <button class="btn btn-secondary" onclick="generateAiBlog()" style="flex: 0.5;">🔄 Regenerate</button>
+                                    <button class="btn btn-secondary" onclick="showAiBlogForm()" style="flex: 0.5;">← Back</button>
                                 </div>
                             </div>
                         </div>
@@ -28018,6 +28068,107 @@ Local honey and preserves"></textarea>
             
             // Add modal to page
             document.body.insertAdjacentHTML('beforeend', modalHtml);
+            
+            // Load suggestions
+            loadBlogSuggestions(propertyId);
+        }
+        
+        async function loadBlogSuggestions(propertyId) {
+            const container = document.getElementById('ai-blog-suggestions');
+            if (!container) return;
+            
+            try {
+                let url = '/api/admin/blog/suggestions';
+                if (propertyId) url += `?property_id=${propertyId}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success && data.suggestions) {
+                    const categoryLabels = {
+                        'location': '📍 Location',
+                        'regional': '🗺️ Regional',
+                        'seasonal': '🎄 Seasonal',
+                        'amenity': '🏠 Amenities',
+                        'intent': '🎯 Intent',
+                        'activities': '🎡 Activities',
+                        'events': '📅 Events',
+                        'attractions': '🏛️ Attractions'
+                    };
+                    
+                    let html = '';
+                    
+                    // Group suggestions by category
+                    for (const [category, suggestions] of Object.entries(data.suggestions)) {
+                        html += `
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.25rem;">
+                                    ${categoryLabels[category] || category}
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                                    ${suggestions.map(s => `
+                                        <button onclick="selectBlogTopic('${s.topic.replace(/'/g, "\\'")}')" 
+                                            style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;"
+                                            title="${s.description || ''}">${s.topic}</button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    // Add attraction suggestions if any
+                    if (data.attractionSuggestions && data.attractionSuggestions.length > 0) {
+                        html += `
+                            <div style="margin-bottom: 0.75rem;">
+                                <div style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 0.25rem;">
+                                    🏛️ Your Attractions
+                                </div>
+                                <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                                    ${data.attractionSuggestions.map(s => `
+                                        <button onclick="selectBlogTopic('${s.topic.replace(/'/g, "\\'")}')" 
+                                            style="background: #fef3c7; color: #92400e; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">${s.topic}</button>
+                                    `).join('')}
+                                </div>
+                            </div>
+                        `;
+                    }
+                    
+                    container.innerHTML = html || '<p style="text-align: center; color: var(--text-secondary);">No suggestions available. Type your own topic below.</p>';
+                } else {
+                    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Type your own topic below.</p>';
+                }
+            } catch (error) {
+                console.error('Error loading suggestions:', error);
+                container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Type your own topic below.</p>';
+            }
+        }
+        
+        function selectBlogTopic(topic) {
+            const input = document.getElementById('ai-blog-keyword');
+            if (input) {
+                input.value = topic;
+                input.focus();
+            }
+        }
+        
+        function toggleScheduleOptions() {
+            const checkbox = document.getElementById('ai-blog-schedule');
+            const options = document.getElementById('ai-blog-schedule-options');
+            if (options) {
+                options.style.display = checkbox.checked ? 'block' : 'none';
+                if (checkbox.checked) {
+                    // Set default date to tomorrow
+                    const tomorrow = new Date();
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    document.getElementById('ai-blog-schedule-date').value = tomorrow.toISOString().split('T')[0];
+                }
+            }
+        }
+        
+        function showAiBlogForm() {
+            document.getElementById('ai-blog-form').style.display = 'block';
+            document.getElementById('ai-blog-result').style.display = 'none';
+            document.getElementById('ai-blog-loading').style.display = 'none';
         }
         
         function closeAiBlogModal() {
@@ -28105,6 +28256,18 @@ Local honey and preserves"></textarea>
                 clientId = 1;
             }
             
+            // Handle scheduling
+            let scheduledAt = null;
+            const scheduleCheckbox = document.getElementById('ai-blog-schedule');
+            if (scheduleCheckbox && scheduleCheckbox.checked) {
+                const scheduleDate = document.getElementById('ai-blog-schedule-date').value;
+                const scheduleTime = document.getElementById('ai-blog-schedule-time').value || '09:00';
+                if (scheduleDate) {
+                    scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+                    publish = false; // Scheduled posts are not immediately published
+                }
+            }
+            
             const blogData = {
                 title: document.getElementById('ai-blog-title').value,
                 slug: document.getElementById('ai-blog-title').value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
@@ -28112,11 +28275,16 @@ Local honey and preserves"></textarea>
                 content: document.getElementById('ai-blog-content').value,
                 meta_title: document.getElementById('ai-blog-meta-title').value,
                 meta_description: document.getElementById('ai-blog-meta-desc').value,
-                category: 'General',
+                category: document.getElementById('ai-blog-category')?.value || 'General',
+                featured_image_url: document.getElementById('ai-blog-image')?.value || null,
                 is_published: publish,
                 is_featured: false,
                 client_id: clientId,
-                property_id: propertyId || null
+                property_id: propertyId || null,
+                scheduled_at: scheduledAt,
+                ai_generated: true,
+                source_keyword: document.getElementById('ai-blog-keyword')?.value || null,
+                language: document.getElementById('ai-blog-language')?.value || 'en'
             };
             
             try {
@@ -28129,7 +28297,11 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification(publish ? 'Blog published!' : 'Blog saved as draft', 'success');
+                    let message = publish ? 'Blog published!' : 'Blog saved as draft';
+                    if (scheduledAt) {
+                        message = `Blog scheduled for ${new Date(scheduledAt).toLocaleString()}`;
+                    }
+                    showNotification(message, 'success');
                     closeAiBlogModal();
                     // Switch to Blog view and refresh
                     showView('app-blog');
