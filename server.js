@@ -11796,30 +11796,34 @@ app.get('/api/db/bookable-units', async (req, res) => {
     const clientId = req.query.client_id;
     const accountId = req.query.account_id;
     const propertyId = req.query.property_id;
+    const includeHidden = req.query.include_hidden === 'true';
     let result;
+    
+    // Build hidden filter - exclude hidden rooms unless include_hidden=true
+    const hiddenFilter = includeHidden ? '' : 'AND (bu.is_hidden = false OR bu.is_hidden IS NULL)';
     
     if (propertyId) {
       result = await pool.query(`
         SELECT bu.* FROM bookable_units bu
-        WHERE bu.property_id = $1
+        WHERE bu.property_id = $1 ${hiddenFilter}
         ORDER BY bu.created_at
       `, [propertyId]);
     } else if (accountId) {
       result = await pool.query(`
         SELECT bu.* FROM bookable_units bu
         JOIN properties p ON bu.property_id = p.id
-        WHERE p.account_id = $1
+        WHERE p.account_id = $1 ${hiddenFilter}
         ORDER BY bu.property_id, bu.created_at
       `, [accountId]);
     } else if (clientId) {
       result = await pool.query(`
         SELECT bu.* FROM bookable_units bu
         JOIN properties p ON bu.property_id = p.id
-        WHERE p.client_id = $1
+        WHERE p.client_id = $1 ${hiddenFilter}
         ORDER BY bu.property_id, bu.created_at
       `, [clientId]);
     } else {
-      result = await pool.query('SELECT * FROM bookable_units ORDER BY property_id, created_at');
+      result = await pool.query(`SELECT * FROM bookable_units bu WHERE 1=1 ${hiddenFilter} ORDER BY property_id, created_at`);
     }
     
     res.json({ success: true, data: result.rows });
