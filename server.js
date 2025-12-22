@@ -8886,6 +8886,7 @@ app.get('/api/setup-website-builder', async (req, res) => {
           order: 2,
           fields: {
             developer_hero_bg: { type: 'image', label: 'Background Image' },
+            developer_hero_video_url: { type: 'url', label: 'Video URL (MP4)' },
             developer_hero_title: { type: 'text', label: 'Title', default: 'Find Your Perfect Vacation Rental' },
             developer_hero_subtitle: { type: 'textarea', label: 'Subtitle', default: 'Discover stunning vacation rentals with luxury amenities.' },
             developer_hero_badge: { type: 'text', label: 'Badge Text', default: 'Welcome to Paradise' },
@@ -29560,6 +29561,59 @@ app.post('/api/admin/website-builder/upload-image', upload.single('image'), asyn
     });
   } catch (error) {
     console.error('Website image upload error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Video upload for website builder (hero backgrounds, etc.)
+const videoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 100 * 1024 * 1024 }, // 100MB max
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Only video files allowed'), false);
+    }
+  }
+});
+
+app.post('/api/admin/website-builder/upload-video', videoUpload.single('video'), async (req, res) => {
+  try {
+    const { account_id, section } = req.body;
+    
+    if (!req.file) {
+      return res.json({ success: false, error: 'No video uploaded' });
+    }
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    // Generate unique filename
+    const ext = req.file.originalname.split('.').pop().toLowerCase();
+    const filename = `video-${Date.now()}-${uuidv4().slice(0, 8)}.${ext}`;
+    const key = `website/${section || 'hero'}/account-${account_id}/${filename}`;
+    
+    // Upload directly to R2 (no processing needed for video)
+    await r2Client.send(new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: key,
+      Body: req.file.buffer,
+      ContentType: req.file.mimetype
+    }));
+    
+    // Construct public URL
+    const publicUrl = `${process.env.R2_PUBLIC_URL || 'https://images.gas.travel'}/${key}`;
+    
+    console.log(`Video uploaded: ${publicUrl}`);
+    
+    res.json({ 
+      success: true, 
+      url: publicUrl
+    });
+  } catch (error) {
+    console.error('Website video upload error:', error);
     res.json({ success: false, error: error.message });
   }
 });
