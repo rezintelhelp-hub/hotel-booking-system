@@ -738,6 +738,117 @@ async function runMigrations() {
       console.log('ℹ️  deployed_sites GA4 columns:', ga4ColError.message);
     }
     
+    // Enhanced blog_posts columns
+    try {
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS ai_generated BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS source_keyword VARCHAR(255)`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS language VARCHAR(10) DEFAULT 'en'`);
+      await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS featured_image TEXT`);
+      console.log('✅ blog_posts enhanced columns ensured');
+    } catch (blogEnhanceError) {
+      console.log('ℹ️  blog_posts enhanced columns:', blogEnhanceError.message);
+    }
+    
+    // Blog schedules table for recurring auto-generation
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS blog_schedules (
+          id SERIAL PRIMARY KEY,
+          client_id INTEGER REFERENCES clients(id),
+          property_id INTEGER REFERENCES properties(id),
+          topic VARCHAR(255) NOT NULL,
+          language VARCHAR(10) DEFAULT 'en',
+          frequency VARCHAR(20) DEFAULT 'weekly',
+          day_of_week INTEGER,
+          day_of_month INTEGER,
+          next_run_at TIMESTAMP,
+          last_run_at TIMESTAMP,
+          is_active BOOLEAN DEFAULT true,
+          auto_publish BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('✅ blog_schedules table ensured');
+    } catch (blogScheduleError) {
+      console.log('ℹ️  blog_schedules table:', blogScheduleError.message);
+    }
+    
+    // Blog topic templates for suggestions
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS blog_topic_templates (
+          id SERIAL PRIMARY KEY,
+          category VARCHAR(50),
+          template VARCHAR(255),
+          description TEXT,
+          variables JSONB,
+          is_active BOOLEAN DEFAULT true,
+          sort_order INTEGER DEFAULT 0
+        )
+      `);
+      
+      // Seed default templates if empty
+      const templateCheck = await pool.query('SELECT COUNT(*) FROM blog_topic_templates');
+      if (parseInt(templateCheck.rows[0].count) === 0) {
+        await pool.query(`
+          INSERT INTO blog_topic_templates (category, template, description, variables, sort_order) VALUES
+          -- Location-based
+          ('location', 'Accommodation in {city}', 'Generic accommodation search', '["city"]', 1),
+          ('location', 'Hotels in {city}', 'Hotel searches', '["city"]', 2),
+          ('location', 'Places to stay in {city}', 'General lodging', '["city"]', 3),
+          ('location', 'Holiday rentals {city}', 'Vacation rental searches', '["city"]', 4),
+          ('location', '{city} vacation rentals', 'US-style search', '["city"]', 5),
+          ('location', 'Best {city} accommodation', 'Quality focused', '["city"]', 6),
+          ('location', 'Where to stay in {city}', 'Decision help', '["city"]', 7),
+          
+          -- Regional
+          ('regional', 'Holidays in {region}', 'Regional tourism', '["region"]', 10),
+          ('regional', '{region} getaways', 'Short breaks', '["region"]', 11),
+          ('regional', 'Weekend breaks {region}', 'Weekend trips', '["region"]', 12),
+          
+          -- Seasonal
+          ('seasonal', 'Christmas in {city}', 'Winter holidays', '["city"]', 20),
+          ('seasonal', 'Summer holidays {city}', 'Peak season', '["city"]', 21),
+          ('seasonal', 'Easter breaks {city}', 'Spring holidays', '["city"]', 22),
+          ('seasonal', 'New Year in {city}', 'NYE celebrations', '["city"]', 23),
+          ('seasonal', 'Autumn breaks in {city}', 'Fall season', '["city"]', 24),
+          
+          -- Amenity-based
+          ('amenity', 'Pet-friendly holidays in {city}', 'Pet owners', '["city"]', 30),
+          ('amenity', 'Family accommodation {city}', 'Family travel', '["city"]', 31),
+          ('amenity', 'Accessible hotels in {city}', 'Accessibility', '["city"]', 32),
+          ('amenity', 'Self-catering accommodation {city}', 'Self-catering', '["city"]', 33),
+          
+          -- Intent-based
+          ('intent', 'Cheap accommodation {city}', 'Budget travelers', '["city"]', 40),
+          ('intent', 'Luxury stays in {city}', 'High-end market', '["city"]', 41),
+          ('intent', 'Budget hotels {city}', 'Cost-conscious', '["city"]', 42),
+          ('intent', 'Romantic getaways {city}', 'Couples', '["city"]', 43),
+          
+          -- Activities/Things to do
+          ('activities', 'Things to do in {city}', 'Activity guide', '["city"]', 50),
+          ('activities', 'Best restaurants in {city}', 'Food guide', '["city"]', 51),
+          ('activities', 'Day trips from {city}', 'Excursions', '["city"]', 52),
+          ('activities', 'Hidden gems in {city}', 'Local secrets', '["city"]', 53),
+          ('activities', 'Nightlife in {city}', 'Entertainment', '["city"]', 54),
+          ('activities', 'Shopping in {city}', 'Retail guide', '["city"]', 55),
+          ('activities', 'Free things to do in {city}', 'Budget activities', '["city"]', 56),
+          
+          -- Events
+          ('events', 'Events in {city} this month', 'Current events', '["city"]', 60),
+          ('events', 'Festivals in {city}', 'Festival guide', '["city"]', 61),
+          ('events', 'Concerts and shows in {city}', 'Entertainment', '["city"]', 62),
+          ('events', 'Sports events in {city}', 'Sports', '["city"]', 63)
+        `);
+        console.log('✅ blog_topic_templates seeded with defaults');
+      }
+      console.log('✅ blog_topic_templates table ensured');
+    } catch (blogTemplateError) {
+      console.log('ℹ️  blog_topic_templates table:', blogTemplateError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -25171,6 +25282,177 @@ Return your response in this exact JSON format:
     }
 });
 
+// Get blog topic suggestions for a property
+app.get('/api/admin/blog/suggestions', async (req, res) => {
+    try {
+        const { property_id } = req.query;
+        
+        // Get property info for variable replacement
+        let propertyData = { city: '', region: '', country: '' };
+        if (property_id) {
+            const propResult = await pool.query(
+                'SELECT name, city, region, country, property_type FROM properties WHERE id = $1',
+                [property_id]
+            );
+            if (propResult.rows[0]) {
+                propertyData = propResult.rows[0];
+            }
+        }
+        
+        // Get all active templates
+        const templates = await pool.query(
+            'SELECT * FROM blog_topic_templates WHERE is_active = true ORDER BY sort_order, category'
+        );
+        
+        // Replace variables in templates
+        const suggestions = templates.rows.map(t => {
+            let topic = t.template;
+            topic = topic.replace(/{city}/g, propertyData.city || 'your area');
+            topic = topic.replace(/{region}/g, propertyData.region || 'the region');
+            topic = topic.replace(/{country}/g, propertyData.country || '');
+            topic = topic.replace(/{location}/g, propertyData.city || propertyData.region || 'your location');
+            
+            return {
+                id: t.id,
+                category: t.category,
+                topic: topic,
+                template: t.template,
+                description: t.description
+            };
+        });
+        
+        // Group by category
+        const grouped = {};
+        suggestions.forEach(s => {
+            if (!grouped[s.category]) grouped[s.category] = [];
+            grouped[s.category].push(s);
+        });
+        
+        // Get existing attractions for this property as additional suggestions
+        let attractionSuggestions = [];
+        if (property_id) {
+            const attractions = await pool.query(
+                'SELECT name, category FROM attractions WHERE property_id = $1 LIMIT 10',
+                [property_id]
+            );
+            attractionSuggestions = attractions.rows.map(a => ({
+                category: 'attractions',
+                topic: `Guide to ${a.name}`,
+                description: `Write about the ${a.category} attraction`
+            }));
+        }
+        
+        res.json({ 
+            success: true, 
+            suggestions: grouped,
+            attractionSuggestions,
+            propertyData
+        });
+    } catch (error) {
+        console.error('Blog suggestions error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get blog schedules
+app.get('/api/admin/blog/schedules', async (req, res) => {
+    try {
+        const { client_id, property_id } = req.query;
+        
+        let query = 'SELECT bs.*, p.name as property_name FROM blog_schedules bs LEFT JOIN properties p ON bs.property_id = p.id WHERE 1=1';
+        const params = [];
+        
+        if (client_id && client_id !== 'null') {
+            params.push(client_id);
+            query += ` AND bs.client_id = $${params.length}`;
+        }
+        if (property_id) {
+            params.push(property_id);
+            query += ` AND bs.property_id = $${params.length}`;
+        }
+        
+        query += ' ORDER BY bs.next_run_at ASC';
+        
+        const result = await pool.query(query, params);
+        res.json({ success: true, schedules: result.rows });
+    } catch (error) {
+        console.error('Get blog schedules error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Create blog schedule
+app.post('/api/admin/blog/schedules', async (req, res) => {
+    try {
+        const { client_id, property_id, topic, language, frequency, day_of_week, day_of_month, auto_publish } = req.body;
+        
+        // Calculate next run date
+        let nextRun = new Date();
+        if (frequency === 'weekly' && day_of_week !== undefined) {
+            const daysUntil = (day_of_week - nextRun.getDay() + 7) % 7 || 7;
+            nextRun.setDate(nextRun.getDate() + daysUntil);
+        } else if (frequency === 'monthly' && day_of_month) {
+            nextRun.setDate(day_of_month);
+            if (nextRun <= new Date()) {
+                nextRun.setMonth(nextRun.getMonth() + 1);
+            }
+        } else if (frequency === 'biweekly') {
+            nextRun.setDate(nextRun.getDate() + 14);
+        }
+        nextRun.setHours(9, 0, 0, 0); // Run at 9 AM
+        
+        const result = await pool.query(`
+            INSERT INTO blog_schedules (client_id, property_id, topic, language, frequency, day_of_week, day_of_month, next_run_at, auto_publish)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+            RETURNING *
+        `, [client_id, property_id, topic, language || 'en', frequency || 'weekly', day_of_week, day_of_month, nextRun, auto_publish || false]);
+        
+        res.json({ success: true, schedule: result.rows[0] });
+    } catch (error) {
+        console.error('Create blog schedule error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Update blog schedule
+app.put('/api/admin/blog/schedules/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { topic, language, frequency, day_of_week, day_of_month, is_active, auto_publish } = req.body;
+        
+        const result = await pool.query(`
+            UPDATE blog_schedules SET
+                topic = COALESCE($1, topic),
+                language = COALESCE($2, language),
+                frequency = COALESCE($3, frequency),
+                day_of_week = COALESCE($4, day_of_week),
+                day_of_month = COALESCE($5, day_of_month),
+                is_active = COALESCE($6, is_active),
+                auto_publish = COALESCE($7, auto_publish),
+                updated_at = NOW()
+            WHERE id = $8
+            RETURNING *
+        `, [topic, language, frequency, day_of_week, day_of_month, is_active, auto_publish, id]);
+        
+        res.json({ success: true, schedule: result.rows[0] });
+    } catch (error) {
+        console.error('Update blog schedule error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Delete blog schedule
+app.delete('/api/admin/blog/schedules/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        await pool.query('DELETE FROM blog_schedules WHERE id = $1', [id]);
+        res.json({ success: true });
+    } catch (error) {
+        console.error('Delete blog schedule error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Get all blog posts
 app.get('/api/admin/blog', async (req, res) => {
     try {
@@ -25294,7 +25576,8 @@ app.post('/api/admin/blog', async (req, res) => {
             category, tags,
             meta_title, meta_description,
             author_name, author_image_url,
-            read_time_minutes, is_featured, is_published, published_at
+            read_time_minutes, is_featured, is_published, published_at,
+            scheduled_at, ai_generated, source_keyword, language
         } = req.body;
         
         console.log('Blog POST received:', { client_id, property_id, title });
@@ -25323,15 +25606,17 @@ app.post('/api/admin/blog', async (req, res) => {
                 client_id, property_id, title, slug, excerpt, content, featured_image_url,
                 category, tags, meta_title, meta_description,
                 author_name, author_image_url, read_time_minutes,
-                is_featured, is_published, published_at
+                is_featured, is_published, published_at,
+                scheduled_at, ai_generated, source_keyword, language
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
             RETURNING *
         `, [
             client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
             category, tags || [], meta_title, meta_description,
             author_name, author_image_url, read_time_minutes || 5,
-            is_featured || false, is_published !== false, published_at || new Date()
+            is_featured || false, is_published !== false, published_at || new Date(),
+            scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en'
         ]);
         
         res.json({ success: true, post: result.rows[0] });
