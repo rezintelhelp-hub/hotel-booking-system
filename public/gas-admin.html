@@ -19613,12 +19613,12 @@ Local honey and preserves"></textarea>
         }
         
         async function deleteDeployedSite(siteId, siteName) {
-            if (!confirm(`Are you sure you want to delete "${siteName}"?\n\nThis will:\n• Delete the WordPress site from the VPS\n• Remove the deployment record from the database\n\nThis action cannot be undone!`)) {
+            if (!confirm(`Are you sure you want to delete "${siteName}"?\n\nThis will remove the website record from GAS.\n\nThis action cannot be undone!`)) {
                 return;
             }
             
             try {
-                const response = await fetch(`/api/deploy/${siteId}?force=true`, {
+                const response = await fetch(`/api/admin/deployed-sites/${siteId}?permanent=true`, {
                     method: 'DELETE'
                 });
                 const data = await response.json();
