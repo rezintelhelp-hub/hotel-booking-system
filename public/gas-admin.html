@@ -6456,9 +6456,25 @@
                     </div>
                 </div>
 
+                <!-- AI Content Recommendations (moved to top) -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                    <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 1rem;">
+                        <div>
+                            <h3 style="margin: 0 0 0.5rem 0;">🤖 AI Content Recommendations</h3>
+                            <p style="opacity: 0.9; margin: 0; font-size: 0.9rem;">Based on what people are searching for, we suggest content to improve your rankings.</p>
+                        </div>
+                        <button class="btn" onclick="loadSeoData()" style="background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); padding: 0.5rem 1rem;">🔄 Refresh Data</button>
+                    </div>
+                    <div id="seo-ai-recommendations">
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 8px; padding: 1rem;">
+                            <p style="margin: 0; opacity: 0.9;">Select a site above to see AI-powered content suggestions. Data takes 2-3 days to appear after site verification.</p>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Tabs for Keywords / Pages / Opportunities -->
                 <div class="card">
-                    <div style="display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: -1.5rem -1.5rem 1.5rem -1.5rem; padding: 0 1.5rem;">
+                    <div style="display: flex; gap: 0; border-bottom: 1px solid var(--border); margin: -1.5rem -1.5rem 1rem -1.5rem; padding: 0 1.5rem;">
                         <button class="seo-tab active" data-tab="keywords" onclick="switchSeoTab('keywords')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; border-bottom: 2px solid #4285f4; font-weight: 600; color: #4285f4;">
                             🔍 Top Keywords
                         </button>
@@ -6469,14 +6485,19 @@
                             📄 Top Pages
                         </button>
                     </div>
+                    
+                    <!-- Tab Explanation -->
+                    <div id="seo-tab-explanation" style="background: #f8fafc; border-radius: 6px; padding: 0.75rem 1rem; margin-bottom: 1rem; font-size: 0.9rem; color: var(--text-secondary);">
+                        <strong>Top Keywords:</strong> Search terms people use to find your site. Shows clicks, impressions, and your Google ranking position.
+                    </div>
 
                     <!-- Keywords Tab -->
                     <div id="seo-tab-keywords" class="seo-tab-content">
                         <div id="seo-keywords-list">
                             <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                                 <div style="font-size: 3rem; margin-bottom: 1rem;">🔍</div>
-                                <h3 style="margin-bottom: 0.5rem;">Select a site to view keywords</h3>
-                                <p>See which search terms bring visitors to your website</p>
+                                <h3 style="margin-bottom: 0.5rem;">No keyword data yet</h3>
+                                <p>Google Search Console needs 2-3 days after verification to collect search data.</p>
                             </div>
                         </div>
                     </div>
@@ -6486,8 +6507,8 @@
                         <div id="seo-opportunities-list">
                             <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                                 <div style="font-size: 3rem; margin-bottom: 1rem;">💡</div>
-                                <h3 style="margin-bottom: 0.5rem;">SEO Opportunities</h3>
-                                <p>Keywords ranking 5-20 with high impressions - your low-hanging fruit!</p>
+                                <h3 style="margin-bottom: 0.5rem;">No opportunities yet</h3>
+                                <p>Once you have keyword data, we'll show keywords where you rank #5-20 with high search volume - these are your best chances to improve with new content.</p>
                             </div>
                         </div>
                     </div>
@@ -6497,18 +6518,10 @@
                         <div id="seo-pages-list">
                             <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                                 <div style="font-size: 3rem; margin-bottom: 1rem;">📄</div>
-                                <h3 style="margin-bottom: 0.5rem;">Top Pages</h3>
-                                <p>See which pages perform best in search results</p>
+                                <h3 style="margin-bottom: 0.5rem;">No page data yet</h3>
+                                <p>Shows which pages on your site get the most search traffic, helping you understand what's working.</p>
                             </div>
                         </div>
-                    </div>
-                </div>
-
-                <!-- AI Recommendations -->
-                <div class="card" style="margin-top: 1.5rem; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                    <h3 style="margin: 0 0 1rem 0;">🤖 AI Content Recommendations</h3>
-                    <div id="seo-ai-recommendations">
-                        <p style="opacity: 0.9;">Load SEO data to get AI-powered content suggestions based on your keyword performance.</p>
                     </div>
                 </div>
 
@@ -27911,6 +27924,17 @@ Local honey and preserves"></textarea>
                 activeBtn.style.borderBottomColor = '#4285f4';
                 activeBtn.style.color = '#4285f4';
                 activeBtn.style.fontWeight = '600';
+            }
+            
+            // Update explanation text
+            const explanations = {
+                'keywords': '<strong>Top Keywords:</strong> Search terms people use to find your site. Shows clicks, impressions, and your Google ranking position.',
+                'opportunities': '<strong>Opportunities:</strong> Keywords where you rank #5-20 with high search volume. These are your best chances to improve - write a blog post targeting these terms to boost rankings.',
+                'pages': '<strong>Top Pages:</strong> Which pages on your site get the most search traffic. Helps you understand what content is working best.'
+            };
+            const explanationEl = document.getElementById('seo-tab-explanation');
+            if (explanationEl && explanations[tab]) {
+                explanationEl.innerHTML = explanations[tab];
             }
             
             // Show/hide tab content
