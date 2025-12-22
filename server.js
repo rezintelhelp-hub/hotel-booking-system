@@ -3415,6 +3415,335 @@ app.post('/api/gas-sync/connections/:connectionId/sync-tier/:tier', async (req, 
   }
 });
 
+// ============================================
+// V1 PRICING SYNC - For Fixed Prices (Belmont-style)
+// ============================================
+// This endpoint uses Beds24 V1 getRates API for properties using Fixed Prices
+// Run once daily as V1 has stricter rate limits
+// Only for rooms where V2 Calendar returns no pricing data
+
+app.post('/api/gas-sync/v1-pricing-sync', async (req, res) => {
+  const cronSecret = req.headers['x-cron-secret'];
+  const isDev = process.env.NODE_ENV === 'development' || req.query.dev === 'true';
+  
+  if (!isDev && cronSecret !== process.env.CRON_SECRET) {
+    return res.status(401).json({ error: 'Unauthorized' });
+  }
+  
+  try {
+    const results = { 
+      properties: [], 
+      totalRoomsUpdated: 0, 
+      totalDaysUpdated: 0, 
+      errors: [] 
+    };
+    
+    // Get all Beds24 connections with V1 credentials
+    const connections = await pool.query(`
+      SELECT c.id, c.credentials, c.access_token, c.refresh_token
+      FROM gas_sync_connections c
+      WHERE c.adapter_code = 'beds24' AND c.sync_enabled = true
+    `);
+    
+    for (const conn of connections.rows) {
+      const credentials = typeof conn.credentials === 'string' 
+        ? JSON.parse(conn.credentials) 
+        : (conn.credentials || {});
+      
+      const v1ApiKey = credentials.v1ApiKey;
+      if (!v1ApiKey) {
+        console.log(`Connection ${conn.id}: No V1 API key, skipping`);
+        continue;
+      }
+      
+      // Get properties with prop_key for this connection
+      const properties = await pool.query(`
+        SELECT sp.id, sp.external_id, sp.name, sp.prop_key
+        FROM gas_sync_properties sp
+        WHERE sp.connection_id = $1 AND sp.prop_key IS NOT NULL AND sp.prop_key != ''
+      `, [conn.id]);
+      
+      for (const prop of properties.rows) {
+        try {
+          console.log(`V1 Pricing Sync: ${prop.name} (${prop.external_id})`);
+          
+          // Call V1 getRates for this property (all rooms at once)
+          const ratesResponse = await axios.post('https://api.beds24.com/json/getRates', {
+            authentication: {
+              apiKey: v1ApiKey,
+              propKey: prop.prop_key
+            }
+          }, {
+            headers: { 'Content-Type': 'application/json' }
+          });
+          
+          const rates = ratesResponse.data;
+          
+          if (!Array.isArray(rates) || rates.length === 0) {
+            console.log(`  No rates returned for ${prop.name}`);
+            continue;
+          }
+          
+          console.log(`  Got ${rates.length} rate rules`);
+          
+          // Get all room types for this property
+          const roomTypes = await pool.query(`
+            SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+            FROM gas_sync_room_types rt
+            JOIN bookable_units bu ON bu.id = rt.gas_room_id
+            WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL
+          `, [prop.id]);
+          
+          // Build a map of beds24_room_id -> gas_room_id
+          const roomMap = {};
+          for (const rt of roomTypes.rows) {
+            roomMap[rt.beds24_room_id] = { gas_room_id: rt.gas_room_id, name: rt.name };
+          }
+          
+          // Build date -> price map for each room (use HIGHER price for overlaps)
+          const roomPrices = {}; // { beds24_room_id: { date: { price, minNights } } }
+          
+          const today = new Date();
+          const maxDate = new Date(today.getTime() + 365 * 24 * 60 * 60 * 1000); // 1 year out
+          
+          for (const rate of rates) {
+            const roomId = rate.roomId;
+            const firstNight = new Date(rate.firstNight);
+            const lastNight = new Date(rate.lastNight);
+            const price = parseFloat(rate.roomPrice) || 0;
+            const minNights = parseInt(rate.minNights) || 1;
+            
+            // Skip if no price or past dates
+            if (price <= 0 || lastNight < today) continue;
+            
+            // Skip if room not in our system
+            if (!roomMap[roomId]) continue;
+            
+            // Initialize room price map
+            if (!roomPrices[roomId]) roomPrices[roomId] = {};
+            
+            // Expand date range
+            for (let d = new Date(Math.max(firstNight.getTime(), today.getTime())); 
+                 d <= lastNight && d <= maxDate; 
+                 d.setDate(d.getDate() + 1)) {
+              
+              const dateStr = d.toISOString().split('T')[0];
+              
+              // Use HIGHER price for overlapping dates
+              if (!roomPrices[roomId][dateStr] || price > roomPrices[roomId][dateStr].price) {
+                roomPrices[roomId][dateStr] = { price, minNights };
+              }
+            }
+          }
+          
+          // Now update room_availability for each room
+          let propRoomsUpdated = 0;
+          let propDaysUpdated = 0;
+          
+          for (const [beds24RoomId, dates] of Object.entries(roomPrices)) {
+            const gasRoomId = roomMap[beds24RoomId]?.gas_room_id;
+            if (!gasRoomId) continue;
+            
+            const dateCount = Object.keys(dates).length;
+            if (dateCount === 0) continue;
+            
+            // Batch insert/update
+            for (const [dateStr, data] of Object.entries(dates)) {
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $4, $4, 'beds24_v1', NOW())
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET 
+                  cm_price = COALESCE($3, room_availability.cm_price),
+                  min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
+                  cm_min_stay = $4,
+                  source = 'beds24_v1',
+                  updated_at = NOW()
+              `, [gasRoomId, dateStr, data.price, data.minNights]);
+              
+              propDaysUpdated++;
+            }
+            
+            propRoomsUpdated++;
+          }
+          
+          results.properties.push({
+            name: prop.name,
+            external_id: prop.external_id,
+            ratesFound: rates.length,
+            roomsUpdated: propRoomsUpdated,
+            daysUpdated: propDaysUpdated
+          });
+          
+          results.totalRoomsUpdated += propRoomsUpdated;
+          results.totalDaysUpdated += propDaysUpdated;
+          
+          // Rate limit protection: wait 5 seconds between properties
+          await new Promise(resolve => setTimeout(resolve, 5000));
+          
+        } catch (propError) {
+          console.error(`V1 Pricing error for ${prop.name}:`, propError.message);
+          results.errors.push({ 
+            property: prop.name, 
+            error: propError.message 
+          });
+          
+          // If rate limited, stop
+          if (propError.response?.status === 429) {
+            results.errors.push({ message: 'Rate limited by Beds24, stopping sync' });
+            break;
+          }
+        }
+      }
+    }
+    
+    console.log(`V1 Pricing sync complete: ${results.totalRoomsUpdated} rooms, ${results.totalDaysUpdated} days`);
+    res.json({ success: true, ...results });
+    
+  } catch (error) {
+    console.error('V1 Pricing sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Manual V1 pricing sync for a single property
+app.post('/api/gas-sync/properties/:propertyId/v1-pricing-sync', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    // Get property with connection
+    const propResult = await pool.query(`
+      SELECT sp.id, sp.external_id, sp.name, sp.prop_key, sp.connection_id,
+             c.credentials
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [propertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propResult.rows[0];
+    const credentials = typeof prop.credentials === 'string' 
+      ? JSON.parse(prop.credentials) 
+      : (prop.credentials || {});
+    
+    if (!credentials.v1ApiKey) {
+      return res.json({ success: false, error: 'No V1 API key configured for this connection' });
+    }
+    
+    if (!prop.prop_key) {
+      return res.json({ success: false, error: 'No prop_key configured for this property' });
+    }
+    
+    console.log(`Manual V1 Pricing Sync: ${prop.name}`);
+    
+    // Call V1 getRates
+    const ratesResponse = await axios.post('https://api.beds24.com/json/getRates', {
+      authentication: {
+        apiKey: credentials.v1ApiKey,
+        propKey: prop.prop_key
+      }
+    }, {
+      headers: { 'Content-Type': 'application/json' }
+    });
+    
+    const rates = ratesResponse.data;
+    
+    if (!Array.isArray(rates) || rates.length === 0) {
+      return res.json({ success: true, message: 'No rates returned', ratesCount: 0 });
+    }
+    
+    // Get room types
+    const roomTypes = await pool.query(`
+      SELECT rt.id, rt.external_id as beds24_room_id, rt.gas_room_id, bu.name
+      FROM gas_sync_room_types rt
+      JOIN bookable_units bu ON bu.id = rt.gas_room_id
+      WHERE rt.sync_property_id = $1 AND rt.gas_room_id IS NOT NULL
+    `, [prop.id]);
+    
+    const roomMap = {};
+    for (const rt of roomTypes.rows) {
+      roomMap[rt.beds24_room_id] = { gas_room_id: rt.gas_room_id, name: rt.name };
+    }
+    
+    // Build date -> price map
+    const roomPrices = {};
+    const today = new Date();
+    const maxDate = new Date(today.getTime() + 365 * 24 * 60 * 60 * 1000);
+    
+    for (const rate of rates) {
+      const roomId = rate.roomId;
+      const firstNight = new Date(rate.firstNight);
+      const lastNight = new Date(rate.lastNight);
+      const price = parseFloat(rate.roomPrice) || 0;
+      const minNights = parseInt(rate.minNights) || 1;
+      
+      if (price <= 0 || lastNight < today) continue;
+      if (!roomMap[roomId]) continue;
+      
+      if (!roomPrices[roomId]) roomPrices[roomId] = {};
+      
+      for (let d = new Date(Math.max(firstNight.getTime(), today.getTime())); 
+           d <= lastNight && d <= maxDate; 
+           d.setDate(d.getDate() + 1)) {
+        
+        const dateStr = d.toISOString().split('T')[0];
+        
+        if (!roomPrices[roomId][dateStr] || price > roomPrices[roomId][dateStr].price) {
+          roomPrices[roomId][dateStr] = { price, minNights };
+        }
+      }
+    }
+    
+    // Update room_availability
+    let roomsUpdated = 0;
+    let daysUpdated = 0;
+    const roomDetails = [];
+    
+    for (const [beds24RoomId, dates] of Object.entries(roomPrices)) {
+      const room = roomMap[beds24RoomId];
+      if (!room?.gas_room_id) continue;
+      
+      const dateCount = Object.keys(dates).length;
+      if (dateCount === 0) continue;
+      
+      for (const [dateStr, data] of Object.entries(dates)) {
+        await pool.query(`
+          INSERT INTO room_availability (room_id, date, cm_price, direct_price, min_stay, cm_min_stay, source, updated_at)
+          VALUES ($1, $2, $3, $3, $4, $4, 'beds24_v1', NOW())
+          ON CONFLICT (room_id, date) 
+          DO UPDATE SET 
+            cm_price = COALESCE($3, room_availability.cm_price),
+            min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $4 END,
+            cm_min_stay = $4,
+            source = 'beds24_v1',
+            updated_at = NOW()
+        `, [room.gas_room_id, dateStr, data.price, data.minNights]);
+        
+        daysUpdated++;
+      }
+      
+      roomsUpdated++;
+      roomDetails.push({ name: room.name, beds24RoomId, daysUpdated: dateCount });
+    }
+    
+    res.json({ 
+      success: true, 
+      property: prop.name,
+      ratesFound: rates.length,
+      roomsUpdated,
+      daysUpdated,
+      rooms: roomDetails
+    });
+    
+  } catch (error) {
+    console.error('Manual V1 pricing sync error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Get sync status for a connection
 app.get('/api/gas-sync/connections/:connectionId/sync-status', async (req, res) => {
   try {
