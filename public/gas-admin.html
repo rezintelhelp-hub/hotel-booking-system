@@ -10398,6 +10398,32 @@ Local honey and preserves"></textarea>
                             style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
                     
+                    <!-- Internal/External Toggle -->
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
+                            🚕 Service Provider
+                        </label>
+                        <div style="display: flex; gap: 1rem; margin-bottom: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="voucher-provider-type" value="internal" checked onchange="toggleVoucherVendor()">
+                                <span>Internal (provided by property)</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="voucher-provider-type" value="external" onchange="toggleVoucherVendor()">
+                                <span>External Vendor</span>
+                            </label>
+                        </div>
+                        <div id="voucher-vendor-section" style="display: none;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Select Vendor</label>
+                            <select id="voucher-vendor" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                <option value="">-- Select a vendor --</option>
+                            </select>
+                            <p style="font-size: 0.8rem; color: #6b7280; margin: 0.5rem 0 0;">
+                                <a href="#" onclick="showView('vendors'); closeModal('addVoucherModal'); return false;" style="color: #f59e0b;">+ Add new vendor</a>
+                            </p>
+                        </div>
+                    </div>
+                    
                     <!-- Apply To Section -->
                     <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #0369a1; margin-bottom: 0.75rem; display: block;">
@@ -24286,6 +24312,11 @@ Local honey and preserves"></textarea>
             document.getElementById('voucher-active').checked = true;
             document.querySelector('#addVoucherModal .modal-title').textContent = '🎟️ Create New Voucher';
             
+            // Reset vendor section
+            document.querySelector('input[name="voucher-provider-type"][value="internal"]').checked = true;
+            document.getElementById('voucher-vendor-section').style.display = 'none';
+            loadVendorsForVoucher();
+            
             // Pre-select property from page filter
             const selectedProperty = document.getElementById('vouchers-property-select')?.value;
             loadVoucherPropertiesForModal().then(() => {
@@ -24295,6 +24326,32 @@ Local honey and preserves"></textarea>
                 }
             });
             openModal('addVoucherModal');
+        }
+        
+        function toggleVoucherVendor() {
+            const isExternal = document.querySelector('input[name="voucher-provider-type"]:checked').value === 'external';
+            document.getElementById('voucher-vendor-section').style.display = isExternal ? 'block' : 'none';
+        }
+        
+        async function loadVendorsForVoucher() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/vendors${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('voucher-vendor');
+                select.innerHTML = '<option value="">-- Select a vendor --</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(v => {
+                        if (v.is_active !== false) {
+                            select.innerHTML += `<option value="${v.id}">${v.name}</option>`;
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading vendors:', error);
+            }
         }
         
         async function loadVoucherPropertiesForModal() {
@@ -24365,6 +24422,17 @@ Local honey and preserves"></textarea>
                     document.getElementById('voucher-single-use').checked = voucher.single_use_per_guest || false;
                     document.getElementById('voucher-active').checked = voucher.active;
                     
+                    // Set vendor fields
+                    await loadVendorsForVoucher();
+                    if (voucher.is_external && voucher.vendor_id) {
+                        document.querySelector('input[name="voucher-provider-type"][value="external"]').checked = true;
+                        document.getElementById('voucher-vendor-section').style.display = 'block';
+                        document.getElementById('voucher-vendor').value = voucher.vendor_id;
+                    } else {
+                        document.querySelector('input[name="voucher-provider-type"][value="internal"]').checked = true;
+                        document.getElementById('voucher-vendor-section').style.display = 'none';
+                    }
+                    
                     document.querySelector('#addVoucherModal .modal-title').textContent = 'Edit Voucher';
                     openModal('addVoucherModal');
                 }
@@ -24375,6 +24443,11 @@ Local honey and preserves"></textarea>
         
         async function saveVoucher() {
             const id = document.getElementById('voucher-id').value;
+            
+            // Get vendor info
+            const isExternal = document.querySelector('input[name="voucher-provider-type"]:checked').value === 'external';
+            const vendorId = isExternal ? document.getElementById('voucher-vendor').value || null : null;
+            
             const voucherData = {
                 code: document.getElementById('voucher-code').value,
                 name: document.getElementById('voucher-name').value,
@@ -24387,7 +24460,9 @@ Local honey and preserves"></textarea>
                 min_nights: parseInt(document.getElementById('voucher-min-nights').value) || 1,
                 min_total: parseFloat(document.getElementById('voucher-min-total').value) || null,
                 single_use_per_guest: document.getElementById('voucher-single-use').checked,
-                active: document.getElementById('voucher-active').checked
+                active: document.getElementById('voucher-active').checked,
+                is_external: isExternal,
+                vendor_id: vendorId
             };
             
             try {
