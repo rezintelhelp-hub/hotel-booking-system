@@ -6626,14 +6626,192 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>🔌 API Documentation</h2>
-                            <p>Integrate GAS with your applications</p>
+                            <h2>🔌 Partner API Documentation</h2>
+                            <p>GasSync & Website Builder API for channel managers and partners</p>
                         </div>
-                        <button class="btn" style="background: #10b981;" onclick="testApiConnection()">Test Connection</button>
                     </div>
                 </div>
 
-                <!-- API Keys Management -->
+                <!-- Partner Key Request -->
+                <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b;">
+                    <div class="card-header" style="border-bottom: 1px solid #fcd34d;">
+                        <h3 class="card-title" style="color: #92400e;">🤝 Request Partner API Access</h3>
+                    </div>
+                    <p style="color: #78350f; margin-bottom: 1rem;">
+                        Integrate your PMS or booking platform with GAS. Fill out the form below to request API credentials.
+                    </p>
+                    
+                    <div id="partner-request-form" style="max-width: 500px;">
+                        <div class="form-group">
+                            <label class="form-label" style="color: #78350f;">Company Name *</label>
+                            <input type="text" class="form-input" id="partner-company-name" placeholder="e.g., Elevate PMS">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="color: #78350f;">Contact Name *</label>
+                            <input type="text" class="form-input" id="partner-contact-name" placeholder="Your name">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="color: #78350f;">Email *</label>
+                            <input type="email" class="form-input" id="partner-contact-email" placeholder="api@yourcompany.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="color: #78350f;">Website</label>
+                            <input type="url" class="form-input" id="partner-website" placeholder="https://yourcompany.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" style="color: #78350f;">Use Case</label>
+                            <textarea class="form-input" id="partner-use-case" rows="3" placeholder="Describe how you plan to integrate with GAS..."></textarea>
+                        </div>
+                        <button class="btn" style="background: #f59e0b; border-color: #d97706;" onclick="submitPartnerRequest()">
+                            📨 Submit Request
+                        </button>
+                    </div>
+                    <div id="partner-request-success" style="display: none; padding: 1rem; background: #dcfce7; border-radius: 8px; margin-top: 1rem;">
+                        <strong style="color: #166534;">✅ Request submitted!</strong>
+                        <p style="color: #166534; margin: 0.5rem 0 0;">We'll review your request and contact you within 2 business days.</p>
+                    </div>
+                </div>
+
+                <!-- Authentication Info -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header">
+                        <h3 class="card-title">🔐 Authentication</h3>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        All Partner API endpoints require the <code style="background: #fee2e2; padding: 0.125rem 0.375rem; border-radius: 4px;">X-Partner-Key</code> header.
+                    </p>
+                    <pre style="background: #1e293b; color: #e2e8f0; padding: 1rem; border-radius: 8px; overflow-x: auto; font-size: 0.85rem;">curl -X GET "https://api.gas.com/api/partner/v1/properties" \
+  -H "X-Partner-Key: gp_your_api_key_here"</pre>
+                </div>
+
+                <!-- GasSync API Summary -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 class="card-title">📡 GasSync API</h3>
+                        <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">Calry-Compatible</span>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Push property, room, availability, and booking data to GAS.
+                    </p>
+                    
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <button class="btn" style="background: var(--accent);" onclick="showPartnerApiTab('properties')" id="partner-tab-properties">Properties</button>
+                        <button class="btn" style="background: #64748b;" onclick="showPartnerApiTab('units')" id="partner-tab-units">Units</button>
+                        <button class="btn" style="background: #64748b;" onclick="showPartnerApiTab('availability')" id="partner-tab-availability">Availability</button>
+                        <button class="btn" style="background: #64748b;" onclick="showPartnerApiTab('reservations')" id="partner-tab-reservations">Reservations</button>
+                        <button class="btn" style="background: #64748b;" onclick="showPartnerApiTab('rates')" id="partner-tab-rates">Rates</button>
+                    </div>
+                    
+                    <div id="partner-api-properties" class="partner-api-section">
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/properties</code>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 0;">Create/update property with external_id, name, address, etc.</p>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/properties</code>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 0;">List all properties</p>
+                        </div>
+                    </div>
+                    
+                    <div id="partner-api-units" class="partner-api-section" style="display: none;">
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/units</code>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 0;">Create/update room with external_id, property_external_id, name, max_occupancy, base_price</p>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/units?property_external_id=X</code>
+                        </div>
+                    </div>
+                    
+                    <div id="partner-api-availability" class="partner-api-section" style="display: none;">
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/availability</code>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 0;">Push availability: { unit_external_id, availability: [{ date, available, price, min_stay }] }</p>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/availability?unit_external_id=X&start_date=Y&end_date=Z</code>
+                        </div>
+                    </div>
+                    
+                    <div id="partner-api-reservations" class="partner-api-section" style="display: none;">
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/reservations</code>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 0;">Create/update booking: external_id, unit_external_id, check_in, check_out, guest details, total_price</p>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/reservations?property_external_id=X</code>
+                        </div>
+                    </div>
+                    
+                    <div id="partner-api-rates" class="partner-api-section" style="display: none;">
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/rates</code>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 0;">Push rates: { unit_external_id, rates: [{ date, price }] }</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Website Builder API -->
+                <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3 class="card-title">🎨 Website Builder API</h3>
+                        <span style="background: #f3e8ff; color: #7c3aed; padding: 0.25rem 0.75rem; border-radius: 4px; font-size: 0.8rem; font-weight: 600;">White-Label</span>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        Create and customize websites for your clients via API.
+                    </p>
+                    
+                    <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap;">
+                        <button class="btn" style="background: var(--accent);" onclick="showWebsiteApiTab('websites')" id="website-tab-websites">Websites</button>
+                        <button class="btn" style="background: #64748b;" onclick="showWebsiteApiTab('sections')" id="website-tab-sections">Sections</button>
+                        <button class="btn" style="background: #64748b;" onclick="showWebsiteApiTab('deploy')" id="website-tab-deploy">Deploy</button>
+                    </div>
+                    
+                    <div id="website-api-websites" class="website-api-section">
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+                            <span style="background: #dbeafe; color: #1e40af; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/websites</code>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 0;">Create website: { account_external_id, site_name, template, pricing_tier }</p>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/websites?account_external_id=X</code>
+                        </div>
+                    </div>
+                    
+                    <div id="website-api-sections" class="website-api-section" style="display: none;">
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem; margin-bottom: 0.5rem;">
+                            <span style="background: #fef3c7; color: #92400e; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">PUT</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/websites/{id}/{section}</code>
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin: 0.5rem 0 0;">
+                                Sections: header, hero, intro, featured, about, reviews, contact, footer, colors, seo
+                            </p>
+                        </div>
+                        <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 8px; padding: 1rem;">
+                            <span style="background: #dcfce7; color: #166534; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">GET</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/websites/{id}/all-settings</code>
+                        </div>
+                    </div>
+                    
+                    <div id="website-api-deploy" class="website-api-section" style="display: none;">
+                        <div style="background: #dcfce7; border: 1px solid #86efac; border-radius: 8px; padding: 1rem;">
+                            <span style="background: #166534; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 600;">POST</span>
+                            <code style="margin-left: 0.5rem;">/api/partner/v1/websites/{id}/deploy</code>
+                            <p style="color: #166534; font-size: 0.85rem; margin: 0.5rem 0 0;">🚀 Trigger WordPress deployment. Poll GET /websites to check status.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- API Keys Management (existing) -->
                 <div class="card">
                     <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
                         <h3 class="card-title">🔑 API Keys</h3>
@@ -29962,6 +30140,67 @@ Local honey and preserves"></textarea>
             document.querySelectorAll('.api-endpoints-section').forEach(el => el.style.display = 'none');
             const section = document.getElementById('api-endpoints-' + tab);
             if (section) section.style.display = 'block';
+        }
+        
+        // Partner API tab functions
+        function showPartnerApiTab(tab) {
+            ['properties', 'units', 'availability', 'reservations', 'rates'].forEach(t => {
+                const btn = document.getElementById('partner-tab-' + t);
+                if (btn) btn.style.background = t === tab ? 'var(--accent)' : '#64748b';
+            });
+            
+            document.querySelectorAll('.partner-api-section').forEach(el => el.style.display = 'none');
+            const section = document.getElementById('partner-api-' + tab);
+            if (section) section.style.display = 'block';
+        }
+        
+        function showWebsiteApiTab(tab) {
+            ['websites', 'sections', 'deploy'].forEach(t => {
+                const btn = document.getElementById('website-tab-' + t);
+                if (btn) btn.style.background = t === tab ? 'var(--accent)' : '#64748b';
+            });
+            
+            document.querySelectorAll('.website-api-section').forEach(el => el.style.display = 'none');
+            const section = document.getElementById('website-api-' + tab);
+            if (section) section.style.display = 'block';
+        }
+        
+        async function submitPartnerRequest() {
+            const company = document.getElementById('partner-company-name').value.trim();
+            const contact = document.getElementById('partner-contact-name').value.trim();
+            const email = document.getElementById('partner-contact-email').value.trim();
+            const website = document.getElementById('partner-website').value.trim();
+            const useCase = document.getElementById('partner-use-case').value.trim();
+            
+            if (!company || !contact || !email) {
+                showNotification('Please fill in company name, contact name, and email', 'error');
+                return;
+            }
+            
+            try {
+                const response = await fetch('/api/partner/request-key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        company_name: company,
+                        contact_name: contact,
+                        contact_email: email,
+                        website: website,
+                        use_case: useCase
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('partner-request-form').style.display = 'none';
+                    document.getElementById('partner-request-success').style.display = 'block';
+                } else {
+                    showNotification('Error: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error submitting request: ' + error.message, 'error');
+            }
         }
 
         function copyToClipboard(text) {
