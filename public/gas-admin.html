@@ -4744,13 +4744,19 @@
                         <!-- Video URL (hidden by default) -->
                         <div id="hero-video-upload-section" class="form-group" style="display: none;">
                             <div id="wb-hero-video-preview" style="width: 100%; height: 200px; background: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; overflow: hidden;">
-                                <span id="hero-video-placeholder" style="color: #94a3b8;">🎬 Enter video URL below</span>
+                                <span id="hero-video-placeholder" style="color: #94a3b8;">🎬 Upload or enter video URL below</span>
                                 <video id="hero-video-player" style="width: 100%; height: 100%; object-fit: cover; display: none;" muted loop></video>
                             </div>
-                            <label class="form-label">Video URL (MP4)</label>
+                            <div style="display: flex; gap: 1rem; margin-bottom: 0.5rem;">
+                                <div style="flex: 1;">
+                                    <label class="form-label">Upload Video (MP4, max 100MB)</label>
+                                    <input type="file" id="wb-hero-video-file" accept="video/mp4,video/webm" onchange="uploadHeroVideo(this)">
+                                </div>
+                            </div>
+                            <label class="form-label">Or paste Video URL</label>
                             <input type="text" class="form-input" id="wb-hero-video-url" placeholder="https://example.com/video.mp4" oninput="previewHeroVideo(this.value)">
                             <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">
-                                💡 Use a direct MP4 link. Video will autoplay muted and loop. Provide fallback image above for mobile.
+                                💡 Video will autoplay muted and loop. Keep under 30 seconds for best performance.
                             </p>
                         </div>
                         
@@ -14874,9 +14880,57 @@ Local honey and preserves"></textarea>
                 placeholder.style.display = 'block';
                 video.style.display = 'none';
             } else {
-                placeholder.textContent = '🎬 Enter video URL below';
+                placeholder.textContent = '🎬 Upload or enter video URL below';
                 placeholder.style.display = 'block';
                 video.style.display = 'none';
+            }
+        }
+        
+        async function uploadHeroVideo(input) {
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            const placeholder = document.getElementById('hero-video-placeholder');
+            const video = document.getElementById('hero-video-player');
+            const urlField = document.getElementById('wb-hero-video-url');
+            
+            // Check file size (100MB limit)
+            if (file.size > 100 * 1024 * 1024) {
+                showNotification('Video must be under 100MB', 'error');
+                return;
+            }
+            
+            // Show uploading state
+            placeholder.textContent = '⏳ Uploading video...';
+            placeholder.style.display = 'block';
+            video.style.display = 'none';
+            
+            const formData = new FormData();
+            formData.append('video', file);
+            formData.append('account_id', selectedAccountId);
+            formData.append('section', 'hero');
+            
+            try {
+                const response = await fetch('/api/admin/website-builder/upload-video', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.url) {
+                    // Set URL field and preview
+                    urlField.value = data.url;
+                    previewHeroVideo(data.url);
+                    showNotification('Video uploaded successfully!', 'success');
+                } else {
+                    placeholder.textContent = '❌ Upload failed: ' + (data.error || 'Unknown error');
+                    showNotification('Video upload failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Video upload error:', error);
+                placeholder.textContent = '❌ Upload error';
+                showNotification('Video upload error: ' + error.message, 'error');
             }
         }
         
