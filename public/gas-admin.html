@@ -28211,7 +28211,6 @@ Local honey and preserves"></textarea>
                     document.getElementById('ai-blog-content').value = data.blog.content || '';
                     document.getElementById('ai-blog-meta-title').value = data.blog.meta_title || '';
                     document.getElementById('ai-blog-meta-desc').value = data.blog.meta_description || '';
-                    document.getElementById('ai-blog-tags').value = (data.blog.suggested_tags || []).join(', ');
                     
                     // Store property info for saving
                     document.getElementById('ai-blog-property-id').value = data.blog.property_id || propertyId || '';
