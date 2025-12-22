@@ -19673,25 +19673,85 @@ Local honey and preserves"></textarea>
         }
         
         async function deleteDeployedSite(siteId, siteName) {
-            if (!confirm(`Are you sure you want to delete "${siteName}"?\n\nThis will remove the website record from GAS.\n\nThis action cannot be undone!`)) {
+            // Prevent double-clicks
+            if (window.deleteInProgress) {
+                console.log('Delete already in progress, ignoring click');
                 return;
+            }
+            
+            // Two-step confirmation
+            const firstConfirm = confirm(`⚠️ DELETE "${siteName}"?\n\nThis will permanently remove this website record.\n\nClick OK to proceed to final confirmation.`);
+            if (!firstConfirm) return;
+            
+            const typedName = prompt(`To confirm deletion, type the site name exactly:\n\n${siteName}`);
+            if (typedName !== siteName) {
+                if (typedName !== null) {
+                    showNotification('Site name did not match. Deletion cancelled.', 'error');
+                }
+                return;
+            }
+            
+            window.deleteInProgress = true;
+            
+            // Fade out the card immediately to prevent UI bounce
+            const card = document.querySelector(`[onclick*="deleteDeployedSite(${siteId}"]`)?.closest('.card');
+            if (card) {
+                card.style.transition = 'opacity 0.3s, transform 0.3s';
+                card.style.opacity = '0.5';
+                card.style.pointerEvents = 'none';
             }
             
             try {
                 const response = await fetch(`/api/admin/deployed-sites/${siteId}?permanent=true`, {
                     method: 'DELETE'
                 });
-                const data = await response.json();
+                
+                // Handle non-JSON responses
+                const text = await response.text();
+                let data;
+                try {
+                    data = JSON.parse(text);
+                } catch (e) {
+                    console.error('Non-JSON response:', text);
+                    data = { success: false, error: 'Server returned invalid response' };
+                }
                 
                 if (data.success) {
+                    // Remove the card with animation
+                    if (card) {
+                        card.style.height = card.offsetHeight + 'px';
+                        card.style.overflow = 'hidden';
+                        setTimeout(() => {
+                            card.style.height = '0';
+                            card.style.padding = '0';
+                            card.style.margin = '0';
+                            card.style.opacity = '0';
+                        }, 50);
+                        setTimeout(() => {
+                            loadDeployedSites();
+                        }, 350);
+                    } else {
+                        loadDeployedSites();
+                    }
                     showNotification('Site deleted successfully', 'success');
-                    loadDeployedSites();
                 } else {
+                    // Restore card if delete failed
+                    if (card) {
+                        card.style.opacity = '1';
+                        card.style.pointerEvents = 'auto';
+                    }
                     showNotification('Error: ' + (data.error || 'Failed to delete site'), 'error');
                 }
             } catch (error) {
                 console.error('Delete error:', error);
+                // Restore card on error
+                if (card) {
+                    card.style.opacity = '1';
+                    card.style.pointerEvents = 'auto';
+                }
                 showNotification('Error deleting site: ' + error.message, 'error');
+            } finally {
+                window.deleteInProgress = false;
             }
         }
         
