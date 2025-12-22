@@ -1,0 +1,501 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GAS Developer Portal | Partner API</title>
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🔌</text></svg>">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+            min-height: 100vh;
+            color: #e2e8f0;
+        }
+        
+        .header {
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding: 1rem 2rem;
+            position: fixed;
+            width: 100%;
+            top: 0;
+            z-index: 100;
+        }
+        
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .logo {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: white;
+            text-decoration: none;
+        }
+        
+        .logo span { color: #3b82f6; }
+        
+        .nav-links a {
+            color: #94a3b8;
+            text-decoration: none;
+            margin-left: 2rem;
+            transition: color 0.2s;
+        }
+        
+        .nav-links a:hover { color: white; }
+        
+        .hero {
+            padding: 8rem 2rem 4rem;
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .hero h1 {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+            background: linear-gradient(135deg, #60a5fa 0%, #a78bfa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .hero p {
+            font-size: 1.25rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+        
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            max-width: 1000px;
+            margin: 0 auto 4rem;
+            padding: 0 2rem;
+        }
+        
+        .feature {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .feature-icon {
+            font-size: 2.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .feature h3 {
+            color: white;
+            margin-bottom: 0.5rem;
+        }
+        
+        .feature p {
+            color: #94a3b8;
+            font-size: 0.9rem;
+        }
+        
+        .main-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem 4rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+        }
+        
+        @media (max-width: 800px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+            .hero h1 { font-size: 2rem; }
+        }
+        
+        .api-section {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 2rem;
+        }
+        
+        .api-section h2 {
+            color: white;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+        
+        .endpoint {
+            background: rgba(0,0,0,0.3);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 0.85rem;
+        }
+        
+        .method {
+            display: inline-block;
+            padding: 0.2rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            margin-right: 0.5rem;
+        }
+        
+        .method-post { background: #3b82f6; color: white; }
+        .method-get { background: #22c55e; color: white; }
+        .method-put { background: #f59e0b; color: white; }
+        
+        .signup-section {
+            background: linear-gradient(135deg, #1e3a5f 0%, #1e293b 100%);
+            border: 2px solid #3b82f6;
+            border-radius: 16px;
+            padding: 2rem;
+        }
+        
+        .signup-section h2 {
+            color: white;
+            margin-bottom: 0.5rem;
+        }
+        
+        .signup-section > p {
+            color: #94a3b8;
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: #e2e8f0;
+            font-weight: 500;
+        }
+        
+        .form-group label span {
+            color: #f87171;
+        }
+        
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(0,0,0,0.3);
+            color: white;
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .form-input:focus {
+            outline: none;
+            border-color: #3b82f6;
+        }
+        
+        .form-input::placeholder {
+            color: #64748b;
+        }
+        
+        textarea.form-input {
+            resize: vertical;
+            min-height: 80px;
+        }
+        
+        .btn {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            color: white;
+            border: none;
+            padding: 0.875rem 2rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            width: 100%;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(59, 130, 246, 0.4);
+        }
+        
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .success-message {
+            display: none;
+            background: rgba(34, 197, 94, 0.2);
+            border: 1px solid #22c55e;
+            border-radius: 8px;
+            padding: 1.5rem;
+            text-align: center;
+        }
+        
+        .success-message h3 {
+            color: #22c55e;
+            margin-bottom: 0.5rem;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge-blue { background: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .badge-purple { background: rgba(139, 92, 246, 0.2); color: #a78bfa; }
+        
+        .footer {
+            text-align: center;
+            padding: 2rem;
+            color: #64748b;
+            font-size: 0.9rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+        
+        .footer a {
+            color: #94a3b8;
+            text-decoration: none;
+        }
+        
+        .notification {
+            position: fixed;
+            bottom: 2rem;
+            right: 2rem;
+            padding: 1rem 1.5rem;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s;
+            z-index: 1000;
+        }
+        
+        .notification.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+        
+        .notification.error { background: #ef4444; }
+        .notification.success { background: #22c55e; }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <a href="/" class="logo">GAS<span>.travel</span></a>
+            <nav class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#api">API Docs</a>
+                <a href="#signup">Get Access</a>
+            </nav>
+        </div>
+    </header>
+
+    <section class="hero">
+        <h1>Partner API</h1>
+        <p>Connect your PMS or booking platform to GAS. Sync properties, manage availability, and deploy beautiful booking websites for your clients.</p>
+    </section>
+
+    <section class="features" id="features">
+        <div class="feature">
+            <div class="feature-icon">📡</div>
+            <h3>GasSync</h3>
+            <p>Push properties, rooms, availability, rates, and reservations in real-time</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">🎨</div>
+            <h3>Website Builder</h3>
+            <p>Create and customize booking websites via API - fully white-label</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">🚀</div>
+            <h3>One-Click Deploy</h3>
+            <p>Deploy WordPress sites instantly with booking engine included</p>
+        </div>
+        <div class="feature">
+            <div class="feature-icon">🔄</div>
+            <h3>Calry Compatible</h3>
+            <p>Schema matches Calry for easy integration and migration</p>
+        </div>
+    </section>
+
+    <div class="main-content">
+        <section class="api-section" id="api">
+            <h2>📡 GasSync API <span class="badge badge-blue">Calry-Compatible</span></h2>
+            
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                /api/partner/v1/properties
+            </div>
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                /api/partner/v1/units
+            </div>
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                /api/partner/v1/availability
+            </div>
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                /api/partner/v1/reservations
+            </div>
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                /api/partner/v1/rates
+            </div>
+            
+            <h2 style="margin-top: 2rem;">🎨 Website Builder API <span class="badge badge-purple">White-Label</span></h2>
+            
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                /api/partner/v1/websites
+            </div>
+            <div class="endpoint">
+                <span class="method method-put">PUT</span>
+                /api/partner/v1/websites/:id/:section
+            </div>
+            <div class="endpoint">
+                <span class="method method-get">GET</span>
+                /api/partner/v1/websites/:id/all-settings
+            </div>
+            <div class="endpoint">
+                <span class="method method-post">POST</span>
+                /api/partner/v1/websites/:id/deploy
+            </div>
+        </section>
+
+        <section class="signup-section" id="signup">
+            <h2>🤝 Request API Access</h2>
+            <p>Fill out the form below and we'll get back to you within 2 business days with your API credentials.</p>
+            
+            <form id="partner-form">
+                <div class="form-group">
+                    <label>Company Name <span>*</span></label>
+                    <input type="text" class="form-input" id="company-name" placeholder="e.g., Elevate PMS" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Contact Name <span>*</span></label>
+                    <input type="text" class="form-input" id="contact-name" placeholder="Your name" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Email <span>*</span></label>
+                    <input type="email" class="form-input" id="contact-email" placeholder="api@yourcompany.com" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Website</label>
+                    <input type="url" class="form-input" id="website" placeholder="https://yourcompany.com">
+                </div>
+                
+                <div class="form-group">
+                    <label>Tell us about your integration</label>
+                    <textarea class="form-input" id="use-case" placeholder="What platform do you run? How do you plan to use the GAS API?"></textarea>
+                </div>
+                
+                <button type="submit" class="btn" id="submit-btn">
+                    📨 Submit Request
+                </button>
+            </form>
+            
+            <div class="success-message" id="success-message">
+                <h3>✅ Request Submitted!</h3>
+                <p>We'll review your application and send your API credentials to your email within 2 business days.</p>
+            </div>
+        </section>
+    </div>
+
+    <footer class="footer">
+        <p>© 2025 GAS.travel — Guest Accommodation System</p>
+        <p style="margin-top: 0.5rem;">
+            <a href="/admin">Admin Login</a>
+        </p>
+    </footer>
+
+    <div id="notification" class="notification"></div>
+
+    <script>
+        function showNotification(message, type) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.className = 'notification ' + type + ' show';
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 4000);
+        }
+
+        document.getElementById('partner-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const btn = document.getElementById('submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Submitting...';
+            
+            const data = {
+                company_name: document.getElementById('company-name').value.trim(),
+                contact_name: document.getElementById('contact-name').value.trim(),
+                contact_email: document.getElementById('contact-email').value.trim(),
+                website: document.getElementById('website').value.trim(),
+                use_case: document.getElementById('use-case').value.trim()
+            };
+            
+            try {
+                const response = await fetch('/api/partner/request-key', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    document.getElementById('partner-form').style.display = 'none';
+                    document.getElementById('success-message').style.display = 'block';
+                } else {
+                    showNotification(result.error || 'Something went wrong', 'error');
+                    btn.disabled = false;
+                    btn.textContent = '📨 Submit Request';
+                }
+            } catch (error) {
+                showNotification('Connection error. Please try again.', 'error');
+                btn.disabled = false;
+                btn.textContent = '📨 Submit Request';
+            }
+        });
+
+        // Smooth scroll for nav links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function(e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+            });
+        });
+    </script>
+</body>
+</html>
