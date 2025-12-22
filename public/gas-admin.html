@@ -20304,9 +20304,11 @@ Local honey and preserves"></textarea>
                 console.error('Error loading properties:', error);
             }
             
-            // Load rooms (filtered by account)
+            // Load rooms (filtered by account) - include hidden for toggle functionality
             try {
-                const queryString = buildQueryString();
+                let queryString = buildQueryString();
+                // Add include_hidden to get all rooms, we'll filter in JS based on checkbox
+                queryString = queryString ? `${queryString}&include_hidden=true` : '?include_hidden=true';
                 const response = await fetch(`/api/db/bookable-units${queryString}`);
                 const data = await response.json();
                 
