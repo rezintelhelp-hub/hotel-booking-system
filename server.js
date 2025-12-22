@@ -16876,21 +16876,25 @@ app.get('/api/admin/vouchers', async (req, res) => {
     if (propertyId) {
       // Filter by specific property
       result = await pool.query(`
-        SELECT v.* FROM vouchers v
+        SELECT v.*, vn.name as vendor_name FROM vouchers v
+        LEFT JOIN vendors vn ON v.vendor_id = vn.id
         WHERE v.property_id = $1
         ORDER BY v.created_at DESC
       `, [propertyId]);
     } else if (accountId) {
       // Filter by account - only vouchers linked to properties owned by this account
       result = await pool.query(`
-        SELECT v.* FROM vouchers v
+        SELECT v.*, vn.name as vendor_name FROM vouchers v
         LEFT JOIN properties p ON v.property_id = p.id
+        LEFT JOIN vendors vn ON v.vendor_id = vn.id
         WHERE p.account_id = $1
         ORDER BY v.created_at DESC
       `, [accountId]);
     } else {
       result = await pool.query(`
-        SELECT * FROM vouchers ORDER BY created_at DESC
+        SELECT v.*, vn.name as vendor_name FROM vouchers v
+        LEFT JOIN vendors vn ON v.vendor_id = vn.id
+        ORDER BY v.created_at DESC
       `);
     }
     res.json({ success: true, data: result.rows });
@@ -16902,7 +16906,11 @@ app.get('/api/admin/vouchers', async (req, res) => {
 // Get single voucher
 app.get('/api/admin/vouchers/:id', async (req, res) => {
   try {
-    const result = await pool.query('SELECT * FROM vouchers WHERE id = $1', [req.params.id]);
+    const result = await pool.query(`
+      SELECT v.*, vn.name as vendor_name FROM vouchers v
+      LEFT JOIN vendors vn ON v.vendor_id = vn.id
+      WHERE v.id = $1
+    `, [req.params.id]);
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -16917,7 +16925,8 @@ app.post('/api/admin/vouchers', async (req, res) => {
       discount_type, discount_value, applies_to,
       min_nights, min_total, max_uses, single_use_per_guest,
       property_ids, room_ids,
-      valid_from, valid_until, active
+      valid_from, valid_until, active,
+      is_external, vendor_id
     } = req.body;
     
     const result = await pool.query(`
@@ -16926,15 +16935,17 @@ app.post('/api/admin/vouchers', async (req, res) => {
         discount_type, discount_value, applies_to,
         min_nights, min_total, max_uses, single_use_per_guest,
         property_ids, room_ids,
-        valid_from, valid_until, active
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+        valid_from, valid_until, active,
+        is_external, vendor_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
       RETURNING *
     `, [
       code.toUpperCase(), name, description,
       discount_type || 'percentage', discount_value, applies_to || 'total',
       min_nights || 1, min_total || null, max_uses || null, single_use_per_guest || false,
       property_ids || null, room_ids || null,
-      valid_from || null, valid_until || null, active !== false
+      valid_from || null, valid_until || null, active !== false,
+      is_external || false, vendor_id || null
     ]);
     
     res.json({ success: true, data: result.rows[0] });
@@ -16955,7 +16966,8 @@ app.put('/api/admin/vouchers/:id', async (req, res) => {
       discount_type, discount_value, applies_to,
       min_nights, min_total, max_uses, single_use_per_guest,
       property_ids, room_ids,
-      valid_from, valid_until, active
+      valid_from, valid_until, active,
+      is_external, vendor_id
     } = req.body;
     
     const result = await pool.query(`
@@ -16964,15 +16976,19 @@ app.put('/api/admin/vouchers/:id', async (req, res) => {
         discount_type = $4, discount_value = $5, applies_to = $6,
         min_nights = $7, min_total = $8, max_uses = $9, single_use_per_guest = $10,
         property_ids = $11, room_ids = $12,
-        valid_from = $13, valid_until = $14, active = $15, updated_at = NOW()
-      WHERE id = $16
+        valid_from = $13, valid_until = $14, active = $15,
+        is_external = $16, vendor_id = $17,
+        updated_at = NOW()
+      WHERE id = $18
       RETURNING *
     `, [
       code.toUpperCase(), name, description,
       discount_type, discount_value, applies_to,
       min_nights, min_total || null, max_uses || null, single_use_per_guest,
       property_ids || null, room_ids || null,
-      valid_from || null, valid_until || null, active, req.params.id
+      valid_from || null, valid_until || null, active,
+      is_external || false, vendor_id || null,
+      req.params.id
     ]);
     
     res.json({ success: true, data: result.rows[0] });
