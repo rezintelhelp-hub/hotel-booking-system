@@ -25167,7 +25167,7 @@ app.post('/api/admin/blog/generate', async (req, res) => {
                 propertyName = prop.name;
                 propertyContext = `
 Property: ${prop.name}
-Location: ${prop.address || ''}, ${prop.city || ''}, ${prop.region || ''}, ${prop.country || ''}
+Location: ${prop.address || ''}, ${prop.city || ''}, ${prop.state || ''}, ${prop.country || ''}
 Type: ${prop.property_type || 'Holiday accommodation'}
 Description: ${prop.description || ''}
 `;
@@ -25291,7 +25291,7 @@ app.get('/api/admin/blog/suggestions', async (req, res) => {
         let propertyData = { city: '', region: '', country: '' };
         if (property_id) {
             const propResult = await pool.query(
-                'SELECT name, city, region, country, property_type FROM properties WHERE id = $1',
+                'SELECT name, city, state, country, property_type FROM properties WHERE id = $1',
                 [property_id]
             );
             if (propResult.rows[0]) {
@@ -25308,9 +25308,9 @@ app.get('/api/admin/blog/suggestions', async (req, res) => {
         const suggestions = templates.rows.map(t => {
             let topic = t.template;
             topic = topic.replace(/{city}/g, propertyData.city || 'your area');
-            topic = topic.replace(/{region}/g, propertyData.region || 'the region');
+            topic = topic.replace(/{region}/g, propertyData.state || 'the region');
             topic = topic.replace(/{country}/g, propertyData.country || '');
-            topic = topic.replace(/{location}/g, propertyData.city || propertyData.region || 'your location');
+            topic = topic.replace(/{location}/g, propertyData.city || propertyData.state || 'your location');
             
             return {
                 id: t.id,
