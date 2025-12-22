@@ -1528,6 +1528,14 @@
                         <span class="nav-icon">🎁</span>
                         <span>Upsells</span>
                     </a>
+                    <a class="nav-item" data-view="vendors" href="#" onclick="navClick(this, 'vendors'); return false;">
+                        <span class="nav-icon">🚕</span>
+                        <span>Vendors</span>
+                    </a>
+                    <a class="nav-item" data-view="vendor-requests" href="#" onclick="navClick(this, 'vendor-requests'); return false;">
+                        <span class="nav-icon">📋</span>
+                        <span>Service Requests</span>
+                    </a>
                     <a class="nav-item" data-view="taxes" href="#" onclick="navClick(this, 'taxes'); return false;">
                         <span class="nav-icon">🏛️</span>
                         <span>Taxes</span>
@@ -3375,6 +3383,74 @@
                             <h3>No Fees Configured</h3>
                             <p>Add cleaning fees, taxes, or other charges</p>
                             <button class="btn" onclick="openAddFeeModal()">Add Your First Fee</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vendors View -->
+            <div id="vendors" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🚕 Vendors</h2>
+                            <p>External service providers (taxis, tours, restaurants, etc.)</p>
+                        </div>
+                        <button class="btn" onclick="openVendorModal()">
+                            <span>+</span>
+                            Add Vendor
+                        </button>
+                    </div>
+                </div>
+                <div class="content">
+                    <div class="card">
+                        <div id="vendors-list">
+                            <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading vendors...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Vendor Service Requests View -->
+            <div id="vendor-requests" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>📋 Service Requests</h2>
+                            <p>Track vendor fulfillment for bookings with external services</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="content">
+                    <!-- Filters -->
+                    <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
+                        <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <label style="font-weight: 600;">Status:</label>
+                                <select id="vendor-requests-status-filter" class="form-input" style="width: auto;" onchange="loadVendorRequests()">
+                                    <option value="">All</option>
+                                    <option value="pending">Pending</option>
+                                    <option value="confirmed">Confirmed</option>
+                                    <option value="completed">Completed</option>
+                                    <option value="cancelled">Cancelled</option>
+                                </select>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                                <label style="font-weight: 600;">Vendor:</label>
+                                <select id="vendor-requests-vendor-filter" class="form-input" style="width: auto;" onchange="loadVendorRequests()">
+                                    <option value="">All Vendors</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Summary Cards -->
+                    <div id="vendor-requests-summary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1rem;"></div>
+                    
+                    <!-- Requests List -->
+                    <div class="card">
+                        <div id="vendor-requests-list">
+                            <p style="text-align: center; color: var(--text-secondary); padding: 2rem;">Loading service requests...</p>
                         </div>
                     </div>
                 </div>
@@ -10448,6 +10524,32 @@ Local honey and preserves"></textarea>
                             style="padding: 0.75rem; border-radius: 8px;"></textarea>
                     </div>
                     
+                    <!-- Internal/External Toggle -->
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
+                            🚕 Service Provider
+                        </label>
+                        <div style="display: flex; gap: 1rem; margin-bottom: 0.75rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="upsell-provider-type" value="internal" checked onchange="toggleUpsellVendor()">
+                                <span>Internal (provided by property)</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="radio" name="upsell-provider-type" value="external" onchange="toggleUpsellVendor()">
+                                <span>External Vendor</span>
+                            </label>
+                        </div>
+                        <div id="upsell-vendor-section" style="display: none;">
+                            <label style="font-size: 0.85rem; color: #374151; margin-bottom: 0.25rem; display: block;">Select Vendor</label>
+                            <select id="upsell-vendor" class="form-input" style="padding: 0.6rem; border-radius: 8px;">
+                                <option value="">-- Select a vendor --</option>
+                            </select>
+                            <p style="font-size: 0.8rem; color: #6b7280; margin: 0.5rem 0 0;">
+                                <a href="#" onclick="showView('vendors'); closeModal('addUpsellModal'); return false;" style="color: #f59e0b;">+ Add new vendor</a>
+                            </p>
+                        </div>
+                    </div>
+                    
                     <!-- Apply To Section -->
                     <div style="background: #f0f9ff; border: 1px solid #bae6fd; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
                         <label style="font-weight: 600; color: #0369a1; margin-bottom: 0.75rem; display: block;">
@@ -12329,6 +12431,174 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
+    <!-- Room Changes Modal -->
+    <div id="roomChangesModal" class="modal" onclick="if(event.target === this) closeModal('roomChangesModal')">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white;">
+                <div>
+                    <h3 id="room-changes-title" style="margin: 0;">🔄 Room Changes</h3>
+                    <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">Compare Beds24 rooms with GAS</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('roomChangesModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div id="room-changes-loading" style="text-align: center; padding: 2rem;">
+                    <div style="font-size: 2rem;">⏳</div>
+                    <p>Checking for room changes...</p>
+                </div>
+                <div id="room-changes-content" style="display: none;">
+                    <!-- Summary -->
+                    <div id="room-changes-summary" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; margin-bottom: 1.5rem;"></div>
+                    
+                    <!-- New Rooms Section -->
+                    <div id="new-rooms-section" style="display: none; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 0.5rem; color: #059669;">➕ New Rooms in Beds24</h4>
+                        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">These rooms exist in Beds24 but not in GAS. Select to import.</p>
+                        <div id="new-rooms-list" style="border: 1px solid #d1fae5; border-radius: 8px; overflow: hidden;"></div>
+                        <button class="btn" onclick="importSelectedRooms()" style="margin-top: 0.75rem; background: #059669;">
+                            ➕ Import Selected Rooms
+                        </button>
+                    </div>
+                    
+                    <!-- Removed Rooms Section -->
+                    <div id="removed-rooms-section" style="display: none; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 0.5rem; color: #dc2626;">📦 Rooms No Longer in Beds24</h4>
+                        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">These rooms exist in GAS but were removed from Beds24. Select to archive.</p>
+                        <div id="removed-rooms-list" style="border: 1px solid #fee2e2; border-radius: 8px; overflow: hidden;"></div>
+                        <button class="btn" onclick="archiveSelectedRooms()" style="margin-top: 0.75rem; background: #dc2626;">
+                            📦 Archive Selected Rooms
+                        </button>
+                    </div>
+                    
+                    <!-- Name Changes Section -->
+                    <div id="name-changes-section" style="display: none; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 0.5rem; color: #d97706;">📝 Name Changes</h4>
+                        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">Room names differ between Beds24 and GAS. Select to update.</p>
+                        <div id="name-changes-list" style="border: 1px solid #fef3c7; border-radius: 8px; overflow: hidden;"></div>
+                        <button class="btn" onclick="updateSelectedNames()" style="margin-top: 0.75rem; background: #d97706;">
+                            📝 Update Selected Names
+                        </button>
+                    </div>
+                    
+                    <!-- Matched Rooms Section -->
+                    <div id="matched-rooms-section" style="margin-bottom: 1rem;">
+                        <h4 style="margin: 0 0 0.5rem; color: #6b7280;">✅ Matched Rooms</h4>
+                        <div id="matched-rooms-list" style="font-size: 0.85rem; color: #6b7280;"></div>
+                    </div>
+                    
+                    <!-- Website Reminder -->
+                    <div id="website-reminder" style="display: none; margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px; border: 1px solid #f59e0b;">
+                        <strong>⚠️ Remember:</strong> After making changes, update your property websites to reflect the new room configuration.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Vendor Modal -->
+    <div id="vendorModal" class="modal" onclick="if(event.target === this) closeModal('vendorModal')">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">
+                <div>
+                    <h3 id="vendor-modal-title" style="margin: 0;">🚕 Add Vendor</h3>
+                    <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">External service provider</p>
+                </div>
+                <button class="modal-close" onclick="closeModal('vendorModal')" style="color: white;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <form id="vendor-form">
+                    <input type="hidden" id="vendor-id">
+                    
+                    <!-- Basic Info -->
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Company Name *</label>
+                            <input type="text" class="form-input" id="vendor-name" required placeholder="e.g., ABC Taxis">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Contact Name</label>
+                            <input type="text" class="form-input" id="vendor-contact-name" placeholder="Main contact person">
+                        </div>
+                    </div>
+                    
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                        <div class="form-group">
+                            <label class="form-label">Email *</label>
+                            <input type="email" class="form-input" id="vendor-email" required placeholder="contact@vendor.com">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-input" id="vendor-phone" placeholder="+44 1234 567890">
+                        </div>
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Address</label>
+                        <input type="text" class="form-input" id="vendor-address" placeholder="Full address">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label class="form-label">Website</label>
+                        <input type="url" class="form-input" id="vendor-website" placeholder="https://www.vendor.com">
+                    </div>
+                    
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-input" id="vendor-notes" rows="2" placeholder="Internal notes about this vendor"></textarea>
+                    </div>
+                    
+                    <!-- Vendor Portal Access -->
+                    <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #e2e8f0;">
+                        <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem;">🔐 Vendor Portal Access</h4>
+                        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">Vendors can log in to view and confirm service requests</p>
+                        <div class="form-group" style="margin-bottom: 0;">
+                            <label class="form-label">Login Email</label>
+                            <input type="email" class="form-input" id="vendor-login-email" placeholder="Same as email if left blank">
+                        </div>
+                        <div id="vendor-temp-password" style="display: none; margin-top: 0.75rem; padding: 0.75rem; background: #fef3c7; border-radius: 6px;">
+                            <strong>Temporary Password:</strong> <code id="vendor-temp-password-value" style="background: white; padding: 2px 6px; border-radius: 4px;"></code>
+                            <p style="font-size: 0.8rem; color: #92400e; margin: 0.5rem 0 0;">Share this with the vendor. They can log in at <code>/vendor</code></p>
+                        </div>
+                    </div>
+                    
+                    <!-- Permissions -->
+                    <div style="background: #f0fdf4; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #bbf7d0;">
+                        <h4 style="margin: 0 0 0.75rem; font-size: 0.95rem;">👁️ What can this vendor see?</h4>
+                        <p style="font-size: 0.85rem; color: #6b7280; margin-bottom: 0.75rem;">Control what booking details the vendor can access</p>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-guest-name" checked> Guest name
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-guest-phone" checked> Guest phone
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-guest-email"> Guest email
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-booking-dates" checked> Check-in/out dates
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-room-details"> Room details
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-booking-notes"> Booking notes
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="perm-price-paid"> Price paid
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <div style="display: flex; gap: 1rem; justify-content: flex-end;">
+                        <button type="button" class="btn btn-secondary" onclick="closeModal('vendorModal')">Cancel</button>
+                        <button type="submit" class="btn" style="background: #f59e0b; border-color: #f59e0b;">Save Vendor</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <!-- Blog Post Modal -->
     <div id="blogModal" class="modal" onclick="if(event.target === this) closeModal('blogModal')">
         <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
@@ -13651,6 +13921,8 @@ Local honey and preserves"></textarea>
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
             if (viewName === 'upsells') loadUpsells();
+            if (viewName === 'vendors') loadVendors();
+            if (viewName === 'vendor-requests') loadVendorRequests();
             if (viewName === 'fees') loadFees();
             if (viewName === 'taxes') loadTaxes();
             if (viewName === 'payments') initPaymentsView();
@@ -24333,6 +24605,11 @@ Local honey and preserves"></textarea>
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
             document.getElementById('upsell-room').style.display = 'block';
             
+            // Reset vendor section
+            document.querySelector('input[name="upsell-provider-type"][value="internal"]').checked = true;
+            document.getElementById('upsell-vendor-section').style.display = 'none';
+            loadVendorsForUpsell();
+            
             // Pre-select property from page filter
             const selectedProperty = document.getElementById('upsells-property-select')?.value;
             loadUpsellPropertiesForModal().then(() => {
@@ -24342,6 +24619,32 @@ Local honey and preserves"></textarea>
                 }
             });
             openModal('addUpsellModal');
+        }
+        
+        function toggleUpsellVendor() {
+            const isExternal = document.querySelector('input[name="upsell-provider-type"]:checked').value === 'external';
+            document.getElementById('upsell-vendor-section').style.display = isExternal ? 'block' : 'none';
+        }
+        
+        async function loadVendorsForUpsell() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/vendors${queryString}`);
+                const data = await response.json();
+                
+                const select = document.getElementById('upsell-vendor');
+                select.innerHTML = '<option value="">-- Select a vendor --</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(v => {
+                        if (v.is_active !== false) {
+                            select.innerHTML += `<option value="${v.id}">${v.name}</option>`;
+                        }
+                    });
+                }
+            } catch (error) {
+                console.error('Error loading vendors:', error);
+            }
         }
         
         async function loadUpsellPropertiesForModal() {
@@ -24435,6 +24738,17 @@ Local honey and preserves"></textarea>
             document.getElementById('upsell-rooms-checkboxes').style.display = 'none';
             document.getElementById('upsell-room').style.display = 'block';
             
+            // Set vendor fields
+            await loadVendorsForUpsell();
+            if (upsell.is_external && upsell.vendor_id) {
+                document.querySelector('input[name="upsell-provider-type"][value="external"]').checked = true;
+                document.getElementById('upsell-vendor-section').style.display = 'block';
+                document.getElementById('upsell-vendor').value = upsell.vendor_id;
+            } else {
+                document.querySelector('input[name="upsell-provider-type"][value="internal"]').checked = true;
+                document.getElementById('upsell-vendor-section').style.display = 'none';
+            }
+            
             // Load properties first
             await loadUpsellPropertiesForModal();
             
@@ -24482,6 +24796,10 @@ Local honey and preserves"></textarea>
                 roomId = document.getElementById('upsell-room').value || null;
             }
             
+            // Get vendor info
+            const isExternal = document.querySelector('input[name="upsell-provider-type"]:checked').value === 'external';
+            const vendorId = isExternal ? document.getElementById('upsell-vendor').value || null : null;
+            
             const upsellData = {
                 name: document.getElementById('upsell-name').value,
                 description: document.getElementById('upsell-description').value,
@@ -24491,7 +24809,9 @@ Local honey and preserves"></textarea>
                 property_id: document.getElementById('upsell-property').value || null,
                 room_id: roomId,
                 room_ids: roomIds,
-                active: document.getElementById('upsell-active').checked
+                active: document.getElementById('upsell-active').checked,
+                is_external: isExternal,
+                vendor_id: vendorId
             };
             
             try {
@@ -24531,6 +24851,405 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 alert('Error deleting upsell: ' + error.message);
+            }
+        }
+
+        // =====================================================
+        // VENDORS FUNCTIONS
+        // =====================================================
+        
+        let vendorsData = [];
+        
+        async function loadVendors() {
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/admin/vendors${queryString}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    vendorsData = data.data || [];
+                    renderVendors(vendorsData);
+                }
+            } catch (error) {
+                console.error('Error loading vendors:', error);
+            }
+        }
+        
+        function renderVendors(vendors) {
+            const container = document.getElementById('vendors-list');
+            
+            if (!vendors || vendors.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">🚕</div>
+                        <h3>No Vendors Yet</h3>
+                        <p>Add external service providers like taxi companies, tour operators, restaurants, etc.</p>
+                        <button class="btn" onclick="openVendorModal()">Add First Vendor</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Vendor</th>
+                                <th>Contact</th>
+                                <th>Email / Phone</th>
+                                <th>Requests</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${vendors.map(v => `
+                                <tr>
+                                    <td>
+                                        <strong>${v.name}</strong>
+                                        ${v.website ? `<br><a href="${v.website}" target="_blank" style="font-size: 0.8rem; color: #6b7280;">${v.website}</a>` : ''}
+                                    </td>
+                                    <td>${v.contact_name || '-'}</td>
+                                    <td>
+                                        ${v.email ? `<a href="mailto:${v.email}">${v.email}</a>` : ''}
+                                        ${v.phone ? `<br><span style="font-size: 0.85rem;">${v.phone}</span>` : ''}
+                                    </td>
+                                    <td>
+                                        <span style="font-size: 0.9rem;">${v.request_count || 0} total</span>
+                                        ${v.pending_count > 0 ? `<br><span style="color: #f59e0b; font-size: 0.85rem;">${v.pending_count} pending</span>` : ''}
+                                    </td>
+                                    <td>
+                                        ${v.is_active !== false 
+                                            ? '<span class="badge" style="background:#d1fae5;color:#047857;">Active</span>' 
+                                            : '<span class="badge" style="background:#fee2e2;color:#dc2626;">Inactive</span>'}
+                                    </td>
+                                    <td>
+                                        <button class="btn btn-secondary btn-small" onclick="editVendor(${v.id})">Edit</button>
+                                        <button class="btn btn-secondary btn-small" onclick="resetVendorPassword(${v.id})" title="Reset password">🔑</button>
+                                        <button class="btn btn-secondary btn-small" onclick="deleteVendor(${v.id})" title="Delete">🗑️</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function openVendorModal() {
+            document.getElementById('vendor-form').reset();
+            document.getElementById('vendor-id').value = '';
+            document.getElementById('vendor-modal-title').textContent = '🚕 Add Vendor';
+            document.getElementById('vendor-temp-password').style.display = 'none';
+            // Reset permission checkboxes
+            document.getElementById('perm-guest-name').checked = true;
+            document.getElementById('perm-guest-phone').checked = true;
+            document.getElementById('perm-guest-email').checked = false;
+            document.getElementById('perm-booking-dates').checked = true;
+            document.getElementById('perm-room-details').checked = false;
+            document.getElementById('perm-booking-notes').checked = false;
+            document.getElementById('perm-price-paid').checked = false;
+            openModal('vendorModal');
+        }
+        
+        async function editVendor(id) {
+            try {
+                const response = await fetch(`/api/admin/vendors/${id}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    const v = data.data;
+                    document.getElementById('vendor-id').value = v.id;
+                    document.getElementById('vendor-name').value = v.name || '';
+                    document.getElementById('vendor-contact-name').value = v.contact_name || '';
+                    document.getElementById('vendor-email').value = v.email || '';
+                    document.getElementById('vendor-phone').value = v.phone || '';
+                    document.getElementById('vendor-address').value = v.address || '';
+                    document.getElementById('vendor-website').value = v.website || '';
+                    document.getElementById('vendor-notes').value = v.notes || '';
+                    document.getElementById('vendor-login-email').value = v.login_email || '';
+                    
+                    // Set permissions
+                    document.getElementById('perm-guest-name').checked = v.can_see_guest_name !== false;
+                    document.getElementById('perm-guest-phone').checked = v.can_see_guest_phone !== false;
+                    document.getElementById('perm-guest-email').checked = v.can_see_guest_email === true;
+                    document.getElementById('perm-booking-dates').checked = v.can_see_booking_dates !== false;
+                    document.getElementById('perm-room-details').checked = v.can_see_room_details === true;
+                    document.getElementById('perm-booking-notes').checked = v.can_see_booking_notes === true;
+                    document.getElementById('perm-price-paid').checked = v.can_see_price_paid === true;
+                    
+                    document.getElementById('vendor-modal-title').textContent = '✏️ Edit Vendor';
+                    document.getElementById('vendor-temp-password').style.display = 'none';
+                    openModal('vendorModal');
+                }
+            } catch (error) {
+                alert('Error loading vendor: ' + error.message);
+            }
+        }
+        
+        document.getElementById('vendor-form').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const id = document.getElementById('vendor-id').value;
+            const vendorData = {
+                name: document.getElementById('vendor-name').value,
+                contact_name: document.getElementById('vendor-contact-name').value,
+                email: document.getElementById('vendor-email').value,
+                phone: document.getElementById('vendor-phone').value,
+                address: document.getElementById('vendor-address').value,
+                website: document.getElementById('vendor-website').value,
+                notes: document.getElementById('vendor-notes').value,
+                login_email: document.getElementById('vendor-login-email').value || document.getElementById('vendor-email').value,
+                permissions: {
+                    can_see_guest_name: document.getElementById('perm-guest-name').checked,
+                    can_see_guest_phone: document.getElementById('perm-guest-phone').checked,
+                    can_see_guest_email: document.getElementById('perm-guest-email').checked,
+                    can_see_booking_dates: document.getElementById('perm-booking-dates').checked,
+                    can_see_room_details: document.getElementById('perm-room-details').checked,
+                    can_see_booking_notes: document.getElementById('perm-booking-notes').checked,
+                    can_see_price_paid: document.getElementById('perm-price-paid').checked
+                }
+            };
+            
+            // Add account_id for new vendors
+            if (!id) {
+                const accountId = document.getElementById('account-filter')?.value;
+                if (accountId) vendorData.account_id = accountId;
+            }
+            
+            try {
+                const url = id ? `/api/admin/vendors/${id}` : '/api/admin/vendors';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify(vendorData)
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.tempPassword) {
+                        // Show temp password for new vendor
+                        document.getElementById('vendor-temp-password').style.display = 'block';
+                        document.getElementById('vendor-temp-password-value').textContent = data.tempPassword;
+                        showNotification('Vendor created! Share the temporary password with them.', 'success');
+                    } else {
+                        closeModal('vendorModal');
+                        showNotification('Vendor saved successfully', 'success');
+                    }
+                    loadVendors();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error saving vendor: ' + error.message);
+            }
+        });
+        
+        async function resetVendorPassword(id) {
+            if (!confirm('Reset password for this vendor? They will need to use the new password to log in.')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/vendors/${id}/reset-password`, {
+                    method: 'POST',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert(`New temporary password: ${data.tempPassword}\n\nShare this with the vendor.`);
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error resetting password: ' + error.message);
+            }
+        }
+        
+        async function deleteVendor(id) {
+            if (!confirm('Delete this vendor? This will also remove all their service request history.')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/vendors/${id}`, { method: 'DELETE', headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Vendor deleted', 'success');
+                    loadVendors();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error deleting vendor: ' + error.message);
+            }
+        }
+        
+        // =====================================================
+        // VENDOR SERVICE REQUESTS FUNCTIONS
+        // =====================================================
+        
+        async function loadVendorRequests() {
+            // Load vendors for filter
+            try {
+                const queryString = buildQueryString();
+                const vendorsResponse = await fetch(`/api/admin/vendors${queryString}`);
+                const vendorsData = await vendorsResponse.json();
+                
+                if (vendorsData.success) {
+                    const vendorSelect = document.getElementById('vendor-requests-vendor-filter');
+                    vendorSelect.innerHTML = '<option value="">All Vendors</option>' +
+                        vendorsData.data.map(v => `<option value="${v.id}">${v.name}</option>`).join('');
+                }
+            } catch (error) {
+                console.error('Error loading vendors for filter:', error);
+            }
+            
+            // Load requests
+            try {
+                const status = document.getElementById('vendor-requests-status-filter')?.value || '';
+                const vendorId = document.getElementById('vendor-requests-vendor-filter')?.value || '';
+                const queryString = buildQueryString();
+                
+                let url = `/api/admin/vendor-requests${queryString}`;
+                if (status) url += `${queryString ? '&' : '?'}status=${status}`;
+                if (vendorId) url += `${url.includes('?') ? '&' : '?'}vendor_id=${vendorId}`;
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success) {
+                    renderVendorRequests(data.data || []);
+                    renderVendorRequestsSummary(data.data || []);
+                }
+            } catch (error) {
+                console.error('Error loading vendor requests:', error);
+            }
+        }
+        
+        function renderVendorRequestsSummary(requests) {
+            const pending = requests.filter(r => r.status === 'pending').length;
+            const confirmed = requests.filter(r => r.status === 'confirmed').length;
+            const completed = requests.filter(r => r.status === 'completed').length;
+            const cancelled = requests.filter(r => r.status === 'cancelled').length;
+            
+            document.getElementById('vendor-requests-summary').innerHTML = `
+                <div style="background: #fef3c7; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #d97706;">${pending}</div>
+                    <div style="font-size: 0.85rem; color: #92400e;">Pending</div>
+                </div>
+                <div style="background: #dbeafe; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #2563eb;">${confirmed}</div>
+                    <div style="font-size: 0.85rem; color: #1d4ed8;">Confirmed</div>
+                </div>
+                <div style="background: #d1fae5; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #059669;">${completed}</div>
+                    <div style="font-size: 0.85rem; color: #047857;">Completed</div>
+                </div>
+                <div style="background: #f3f4f6; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #6b7280;">${cancelled}</div>
+                    <div style="font-size: 0.85rem; color: #4b5563;">Cancelled</div>
+                </div>
+            `;
+        }
+        
+        function renderVendorRequests(requests) {
+            const container = document.getElementById('vendor-requests-list');
+            
+            if (!requests || requests.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📋</div>
+                        <h3>No Service Requests</h3>
+                        <p>When guests book with external services, requests will appear here.</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            const statusColors = {
+                pending: 'background: #fef3c7; color: #92400e;',
+                confirmed: 'background: #dbeafe; color: #1d4ed8;',
+                completed: 'background: #d1fae5; color: #047857;',
+                cancelled: 'background: #fee2e2; color: #dc2626;'
+            };
+            
+            container.innerHTML = `
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Service</th>
+                                <th>Vendor</th>
+                                <th>Guest</th>
+                                <th>Service Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${requests.map(r => `
+                                <tr>
+                                    <td>
+                                        <strong>${r.service_name || r.upsell_name || 'Service'}</strong>
+                                        ${r.quantity > 1 ? `<span style="color: #6b7280;"> ×${r.quantity}</span>` : ''}
+                                        ${r.property_name ? `<br><span style="font-size: 0.8rem; color: #6b7280;">${r.property_name}</span>` : ''}
+                                    </td>
+                                    <td>
+                                        <strong>${r.vendor_name}</strong>
+                                        ${r.vendor_email ? `<br><span style="font-size: 0.8rem; color: #6b7280;">${r.vendor_email}</span>` : ''}
+                                    </td>
+                                    <td>
+                                        ${r.guest_name || '-'}
+                                        ${r.guest_phone ? `<br><span style="font-size: 0.8rem;">${r.guest_phone}</span>` : ''}
+                                    </td>
+                                    <td>
+                                        ${r.service_date ? new Date(r.service_date).toLocaleDateString() : '-'}
+                                        ${r.service_time ? `<br><span style="font-size: 0.85rem;">${r.service_time}</span>` : ''}
+                                    </td>
+                                    <td>
+                                        <span class="badge" style="${statusColors[r.status] || ''}">${r.status}</span>
+                                        ${r.confirmed_at ? `<br><span style="font-size: 0.75rem; color: #6b7280;">Confirmed: ${new Date(r.confirmed_at).toLocaleDateString()}</span>` : ''}
+                                    </td>
+                                    <td>
+                                        ${r.status === 'pending' ? `
+                                            <button class="btn btn-small" style="background:#2563eb;border-color:#2563eb;" onclick="updateRequestStatus(${r.id}, 'confirmed')">✓ Confirm</button>
+                                        ` : ''}
+                                        ${r.status === 'confirmed' ? `
+                                            <button class="btn btn-small" style="background:#059669;border-color:#059669;" onclick="updateRequestStatus(${r.id}, 'completed')">✓ Complete</button>
+                                        ` : ''}
+                                        ${['pending', 'confirmed'].includes(r.status) ? `
+                                            <button class="btn btn-secondary btn-small" onclick="updateRequestStatus(${r.id}, 'cancelled')">Cancel</button>
+                                        ` : ''}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        async function updateRequestStatus(requestId, status) {
+            if (status === 'cancelled' && !confirm('Cancel this service request?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/vendor-requests/${requestId}/status`, {
+                    method: 'PUT',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ status })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Request ${status}`, 'success');
+                    loadVendorRequests();
+                } else {
+                    alert('Error: ' + data.error);
+                }
+            } catch (error) {
+                alert('Error updating request: ' + error.message);
             }
         }
 
@@ -31540,6 +32259,7 @@ Local honey and preserves"></textarea>
                         <td>${p.gas_property_id ? '<span class="badge" style="background:#d1fae5;color:#047857;">Linked</span>' : '<span class="badge" style="background:#fef3c7;color:#92400e;">Not Linked</span>'}</td>
                         <td>${formatTimeAgo(p.synced_at)}</td>
                         <td>${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
+                            ${p.gas_property_id ? `<button class="btn btn-sm btn-secondary" onclick="checkRoomChanges(${p.id}, '${p.name.replace(/'/g, "\\'")}')">🔄 Rooms</button>` : ''}
                             <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})">📷</button></td>
                     </tr>`).join('');
                 } else {
@@ -31547,6 +32267,227 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 console.error('Error loading synced properties:', error);
+            }
+        }
+
+        // Room Changes Check
+        let currentRoomChangesPropertyId = null;
+        let currentRoomChangesData = null;
+        
+        async function checkRoomChanges(propertyId, propertyName) {
+            currentRoomChangesPropertyId = propertyId;
+            document.getElementById('room-changes-title').textContent = `🔄 Room Changes - ${propertyName}`;
+            document.getElementById('room-changes-loading').style.display = 'block';
+            document.getElementById('room-changes-content').style.display = 'none';
+            document.getElementById('website-reminder').style.display = 'none';
+            openModal('roomChangesModal');
+            
+            try {
+                const response = await fetch(`/api/gas-sync/properties/${propertyId}/check-room-changes`, {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                
+                if (!data.success) {
+                    throw new Error(data.error || 'Failed to check room changes');
+                }
+                
+                currentRoomChangesData = data;
+                renderRoomChanges(data);
+                
+            } catch (error) {
+                console.error('Error checking room changes:', error);
+                document.getElementById('room-changes-loading').innerHTML = `
+                    <div style="color: #dc2626;">
+                        <div style="font-size: 2rem;">❌</div>
+                        <p>Error: ${error.message}</p>
+                    </div>
+                `;
+            }
+        }
+        
+        function renderRoomChanges(data) {
+            document.getElementById('room-changes-loading').style.display = 'none';
+            document.getElementById('room-changes-content').style.display = 'block';
+            
+            // Summary cards
+            const summary = document.getElementById('room-changes-summary');
+            summary.innerHTML = `
+                <div style="background: #d1fae5; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: #047857;">${data.summary.matched}</div>
+                    <div style="font-size: 0.85rem; color: #065f46;">Matched</div>
+                </div>
+                <div style="background: ${data.summary.new > 0 ? '#dcfce7' : '#f3f4f6'}; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: ${data.summary.new > 0 ? '#059669' : '#9ca3af'};">${data.summary.new}</div>
+                    <div style="font-size: 0.85rem; color: ${data.summary.new > 0 ? '#047857' : '#6b7280'};">New</div>
+                </div>
+                <div style="background: ${data.summary.removed > 0 ? '#fee2e2' : '#f3f4f6'}; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: ${data.summary.removed > 0 ? '#dc2626' : '#9ca3af'};">${data.summary.removed}</div>
+                    <div style="font-size: 0.85rem; color: ${data.summary.removed > 0 ? '#b91c1c' : '#6b7280'};">Removed</div>
+                </div>
+                <div style="background: ${data.summary.nameChanges > 0 ? '#fef3c7' : '#f3f4f6'}; padding: 1rem; border-radius: 8px; text-align: center;">
+                    <div style="font-size: 1.5rem; font-weight: bold; color: ${data.summary.nameChanges > 0 ? '#d97706' : '#9ca3af'};">${data.summary.nameChanges}</div>
+                    <div style="font-size: 0.85rem; color: ${data.summary.nameChanges > 0 ? '#92400e' : '#6b7280'};">Name Changes</div>
+                </div>
+            `;
+            
+            // New rooms
+            const newSection = document.getElementById('new-rooms-section');
+            const newList = document.getElementById('new-rooms-list');
+            if (data.newRooms && data.newRooms.length > 0) {
+                newSection.style.display = 'block';
+                newList.innerHTML = data.newRooms.map(room => `
+                    <label style="display: flex; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid #d1fae5; cursor: pointer; gap: 0.75rem;">
+                        <input type="checkbox" class="new-room-checkbox" data-room='${JSON.stringify(room)}' checked>
+                        <span><strong>${room.name}</strong> <span style="color: #6b7280; font-size: 0.85rem;">(ID: ${room.external_id}, Max: ${room.max_guests} guests)</span></span>
+                    </label>
+                `).join('');
+            } else {
+                newSection.style.display = 'none';
+            }
+            
+            // Removed rooms
+            const removedSection = document.getElementById('removed-rooms-section');
+            const removedList = document.getElementById('removed-rooms-list');
+            if (data.removedRooms && data.removedRooms.length > 0) {
+                removedSection.style.display = 'block';
+                removedList.innerHTML = data.removedRooms.map(room => `
+                    <label style="display: flex; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid #fee2e2; cursor: pointer; gap: 0.75rem;">
+                        <input type="checkbox" class="removed-room-checkbox" data-room='${JSON.stringify(room)}' checked>
+                        <span><strong>${room.gas_name || room.name}</strong> <span style="color: #6b7280; font-size: 0.85rem;">(ID: ${room.external_id}${room.is_hidden ? ', already hidden' : ''})</span></span>
+                    </label>
+                `).join('');
+            } else {
+                removedSection.style.display = 'none';
+            }
+            
+            // Name changes
+            const nameSection = document.getElementById('name-changes-section');
+            const nameList = document.getElementById('name-changes-list');
+            if (data.nameChanges && data.nameChanges.length > 0) {
+                nameSection.style.display = 'block';
+                nameList.innerHTML = data.nameChanges.map(room => `
+                    <label style="display: flex; align-items: center; padding: 0.75rem 1rem; border-bottom: 1px solid #fef3c7; cursor: pointer; gap: 0.75rem;">
+                        <input type="checkbox" class="name-change-checkbox" data-room='${JSON.stringify(room)}' checked>
+                        <span>
+                            <strong>${room.gas_name}</strong> → <strong style="color: #059669;">${room.beds24_name}</strong>
+                        </span>
+                    </label>
+                `).join('');
+            } else {
+                nameSection.style.display = 'none';
+            }
+            
+            // Matched rooms (collapsed by default)
+            const matchedList = document.getElementById('matched-rooms-list');
+            if (data.matched && data.matched.length > 0) {
+                matchedList.innerHTML = data.matched.map(room => 
+                    `<span style="display: inline-block; padding: 0.25rem 0.5rem; background: #f3f4f6; border-radius: 4px; margin: 0.25rem;">${room.name}${room.is_hidden ? ' (hidden)' : ''}</span>`
+                ).join('');
+            } else {
+                matchedList.innerHTML = '<em>No matched rooms</em>';
+            }
+        }
+        
+        async function importSelectedRooms() {
+            const checkboxes = document.querySelectorAll('.new-room-checkbox:checked');
+            if (checkboxes.length === 0) {
+                showNotification('No rooms selected', 'warning');
+                return;
+            }
+            
+            const rooms = Array.from(checkboxes).map(cb => JSON.parse(cb.dataset.room));
+            
+            try {
+                const response = await fetch(`/api/gas-sync/properties/${currentRoomChangesPropertyId}/import-new-rooms`, {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rooms })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Imported ${data.imported.length} rooms`, 'success');
+                    document.getElementById('website-reminder').style.display = 'block';
+                    // Refresh the check
+                    checkRoomChanges(currentRoomChangesPropertyId, document.getElementById('room-changes-title').textContent.replace('🔄 Room Changes - ', ''));
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                showNotification('Error importing rooms: ' + error.message, 'error');
+            }
+        }
+        
+        async function archiveSelectedRooms() {
+            const checkboxes = document.querySelectorAll('.removed-room-checkbox:checked');
+            if (checkboxes.length === 0) {
+                showNotification('No rooms selected', 'warning');
+                return;
+            }
+            
+            const rooms = Array.from(checkboxes).map(cb => JSON.parse(cb.dataset.room));
+            
+            if (!confirm(`Archive ${rooms.length} room(s)? They will be hidden from the calendar but data will be preserved.`)) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/gas-sync/properties/${currentRoomChangesPropertyId}/archive-rooms`, {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rooms })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Archived ${data.archived.length} rooms`, 'success');
+                    document.getElementById('website-reminder').style.display = 'block';
+                    // Refresh the check
+                    checkRoomChanges(currentRoomChangesPropertyId, document.getElementById('room-changes-title').textContent.replace('🔄 Room Changes - ', ''));
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                showNotification('Error archiving rooms: ' + error.message, 'error');
+            }
+        }
+        
+        async function updateSelectedNames() {
+            const checkboxes = document.querySelectorAll('.name-change-checkbox:checked');
+            if (checkboxes.length === 0) {
+                showNotification('No rooms selected', 'warning');
+                return;
+            }
+            
+            const rooms = Array.from(checkboxes).map(cb => {
+                const room = JSON.parse(cb.dataset.room);
+                return {
+                    gas_room_id: room.gas_room_id,
+                    sync_room_id: room.sync_room_id,
+                    new_name: room.beds24_name
+                };
+            });
+            
+            try {
+                const response = await fetch(`/api/gas-sync/properties/${currentRoomChangesPropertyId}/update-room-names`, {
+                    method: 'POST',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ rooms })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Updated ${data.updated.length} room names`, 'success');
+                    document.getElementById('website-reminder').style.display = 'block';
+                    // Refresh the check
+                    checkRoomChanges(currentRoomChangesPropertyId, document.getElementById('room-changes-title').textContent.replace('🔄 Room Changes - ', ''));
+                } else {
+                    throw new Error(data.error);
+                }
+            } catch (error) {
+                showNotification('Error updating room names: ' + error.message, 'error');
             }
         }
 
