@@ -30080,12 +30080,43 @@ app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
     
     // Collect all settings to sync
     const allSettings = {};
+    
+    // Key mapping from GAS short keys to WordPress theme_mod keys
+    const keyMapping = {
+      // Hero section
+      'image-url': 'developer_hero_bg',
+      'video-url': 'developer_hero_video_url',
+      'headline': 'developer_hero_title',
+      'subheadline': 'developer_hero_subtitle',
+      'overlay-color': 'developer_hero_overlay_color',
+      'overlay': 'developer_hero_opacity',
+      'height': 'developer_hero_height',
+      'badge-text': 'developer_hero_badge',
+      'badge-link': 'developer_hero_badge_link',
+      'badge-bg': 'developer_hero_badge_bg',
+      'badge-text-color': 'developer_hero_badge_text',
+      'badge-border': 'developer_hero_badge_border',
+      // Header section
+      'logo-image-url': 'developer_logo_image',
+      'logo-text': 'developer_logo_text',
+      // Trust badges
+      'trust-1': 'developer_hero_trust_1',
+      'trust-2': 'developer_hero_trust_2',
+      'trust-3': 'developer_hero_trust_3'
+    };
+    
     websiteResult.rows.forEach(row => {
       if (row.section && row.settings) {
         if (!sections || sections.includes(row.section)) {
           // Flatten settings for WordPress theme_mods
           if (typeof row.settings === 'object') {
-            Object.assign(allSettings, row.settings);
+            // Transform keys if mapping exists
+            const transformedSettings = {};
+            for (const [key, value] of Object.entries(row.settings)) {
+              const wpKey = keyMapping[key] || key;
+              transformedSettings[wpKey] = value;
+            }
+            Object.assign(allSettings, transformedSettings);
           }
         }
       }
