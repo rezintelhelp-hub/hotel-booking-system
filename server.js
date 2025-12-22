@@ -10697,7 +10697,26 @@ app.delete('/api/admin/deployed-sites/:id', async (req, res) => {
     const { id } = req.params;
     const { permanent } = req.query;
     
+    // Get deployment record first to clear related data
+    const siteResult = await pool.query('SELECT * FROM deployed_sites WHERE id = $1', [id]);
+    const site = siteResult.rows[0];
+    
     if (permanent === 'true') {
+      // Clear website URL from property
+      if (site && site.property_id) {
+        await pool.query('UPDATE properties SET website_url = NULL WHERE id = $1', [site.property_id]);
+      }
+      
+      // Clear website URL from rooms
+      if (site && site.room_ids) {
+        const roomIds = typeof site.room_ids === 'string' 
+          ? JSON.parse(site.room_ids || '[]') 
+          : (site.room_ids || []);
+        if (roomIds.length > 0) {
+          await pool.query('UPDATE bookable_units SET website_url = NULL WHERE id = ANY($1)', [roomIds]);
+        }
+      }
+      
       // Permanently delete
       await pool.query('DELETE FROM deployed_sites WHERE id = $1', [id]);
       res.json({ success: true, message: 'Site permanently deleted' });
