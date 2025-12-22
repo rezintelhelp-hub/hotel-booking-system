@@ -10339,6 +10339,23 @@ Local honey and preserves"></textarea>
                         </div>
                     </details>
                     
+                    <!-- Pricing Tier -->
+                    <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 12px; padding: 1rem; margin-bottom: 1.25rem;">
+                        <label style="font-weight: 600; color: #92400e; margin-bottom: 0.75rem; display: block;">
+                            🏷️ Pricing Tier
+                        </label>
+                        <p style="font-size: 0.85rem; color: #78716c; margin-bottom: 0.75rem;">
+                            Assign this offer to a pricing tier. Websites can be configured to show only specific tiers.
+                        </p>
+                        <select id="offer-pricing-tier" class="form-input" style="padding: 0.6rem; border-radius: 8px; max-width: 300px;">
+                            <option value="standard">Standard (default)</option>
+                            <option value="corporate">Corporate</option>
+                            <option value="wholesale">Wholesale</option>
+                            <option value="agent">Travel Agent</option>
+                            <option value="vip">VIP</option>
+                        </select>
+                    </div>
+                    
                     <!-- Active Toggle -->
                     <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: #f9fafb; border-radius: 8px;">
                         <label class="toggle-switch" style="position: relative; display: inline-block; width: 48px; height: 26px; cursor: pointer;">
@@ -19521,6 +19538,27 @@ Local honey and preserves"></textarea>
                         </select>
                     ` : '';
                     
+                    // Pricing tier dropdown
+                    const pricingTier = site.pricing_tier || 'standard';
+                    const pricingTierLabel = {
+                        'standard': '💵 Standard',
+                        'corporate': '🏢 Corporate',
+                        'wholesale': '📦 Wholesale',
+                        'agent': '✈️ Agent',
+                        'vip': '⭐ VIP'
+                    }[pricingTier] || '💵 Standard';
+                    
+                    const pricingDropdown = `
+                        <select onchange="updateSitePricingTier(${site.id}, this.value)" 
+                                style="font-size: 0.7rem; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #fcd34d; background: #fefce8; cursor: pointer; margin-top: 0.5rem;">
+                            <option value="standard" ${pricingTier === 'standard' ? 'selected' : ''}>💵 Standard</option>
+                            <option value="corporate" ${pricingTier === 'corporate' ? 'selected' : ''}>🏢 Corporate</option>
+                            <option value="wholesale" ${pricingTier === 'wholesale' ? 'selected' : ''}>📦 Wholesale</option>
+                            <option value="agent" ${pricingTier === 'agent' ? 'selected' : ''}>✈️ Agent</option>
+                            <option value="vip" ${pricingTier === 'vip' ? 'selected' : ''}>⭐ VIP</option>
+                        </select>
+                    `;
+                    
                     // Template badge
                     const templateLabel = site.template === 'developer-dark' ? '🌙 Dark' : '☀️ Light';
                     
@@ -19559,6 +19597,7 @@ Local honey and preserves"></textarea>
                                         </div>
                                     ` : ''}
                                     ${statusDropdown}
+                                    ${pricingDropdown}
                                 </div>
                             </div>
                         </div>
@@ -19609,6 +19648,27 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error updating site status:', error);
                 showNotification('Failed to update status', 'error');
+            }
+        }
+        
+        async function updateSitePricingTier(siteId, pricingTier) {
+            try {
+                const response = await fetch(`/api/deployed-sites/${siteId}/pricing-tier`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ pricing_tier: pricingTier })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Pricing tier updated to ${pricingTier}`, 'success');
+                    loadDeployedSites(); // Refresh the list
+                } else {
+                    showNotification(data.error || 'Failed to update pricing tier', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating pricing tier:', error);
+                showNotification('Failed to update pricing tier', 'error');
             }
         }
         
@@ -21382,13 +21442,25 @@ Local honey and preserves"></textarea>
                             ? `${isDiscount ? '-' : '+'}${Math.abs(offer.discount_value)}%` 
                             : `${isDiscount ? '-' : '+'}$${Math.abs(offer.discount_value)}`;
                         
+                        // Pricing tier badge
+                        const tierColors = {
+                            'standard': { bg: '#f3f4f6', text: '#4b5563' },
+                            'corporate': { bg: '#dbeafe', text: '#1d4ed8' },
+                            'wholesale': { bg: '#fef3c7', text: '#92400e' },
+                            'agent': { bg: '#d1fae5', text: '#065f46' },
+                            'vip': { bg: '#fce7f3', text: '#be185d' }
+                        };
+                        const tier = offer.pricing_tier || 'standard';
+                        const tierColor = tierColors[tier] || tierColors.standard;
+                        const tierBadge = tier !== 'standard' ? `<span style="font-size: 0.65rem; padding: 0.1rem 0.4rem; border-radius: 4px; background: ${tierColor.bg}; color: ${tierColor.text}; margin-left: 0.5rem;">${tier.toUpperCase()}</span>` : '';
+                        
                         html += `
                             <tr style="border-bottom: 1px solid var(--border);">
                                 <td style="padding: 0.75rem; position: sticky; left: 0; background: #fffbeb; z-index: 1;">
                                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                                         <span style="font-size: 1.2rem;">🏷️</span>
                                         <div>
-                                            <strong>${offer.name}</strong>
+                                            <strong>${offer.name}</strong>${tierBadge}
                                             <div style="font-size: 0.75rem; color: ${isDiscount ? '#dc2626' : '#16a34a'};">${discountLabel} from Standard</div>
                                         </div>
                                     </div>
@@ -23002,6 +23074,7 @@ Local honey and preserves"></textarea>
             document.getElementById('offer-id').value = '';
             document.getElementById('offer-modal-title').innerHTML = '🏷️ Create New Offer';
             document.getElementById('offer-active').checked = true;
+            document.getElementById('offer-pricing-tier').value = 'standard';
             updateOfferToggleVisual(document.getElementById('offer-active'));
             
             // Reset all check-in/check-out day checkboxes to checked
@@ -23205,6 +23278,7 @@ Local honey and preserves"></textarea>
                     document.getElementById('offer-valid-until').value = offer.valid_until || '';
                     document.getElementById('offer-priority').value = offer.priority || 0;
                     document.getElementById('offer-active').checked = offer.active;
+                    document.getElementById('offer-pricing-tier').value = offer.pricing_tier || 'standard';
                     updateOfferToggleVisual(document.getElementById('offer-active'));
                     
                     // Set check-in day checkboxes
@@ -23293,6 +23367,7 @@ Local honey and preserves"></textarea>
                 allowed_checkin_days: getCheckedDays('checkin') || '0,1,2,3,4,5,6',
                 allowed_checkout_days: getCheckedDays('checkout') || '0,1,2,3,4,5,6',
                 priority: parseInt(document.getElementById('offer-priority').value) || 0,
+                pricing_tier: document.getElementById('offer-pricing-tier').value || 'standard',
                 active: document.getElementById('offer-active').checked
             };
             
