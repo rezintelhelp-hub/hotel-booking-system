@@ -32955,6 +32955,11 @@ app.get('/sync-review', (req, res) => {
   res.sendFile(path.join(__dirname, 'public', 'sync-review.html'));
 });
 
+// Serve the developers/partner signup page
+app.get('/developers', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public', 'developers.html'));
+});
+
 // Step 1: Test V2 API key and fetch properties
 app.post('/api/beds24-wizard/properties', async (req, res) => {
   try {
