@@ -27965,6 +27965,14 @@ Local honey and preserves"></textarea>
                         </div>
                         <div class="modal-body">
                             <div id="ai-blog-form">
+                                <!-- Property Selector -->
+                                <div style="margin-bottom: 1rem;">
+                                    <label style="font-weight: 600;">🏨 Property</label>
+                                    <select id="ai-blog-property-id" class="form-input" onchange="loadBlogSuggestions(this.value)">
+                                        <option value="">Select a property...</option>
+                                    </select>
+                                </div>
+                                
                                 <!-- Topic Suggestions -->
                                 <div style="margin-bottom: 1.5rem;">
                                     <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">💡 Suggested Topics</label>
@@ -28008,8 +28016,6 @@ Local honey and preserves"></textarea>
                                         </select>
                                     </div>
                                 </div>
-                                
-                                <input type="hidden" id="ai-blog-property-id" value="${propertyId || ''}" />
                                 
                                 <button class="btn" onclick="generateAiBlog()" id="ai-generate-btn" style="width: 100%; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 1rem;">
                                     ✨ Generate Blog Post
@@ -28091,13 +28097,44 @@ Local honey and preserves"></textarea>
             // Add modal to page
             document.body.insertAdjacentHTML('beforeend', modalHtml);
             
-            // Load suggestions
-            loadBlogSuggestions(propertyId);
+            // Populate property dropdown and load suggestions
+            await loadAiBlogPropertyDropdown(propertyId);
+        }
+        
+        async function loadAiBlogPropertyDropdown(selectedPropertyId) {
+            const select = document.getElementById('ai-blog-property-id');
+            if (!select) return;
+            
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`);
+                const data = await response.json();
+                
+                select.innerHTML = '<option value="">Select a property...</option>';
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        const selected = p.id == selectedPropertyId ? 'selected' : '';
+                        select.innerHTML += `<option value="${p.id}" ${selected}>${p.name}</option>`;
+                    });
+                }
+                
+                // Load suggestions for selected property
+                if (selectedPropertyId) {
+                    loadBlogSuggestions(selectedPropertyId);
+                }
+            } catch (error) {
+                console.error('Error loading properties:', error);
+            }
         }
         
         async function loadBlogSuggestions(propertyId) {
             const container = document.getElementById('ai-blog-suggestions');
             if (!container) return;
+            
+            if (!propertyId) {
+                container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 1rem;">Select a property above to see topic suggestions.</p>';
+                return;
+            }
             
             try {
                 let url = '/api/admin/blog/suggestions';
@@ -28203,8 +28240,13 @@ Local honey and preserves"></textarea>
             const language = document.getElementById('ai-blog-language').value;
             const propertyId = document.getElementById('ai-blog-property-id').value;
             
+            if (!propertyId) {
+                showNotification('Please select a property', 'error');
+                return;
+            }
+            
             if (!keyword) {
-                showNotification('Please enter a keyword', 'error');
+                showNotification('Please enter a topic or select a suggestion', 'error');
                 return;
             }
             
