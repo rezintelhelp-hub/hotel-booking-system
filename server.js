@@ -655,6 +655,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge_type VARCHAR(10) DEFAULT 'fixed'`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge DECIMAL(10,2) DEFAULT 0`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS children_allowed BOOLEAN DEFAULT true`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false`);
       console.log('✅ Occupancy pricing columns ensured on bookable_units');
     } catch (occError) {
       console.log('ℹ️  Occupancy columns:', occError.message);
@@ -20622,6 +20623,43 @@ app.put('/api/admin/rooms/:roomId/images/reorder', async (req, res) => {
     res.json({ success: false, error: error.message });
   } finally {
     client.release();
+  }
+});
+
+// Toggle room visibility (hide/show on calendar)
+app.put('/api/admin/rooms/:roomId/visibility', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const { is_hidden } = req.body;
+    
+    await pool.query(
+      'UPDATE bookable_units SET is_hidden = $1 WHERE id = $2',
+      [is_hidden, roomId]
+    );
+    
+    res.json({ success: true, is_hidden });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Bulk toggle room visibility
+app.put('/api/admin/rooms/bulk-visibility', async (req, res) => {
+  try {
+    const { room_ids, is_hidden } = req.body;
+    
+    if (!room_ids || !Array.isArray(room_ids) || room_ids.length === 0) {
+      return res.json({ success: false, error: 'No room IDs provided' });
+    }
+    
+    await pool.query(
+      'UPDATE bookable_units SET is_hidden = $1 WHERE id = ANY($2)',
+      [is_hidden, room_ids]
+    );
+    
+    res.json({ success: true, updated: room_ids.length, is_hidden });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
