@@ -6073,10 +6073,10 @@
 
             <!-- Channel Manager Selection Modal -->
             <div id="channelManagerModal" class="modal" style="display: none;" onclick="if(event.target === this) closeChannelManagerModal()">
-                <div class="modal-content" style="max-width: 600px;">
-                    <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
-                        <h3>Select Your Channel Manager</h3>
-                        <button onclick="closeChannelManagerModal()" style="background: #e5e7eb; border: none; color: #374151; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
+                <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
+                        <h3 style="margin: 0;">🔗 Select Your Channel Manager</h3>
+                        <button onclick="closeChannelManagerModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
                     </div>
                     <div class="modal-body">
                         <p style="color: var(--text-secondary); margin-bottom: 1.5rem;">Which channel manager do you use to manage your property?</p>
@@ -6860,10 +6860,10 @@ const promo = await fetch('/api/v1/offers/validate', {
 
             <!-- API Key Modal -->
             <div id="apiKeyModal" class="modal" style="display: none;">
-                <div class="modal-content" style="max-width: 500px;">
-                    <div class="modal-header">
-                        <h3 id="apiKeyModalTitle">Create API Key</h3>
-                        <button class="modal-close" onclick="closeApiKeyModal()">×</button>
+                <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                        <h3 id="apiKeyModalTitle" style="margin: 0;">🔑 Create API Key</h3>
+                        <button class="modal-close" onclick="closeApiKeyModal()" style="color: white;">×</button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group">
@@ -10035,10 +10035,10 @@ Local honey and preserves"></textarea>
 
     <!-- Edit Booking Modal -->
     <div id="edit-booking-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 600px;">
-            <div class="modal-header">
-                <h3>Edit Booking <span id="edit-booking-ref" style="color: var(--primary); font-weight: 600;"></span></h3>
-                <button class="modal-close" onclick="closeEditBookingModal()">&times;</button>
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 style="margin: 0;">✏️ Edit Booking <span id="edit-booking-ref" style="color: #fef3c7; font-weight: 600;"></span></h3>
+                <button class="modal-close" onclick="closeEditBookingModal()" style="color: white;">&times;</button>
             </div>
             <div class="modal-body">
                 <input type="hidden" id="edit-booking-id">
@@ -10931,10 +10931,10 @@ Local honey and preserves"></textarea>
     </div>
 
     <div id="imageUploadModal" class="modal">
-        <div class="modal-content" style="max-width: 900px;">
-            <div class="modal-header">
-                <h3 class="modal-title">Upload Images</h3>
-                <button class="modal-close" onclick="closeModal('imageUploadModal')">&times;</button>
+        <div class="modal-content" style="max-width: 900px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 class="modal-title" style="margin: 0;">📤 Upload Images</h3>
+                <button class="modal-close" onclick="closeModal('imageUploadModal')" style="color: white;">&times;</button>
             </div>
             <div class="modal-body" style="position: relative;">
                 <!-- Upload Zone -->
@@ -11666,10 +11666,10 @@ Local honey and preserves"></textarea>
     </div>
 
     <div id="editPropertyModal" class="modal">
-        <div class="modal-content" style="max-width: 800px;">
-            <div class="modal-header">
-                <h3 class="modal-title">Edit Property</h3>
-                <button class="modal-close" onclick="closeModal('editPropertyModal')">×</button>
+        <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 class="modal-title" style="margin: 0;">🏠 Edit Property</h3>
+                <button class="modal-close" onclick="closeModal('editPropertyModal')" style="color: white;">×</button>
             </div>
             <form id="editPropertyForm" onsubmit="return saveProperty(event)">
                 <input type="hidden" id="edit-property-id">
@@ -11982,10 +11982,10 @@ Local honey and preserves"></textarea>
 
     <!-- Edit Room Modal -->
     <div id="editRoomModal" class="modal">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h3 class="modal-title">Edit Room</h3>
-                <button class="modal-close" onclick="closeModal('editRoomModal')">×</button>
+        <div class="modal-content" style="border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 class="modal-title" style="margin: 0;">🛏️ Edit Room</h3>
+                <button class="modal-close" onclick="closeModal('editRoomModal')" style="color: white;">×</button>
             </div>
             <form id="editRoomForm" onsubmit="return saveRoom(event)">
                 <input type="hidden" id="edit-room-id">
@@ -12219,10 +12219,10 @@ Local honey and preserves"></textarea>
 
     <!-- Add Amenity Modal -->
     <div id="addAmenityModal" class="modal">
-        <div class="modal-content" style="max-width: 900px;">
-            <div class="modal-header">
-                <h3 class="modal-title">Manage Amenities</h3>
-                <button class="modal-close" onclick="closeModal('addAmenityModal')">×</button>
+        <div class="modal-content" style="max-width: 900px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 class="modal-title" style="margin: 0;">✨ Manage Amenities</h3>
+                <button class="modal-close" onclick="closeModal('addAmenityModal')" style="color: white;">×</button>
             </div>
             <div class="modal-body">
                 <!-- Category Selection -->
@@ -12459,8 +12459,8 @@ Local honey and preserves"></textarea>
 
     <!-- Room Changes Modal -->
     <div id="roomChangesModal" class="modal" onclick="if(event.target === this) closeModal('roomChangesModal')">
-        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white;">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
                     <h3 id="room-changes-title" style="margin: 0;">🔄 Room Changes</h3>
                     <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">Compare Beds24 rooms with GAS</p>
@@ -12523,8 +12523,8 @@ Local honey and preserves"></textarea>
 
     <!-- Vendor Modal -->
     <div id="vendorModal" class="modal" onclick="if(event.target === this) closeModal('vendorModal')">
-        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">
+        <div class="modal-content" style="max-width: 700px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
                     <h3 id="vendor-modal-title" style="margin: 0;">🚕 Add Vendor</h3>
                     <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">External service provider</p>
@@ -12627,8 +12627,8 @@ Local honey and preserves"></textarea>
 
     <!-- Blog Post Modal -->
     <div id="blogModal" class="modal" onclick="if(event.target === this) closeModal('blogModal')">
-        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white;">
+        <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
                     <h3 id="blog-modal-title" style="margin: 0;">📝 New Blog Post</h3>
                     <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">Create engaging content for your guests</p>
@@ -12750,8 +12750,8 @@ Local honey and preserves"></textarea>
 
     <!-- Attraction Modal -->
     <div id="attractionModal" class="modal" onclick="if(event.target === this) closeModal('attractionModal')">
-        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white;">
+        <div class="modal-content" style="max-width: 800px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <div>
                     <h3 id="attraction-modal-title" style="margin: 0;">🎯 Add Attraction</h3>
                     <p style="margin: 0.25rem 0 0; opacity: 0.9; font-size: 0.85rem;">Help guests discover things to do nearby</p>
@@ -16102,12 +16102,12 @@ Local honey and preserves"></textarea>
             
             const modalHtml = `
                 <div class="modal active" id="changeRoleModal">
-                    <div class="modal-content" style="max-width: 400px;">
-                        <div class="modal-header">
-                            <h3 class="modal-title">Change Role</h3>
-                            <button class="modal-close" onclick="closeModal('changeRoleModal')">&times;</button>
+                    <div class="modal-content" style="max-width: 400px; border-radius: 16px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                            <h3 class="modal-title" style="margin: 0;">👤 Change Role</h3>
+                            <button class="modal-close" onclick="closeModal('changeRoleModal')" style="color: white;">&times;</button>
                         </div>
-                        <div style="padding: 0.5rem 0;">
+                        <div style="padding: 1.5rem;">
                             <p style="margin-bottom: 1rem;">Change role for <strong>${accountName}</strong>:</p>
                             <select id="newRoleSelect" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
                                 ${options}
@@ -16179,12 +16179,12 @@ Local honey and preserves"></textarea>
                 
                 const modalHtml = `
                     <div class="modal active" id="assignAgencyModal">
-                        <div class="modal-content" style="max-width: 450px;">
-                            <div class="modal-header">
-                                <h3 class="modal-title">🏢 Assign Agency</h3>
-                                <button class="modal-close" onclick="closeModal('assignAgencyModal')">&times;</button>
+                        <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
+                            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                                <h3 class="modal-title" style="margin: 0;">🏢 Assign Agency</h3>
+                                <button class="modal-close" onclick="closeModal('assignAgencyModal')" style="color: white;">&times;</button>
                             </div>
-                            <div style="padding: 0.5rem 0;">
+                            <div style="padding: 1.5rem;">
                                 <p style="margin-bottom: 1rem;">Assign an agency to manage <strong>${accountName}</strong>:</p>
                                 <select id="agencySelectModal" style="width: 100%; padding: 0.75rem; border: 1px solid var(--border); border-radius: 8px; font-size: 1rem;">
                                     <option value="">Select agency...</option>
@@ -16267,10 +16267,10 @@ Local honey and preserves"></textarea>
             
             const modalHtml = `
                 <div class="modal active" id="passwordResetModal">
-                    <div class="modal-content" style="max-width: 450px;">
-                        <div class="modal-header">
-                            <h3 class="modal-title">🔑 Reset Password</h3>
-                            <button class="modal-close" onclick="closeModal('passwordResetModal')">&times;</button>
+                    <div class="modal-content" style="max-width: 450px; border-radius: 16px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                            <h3 class="modal-title" style="margin: 0;">🔑 Reset Password</h3>
+                            <button class="modal-close" onclick="closeModal('passwordResetModal')" style="color: white;">&times;</button>
                         </div>
                         <div style="padding: 1.5rem;">
                             <p style="margin-bottom: 1rem;">Set new password for <strong>${email}</strong></p>
@@ -19538,7 +19538,7 @@ Local honey and preserves"></textarea>
                                         <button onclick="editWebsite(${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-color: #6366f1;">✏️ Edit</button>
                                         <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
                                         <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
-                                        ${isMaster ? `<button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}') " class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>` : ''}
+                                                                                <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
@@ -20027,10 +20027,10 @@ Local honey and preserves"></textarea>
             
             let html = `
                 <div id="refresh-results-modal" class="modal active">
-                    <div class="modal-content" style="max-width: 500px;">
-                        <div class="modal-header">
-                            <h3>🔄 ${cmName} Property Comparison</h3>
-                            <button class="modal-close" onclick="closeRefreshResultsModal()">×</button>
+                    <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                            <h3 style="margin: 0;">🔄 ${cmName} Property Comparison</h3>
+                            <button class="modal-close" onclick="closeRefreshResultsModal()" style="color: white;">×</button>
                         </div>
                         <div class="modal-body">
             `;
@@ -25869,10 +25869,10 @@ Local honey and preserves"></textarea>
                 const modal = document.createElement('div');
                 modal.innerHTML = `
                     <div class="modal" id="payment-details-modal" style="display: flex;">
-                        <div class="modal-content" style="max-width: 600px;">
-                            <div class="modal-header">
-                                <h3>Payment Details</h3>
-                                <button class="close-btn" onclick="this.closest('.modal').remove()">×</button>
+                        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+                            <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                                <h3 style="margin: 0;">💳 Payment Details</h3>
+                                <button class="close-btn" onclick="this.closest('.modal').remove()" style="color: white; background: none; border: none; font-size: 1.5rem; cursor: pointer;">×</button>
                             </div>
                             <div class="modal-body">
                                 ${html}
@@ -28798,12 +28798,12 @@ Local honey and preserves"></textarea>
             // Create modal HTML
             const modalHtml = `
                 <div id="ai-blog-modal" class="modal" style="display: flex;">
-                    <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto;">
-                        <div class="modal-header">
-                            <h2>🤖 AI Blog Generator</h2>
-                            <button class="modal-close" onclick="closeAiBlogModal()">&times;</button>
+                    <div class="modal-content" style="max-width: 900px; max-height: 90vh; overflow-y: auto; border-radius: 16px;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                            <h2 style="margin: 0;">🤖 AI Blog Generator</h2>
+                            <button class="modal-close" onclick="closeAiBlogModal()" style="color: white;">&times;</button>
                         </div>
-                        <div class="modal-body">
+                        <div class="modal-body" style="padding: 1.5rem;">
                             <div id="ai-blog-form">
                                 <!-- Property Selector -->
                                 <div style="margin-bottom: 1rem;">
