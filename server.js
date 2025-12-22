@@ -850,6 +850,112 @@ async function runMigrations() {
       console.log('ℹ️  blog_topic_templates table:', blogTemplateError.message);
     }
     
+    // =========================================================
+    // VENDOR MANAGEMENT TABLES
+    // =========================================================
+    
+    // Vendors table - external service providers (taxis, tours, restaurants, etc.)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS vendors (
+          id SERIAL PRIMARY KEY,
+          account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+          name VARCHAR(255) NOT NULL,
+          email VARCHAR(255),
+          phone VARCHAR(50),
+          address TEXT,
+          website VARCHAR(255),
+          contact_name VARCHAR(255),
+          notes TEXT,
+          login_email VARCHAR(255) UNIQUE,
+          login_password_hash VARCHAR(255),
+          login_token VARCHAR(255),
+          token_expires_at TIMESTAMP,
+          is_active BOOLEAN DEFAULT true,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      console.log('✅ vendors table ensured');
+    } catch (vendorError) {
+      console.log('ℹ️  vendors table:', vendorError.message);
+    }
+    
+    // Vendor permissions - what data each vendor can see
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS vendor_permissions (
+          id SERIAL PRIMARY KEY,
+          vendor_id INTEGER REFERENCES vendors(id) ON DELETE CASCADE,
+          can_see_guest_name BOOLEAN DEFAULT true,
+          can_see_guest_email BOOLEAN DEFAULT false,
+          can_see_guest_phone BOOLEAN DEFAULT true,
+          can_see_booking_dates BOOLEAN DEFAULT true,
+          can_see_room_details BOOLEAN DEFAULT false,
+          can_see_booking_notes BOOLEAN DEFAULT false,
+          can_see_price_paid BOOLEAN DEFAULT false,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW(),
+          UNIQUE(vendor_id)
+        )
+      `);
+      console.log('✅ vendor_permissions table ensured');
+    } catch (vendorPermError) {
+      console.log('ℹ️  vendor_permissions table:', vendorPermError.message);
+    }
+    
+    // Add vendor_id to upsells table
+    try {
+      await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS is_external BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL`);
+      console.log('✅ upsells vendor columns ensured');
+    } catch (upsellVendorError) {
+      console.log('ℹ️  upsells vendor columns:', upsellVendorError.message);
+    }
+    
+    // Add vendor_id to vouchers table (if it exists)
+    try {
+      await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS is_external BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE vouchers ADD COLUMN IF NOT EXISTS vendor_id INTEGER REFERENCES vendors(id) ON DELETE SET NULL`);
+      console.log('✅ vouchers vendor columns ensured');
+    } catch (voucherVendorError) {
+      console.log('ℹ️  vouchers vendor columns:', voucherVendorError.message);
+    }
+    
+    // Vendor service requests - when a booking includes external upsell/voucher
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS vendor_service_requests (
+          id SERIAL PRIMARY KEY,
+          vendor_id INTEGER REFERENCES vendors(id) ON DELETE CASCADE,
+          booking_id INTEGER REFERENCES bookings(id) ON DELETE CASCADE,
+          upsell_id INTEGER REFERENCES upsells(id) ON DELETE SET NULL,
+          voucher_id INTEGER,
+          property_id INTEGER REFERENCES properties(id),
+          service_name VARCHAR(255),
+          service_date DATE,
+          service_time TIME,
+          guest_name VARCHAR(255),
+          guest_email VARCHAR(255),
+          guest_phone VARCHAR(255),
+          special_instructions TEXT,
+          quantity INTEGER DEFAULT 1,
+          status VARCHAR(50) DEFAULT 'pending',
+          confirmed_at TIMESTAMP,
+          completed_at TIMESTAMP,
+          notes TEXT,
+          created_at TIMESTAMP DEFAULT NOW(),
+          updated_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_vendor_requests_vendor ON vendor_service_requests(vendor_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_vendor_requests_status ON vendor_service_requests(status)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_vendor_requests_booking ON vendor_service_requests(booking_id)`);
+      console.log('✅ vendor_service_requests table ensured');
+    } catch (vendorRequestError) {
+      console.log('ℹ️  vendor_service_requests table:', vendorRequestError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -3742,6 +3848,314 @@ app.post('/api/gas-sync/properties/:propertyId/v1-pricing-sync', async (req, res
   } catch (error) {
     console.error('Manual V1 pricing sync error:', error);
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// =========================================================
+// ROOM SYNC CHECK - Compare Beds24 vs GAS rooms
+// =========================================================
+
+// Check for room changes between Beds24 and GAS
+app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    // Get sync property info
+    const propResult = await pool.query(`
+      SELECT sp.*, c.credentials, c.channel_manager
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [propertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propResult.rows[0];
+    const credentials = prop.credentials;
+    
+    if (!credentials?.refreshToken) {
+      return res.status(400).json({ success: false, error: 'No API credentials for this connection' });
+    }
+    
+    // Get access token
+    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+      refreshToken: credentials.refreshToken
+    });
+    const accessToken = tokenResponse.data.token;
+    
+    // Fetch rooms from Beds24
+    const roomsResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms', {
+      headers: { token: accessToken },
+      params: { propertyId: prop.external_id }
+    });
+    
+    const beds24Rooms = roomsResponse.data.data || [];
+    
+    // Get GAS rooms for this property
+    const gasRoomsResult = await pool.query(`
+      SELECT rt.*, bu.name as gas_name, bu.status as gas_status, bu.is_hidden
+      FROM gas_sync_room_types rt
+      LEFT JOIN bookable_units bu ON rt.gas_room_id = bu.id
+      WHERE rt.sync_property_id = $1
+    `, [propertyId]);
+    
+    const gasRooms = gasRoomsResult.rows;
+    
+    // Build comparison
+    const beds24ByExternalId = {};
+    beds24Rooms.forEach(r => { beds24ByExternalId[String(r.id)] = r; });
+    
+    const gasByExternalId = {};
+    gasRooms.forEach(r => { gasByExternalId[String(r.external_id)] = r; });
+    
+    const matched = [];
+    const newRooms = [];
+    const removedRooms = [];
+    const nameChanges = [];
+    
+    // Check Beds24 rooms against GAS
+    for (const b24Room of beds24Rooms) {
+      const externalId = String(b24Room.id);
+      const gasRoom = gasByExternalId[externalId];
+      
+      if (gasRoom) {
+        // Room exists in both
+        if (gasRoom.name !== b24Room.name) {
+          nameChanges.push({
+            external_id: externalId,
+            beds24_name: b24Room.name,
+            gas_name: gasRoom.name,
+            gas_room_id: gasRoom.gas_room_id,
+            sync_room_id: gasRoom.id
+          });
+        }
+        matched.push({
+          external_id: externalId,
+          name: b24Room.name,
+          gas_room_id: gasRoom.gas_room_id,
+          is_hidden: gasRoom.is_hidden,
+          status: gasRoom.gas_status
+        });
+      } else {
+        // New room in Beds24, not in GAS
+        newRooms.push({
+          external_id: externalId,
+          name: b24Room.name,
+          max_guests: b24Room.maxPeople || 2,
+          quantity: b24Room.qty || 1
+        });
+      }
+    }
+    
+    // Check GAS rooms against Beds24 (find removed)
+    for (const gasRoom of gasRooms) {
+      const externalId = String(gasRoom.external_id);
+      if (!beds24ByExternalId[externalId]) {
+        // Room exists in GAS but not in Beds24 anymore
+        removedRooms.push({
+          external_id: externalId,
+          name: gasRoom.name,
+          gas_name: gasRoom.gas_name,
+          gas_room_id: gasRoom.gas_room_id,
+          sync_room_id: gasRoom.id,
+          is_hidden: gasRoom.is_hidden,
+          status: gasRoom.gas_status
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      property: prop.name,
+      summary: {
+        matched: matched.length,
+        new: newRooms.length,
+        removed: removedRooms.length,
+        nameChanges: nameChanges.length
+      },
+      matched,
+      newRooms,
+      removedRooms,
+      nameChanges
+    });
+    
+  } catch (error) {
+    console.error('Check room changes error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Import new rooms from Beds24
+app.post('/api/gas-sync/properties/:propertyId/import-new-rooms', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { propertyId } = req.params;
+    const { rooms } = req.body; // Array of { external_id, name, max_guests, quantity }
+    
+    if (!rooms || rooms.length === 0) {
+      return res.json({ success: false, error: 'No rooms to import' });
+    }
+    
+    // Get sync property info
+    const propResult = await pool.query(`
+      SELECT sp.*, c.credentials
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [propertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propResult.rows[0];
+    
+    await client.query('BEGIN');
+    
+    const imported = [];
+    
+    for (const room of rooms) {
+      // Create bookable_unit first
+      const unitResult = await client.query(`
+        INSERT INTO bookable_units (property_id, name, max_guests, quantity, status, created_at, updated_at)
+        VALUES ($1, $2, $3, $4, 'active', NOW(), NOW())
+        RETURNING id
+      `, [prop.gas_property_id, room.name, room.max_guests || 2, room.quantity || 1]);
+      
+      const gasRoomId = unitResult.rows[0].id;
+      
+      // Create gas_sync_room_types entry
+      await client.query(`
+        INSERT INTO gas_sync_room_types (sync_property_id, external_id, name, max_guests, unit_count, gas_room_id, synced_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+      `, [propertyId, room.external_id, room.name, room.max_guests || 2, room.quantity || 1, gasRoomId]);
+      
+      imported.push({ external_id: room.external_id, name: room.name, gas_room_id: gasRoomId });
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: `Imported ${imported.length} rooms`,
+      imported,
+      websiteReminder: true
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Import rooms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Archive removed rooms (no longer in Beds24)
+app.post('/api/gas-sync/properties/:propertyId/archive-rooms', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { propertyId } = req.params;
+    const { rooms } = req.body; // Array of { gas_room_id, sync_room_id }
+    
+    if (!rooms || rooms.length === 0) {
+      return res.json({ success: false, error: 'No rooms to archive' });
+    }
+    
+    await client.query('BEGIN');
+    
+    const archived = [];
+    
+    for (const room of rooms) {
+      // Set bookable_unit to archived status and hidden
+      if (room.gas_room_id) {
+        await client.query(`
+          UPDATE bookable_units 
+          SET status = 'archived', is_hidden = true, updated_at = NOW()
+          WHERE id = $1
+        `, [room.gas_room_id]);
+      }
+      
+      // Optionally mark sync room type as archived too
+      if (room.sync_room_id) {
+        await client.query(`
+          UPDATE gas_sync_room_types
+          SET synced_at = NOW()
+          WHERE id = $1
+        `, [room.sync_room_id]);
+      }
+      
+      archived.push(room);
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: `Archived ${archived.length} rooms`,
+      archived,
+      websiteReminder: true
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Archive rooms error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Update room names from Beds24
+app.post('/api/gas-sync/properties/:propertyId/update-room-names', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { propertyId } = req.params;
+    const { rooms } = req.body; // Array of { gas_room_id, sync_room_id, new_name }
+    
+    if (!rooms || rooms.length === 0) {
+      return res.json({ success: false, error: 'No rooms to update' });
+    }
+    
+    await client.query('BEGIN');
+    
+    const updated = [];
+    
+    for (const room of rooms) {
+      // Update bookable_unit name
+      if (room.gas_room_id) {
+        await client.query(`
+          UPDATE bookable_units SET name = $1, updated_at = NOW() WHERE id = $2
+        `, [room.new_name, room.gas_room_id]);
+      }
+      
+      // Update sync room type name
+      if (room.sync_room_id) {
+        await client.query(`
+          UPDATE gas_sync_room_types SET name = $1, synced_at = NOW() WHERE id = $2
+        `, [room.new_name, room.sync_room_id]);
+      }
+      
+      updated.push(room);
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({
+      success: true,
+      message: `Updated ${updated.length} room names`,
+      updated,
+      websiteReminder: true
+    });
+    
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Update room names error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  } finally {
+    client.release();
   }
 });
 
@@ -16578,6 +16992,484 @@ app.delete('/api/admin/vouchers/:id', async (req, res) => {
 });
 
 // =====================================================
+// VENDORS API
+// =====================================================
+
+// Get all vendors for an account
+app.get('/api/admin/vendors', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    let query = `
+      SELECT v.*, 
+             vp.can_see_guest_name, vp.can_see_guest_email, vp.can_see_guest_phone,
+             vp.can_see_booking_dates, vp.can_see_room_details, vp.can_see_booking_notes, vp.can_see_price_paid,
+             (SELECT COUNT(*) FROM vendor_service_requests WHERE vendor_id = v.id) as request_count,
+             (SELECT COUNT(*) FROM vendor_service_requests WHERE vendor_id = v.id AND status = 'pending') as pending_count
+      FROM vendors v
+      LEFT JOIN vendor_permissions vp ON v.id = vp.vendor_id
+    `;
+    const params = [];
+    
+    if (accountId) {
+      query += ' WHERE v.account_id = $1';
+      params.push(accountId);
+    }
+    
+    query += ' ORDER BY v.name';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Get vendors error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single vendor
+app.get('/api/admin/vendors/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT v.*, 
+             vp.can_see_guest_name, vp.can_see_guest_email, vp.can_see_guest_phone,
+             vp.can_see_booking_dates, vp.can_see_room_details, vp.can_see_booking_notes, vp.can_see_price_paid
+      FROM vendors v
+      LEFT JOIN vendor_permissions vp ON v.id = vp.vendor_id
+      WHERE v.id = $1
+    `, [req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Vendor not found' });
+    }
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create vendor
+app.post('/api/admin/vendors', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { 
+      account_id, name, email, phone, address, website, contact_name, notes,
+      login_email, permissions = {}
+    } = req.body;
+    
+    await client.query('BEGIN');
+    
+    // Generate a random password for vendor login
+    const tempPassword = Math.random().toString(36).substring(2, 10);
+    const bcrypt = require('bcryptjs');
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    
+    const result = await client.query(`
+      INSERT INTO vendors (account_id, name, email, phone, address, website, contact_name, notes, login_email, login_password_hash)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      RETURNING *
+    `, [account_id, name, email, phone, address, website, contact_name, notes, login_email || email, passwordHash]);
+    
+    const vendorId = result.rows[0].id;
+    
+    // Create default permissions
+    await client.query(`
+      INSERT INTO vendor_permissions (vendor_id, can_see_guest_name, can_see_guest_email, can_see_guest_phone, 
+        can_see_booking_dates, can_see_room_details, can_see_booking_notes, can_see_price_paid)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `, [
+      vendorId,
+      permissions.can_see_guest_name !== false,
+      permissions.can_see_guest_email || false,
+      permissions.can_see_guest_phone !== false,
+      permissions.can_see_booking_dates !== false,
+      permissions.can_see_room_details || false,
+      permissions.can_see_booking_notes || false,
+      permissions.can_see_price_paid || false
+    ]);
+    
+    await client.query('COMMIT');
+    
+    res.json({ 
+      success: true, 
+      data: result.rows[0],
+      tempPassword // Return temp password so it can be shown/emailed to vendor
+    });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    console.error('Create vendor error:', error);
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Update vendor
+app.put('/api/admin/vendors/:id', async (req, res) => {
+  const client = await pool.connect();
+  try {
+    const { id } = req.params;
+    const { 
+      name, email, phone, address, website, contact_name, notes, login_email, is_active,
+      permissions = {}
+    } = req.body;
+    
+    await client.query('BEGIN');
+    
+    await client.query(`
+      UPDATE vendors SET 
+        name = COALESCE($1, name),
+        email = COALESCE($2, email),
+        phone = COALESCE($3, phone),
+        address = COALESCE($4, address),
+        website = COALESCE($5, website),
+        contact_name = COALESCE($6, contact_name),
+        notes = COALESCE($7, notes),
+        login_email = COALESCE($8, login_email),
+        is_active = COALESCE($9, is_active),
+        updated_at = NOW()
+      WHERE id = $10
+    `, [name, email, phone, address, website, contact_name, notes, login_email, is_active, id]);
+    
+    // Update permissions
+    if (Object.keys(permissions).length > 0) {
+      await client.query(`
+        UPDATE vendor_permissions SET
+          can_see_guest_name = COALESCE($1, can_see_guest_name),
+          can_see_guest_email = COALESCE($2, can_see_guest_email),
+          can_see_guest_phone = COALESCE($3, can_see_guest_phone),
+          can_see_booking_dates = COALESCE($4, can_see_booking_dates),
+          can_see_room_details = COALESCE($5, can_see_room_details),
+          can_see_booking_notes = COALESCE($6, can_see_booking_notes),
+          can_see_price_paid = COALESCE($7, can_see_price_paid),
+          updated_at = NOW()
+        WHERE vendor_id = $8
+      `, [
+        permissions.can_see_guest_name,
+        permissions.can_see_guest_email,
+        permissions.can_see_guest_phone,
+        permissions.can_see_booking_dates,
+        permissions.can_see_room_details,
+        permissions.can_see_booking_notes,
+        permissions.can_see_price_paid,
+        id
+      ]);
+    }
+    
+    await client.query('COMMIT');
+    
+    res.json({ success: true });
+  } catch (error) {
+    await client.query('ROLLBACK');
+    res.json({ success: false, error: error.message });
+  } finally {
+    client.release();
+  }
+});
+
+// Delete vendor
+app.delete('/api/admin/vendors/:id', async (req, res) => {
+  try {
+    await pool.query('DELETE FROM vendors WHERE id = $1', [req.params.id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Reset vendor password
+app.post('/api/admin/vendors/:id/reset-password', async (req, res) => {
+  try {
+    const tempPassword = Math.random().toString(36).substring(2, 10);
+    const bcrypt = require('bcryptjs');
+    const passwordHash = await bcrypt.hash(tempPassword, 10);
+    
+    await pool.query(`
+      UPDATE vendors SET login_password_hash = $1, updated_at = NOW() WHERE id = $2
+    `, [passwordHash, req.params.id]);
+    
+    res.json({ success: true, tempPassword });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// VENDOR SERVICE REQUESTS API
+// =====================================================
+
+// Get service requests (for property owner dashboard)
+app.get('/api/admin/vendor-requests', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    const propertyId = req.query.property_id;
+    const vendorId = req.query.vendor_id;
+    const status = req.query.status;
+    
+    let query = `
+      SELECT vsr.*, 
+             v.name as vendor_name, v.email as vendor_email, v.phone as vendor_phone,
+             p.name as property_name,
+             u.name as upsell_name
+      FROM vendor_service_requests vsr
+      JOIN vendors v ON vsr.vendor_id = v.id
+      LEFT JOIN properties p ON vsr.property_id = p.id
+      LEFT JOIN upsells u ON vsr.upsell_id = u.id
+      WHERE 1=1
+    `;
+    const params = [];
+    let paramCount = 0;
+    
+    if (accountId) {
+      paramCount++;
+      query += ` AND v.account_id = $${paramCount}`;
+      params.push(accountId);
+    }
+    if (propertyId) {
+      paramCount++;
+      query += ` AND vsr.property_id = $${paramCount}`;
+      params.push(propertyId);
+    }
+    if (vendorId) {
+      paramCount++;
+      query += ` AND vsr.vendor_id = $${paramCount}`;
+      params.push(vendorId);
+    }
+    if (status) {
+      paramCount++;
+      query += ` AND vsr.status = $${paramCount}`;
+      params.push(status);
+    }
+    
+    query += ' ORDER BY vsr.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Get vendor requests error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Create service request (when booking with external upsell is made)
+app.post('/api/admin/vendor-requests', async (req, res) => {
+  try {
+    const {
+      vendor_id, booking_id, upsell_id, voucher_id, property_id,
+      service_name, service_date, service_time, guest_name, guest_email, guest_phone,
+      special_instructions, quantity
+    } = req.body;
+    
+    const result = await pool.query(`
+      INSERT INTO vendor_service_requests 
+      (vendor_id, booking_id, upsell_id, voucher_id, property_id, service_name, service_date, service_time,
+       guest_name, guest_email, guest_phone, special_instructions, quantity)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+      RETURNING *
+    `, [vendor_id, booking_id, upsell_id, voucher_id, property_id, service_name, service_date, service_time,
+        guest_name, guest_email, guest_phone, special_instructions, quantity || 1]);
+    
+    // TODO: Send email notification to vendor
+    
+    res.json({ success: true, data: result.rows[0] });
+  } catch (error) {
+    console.error('Create vendor request error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update service request status
+app.put('/api/admin/vendor-requests/:id/status', async (req, res) => {
+  try {
+    const { status, notes } = req.body;
+    
+    let updateFields = 'status = $1, updated_at = NOW()';
+    const params = [status, req.params.id];
+    
+    if (status === 'confirmed') {
+      updateFields += ', confirmed_at = NOW()';
+    } else if (status === 'completed') {
+      updateFields += ', completed_at = NOW()';
+    }
+    
+    if (notes) {
+      params.splice(1, 0, notes);
+      updateFields += `, notes = $2`;
+      params[params.length - 1] = req.params.id; // Move id to end
+    }
+    
+    await pool.query(`UPDATE vendor_service_requests SET ${updateFields} WHERE id = $${params.length}`, params);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
+// VENDOR PORTAL API (for vendor login/access)
+// =====================================================
+
+// Vendor login
+app.post('/api/vendor/login', async (req, res) => {
+  try {
+    const { email, password } = req.body;
+    const bcrypt = require('bcryptjs');
+    
+    const result = await pool.query(`
+      SELECT v.*, a.name as account_name
+      FROM vendors v
+      JOIN accounts a ON v.account_id = a.id
+      WHERE v.login_email = $1 AND v.is_active = true
+    `, [email]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid credentials' });
+    }
+    
+    const vendor = result.rows[0];
+    const validPassword = await bcrypt.compare(password, vendor.login_password_hash);
+    
+    if (!validPassword) {
+      return res.json({ success: false, error: 'Invalid credentials' });
+    }
+    
+    // Generate session token
+    const crypto = require('crypto');
+    const token = crypto.randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    
+    await pool.query(`
+      UPDATE vendors SET login_token = $1, token_expires_at = $2 WHERE id = $3
+    `, [token, expiresAt, vendor.id]);
+    
+    // Get permissions
+    const permsResult = await pool.query(`SELECT * FROM vendor_permissions WHERE vendor_id = $1`, [vendor.id]);
+    
+    res.json({ 
+      success: true, 
+      token,
+      vendor: {
+        id: vendor.id,
+        name: vendor.name,
+        email: vendor.email,
+        account_name: vendor.account_name
+      },
+      permissions: permsResult.rows[0] || {}
+    });
+  } catch (error) {
+    console.error('Vendor login error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get vendor's service requests (for vendor portal)
+app.get('/api/vendor/requests', async (req, res) => {
+  try {
+    const token = req.headers['x-vendor-token'];
+    
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'No token provided' });
+    }
+    
+    // Validate token
+    const vendorResult = await pool.query(`
+      SELECT v.*, vp.*
+      FROM vendors v
+      LEFT JOIN vendor_permissions vp ON v.id = vp.vendor_id
+      WHERE v.login_token = $1 AND v.token_expires_at > NOW() AND v.is_active = true
+    `, [token]);
+    
+    if (vendorResult.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    }
+    
+    const vendor = vendorResult.rows[0];
+    const status = req.query.status;
+    
+    // Build query based on permissions
+    let selectFields = 'vsr.id, vsr.service_name, vsr.service_date, vsr.service_time, vsr.quantity, vsr.status, vsr.special_instructions, vsr.created_at';
+    
+    if (vendor.can_see_guest_name) selectFields += ', vsr.guest_name';
+    if (vendor.can_see_guest_email) selectFields += ', vsr.guest_email';
+    if (vendor.can_see_guest_phone) selectFields += ', vsr.guest_phone';
+    if (vendor.can_see_booking_dates) selectFields += ', b.check_in, b.check_out';
+    if (vendor.can_see_room_details) selectFields += ', bu.name as room_name';
+    
+    let query = `
+      SELECT ${selectFields}, p.name as property_name
+      FROM vendor_service_requests vsr
+      LEFT JOIN properties p ON vsr.property_id = p.id
+      LEFT JOIN bookings b ON vsr.booking_id = b.id
+      LEFT JOIN bookable_units bu ON b.room_id = bu.id
+      WHERE vsr.vendor_id = $1
+    `;
+    const params = [vendor.id];
+    
+    if (status) {
+      query += ' AND vsr.status = $2';
+      params.push(status);
+    }
+    
+    query += ' ORDER BY vsr.service_date ASC, vsr.created_at DESC';
+    
+    const result = await pool.query(query, params);
+    
+    res.json({ success: true, data: result.rows });
+  } catch (error) {
+    console.error('Get vendor requests error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Vendor confirm/complete request
+app.put('/api/vendor/requests/:id/status', async (req, res) => {
+  try {
+    const token = req.headers['x-vendor-token'];
+    const { status } = req.body;
+    
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'No token provided' });
+    }
+    
+    // Validate token and ownership
+    const vendorResult = await pool.query(`
+      SELECT v.id FROM vendors v WHERE v.login_token = $1 AND v.token_expires_at > NOW() AND v.is_active = true
+    `, [token]);
+    
+    if (vendorResult.rows.length === 0) {
+      return res.status(401).json({ success: false, error: 'Invalid or expired token' });
+    }
+    
+    const vendorId = vendorResult.rows[0].id;
+    
+    // Verify request belongs to this vendor
+    const requestCheck = await pool.query(`SELECT id FROM vendor_service_requests WHERE id = $1 AND vendor_id = $2`, [req.params.id, vendorId]);
+    if (requestCheck.rows.length === 0) {
+      return res.status(403).json({ success: false, error: 'Request not found' });
+    }
+    
+    // Only allow confirmed or completed status from vendor
+    if (!['confirmed', 'completed'].includes(status)) {
+      return res.json({ success: false, error: 'Invalid status' });
+    }
+    
+    let updateQuery = 'UPDATE vendor_service_requests SET status = $1, updated_at = NOW()';
+    if (status === 'confirmed') {
+      updateQuery += ', confirmed_at = NOW()';
+    } else if (status === 'completed') {
+      updateQuery += ', completed_at = NOW()';
+    }
+    updateQuery += ' WHERE id = $2';
+    
+    await pool.query(updateQuery, [status, req.params.id]);
+    
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // UPSELLS API
 // =====================================================
 
@@ -16593,10 +17485,12 @@ app.get('/api/admin/upsells', async (req, res) => {
       result = await pool.query(`
         SELECT u.*, 
                p.name as property_name,
-               r.name as room_name
+               r.name as room_name,
+               v.name as vendor_name
         FROM upsells u
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
+        LEFT JOIN vendors v ON u.vendor_id = v.id
         WHERE u.property_id = $1
         ORDER BY u.name
       `, [propertyId]);
@@ -16604,10 +17498,12 @@ app.get('/api/admin/upsells', async (req, res) => {
       result = await pool.query(`
         SELECT u.*, 
                p.name as property_name,
-               r.name as room_name
+               r.name as room_name,
+               v.name as vendor_name
         FROM upsells u
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
+        LEFT JOIN vendors v ON u.vendor_id = v.id
         WHERE p.account_id = $1 OR u.property_id IS NULL
         ORDER BY u.name
       `, [accountId]);
@@ -16615,10 +17511,12 @@ app.get('/api/admin/upsells', async (req, res) => {
       result = await pool.query(`
         SELECT u.*, 
                p.name as property_name,
-               r.name as room_name
+               r.name as room_name,
+               v.name as vendor_name
         FROM upsells u
         LEFT JOIN properties p ON u.property_id = p.id
         LEFT JOIN rooms r ON u.room_id = r.id
+        LEFT JOIN vendors v ON u.vendor_id = v.id
         ORDER BY u.name
       `);
     }
@@ -16630,13 +17528,13 @@ app.get('/api/admin/upsells', async (req, res) => {
 
 app.post('/api/admin/upsells', async (req, res) => {
   try {
-    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active } = req.body;
+    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
     
     const result = await pool.query(`
-      INSERT INTO upsells (name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      INSERT INTO upsells (name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING *
-    `, [name, description, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false]);
+    `, [name, description, price, charge_type || 'per_booking', max_quantity, property_id, room_id, room_ids, active !== false, is_external || false, vendor_id || null]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
@@ -16646,7 +17544,7 @@ app.post('/api/admin/upsells', async (req, res) => {
 
 app.put('/api/admin/upsells/:id', async (req, res) => {
   try {
-    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active } = req.body;
+    const { name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id } = req.body;
     
     const result = await pool.query(`
       UPDATE upsells SET
@@ -16659,10 +17557,12 @@ app.put('/api/admin/upsells/:id', async (req, res) => {
         room_id = $7,
         room_ids = $8,
         active = COALESCE($9, active),
+        is_external = COALESCE($10, is_external),
+        vendor_id = $11,
         updated_at = NOW()
-      WHERE id = $10
+      WHERE id = $12
       RETURNING *
-    `, [name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, req.params.id]);
+    `, [name, description, price, charge_type, max_quantity, property_id, room_id, room_ids, active, is_external, vendor_id, req.params.id]);
     
     res.json({ success: true, data: result.rows[0] });
   } catch (error) {
