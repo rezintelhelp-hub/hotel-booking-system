@@ -4717,15 +4717,43 @@
 
                 <!-- Hero Image Card -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Background Image</h3></div>
+                    <div class="card-header"><h3>Background Image / Video</h3></div>
                     <div class="card-body">
-                        <div class="form-group">
+                        <!-- Background Type Toggle -->
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Background Type</label>
+                            <div style="display: flex; gap: 1rem;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="radio" name="hero-bg-type" value="image" checked onchange="toggleHeroBackgroundType('image')"> 🖼️ Image
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="radio" name="hero-bg-type" value="video" onchange="toggleHeroBackgroundType('video')"> 🎬 Video (MP4)
+                                </label>
+                            </div>
+                        </div>
+                        
+                        <!-- Image Upload (default) -->
+                        <div id="hero-image-upload-section" class="form-group">
                             <div id="wb-hero-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
                                 <span style="color: #94a3b8;">Click below to upload an image</span>
                             </div>
                             <input type="file" id="wb-hero-image" accept="image/*" onchange="previewWebsiteImage('hero')">
                             <input type="hidden" id="wb-hero-image-url">
                         </div>
+                        
+                        <!-- Video URL (hidden by default) -->
+                        <div id="hero-video-upload-section" class="form-group" style="display: none;">
+                            <div id="wb-hero-video-preview" style="width: 100%; height: 200px; background: #0f172a; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; overflow: hidden;">
+                                <span id="hero-video-placeholder" style="color: #94a3b8;">🎬 Enter video URL below</span>
+                                <video id="hero-video-player" style="width: 100%; height: 100%; object-fit: cover; display: none;" muted loop></video>
+                            </div>
+                            <label class="form-label">Video URL (MP4)</label>
+                            <input type="text" class="form-input" id="wb-hero-video-url" placeholder="https://example.com/video.mp4" oninput="previewHeroVideo(this.value)">
+                            <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">
+                                💡 Use a direct MP4 link. Video will autoplay muted and loop. Provide fallback image above for mobile.
+                            </p>
+                        </div>
+                        
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Overlay Color</label>
@@ -14327,6 +14355,18 @@ Local honey and preserves"></textarea>
                             preview.innerHTML = `<img src="${data.settings.image}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 8px;">`;
                         }
                     }
+                    
+                    // Handle hero video URL - set toggle and preview
+                    if (section === 'hero' && data.settings['video-url']) {
+                        // Set radio to video
+                        const videoRadio = document.querySelector('input[name="hero-bg-type"][value="video"]');
+                        if (videoRadio) {
+                            videoRadio.checked = true;
+                            toggleHeroBackgroundType('video');
+                        }
+                        // Preview the video
+                        previewHeroVideo(data.settings['video-url']);
+                    }
                 } else {
                     console.log(`No saved ${section} settings, using template defaults`);
                 }
@@ -14803,6 +14843,40 @@ Local honey and preserves"></textarea>
                     preview.innerHTML = '<span style="background: rgba(239,68,68,0.9); color: white; padding: 8px 16px; border-radius: 4px;">Upload error</span>';
                     alert('Upload error: ' + error.message);
                 }
+            }
+        }
+        
+        // Hero video background functions
+        function toggleHeroBackgroundType(type) {
+            const imageSection = document.getElementById('hero-image-upload-section');
+            const videoSection = document.getElementById('hero-video-upload-section');
+            
+            if (type === 'video') {
+                imageSection.style.display = 'none';
+                videoSection.style.display = 'block';
+            } else {
+                imageSection.style.display = 'block';
+                videoSection.style.display = 'none';
+            }
+        }
+        
+        function previewHeroVideo(url) {
+            const placeholder = document.getElementById('hero-video-placeholder');
+            const video = document.getElementById('hero-video-player');
+            
+            if (url && url.match(/\.(mp4|webm|ogg)($|\?)/i)) {
+                video.src = url;
+                video.style.display = 'block';
+                placeholder.style.display = 'none';
+                video.play().catch(() => {});
+            } else if (url) {
+                placeholder.textContent = '⚠️ Please enter a valid video URL (.mp4, .webm)';
+                placeholder.style.display = 'block';
+                video.style.display = 'none';
+            } else {
+                placeholder.textContent = '🎬 Enter video URL below';
+                placeholder.style.display = 'block';
+                video.style.display = 'none';
             }
         }
         
