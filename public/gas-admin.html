@@ -27477,10 +27477,12 @@ Local honey and preserves"></textarea>
             
             try {
                 const propertyId = document.getElementById('blog-property-select')?.value || '';
-                let url = `/api/admin/blog?client_id=${getClientId()}`;
-                if (propertyId) {
-                    url += `&property_id=${propertyId}`;
-                }
+                const clientId = getClientId();
+                let url = `/api/admin/blog`;
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                if (params.length > 0) url += '?' + params.join('&');
                 
                 const response = await fetch(url);
                 const data = await response.json();
@@ -27502,18 +27504,38 @@ Local honey and preserves"></textarea>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${data.posts.map(post => `
-                                    <tr>
-                                        <td><strong>${post.title}</strong></td>
-                                        <td>${post.property_name || '<span style="color: var(--text-secondary);">Not assigned</span>'}</td>
-                                        <td>${post.category || '-'}</td>
-                                        <td><span class="badge ${post.is_published ? 'badge-success' : 'badge-secondary'}">${post.is_published ? 'Published' : 'Draft'}</span></td>
-                                        <td>${post.published_at ? new Date(post.published_at).toLocaleDateString() : '-'}</td>
-                                        <td>
-                                            <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editBlogPost(${post.id})">Edit</button>
-                                        </td>
-                                    </tr>
-                                `).join('')}
+                                ${data.posts.map(post => {
+                                    let status, statusClass;
+                                    if (post.scheduled_at && !post.is_published) {
+                                        status = '⏰ Scheduled';
+                                        statusClass = 'badge-warning';
+                                    } else if (post.is_published) {
+                                        status = '✅ Published';
+                                        statusClass = 'badge-success';
+                                    } else {
+                                        status = '📝 Draft';
+                                        statusClass = 'badge-secondary';
+                                    }
+                                    
+                                    const dateDisplay = post.scheduled_at 
+                                        ? new Date(post.scheduled_at).toLocaleDateString()
+                                        : (post.published_at ? new Date(post.published_at).toLocaleDateString() : '-');
+                                    
+                                    const aiTag = post.ai_generated ? '<span style="background: #e0e7ff; color: #4338ca; padding: 0.1rem 0.4rem; border-radius: 10px; font-size: 0.7rem; margin-left: 0.5rem;">🤖 AI</span>' : '';
+                                    
+                                    return `
+                                        <tr>
+                                            <td><strong>${post.title}</strong>${aiTag}</td>
+                                            <td>${post.property_name || '<span style="color: var(--text-secondary);">Not assigned</span>'}</td>
+                                            <td>${post.category || '-'}</td>
+                                            <td><span class="badge ${statusClass}">${status}</span></td>
+                                            <td>${dateDisplay}</td>
+                                            <td>
+                                                <button class="btn" style="padding: 0.25rem 0.5rem; font-size: 0.8rem;" onclick="editBlogPost(${post.id})">Edit</button>
+                                            </td>
+                                        </tr>
+                                    `;
+                                }).join('')}
                             </tbody>
                         </table>
                     `;
