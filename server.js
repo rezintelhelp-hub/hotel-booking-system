@@ -10019,6 +10019,10 @@ app.get('/api/setup-deploy', async (req, res) => {
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS ga4_measurement_id VARCHAR(50)`);
     await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS ga4_property_id VARCHAR(100)`);
     
+    // Pricing tier support - allows different pricing for different client types (corporate, wholesale, etc.)
+    await pool.query(`ALTER TABLE deployed_sites ADD COLUMN IF NOT EXISTS pricing_tier VARCHAR(50) DEFAULT 'standard'`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS pricing_tier VARCHAR(50) DEFAULT 'standard'`);
+    
     // Add website_url column to bookable_units if it doesn't exist
     await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_url VARCHAR(255)`);
     
@@ -10793,6 +10797,36 @@ app.put('/api/deployed-sites/:id/status', async (req, res) => {
     res.json({ success: true, site: result.rows[0] });
   } catch (error) {
     console.error('Update deployed site status error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update deployed site pricing tier
+app.put('/api/deployed-sites/:id/pricing-tier', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { pricing_tier } = req.body;
+    
+    // Validate pricing tier
+    const validTiers = ['standard', 'corporate', 'wholesale', 'agent', 'vip'];
+    if (!validTiers.includes(pricing_tier)) {
+      return res.json({ success: false, error: `Invalid pricing tier. Must be one of: ${validTiers.join(', ')}` });
+    }
+    
+    const result = await pool.query(`
+      UPDATE deployed_sites SET pricing_tier = $2, updated_at = NOW()
+      WHERE id = $1
+      RETURNING *
+    `, [id, pricing_tier]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Deployed site not found' });
+    }
+    
+    console.log(`Deployed site ${id} pricing tier updated to: ${pricing_tier}`);
+    res.json({ success: true, site: result.rows[0] });
+  } catch (error) {
+    console.error('Update deployed site pricing tier error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -16709,12 +16743,12 @@ app.post('/api/admin/offers', async (req, res) => {
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
-      stackable, priority, active
+      stackable, priority, active, pricing_tier
     } = req.body;
     
     let result;
     try {
-      // Try with array columns
+      // Try with array columns and pricing_tier
       result = await pool.query(`
         INSERT INTO offers (
           name, description, property_id, room_id, property_ids, room_ids,
@@ -16723,8 +16757,8 @@ app.post('/api/admin/offers', async (req, res) => {
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
-          stackable, priority, active
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
+          stackable, priority, active, pricing_tier
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -16734,7 +16768,7 @@ app.post('/api/admin/offers', async (req, res) => {
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
         allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
-        stackable || false, priority || 0, active !== false
+        stackable || false, priority || 0, active !== false, pricing_tier || 'standard'
       ]);
     } catch (colErr) {
       // Fallback without array columns
@@ -16746,8 +16780,8 @@ app.post('/api/admin/offers', async (req, res) => {
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
-          stackable, priority, active
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+          stackable, priority, active, pricing_tier
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -16756,7 +16790,7 @@ app.post('/api/admin/offers', async (req, res) => {
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
         allowed_checkin_days || '0,1,2,3,4,5,6', allowed_checkout_days || '0,1,2,3,4,5,6',
-        stackable || false, priority || 0, active !== false
+        stackable || false, priority || 0, active !== false, pricing_tier || 'standard'
       ]);
     }
     
@@ -16778,12 +16812,12 @@ app.put('/api/admin/offers/:id', async (req, res) => {
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
       stackable, priority, active,
-      available_website, available_agents
+      available_website, available_agents, pricing_tier
     } = req.body;
     
     let result;
     try {
-      // Try with array columns
+      // Try with array columns and pricing_tier
       result = await pool.query(`
         UPDATE offers SET
           name = COALESCE($1, name), 
@@ -16811,8 +16845,9 @@ app.put('/api/admin/offers/:id', async (req, res) => {
           active = COALESCE($23, active),
           available_website = COALESCE($24, available_website),
           available_agents = COALESCE($25, available_agents),
+          pricing_tier = COALESCE($26, pricing_tier),
           updated_at = NOW()
-        WHERE id = $26
+        WHERE id = $27
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -16823,7 +16858,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         valid_from || null, valid_until || null, valid_days_of_week || null,
         allowed_checkin_days, allowed_checkout_days,
         stackable, priority, active,
-        available_website, available_agents,
+        available_website, available_agents, pricing_tier || 'standard',
         req.params.id
       ]);
     } catch (colErr) {
@@ -16853,8 +16888,9 @@ app.put('/api/admin/offers/:id', async (req, res) => {
           active = COALESCE($21, active),
           available_website = COALESCE($22, available_website),
           available_agents = COALESCE($23, available_agents),
+          pricing_tier = COALESCE($24, pricing_tier),
           updated_at = NOW()
-        WHERE id = $24
+        WHERE id = $25
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
@@ -16864,7 +16900,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
         valid_from || null, valid_until || null, valid_days_of_week || null,
         allowed_checkin_days, allowed_checkout_days,
         stackable, priority, active,
-        available_website, available_agents,
+        available_website, available_agents, pricing_tier || 'standard',
         req.params.id
       ]);
     }
