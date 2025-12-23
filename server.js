@@ -28055,7 +28055,6 @@ app.get('/api/admin/blog/:id', async (req, res) => {
 app.post('/api/admin/blog', async (req, res) => {
     try {
         let {
-            client_id,
             property_id,
             title, slug, excerpt, content, featured_image_url,
             category, tags,
@@ -28065,25 +28064,18 @@ app.post('/api/admin/blog', async (req, res) => {
             scheduled_at, ai_generated, source_keyword, language
         } = req.body;
         
-        console.log('Blog POST received:', { client_id, property_id, title });
+        console.log('Blog POST received:', { property_id, title });
         
-        // Get client_id from property's account_id (account_id IS the client_id for billing/filtering)
+        // Get client_id from property's account_id (same relationship used by booking system)
+        let client_id = null;
         if (property_id) {
-            const propResult = await pool.query('SELECT account_id, client_id FROM properties WHERE id = $1', [property_id]);
-            console.log('Property lookup result:', propResult.rows[0]);
-            if (propResult.rows[0]) {
-                // Use account_id as the client_id (account_id is the reliable FK to accounts table)
-                client_id = propResult.rows[0].account_id || propResult.rows[0].client_id || client_id;
+            const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [property_id]);
+            console.log('Property lookup for account_id:', propResult.rows[0]);
+            if (propResult.rows[0] && propResult.rows[0].account_id) {
+                client_id = propResult.rows[0].account_id;
             }
         }
-        
-        // Fallback to 1 if still no client_id (for single-tenant setups)
-        if (!client_id) {
-            client_id = 1;
-        }
-        
         console.log('Final client_id:', client_id);
-        console.log('is_published received:', is_published, 'type:', typeof is_published);
         
         // Generate slug if not provided
         const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -29412,8 +29404,8 @@ Be accurate and helpful. If you're not certain about specific details like addre
 // Create attraction
 app.post('/api/admin/attractions', async (req, res) => {
     try {
-        let {
-            client_id, property_id,
+        const {
+            property_id,
             name, slug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
             category, phone, website_url, opening_hours, price_range, rating,
@@ -29421,17 +29413,13 @@ app.post('/api/admin/attractions', async (req, res) => {
             is_featured, is_published, display_order
         } = req.body;
         
-        // Get client_id from property's account_id (account_id IS the client_id for billing/filtering)
+        // Get client_id from property's account_id (same relationship used by booking system)
+        let client_id = null;
         if (property_id) {
-            const propResult = await pool.query('SELECT account_id, client_id FROM properties WHERE id = $1', [property_id]);
-            if (propResult.rows[0]) {
-                client_id = propResult.rows[0].account_id || propResult.rows[0].client_id || client_id;
+            const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [property_id]);
+            if (propResult.rows[0] && propResult.rows[0].account_id) {
+                client_id = propResult.rows[0].account_id;
             }
-        }
-        
-        // Fallback to 1 if still no client_id
-        if (!client_id) {
-            client_id = 1;
         }
         
         const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
