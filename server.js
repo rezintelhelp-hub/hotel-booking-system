@@ -11370,6 +11370,8 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       // Hero section - these get developer_hero_ prefix from WP
       'image-url': 'bg',
       'video-url': 'video_url',
+      'video-mobile': 'video_mobile',
+      'mobile-image-url': 'mobile_image_url',
       'headline': 'title',
       'subheadline': 'subtitle',
       'overlay-color': 'overlay_color',
