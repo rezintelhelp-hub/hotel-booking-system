@@ -1675,6 +1675,11 @@
                         <span>Blog</span>
                         <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
+                    <a class="nav-item" data-view="app-content-ideas" data-requires-feature="blog_module" href="#" onclick="return handleFeatureClick(this, 'app-content-ideas', 'blog_module');">
+                        <span class="nav-icon">💡</span>
+                        <span>Content Ideas</span>
+                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
+                    </a>
                     <a class="nav-item" data-view="app-attractions" data-requires-feature="attractions_module" href="#" onclick="return handleFeatureClick(this, 'app-attractions', 'attractions_module');">
                         <span class="nav-icon">🎯</span>
                         <span>Attractions</span>
@@ -6460,6 +6465,141 @@
                             <p>Create your first blog post to engage your guests</p>
                             <button class="btn" style="margin-top: 1rem;" onclick="openBlogModal()">Create Your First Post</button>
                         </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content Ideas App View -->
+            <div id="app-content-ideas" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>💡 Content Ideas Library</h2>
+                            <p>AI-generated content ideas for your properties - blogs, property pages, SEO content</p>
+                        </div>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="generateContentIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 Generate Ideas</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Stats Cards -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div id="ideas-stat-ready" style="font-size: 2rem; font-weight: bold; color: #10b981;">0</div>
+                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Ready to Use</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div id="ideas-stat-used" style="font-size: 2rem; font-weight: bold; color: #6b7280;">0</div>
+                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Already Used</div>
+                    </div>
+                    <div class="card" style="text-align: center; padding: 1.5rem;">
+                        <div id="ideas-stat-total" style="font-size: 2rem; font-weight: bold; color: #8b5cf6;">0</div>
+                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Total Ideas</div>
+                    </div>
+                </div>
+
+                <!-- Filters -->
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                            <select id="ideas-property-select" class="form-input" onchange="loadContentIdeas()">
+                                <option value="">All Properties</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Content Type</label>
+                            <select id="ideas-type-select" class="form-input" onchange="loadContentIdeas()">
+                                <option value="">All Types</option>
+                                <option value="blog">📰 Blog Posts</option>
+                                <option value="property">🏠 Property Content</option>
+                                <option value="seo">📊 SEO Content</option>
+                            </select>
+                        </div>
+                        <div style="flex: 1; min-width: 150px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Status</label>
+                            <select id="ideas-status-select" class="form-input" onchange="loadContentIdeas()">
+                                <option value="active">📝 Ready to Use</option>
+                                <option value="used">✅ Already Used</option>
+                                <option value="">All</option>
+                            </select>
+                        </div>
+                        <div style="flex: 2; min-width: 200px;">
+                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Search</label>
+                            <input type="text" id="ideas-search" class="form-input" placeholder="Search ideas..." oninput="filterContentIdeas()">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Ideas List -->
+                <div class="card">
+                    <div id="content-ideas-list">
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 4rem; margin-bottom: 1rem;">💡</div>
+                            <h3 style="margin-bottom: 0.5rem;">No content ideas yet</h3>
+                            <p>Generate AI-powered content ideas for your properties</p>
+                            <button class="btn" style="margin-top: 1rem;" onclick="generateContentIdeas()">🤖 Generate Ideas</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generate Ideas Modal -->
+            <div id="generate-ideas-modal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 600px;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                        <h3 style="margin: 0; color: white;">🤖 Generate Content Ideas</h3>
+                    </div>
+                    <div class="modal-body" style="padding: 1.5rem;">
+                        <div class="form-group">
+                            <label class="form-label">Property <span style="color: #ef4444;">*</span></label>
+                            <select id="generate-ideas-property" class="form-select">
+                                <option value="">Select a property...</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Content Type <span style="color: #ef4444;">*</span></label>
+                            <select id="generate-ideas-type" class="form-select">
+                                <option value="blog">📰 Blog Post Ideas</option>
+                                <option value="property">🏠 Property Page Content</option>
+                                <option value="seo">📊 SEO Content Ideas</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Category (for blogs)</label>
+                            <select id="generate-ideas-category" class="form-select">
+                                <option value="things-to-do">🎯 Things to Do</option>
+                                <option value="food-dining">🍽️ Food & Dining</option>
+                                <option value="events">🎉 Events & Festivals</option>
+                                <option value="travel-tips">✈️ Travel Tips</option>
+                                <option value="local-guide">📍 Local Guide</option>
+                                <option value="seasonal">🌸 Seasonal Content</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Number of Ideas</label>
+                            <select id="generate-ideas-count" class="form-select">
+                                <option value="5">5 Ideas</option>
+                                <option value="10" selected>10 Ideas</option>
+                                <option value="15">15 Ideas</option>
+                            </select>
+                        </div>
+                        
+                        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+                            <p style="margin: 0; font-size: 0.875rem; color: #166534;">
+                                💡 AI will analyze your property and generate targeted content ideas based on location, amenities, and audience.
+                            </p>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                        <button class="btn btn-secondary" onclick="closeGenerateIdeasModal()">Cancel</button>
+                        <button class="btn" id="generate-ideas-btn" onclick="submitGenerateIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                            🤖 Generate Ideas
+                        </button>
                     </div>
                 </div>
             </div>
@@ -14439,6 +14579,7 @@ Local honey and preserves"></textarea>
             
             // New sidebar views
             if (viewName === 'app-blog') loadAppBlogPosts();
+            if (viewName === 'app-content-ideas') loadContentIdeas();
             if (viewName === 'app-attractions') loadAppAttractions();
             if (viewName === 'app-seo') loadSeoSites();
             if (viewName === 'api-docs') {
@@ -28945,6 +29086,298 @@ Local honey and preserves"></textarea>
 
         function openReviewModal() {
             alert('Reviews modal coming soon! The API endpoints will be at /api/admin/reviews');
+        }
+
+        // =====================================================
+        // CONTENT IDEAS LIBRARY FUNCTIONS
+        // =====================================================
+        
+        let contentIdeas = [];
+        
+        async function loadContentIdeas() {
+            try {
+                // Populate property dropdown
+                await loadIdeasPropertySelect();
+                
+                const propertyId = document.getElementById('ideas-property-select')?.value || '';
+                const contentType = document.getElementById('ideas-type-select')?.value || '';
+                const status = document.getElementById('ideas-status-select')?.value || 'active';
+                const clientId = getClientId();
+                
+                let url = '/api/admin/content-ideas';
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                if (contentType) params.push(`content_type=${contentType}`);
+                if (status) params.push(`status=${status}`);
+                if (params.length > 0) url += '?' + params.join('&');
+                
+                const response = await fetch(url, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    contentIdeas = data.ideas || [];
+                    renderContentIdeas();
+                    updateIdeasStats();
+                }
+            } catch (error) {
+                console.error('Error loading content ideas:', error);
+            }
+        }
+        
+        async function loadIdeasPropertySelect() {
+            const select = document.getElementById('ideas-property-select');
+            const generateSelect = document.getElementById('generate-ideas-property');
+            if (!select) return;
+            
+            const clientId = getClientId();
+            let url = '/api/admin/properties';
+            if (clientId) url += `?client_id=${clientId}`;
+            
+            try {
+                const response = await fetch(url, { headers: authHeaders() });
+                const data = await response.json();
+                
+                const options = '<option value="">All Properties</option>' + 
+                    (data.properties || []).map(p => 
+                        `<option value="${p.id}">${escapeHtml(p.name)}</option>`
+                    ).join('');
+                
+                select.innerHTML = options;
+                
+                if (generateSelect) {
+                    generateSelect.innerHTML = '<option value="">Select a property...</option>' + 
+                        (data.properties || []).map(p => 
+                            `<option value="${p.id}">${escapeHtml(p.name)}</option>`
+                        ).join('');
+                }
+            } catch (error) {
+                console.error('Error loading properties for ideas:', error);
+            }
+        }
+        
+        function renderContentIdeas() {
+            const container = document.getElementById('content-ideas-list');
+            const searchQuery = document.getElementById('ideas-search')?.value?.toLowerCase() || '';
+            
+            let filtered = contentIdeas;
+            if (searchQuery) {
+                filtered = contentIdeas.filter(idea => 
+                    idea.title?.toLowerCase().includes(searchQuery) ||
+                    idea.description?.toLowerCase().includes(searchQuery)
+                );
+            }
+            
+            if (!filtered || filtered.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">💡</div>
+                        <h3 style="margin-bottom: 0.5rem;">No content ideas yet</h3>
+                        <p>Generate AI-powered content ideas for your properties</p>
+                        <button class="btn" style="margin-top: 1rem;" onclick="generateContentIdeas()">🤖 Generate Ideas</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            const typeIcons = {
+                'blog': '📰',
+                'property': '🏠',
+                'seo': '📊'
+            };
+            
+            const typeLabels = {
+                'blog': 'Blog Post',
+                'property': 'Property Content',
+                'seo': 'SEO Content'
+            };
+            
+            container.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem;">
+                    ${filtered.map(idea => `
+                        <div class="card" style="padding: 1rem; border-left: 4px solid ${idea.status === 'used' ? '#6b7280' : '#10b981'};">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+                                <span style="background: ${idea.status === 'used' ? '#f3f4f6' : '#ecfdf5'}; color: ${idea.status === 'used' ? '#6b7280' : '#059669'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
+                                    ${typeIcons[idea.content_type] || '📄'} ${typeLabels[idea.content_type] || idea.content_type}
+                                </span>
+                                <span style="color: var(--text-muted); font-size: 0.75rem;">
+                                    ${idea.status === 'used' ? '✅ Used' : '📝 Ready'}
+                                </span>
+                            </div>
+                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4;">${escapeHtml(idea.title)}</h4>
+                            ${idea.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem 0; line-height: 1.4;">${escapeHtml(idea.description)}</p>` : ''}
+                            ${idea.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;">📍 ${escapeHtml(idea.property_name)}</p>` : ''}
+                            <div style="display: flex; gap: 0.5rem; margin-top: auto;">
+                                ${idea.status !== 'used' ? `
+                                    <button class="btn btn-small" onclick="createContentFromIdea(${idea.id})" style="flex: 1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                                        ✨ Create Content
+                                    </button>
+                                    <button class="btn btn-small btn-secondary" onclick="markIdeaUsed(${idea.id})">
+                                        ✓ Mark Used
+                                    </button>
+                                ` : `
+                                    <button class="btn btn-small btn-secondary" onclick="markIdeaActive(${idea.id})" style="flex: 1;">
+                                        ↩️ Restore
+                                    </button>
+                                `}
+                                <button class="btn btn-small" onclick="deleteContentIdea(${idea.id})" style="background: #ef4444;">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        function filterContentIdeas() {
+            renderContentIdeas();
+        }
+        
+        function updateIdeasStats() {
+            const ready = contentIdeas.filter(i => i.status === 'active').length;
+            const used = contentIdeas.filter(i => i.status === 'used').length;
+            
+            document.getElementById('ideas-stat-ready').textContent = ready;
+            document.getElementById('ideas-stat-used').textContent = used;
+            document.getElementById('ideas-stat-total').textContent = contentIdeas.length;
+        }
+        
+        function generateContentIdeas() {
+            loadIdeasPropertySelect();
+            document.getElementById('generate-ideas-modal').style.display = 'flex';
+        }
+        
+        function closeGenerateIdeasModal() {
+            document.getElementById('generate-ideas-modal').style.display = 'none';
+        }
+        
+        async function submitGenerateIdeas() {
+            const propertyId = document.getElementById('generate-ideas-property').value;
+            const contentType = document.getElementById('generate-ideas-type').value;
+            const category = document.getElementById('generate-ideas-category').value;
+            const count = parseInt(document.getElementById('generate-ideas-count').value);
+            
+            if (!propertyId) {
+                showNotification('Please select a property', 'error');
+                return;
+            }
+            
+            const btn = document.getElementById('generate-ideas-btn');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generating...';
+            btn.disabled = true;
+            
+            try {
+                const response = await fetch('/api/admin/content-ideas/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        property_id: propertyId,
+                        content_type: contentType,
+                        category: category,
+                        count: count,
+                        client_id: getClientId()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`Generated ${data.ideas?.length || count} content ideas!`, 'success');
+                    closeGenerateIdeasModal();
+                    loadContentIdeas();
+                } else {
+                    showNotification(data.error || 'Failed to generate ideas', 'error');
+                }
+            } catch (error) {
+                console.error('Generate ideas error:', error);
+                showNotification('Error generating ideas', 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
+            }
+        }
+        
+        async function createContentFromIdea(ideaId) {
+            const idea = contentIdeas.find(i => i.id === ideaId);
+            if (!idea) return;
+            
+            // Open the AI blog modal with the idea pre-filled
+            if (idea.content_type === 'blog') {
+                await openAiBlogModal(idea.title, idea.property_id);
+            } else {
+                showNotification('Opening content generator...', 'info');
+                // For now, just mark it and let user know
+                // In future, could open a property content modal
+            }
+        }
+        
+        async function markIdeaUsed(ideaId) {
+            try {
+                const response = await fetch(`/api/admin/content-ideas/${ideaId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status: 'used' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Idea marked as used', 'success');
+                    loadContentIdeas();
+                } else {
+                    showNotification(data.error || 'Failed to update', 'error');
+                }
+            } catch (error) {
+                console.error('Mark used error:', error);
+                showNotification('Error updating idea', 'error');
+            }
+        }
+        
+        async function markIdeaActive(ideaId) {
+            try {
+                const response = await fetch(`/api/admin/content-ideas/${ideaId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status: 'active' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Idea restored', 'success');
+                    loadContentIdeas();
+                } else {
+                    showNotification(data.error || 'Failed to restore', 'error');
+                }
+            } catch (error) {
+                console.error('Mark active error:', error);
+                showNotification('Error restoring idea', 'error');
+            }
+        }
+        
+        async function deleteContentIdea(ideaId) {
+            if (!confirm('Delete this content idea?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/content-ideas/${ideaId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Idea deleted', 'success');
+                    loadContentIdeas();
+                } else {
+                    showNotification(data.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                console.error('Delete idea error:', error);
+                showNotification('Error deleting idea', 'error');
+            }
         }
 
         async function loadAppBlogPosts() {
