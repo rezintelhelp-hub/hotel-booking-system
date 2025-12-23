@@ -28082,6 +28082,7 @@ app.post('/api/admin/blog', async (req, res) => {
         }
         
         console.log('Final client_id:', client_id);
+        console.log('is_published received:', is_published, 'type:', typeof is_published);
         
         // Generate slug if not provided
         const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
@@ -28110,7 +28111,7 @@ app.post('/api/admin/blog', async (req, res) => {
                 client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
                 category, tags || [], meta_title, meta_description,
                 author_name, author_image_url, read_time_minutes || 5,
-                is_featured || false, is_published !== false, published_at || new Date(),
+                is_featured || false, is_published === true, is_published === true ? (published_at || new Date()) : null,
                 scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en',
                 req.body.faq_schema || null
             ]);
@@ -28129,7 +28130,7 @@ app.post('/api/admin/blog', async (req, res) => {
                 client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
                 category, tags || [], meta_title, meta_description,
                 author_name, author_image_url, read_time_minutes || 5,
-                is_featured || false, is_published !== false, published_at || new Date(),
+                is_featured || false, is_published === true, is_published === true ? (published_at || new Date()) : null,
                 scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en'
             ]);
         }
