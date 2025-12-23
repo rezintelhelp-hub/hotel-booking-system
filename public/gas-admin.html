@@ -29513,10 +29513,29 @@ Local honey and preserves"></textarea>
                 document.getElementById('blog-count-ideas').textContent = ideasData.ideas?.length || 0;
             } catch (e) {}
             
-            // Posts counts
-            document.getElementById('blog-count-drafts').textContent = blogPosts.drafts?.length || 0;
-            document.getElementById('blog-count-scheduled').textContent = blogPosts.scheduled?.length || 0;
-            document.getElementById('blog-count-published').textContent = blogPosts.published?.length || 0;
+            // Posts counts - always fetch fresh
+            try {
+                let url = '/api/admin/blog';
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                if (params.length > 0) url += '?' + params.join('&');
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success && data.posts) {
+                    blogPosts.drafts = data.posts.filter(p => !p.is_published && !p.scheduled_at);
+                    blogPosts.scheduled = data.posts.filter(p => !p.is_published && p.scheduled_at);
+                    blogPosts.published = data.posts.filter(p => p.is_published);
+                }
+                
+                document.getElementById('blog-count-drafts').textContent = blogPosts.drafts?.length || 0;
+                document.getElementById('blog-count-scheduled').textContent = blogPosts.scheduled?.length || 0;
+                document.getElementById('blog-count-published').textContent = blogPosts.published?.length || 0;
+            } catch (e) {
+                console.error('Error updating blog counts:', e);
+            }
         }
         
         // Blog Ideas Wizard Functions
