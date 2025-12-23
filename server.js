@@ -28067,12 +28067,13 @@ app.post('/api/admin/blog', async (req, res) => {
         
         console.log('Blog POST received:', { client_id, property_id, title });
         
-        // Always try to get client_id from property if property_id is provided
+        // Get client_id from property's account_id (account_id IS the client_id for billing/filtering)
         if (property_id) {
-            const propResult = await pool.query('SELECT client_id FROM properties WHERE id = $1', [property_id]);
+            const propResult = await pool.query('SELECT account_id, client_id FROM properties WHERE id = $1', [property_id]);
             console.log('Property lookup result:', propResult.rows[0]);
-            if (propResult.rows[0] && propResult.rows[0].client_id) {
-                client_id = propResult.rows[0].client_id;
+            if (propResult.rows[0]) {
+                // Use account_id as the client_id (account_id is the reliable FK to accounts table)
+                client_id = propResult.rows[0].account_id || propResult.rows[0].client_id || client_id;
             }
         }
         
@@ -28936,11 +28937,12 @@ app.post('/api/admin/content-ideas/generate', async (req, res) => {
             return res.json({ success: false, error: 'Property ID required' });
         }
         
-        // Get property info for context
+        // Get property info for context (use account_id to join to accounts)
         const propResult = await pool.query(`
-            SELECT p.*, a.city, a.country 
+            SELECT p.*, a.city as account_city, a.country as account_country,
+                   COALESCE(p.account_id, p.client_id) as effective_client_id
             FROM properties p 
-            LEFT JOIN accounts a ON p.client_id = a.id
+            LEFT JOIN accounts a ON p.account_id = a.id
             WHERE p.id = $1
         `, [property_id]);
         
@@ -28949,8 +28951,8 @@ app.post('/api/admin/content-ideas/generate', async (req, res) => {
         }
         
         const property = propResult.rows[0];
-        const propertyClientId = property.client_id || client_id;
-        const location = `${property.city || 'the area'}, ${property.country || ''}`.trim().replace(/,\s*$/, '');
+        const propertyClientId = property.effective_client_id || property.account_id || property.client_id || client_id;
+        const location = `${property.city || property.account_city || 'the area'}, ${property.country || property.account_country || ''}`.trim().replace(/,\s*$/, '');
         
         // Current date for time-relevant content
         const now = new Date();
@@ -29419,11 +29421,11 @@ app.post('/api/admin/attractions', async (req, res) => {
             is_featured, is_published, display_order
         } = req.body;
         
-        // Always try to get client_id from property if property_id is provided
+        // Get client_id from property's account_id (account_id IS the client_id for billing/filtering)
         if (property_id) {
-            const propResult = await pool.query('SELECT client_id FROM properties WHERE id = $1', [property_id]);
-            if (propResult.rows[0] && propResult.rows[0].client_id) {
-                client_id = propResult.rows[0].client_id;
+            const propResult = await pool.query('SELECT account_id, client_id FROM properties WHERE id = $1', [property_id]);
+            if (propResult.rows[0]) {
+                client_id = propResult.rows[0].account_id || propResult.rows[0].client_id || client_id;
             }
         }
         
@@ -29914,33 +29916,33 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         
         console.log('Public blog API called:', { clientId, property_id, category, limit });
         
+        // Join to properties and filter by account_id - same pattern as rooms API
         let query = `
-            SELECT id, title, slug, excerpt, featured_image_url, category, 
-                   author_name, read_time_minutes, published_at, client_id, property_id
-            FROM blog_posts 
-            WHERE is_published = true
+            SELECT bp.id, bp.title, bp.slug, bp.excerpt, bp.featured_image_url, bp.category, 
+                   bp.author_name, bp.read_time_minutes, bp.published_at, bp.client_id, bp.property_id,
+                   p.name as property_name
+            FROM blog_posts bp
+            JOIN properties p ON bp.property_id = p.id
+            WHERE bp.is_published = true
+              AND p.account_id = $1
         `;
-        const params = [];
-        let paramIndex = 1;
+        const params = [clientId];
+        let paramIndex = 2;
         
-        // Support both client_id and property_id filtering
+        // Optional additional property filter
         if (property_id) {
-            query += ` AND property_id = $${paramIndex}`;
+            query += ` AND bp.property_id = $${paramIndex}`;
             params.push(property_id);
-            paramIndex++;
-        } else if (clientId && clientId !== '0') {
-            query += ` AND client_id = $${paramIndex}`;
-            params.push(clientId);
             paramIndex++;
         }
         
         if (category) {
-            query += ` AND category = $${paramIndex}`;
+            query += ` AND bp.category = $${paramIndex}`;
             params.push(category);
             paramIndex++;
         }
         
-        query += ` ORDER BY published_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+        query += ` ORDER BY bp.published_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
         params.push(parseInt(limit), parseInt(offset));
         
         console.log('Public blog query:', query, params);
@@ -29948,11 +29950,6 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         const result = await pool.query(query, params);
         
         console.log('Public blog results:', result.rows.length, 'posts found');
-        if (result.rows.length === 0) {
-            // Debug: check what's actually in the table
-            const allPosts = await pool.query('SELECT id, title, client_id, property_id, is_published FROM blog_posts LIMIT 10');
-            console.log('DEBUG - All posts in table:', allPosts.rows);
-        }
         
         res.json({ success: true, posts: result.rows });
     } catch (error) {
@@ -29966,8 +29963,10 @@ app.get('/api/public/client/:clientId/blog/:slug', async (req, res) => {
     try {
         const { clientId, slug } = req.params;
         const result = await pool.query(`
-            SELECT * FROM blog_posts 
-            WHERE client_id = $1 AND slug = $2 AND is_published = true
+            SELECT bp.*, p.name as property_name
+            FROM blog_posts bp
+            JOIN properties p ON bp.property_id = p.id
+            WHERE p.account_id = $1 AND bp.slug = $2 AND bp.is_published = true
         `, [clientId, slug]);
         
         if (result.rows.length === 0) {
@@ -29986,11 +29985,14 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
         const { clientId } = req.params;
         const { category, limit } = req.query;
         
+        // Join to properties and filter by account_id - same pattern as rooms API
         let query = `
-            SELECT id, name, slug, short_description, featured_image_url, category,
-                   address, city, distance_text, rating, price_range
-            FROM attractions 
-            WHERE client_id = $1 AND is_published = true
+            SELECT a.id, a.name, a.slug, a.short_description, a.featured_image_url, a.category,
+                   a.address, a.city, a.distance_text, a.rating, a.price_range,
+                   p.name as property_name
+            FROM attractions a
+            JOIN properties p ON a.property_id = p.id
+            WHERE p.account_id = $1 AND a.is_published = true
         `;
         const params = [clientId];
         let paramIndex = 2;
@@ -30020,8 +30022,10 @@ app.get('/api/public/client/:clientId/attractions/:slug', async (req, res) => {
     try {
         const { clientId, slug } = req.params;
         const result = await pool.query(`
-            SELECT * FROM attractions 
-            WHERE client_id = $1 AND slug = $2 AND is_published = true
+            SELECT a.*, p.name as property_name
+            FROM attractions a
+            JOIN properties p ON a.property_id = p.id
+            WHERE p.account_id = $1 AND a.slug = $2 AND a.is_published = true
         `, [clientId, slug]);
         
         if (result.rows.length === 0) {
