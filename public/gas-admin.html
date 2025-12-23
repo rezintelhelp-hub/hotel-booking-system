@@ -4768,6 +4768,30 @@
                             <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">
                                 💡 Video will autoplay muted and loop. Keep under 30 seconds for best performance.
                             </p>
+                            
+                            <!-- Mobile Video Settings -->
+                            <div style="margin-top: 1rem; padding: 1rem; background: #f1f5f9; border-radius: 8px;">
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer; font-weight: 500;">
+                                    <input type="checkbox" id="wb-hero-video-mobile" style="width: 18px; height: 18px;">
+                                    📱 Show video on mobile & tablets
+                                </label>
+                                <p style="font-size: 0.8rem; color: #64748b; margin: 0.5rem 0 0 26px;">
+                                    If unchecked, mobile users will see the fallback image below
+                                </p>
+                            </div>
+                            
+                            <!-- Mobile Fallback Image -->
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label class="form-label">📱 Mobile Fallback Image</label>
+                                <div id="wb-hero-mobile-image-preview" style="width: 100%; height: 150px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0; background-size: cover; background-position: center;">
+                                    <span style="color: #94a3b8;">📱 Mobile fallback image</span>
+                                </div>
+                                <input type="file" id="wb-hero-mobile-image" accept="image/*" onchange="previewWebsiteImage('hero-mobile')">
+                                <input type="hidden" id="wb-hero-mobile-image-url">
+                                <p style="font-size: 0.8rem; color: #64748b; margin-top: 0.5rem;">
+                                    Shown on mobile when video is disabled, or as poster frame while video loads
+                                </p>
+                            </div>
                         </div>
                         
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
