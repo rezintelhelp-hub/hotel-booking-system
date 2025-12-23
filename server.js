@@ -28871,6 +28871,7 @@ app.get('/api/setup-content-ideas', async (req, res) => {
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS faq_schema JSONB`);
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_title VARCHAR(100)`);
         await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_description VARCHAR(300)`);
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS scheduled_at TIMESTAMP`);
         
         res.json({ success: true, message: 'Content ideas table created + FAQ schema columns added to blog_posts and attractions' });
     } catch (error) {
@@ -29911,9 +29912,11 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         const { clientId } = req.params;
         const { category, property_id, limit = 10, offset = 0 } = req.query;
         
+        console.log('Public blog API called:', { clientId, property_id, category, limit });
+        
         let query = `
             SELECT id, title, slug, excerpt, featured_image_url, category, 
-                   author_name, read_time_minutes, published_at
+                   author_name, read_time_minutes, published_at, client_id, property_id
             FROM blog_posts 
             WHERE is_published = true
         `;
@@ -29940,10 +29943,20 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         query += ` ORDER BY published_at DESC LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
         params.push(parseInt(limit), parseInt(offset));
         
+        console.log('Public blog query:', query, params);
+        
         const result = await pool.query(query, params);
+        
+        console.log('Public blog results:', result.rows.length, 'posts found');
+        if (result.rows.length === 0) {
+            // Debug: check what's actually in the table
+            const allPosts = await pool.query('SELECT id, title, client_id, property_id, is_published FROM blog_posts LIMIT 10');
+            console.log('DEBUG - All posts in table:', allPosts.rows);
+        }
         
         res.json({ success: true, posts: result.rows });
     } catch (error) {
+        console.error('Public blog API error:', error);
         res.json({ success: false, error: error.message });
     }
 });
