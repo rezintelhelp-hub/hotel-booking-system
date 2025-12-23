@@ -724,6 +724,26 @@ async function runMigrations() {
       console.log('ℹ️  blog_posts.property_id:', blogPropertyError.message);
     }
     
+    // Fix blog_posts.client_id FK - should reference accounts, not clients
+    try {
+      // Drop the old FK constraint if it exists (referencing clients table)
+      await pool.query(`ALTER TABLE blog_posts DROP CONSTRAINT IF EXISTS blog_posts_client_id_fkey`);
+      // Make client_id nullable (no FK) since we filter via properties.account_id
+      await pool.query(`ALTER TABLE blog_posts ALTER COLUMN client_id DROP NOT NULL`);
+      console.log('✅ blog_posts.client_id FK constraint fixed');
+    } catch (blogFkError) {
+      console.log('ℹ️  blog_posts.client_id FK fix:', blogFkError.message);
+    }
+    
+    // Fix attractions.client_id FK - same issue
+    try {
+      await pool.query(`ALTER TABLE attractions DROP CONSTRAINT IF EXISTS attractions_client_id_fkey`);
+      await pool.query(`ALTER TABLE attractions ALTER COLUMN client_id DROP NOT NULL`);
+      console.log('✅ attractions.client_id FK constraint fixed');
+    } catch (attrFkError) {
+      console.log('ℹ️  attractions.client_id FK fix:', attrFkError.message);
+    }
+    
     try {
       await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS property_id INTEGER REFERENCES properties(id)`);
       console.log('✅ attractions.property_id column ensured');
