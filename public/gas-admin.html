@@ -29311,11 +29311,26 @@ Local honey and preserves"></textarea>
             
             // Open the AI blog modal with the idea pre-filled
             if (idea.content_type === 'blog') {
+                showNotification('Opening Blog AI with your idea...', 'info');
+                
+                // Open blog modal and pre-fill the keyword
                 await openAiBlogModal(idea.title, idea.property_id);
+                
+                // Auto-mark as used once they click create
+                // Store the idea ID so we can mark it when blog is saved
+                const propertyIdEl = document.getElementById('ai-blog-property-id');
+                if (propertyIdEl) {
+                    propertyIdEl.dataset.contentIdeaId = ideaId;
+                }
+            } else if (idea.content_type === 'property') {
+                showNotification('Property content generator coming soon! Use the idea title in your page content.', 'info');
+                // Copy title to clipboard for convenience
+                navigator.clipboard.writeText(idea.title);
+                showNotification('Idea title copied to clipboard!', 'success');
             } else {
-                showNotification('Opening content generator...', 'info');
-                // For now, just mark it and let user know
-                // In future, could open a property content modal
+                showNotification('SEO content generator coming soon! Use the idea title for your content.', 'info');
+                navigator.clipboard.writeText(idea.title);
+                showNotification('Idea title copied to clipboard!', 'success');
             }
         }
         
@@ -29967,6 +29982,16 @@ Local honey and preserves"></textarea>
                                     </div>
                                 </div>
                                 
+                                <!-- FAQ Schema -->
+                                <div style="margin-bottom: 1rem; background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem;">
+                                    <label style="font-weight: 600; display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem;">
+                                        📋 FAQ Schema (JSON-LD)
+                                        <button type="button" class="btn btn-small" onclick="copyFaqSchema()" style="margin-left: auto; padding: 0.25rem 0.5rem; font-size: 0.75rem;">📋 Copy</button>
+                                    </label>
+                                    <textarea id="ai-blog-faq-schema" class="form-input" rows="6" style="font-family: monospace; font-size: 0.8rem; background: #f8fafc;" readonly></textarea>
+                                    <p style="font-size: 0.75rem; color: #166534; margin-top: 0.5rem;">💡 Add this to your page's &lt;head&gt; section for rich FAQ snippets in Google</p>
+                                </div>
+                                
                                 <!-- Featured Image -->
                                 <div style="margin-bottom: 1rem;">
                                     <label style="font-weight: 600;">Featured Image URL</label>
@@ -30139,6 +30164,16 @@ Local honey and preserves"></textarea>
             }
         }
         
+        function copyFaqSchema() {
+            const schemaField = document.getElementById('ai-blog-faq-schema');
+            if (schemaField && schemaField.value && !schemaField.value.includes('No FAQ')) {
+                navigator.clipboard.writeText(schemaField.value);
+                showNotification('FAQ Schema copied to clipboard!', 'success');
+            } else {
+                showNotification('No FAQ schema to copy', 'warning');
+            }
+        }
+        
         function showAiBlogForm() {
             document.getElementById('ai-blog-form').style.display = 'block';
             document.getElementById('ai-blog-result').style.display = 'none';
@@ -30191,9 +30226,18 @@ Local honey and preserves"></textarea>
                     document.getElementById('ai-blog-meta-title').value = data.blog.meta_title || '';
                     document.getElementById('ai-blog-meta-desc').value = data.blog.meta_description || '';
                     
+                    // Fill FAQ schema
+                    if (data.blog.faq_schema) {
+                        const schemaScript = '<script type="application/ld+json">\\n' + JSON.stringify(data.blog.faq_schema, null, 2) + '\\n</script>';
+                        document.getElementById('ai-blog-faq-schema').value = schemaScript;
+                    } else {
+                        document.getElementById('ai-blog-faq-schema').value = '(No FAQ schema generated)';
+                    }
+                    
                     // Store property info for saving
                     document.getElementById('ai-blog-property-id').value = data.blog.property_id || propertyId || '';
                     document.getElementById('ai-blog-property-id').dataset.language = language;
+                    document.getElementById('ai-blog-property-id').dataset.faqSchema = JSON.stringify(data.blog.faq_schema || null);
                     
                     // Show result
                     document.getElementById('ai-blog-loading').style.display = 'none';
@@ -30262,7 +30306,8 @@ Local honey and preserves"></textarea>
                 scheduled_at: scheduledAt,
                 ai_generated: true,
                 source_keyword: document.getElementById('ai-blog-keyword')?.value || null,
-                language: document.getElementById('ai-blog-language')?.value || 'en'
+                language: document.getElementById('ai-blog-language')?.value || 'en',
+                faq_schema: propertyIdEl.dataset.faqSchema ? JSON.parse(propertyIdEl.dataset.faqSchema) : null
             };
             
             try {
@@ -30280,6 +30325,21 @@ Local honey and preserves"></textarea>
                         message = `Blog scheduled for ${new Date(scheduledAt).toLocaleString()}`;
                     }
                     showNotification(message, 'success');
+                    
+                    // Auto-mark content idea as used if this came from Ideas Library
+                    const contentIdeaId = propertyIdEl.dataset.contentIdeaId;
+                    if (contentIdeaId) {
+                        try {
+                            await fetch(`/api/admin/content-ideas/${contentIdeaId}/status`, {
+                                method: 'PUT',
+                                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                                body: JSON.stringify({ status: 'used' })
+                            });
+                        } catch (e) {
+                            console.log('Could not mark idea as used:', e);
+                        }
+                    }
+                    
                     closeAiBlogModal();
                     // Switch to Blog view and refresh
                     showView('app-blog');
