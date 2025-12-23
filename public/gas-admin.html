@@ -14724,9 +14724,8 @@ Local honey and preserves"></textarea>
             if (viewName === 'gas-sync-logs') { loadGasSyncConnections().then(() => loadSyncLogs()); }
             
             // New sidebar views
-            if (viewName === 'app-blog') loadAppBlogPosts();
-            if (viewName === 'app-content-ideas') loadContentIdeas();
-            if (viewName === 'app-attractions') loadAppAttractions();
+            if (viewName === 'app-blog') loadBlogByTab();
+            if (viewName === 'app-attractions') loadAttractionsByTab();
             if (viewName === 'app-seo') loadSeoSites();
             if (viewName === 'api-docs') {
                 const urlInput = document.getElementById('api-docs-base-url');
@@ -29266,73 +29265,56 @@ Local honey and preserves"></textarea>
         }
 
         // =====================================================
-        // CONTENT IDEAS LIBRARY FUNCTIONS
+        // BLOG APP FUNCTIONS (with Ideas, Drafts, Scheduled, Published tabs)
         // =====================================================
         
-        let contentIdeas = [];
-        let currentIdeasStatus = 'active';
+        let blogIdeas = [];
+        let blogPosts = { drafts: [], scheduled: [], published: [] };
+        let currentBlogTab = 'ideas';
+        let selectedBlogCategory = '';
+        let selectedBlogSubcategory = '';
         
-        function switchIdeasTab(status) {
-            currentIdeasStatus = status;
-            document.getElementById('ideas-status-select').value = status;
+        function switchBlogTab(tab) {
+            currentBlogTab = tab;
             
             // Update tab styling
-            const readyTab = document.getElementById('ideas-tab-ready');
-            const usedTab = document.getElementById('ideas-tab-used');
-            
-            if (status === 'active') {
-                readyTab.style.color = '#10b981';
-                readyTab.style.borderBottom = '2px solid #10b981';
-                readyTab.style.fontWeight = '600';
-                usedTab.style.color = '#6b7280';
-                usedTab.style.borderBottom = 'none';
-                usedTab.style.fontWeight = '500';
-            } else {
-                usedTab.style.color = '#10b981';
-                usedTab.style.borderBottom = '2px solid #10b981';
-                usedTab.style.fontWeight = '600';
-                readyTab.style.color = '#6b7280';
-                readyTab.style.borderBottom = 'none';
-                readyTab.style.fontWeight = '500';
-            }
-            
-            loadContentIdeas();
-        }
-        
-        async function loadContentIdeas() {
-            try {
-                // Populate property dropdown
-                await loadIdeasPropertySelect();
-                
-                const propertyId = document.getElementById('ideas-property-select')?.value || '';
-                const contentType = document.getElementById('ideas-type-select')?.value || '';
-                const status = document.getElementById('ideas-status-select')?.value || 'active';
-                
-                // Build params array
-                const params = [];
-                if (selectedAccountId) params.push(`client_id=${selectedAccountId}`);
-                if (propertyId) params.push(`property_id=${propertyId}`);
-                if (contentType) params.push(`content_type=${contentType}`);
-                if (status) params.push(`status=${status}`);
-                
-                const url = '/api/admin/content-ideas' + (params.length > 0 ? '?' + params.join('&') : '');
-                
-                const response = await fetch(url, { headers: authHeaders() });
-                const data = await response.json();
-                
-                if (data.success) {
-                    contentIdeas = data.ideas || [];
-                    renderContentIdeas();
-                    updateIdeasCounts();
+            document.querySelectorAll('.blog-tab').forEach(t => {
+                if (t.dataset.tab === tab) {
+                    t.style.color = '#8b5cf6';
+                    t.style.borderBottom = '2px solid #8b5cf6';
+                    t.style.fontWeight = '600';
+                } else {
+                    t.style.color = '#6b7280';
+                    t.style.borderBottom = 'none';
+                    t.style.fontWeight = '500';
                 }
-            } catch (error) {
-                console.error('Error loading content ideas:', error);
-            }
+            });
+            
+            // Show/hide panels
+            document.querySelectorAll('.blog-tab-panel').forEach(p => p.style.display = 'none');
+            const panel = document.getElementById(`blog-tab-${tab}`);
+            if (panel) panel.style.display = 'block';
+            
+            loadBlogByTab();
         }
         
-        async function loadIdeasPropertySelect() {
-            const select = document.getElementById('ideas-property-select');
-            const generateSelect = document.getElementById('generate-ideas-property');
+        async function loadBlogByTab() {
+            await loadBlogPropertySelect();
+            
+            const propertyId = document.getElementById('blog-property-select')?.value || '';
+            const clientId = getClientId();
+            
+            if (currentBlogTab === 'ideas') {
+                await loadBlogIdeas(propertyId, clientId);
+            } else {
+                await loadBlogPosts(propertyId, clientId);
+            }
+            
+            updateBlogCounts(propertyId, clientId);
+        }
+        
+        async function loadBlogPropertySelect() {
+            const select = document.getElementById('blog-property-select');
             if (!select) return;
             
             try {
@@ -29350,41 +29332,50 @@ Local honey and preserves"></textarea>
                 }
                 
                 if (currentValue) select.value = currentValue;
-                
-                // Also populate generate modal select
-                if (generateSelect) {
-                    generateSelect.innerHTML = '<option value="">Choose a property...</option>';
-                    if (data.success && data.data) {
-                        data.data.forEach(p => {
-                            generateSelect.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
-                        });
-                    }
-                }
             } catch (error) {
-                console.error('Error loading properties for ideas:', error);
+                console.error('Error loading blog properties:', error);
             }
         }
         
-        function renderContentIdeas() {
-            const container = document.getElementById('content-ideas-list');
-            const searchQuery = document.getElementById('ideas-search')?.value?.toLowerCase() || '';
+        async function loadBlogIdeas(propertyId, clientId) {
+            try {
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                params.push('content_type=blog');
+                params.push('status=active');
+                
+                const url = '/api/admin/content-ideas?' + params.join('&');
+                const response = await fetch(url, { headers: authHeaders() });
+                const data = await response.json();
+                
+                blogIdeas = data.ideas || [];
+                renderBlogIdeas();
+            } catch (error) {
+                console.error('Error loading blog ideas:', error);
+            }
+        }
+        
+        function renderBlogIdeas() {
+            const container = document.getElementById('blog-ideas-list');
+            if (!container) return;
             
-            let filtered = contentIdeas;
+            const searchQuery = document.getElementById('blog-search')?.value?.toLowerCase() || '';
+            let filtered = blogIdeas;
             if (searchQuery) {
-                filtered = contentIdeas.filter(idea => 
+                filtered = blogIdeas.filter(idea => 
                     idea.title?.toLowerCase().includes(searchQuery) ||
                     idea.description?.toLowerCase().includes(searchQuery)
                 );
             }
             
-            if (!filtered || filtered.length === 0) {
-                const status = document.getElementById('ideas-status-select')?.value || 'active';
+            if (!filtered.length) {
                 container.innerHTML = `
                     <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">${status === 'used' ? '✅' : '💡'}</div>
-                        <h3 style="margin-bottom: 0.5rem;">${status === 'used' ? 'No used ideas yet' : 'No content ideas yet'}</h3>
-                        <p style="margin-bottom: 1rem;">${status === 'used' ? 'Ideas move here after you create content from them' : 'Generate AI-powered blog and attraction ideas'}</p>
-                        ${status !== 'used' ? '<button class="btn" onclick="generateContentIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 Generate Ideas</button>' : ''}
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">💡</div>
+                        <h3 style="margin-bottom: 0.5rem;">No blog ideas yet</h3>
+                        <p style="margin-bottom: 1rem;">Get AI-powered blog topic suggestions for your property</p>
+                        <button class="btn" onclick="openBlogIdeasWizard()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Get Ideas</button>
                     </div>
                 `;
                 return;
@@ -29393,26 +29384,18 @@ Local honey and preserves"></textarea>
             container.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
                     ${filtered.map(idea => `
-                        <div class="card" style="padding: 1.25rem; border-left: 4px solid ${idea.content_type === 'blog' ? '#3b82f6' : '#f59e0b'};">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-                                <span style="background: ${idea.content_type === 'blog' ? '#dbeafe' : '#fef3c7'}; color: ${idea.content_type === 'blog' ? '#1d4ed8' : '#b45309'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
-                                    ${idea.content_type === 'blog' ? '📝 Blog' : '🎯 Attraction'}
-                                </span>
-                            </div>
-                            <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4;">${escapeHtml(idea.title)}</h4>
-                            ${idea.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem 0; line-height: 1.4;">${escapeHtml(idea.description.substring(0, 120))}${idea.description.length > 120 ? '...' : ''}</p>` : ''}
+                        <div class="card" style="padding: 1.25rem; border-left: 4px solid #8b5cf6;">
+                            <span style="background: #ede9fe; color: #7c3aed; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
+                                ${idea.category || '📝 Blog'}
+                            </span>
+                            <h4 style="margin: 0.75rem 0 0.5rem; font-size: 1rem; line-height: 1.4;">${escapeHtml(idea.title)}</h4>
+                            ${idea.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem; line-height: 1.4;">${escapeHtml(idea.description.substring(0, 100))}${idea.description.length > 100 ? '...' : ''}</p>` : ''}
                             ${idea.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;">📍 ${escapeHtml(idea.property_name)}</p>` : ''}
-                            <div style="display: flex; gap: 0.5rem; margin-top: auto;">
-                                ${idea.status !== 'used' ? `
-                                    <button class="btn btn-small" onclick="createContentFromIdea(${idea.id})" style="flex: 1; background: ${idea.content_type === 'blog' ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'};">
-                                        ${idea.content_type === 'blog' ? '📝 Create Blog' : '🎯 Create Attraction'}
-                                    </button>
-                                ` : `
-                                    <button class="btn btn-small btn-secondary" onclick="markIdeaActive(${idea.id})" style="flex: 1;">
-                                        ↩️ Move to Ready
-                                    </button>
-                                `}
-                                <button class="btn btn-small" onclick="deleteContentIdea(${idea.id})" style="background: #fee2e2; color: #dc2626; border: none;">
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-small" onclick="createBlogFromIdea(${idea.id})" style="flex: 1; background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">
+                                    ✨ Create Post
+                                </button>
+                                <button class="btn btn-small" onclick="dismissBlogIdea(${idea.id})" style="background: #fee2e2; color: #dc2626; border: none;">
                                     🗑️
                                 </button>
                             </div>
@@ -29422,59 +29405,250 @@ Local honey and preserves"></textarea>
             `;
         }
         
-        function filterContentIdeas() {
-            renderContentIdeas();
+        async function loadBlogPosts(propertyId, clientId) {
+            try {
+                let url = '/api/admin/blog';
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                if (params.length > 0) url += '?' + params.join('&');
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (data.success && data.posts) {
+                    blogPosts.drafts = data.posts.filter(p => !p.is_published && !p.scheduled_at);
+                    blogPosts.scheduled = data.posts.filter(p => !p.is_published && p.scheduled_at);
+                    blogPosts.published = data.posts.filter(p => p.is_published);
+                }
+                
+                renderBlogPosts();
+            } catch (error) {
+                console.error('Error loading blog posts:', error);
+            }
         }
         
-        function updateIdeasCounts() {
-            // Get counts from server for both statuses
-            fetch('/api/admin/content-ideas?' + buildQueryString().substring(1) + '&status=active', { headers: authHeaders() })
-                .then(r => r.json())
-                .then(data => {
-                    document.getElementById('ideas-count-ready').textContent = data.ideas?.length || 0;
-                });
+        function renderBlogPosts() {
+            const posts = blogPosts[currentBlogTab] || [];
+            const container = document.getElementById(`blog-${currentBlogTab}-list`);
+            if (!container) return;
             
-            fetch('/api/admin/content-ideas?' + buildQueryString().substring(1) + '&status=used', { headers: authHeaders() })
-                .then(r => r.json())
-                .then(data => {
-                    document.getElementById('ideas-count-used').textContent = data.ideas?.length || 0;
-                });
-        }
-        
-        function selectIdeaType(type) {
-            // Update radio button
-            document.getElementById('idea-type-blog').checked = (type === 'blog');
-            document.getElementById('idea-type-attraction').checked = (type === 'attraction');
+            const searchQuery = document.getElementById('blog-search')?.value?.toLowerCase() || '';
+            let filtered = posts;
+            if (searchQuery) {
+                filtered = posts.filter(p => 
+                    p.title?.toLowerCase().includes(searchQuery) ||
+                    p.content?.toLowerCase().includes(searchQuery)
+                );
+            }
             
-            // Show/hide category section (only for blogs)
-            document.getElementById('idea-category-section').style.display = (type === 'blog') ? 'block' : 'none';
-        }
-        
-        function generateContentIdeas() {
-            loadIdeasPropertySelect();
-            selectIdeaType('blog'); // Default to blog
-            document.getElementById('generate-ideas-modal').style.display = 'flex';
-        }
-        
-        function closeGenerateIdeasModal() {
-            document.getElementById('generate-ideas-modal').style.display = 'none';
-        }
-        
-        async function submitGenerateIdeas() {
-            const propertyId = document.getElementById('generate-ideas-property').value;
-            const contentType = document.getElementById('idea-type-blog').checked ? 'blog' : 'attraction';
-            const category = document.getElementById('generate-ideas-category').value;
-            const count = parseInt(document.getElementById('generate-ideas-count').value);
-            
-            if (!propertyId) {
-                showNotification('Please select a property', 'error');
+            if (!filtered.length) {
+                const messages = {
+                    drafts: { icon: '📝', title: 'No drafts', desc: 'Posts you\'re working on will appear here' },
+                    scheduled: { icon: '📅', title: 'Nothing scheduled', desc: 'Schedule posts to publish automatically' },
+                    published: { icon: '✅', title: 'No published posts', desc: 'Your live posts will appear here' }
+                };
+                const msg = messages[currentBlogTab] || messages.drafts;
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">${msg.icon}</div>
+                        <h3 style="margin-bottom: 0.5rem;">${msg.title}</h3>
+                        <p>${msg.desc}</p>
+                    </div>
+                `;
                 return;
             }
             
-            const btn = document.getElementById('generate-ideas-btn');
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳ Generating...';
-            btn.disabled = true;
+            container.innerHTML = `
+                <div class="card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Title</th>
+                                <th>Property</th>
+                                <th>Category</th>
+                                <th>${currentBlogTab === 'scheduled' ? 'Scheduled For' : 'Date'}</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filtered.map(post => `
+                                <tr>
+                                    <td><strong>${escapeHtml(post.title)}</strong></td>
+                                    <td>${escapeHtml(post.property_name || '-')}</td>
+                                    <td>${escapeHtml(post.category || '-')}</td>
+                                    <td>${post.scheduled_at ? new Date(post.scheduled_at).toLocaleDateString() : new Date(post.created_at).toLocaleDateString()}</td>
+                                    <td>
+                                        <button class="btn btn-small btn-secondary" onclick="editBlogPost(${post.id})">Edit</button>
+                                        ${currentBlogTab === 'drafts' ? `<button class="btn btn-small" onclick="publishBlogPost(${post.id})" style="background: #10b981;">Publish</button>` : ''}
+                                        ${currentBlogTab === 'scheduled' ? `<button class="btn btn-small" onclick="publishBlogPost(${post.id})" style="background: #10b981;">Publish Now</button>` : ''}
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function filterBlogPosts() {
+            if (currentBlogTab === 'ideas') {
+                renderBlogIdeas();
+            } else {
+                renderBlogPosts();
+            }
+        }
+        
+        async function updateBlogCounts(propertyId, clientId) {
+            // Ideas count
+            try {
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                params.push('content_type=blog');
+                params.push('status=active');
+                
+                const ideasRes = await fetch('/api/admin/content-ideas?' + params.join('&'), { headers: authHeaders() });
+                const ideasData = await ideasRes.json();
+                document.getElementById('blog-count-ideas').textContent = ideasData.ideas?.length || 0;
+            } catch (e) {}
+            
+            // Posts counts
+            document.getElementById('blog-count-drafts').textContent = blogPosts.drafts?.length || 0;
+            document.getElementById('blog-count-scheduled').textContent = blogPosts.scheduled?.length || 0;
+            document.getElementById('blog-count-published').textContent = blogPosts.published?.length || 0;
+        }
+        
+        // Blog Ideas Wizard Functions
+        async function openBlogIdeasWizard() {
+            // Reset wizard
+            selectedBlogCategory = '';
+            selectedBlogSubcategory = '';
+            document.querySelectorAll('#blog-ideas-wizard .wizard-option').forEach(o => o.classList.remove('selected'));
+            document.querySelectorAll('#blog-ideas-wizard input[type="radio"]').forEach(r => r.checked = false);
+            document.getElementById('blog-wizard-subcategory-section').style.display = 'none';
+            document.getElementById('blog-wizard-preview').style.display = 'none';
+            document.getElementById('blog-wizard-loading').style.display = 'none';
+            document.getElementById('blog-wizard-results').style.display = 'none';
+            document.getElementById('blog-wizard-footer').style.display = 'flex';
+            document.getElementById('blog-wizard-generate-btn').disabled = true;
+            
+            // Populate properties
+            const select = document.getElementById('blog-wizard-property');
+            select.innerHTML = '<option value="">Choose a property...</option>';
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
+                const data = await response.json();
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+                    });
+                }
+            } catch (e) {}
+            
+            // Pre-select property if filtered
+            const filterProp = document.getElementById('blog-property-select')?.value;
+            if (filterProp) select.value = filterProp;
+            
+            document.getElementById('blog-ideas-wizard').style.display = 'flex';
+        }
+        
+        function closeBlogIdeasWizard() {
+            document.getElementById('blog-ideas-wizard').style.display = 'none';
+        }
+        
+        function selectBlogCategory(category) {
+            selectedBlogCategory = category;
+            selectedBlogSubcategory = '';
+            
+            // Update UI
+            document.querySelectorAll('#blog-ideas-wizard .wizard-option').forEach(o => {
+                const radio = o.querySelector('input[type="radio"]');
+                if (radio && radio.value === category) {
+                    o.classList.add('selected');
+                    radio.checked = true;
+                } else {
+                    o.classList.remove('selected');
+                }
+            });
+            
+            // Show subcategory
+            const subSection = document.getElementById('blog-wizard-subcategory-section');
+            const subSelect = document.getElementById('blog-wizard-subcategory');
+            
+            if (category === 'attractions') {
+                subSelect.innerHTML = `
+                    <option value="">Choose a topic...</option>
+                    <option value="museums">🏛️ Museums & Galleries</option>
+                    <option value="landmarks">🗿 Landmarks & Monuments</option>
+                    <option value="parks">🌳 Parks & Gardens</option>
+                    <option value="beaches">🏖️ Beaches & Coastline</option>
+                    <option value="restaurants">🍽️ Restaurants & Dining</option>
+                    <option value="cafes">☕ Cafes & Coffee Shops</option>
+                    <option value="nightlife">🌃 Nightlife & Bars</option>
+                    <option value="shopping">🛍️ Shopping & Markets</option>
+                    <option value="nature">🏞️ Nature & Outdoor</option>
+                    <option value="daytrips">🚗 Day Trips</option>
+                `;
+            } else if (category === 'events') {
+                subSelect.innerHTML = `
+                    <option value="">Choose a topic...</option>
+                    <option value="festivals">🎪 Festivals & Celebrations</option>
+                    <option value="concerts">🎵 Concerts & Live Music</option>
+                    <option value="theater">🎭 Theater & Performances</option>
+                    <option value="sports">⚽ Sports Events</option>
+                    <option value="markets">🛍️ Markets & Fairs</option>
+                    <option value="cultural">🎨 Cultural Events</option>
+                    <option value="seasonal">❄️ Seasonal Activities</option>
+                    <option value="holidays">🎄 Holiday Events</option>
+                    <option value="family">👨‍👩‍👧‍👦 Family Events</option>
+                `;
+            }
+            
+            subSection.style.display = 'block';
+            document.getElementById('blog-wizard-preview').style.display = 'none';
+            document.getElementById('blog-wizard-generate-btn').disabled = true;
+        }
+        
+        function updateBlogWizardSubcategories() {
+            // Called when property changes - check if can enable button
+            checkBlogWizardReady();
+        }
+        
+        function checkBlogWizardReady() {
+            const property = document.getElementById('blog-wizard-property').value;
+            const subcategory = document.getElementById('blog-wizard-subcategory').value;
+            
+            if (property && selectedBlogCategory && subcategory) {
+                selectedBlogSubcategory = subcategory;
+                document.getElementById('blog-wizard-preview').style.display = 'block';
+                document.getElementById('blog-wizard-generate-btn').disabled = false;
+            } else {
+                document.getElementById('blog-wizard-generate-btn').disabled = true;
+            }
+        }
+        
+        // Add onchange to subcategory select
+        document.addEventListener('DOMContentLoaded', () => {
+            const subSelect = document.getElementById('blog-wizard-subcategory');
+            if (subSelect) subSelect.addEventListener('change', checkBlogWizardReady);
+        });
+        
+        async function generateBlogIdeas() {
+            const propertyId = document.getElementById('blog-wizard-property').value;
+            
+            if (!propertyId || !selectedBlogCategory || !selectedBlogSubcategory) {
+                showNotification('Please complete all steps', 'error');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('blog-wizard-footer').style.display = 'none';
+            document.getElementById('blog-wizard-loading').style.display = 'block';
+            document.getElementById('blog-wizard-subcategory-section').style.display = 'none';
+            document.getElementById('blog-wizard-preview').style.display = 'none';
+            document.querySelectorAll('#blog-ideas-wizard .form-group').forEach(g => g.style.display = 'none');
             
             try {
                 const response = await fetch('/api/admin/content-ideas/generate', {
@@ -29482,72 +29656,508 @@ Local honey and preserves"></textarea>
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         property_id: propertyId,
-                        content_type: contentType,
-                        category: category,
-                        count: count,
+                        content_type: 'blog',
+                        category: `${selectedBlogCategory}_${selectedBlogSubcategory}`,
+                        count: 10,
                         client_id: getClientId()
                     })
                 });
                 
                 const data = await response.json();
                 
-                if (data.success) {
-                    showNotification(`Generated ${data.ideas?.length || count} ${contentType} ideas!`, 'success');
-                    closeGenerateIdeasModal();
-                    switchIdeasTab('active'); // Switch to Ready tab
-                    loadContentIdeas();
+                document.getElementById('blog-wizard-loading').style.display = 'none';
+                
+                if (data.success && data.ideas?.length > 0) {
+                    // Show results
+                    const listContainer = document.getElementById('blog-wizard-ideas-list');
+                    listContainer.innerHTML = data.ideas.map((idea, idx) => `
+                        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s;" 
+                             onclick="selectBlogIdeaFromWizard(${idea.id}, '${escapeHtml(idea.title).replace(/'/g, "\\'")}', ${propertyId})"
+                             onmouseover="this.style.borderColor='#8b5cf6'; this.style.background='#faf5ff';"
+                             onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
+                            <span style="font-weight: 600; color: #8b5cf6;">${idx + 1}.</span>
+                            <span style="flex: 1;">${escapeHtml(idea.title)}</span>
+                            <span style="color: #8b5cf6;">✨</span>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('blog-wizard-results').style.display = 'block';
                 } else {
                     showNotification(data.error || 'Failed to generate ideas', 'error');
+                    resetBlogWizard();
                 }
             } catch (error) {
-                console.error('Generate ideas error:', error);
+                console.error('Generate blog ideas error:', error);
                 showNotification('Error generating ideas', 'error');
-            } finally {
-                btn.innerHTML = originalText;
-                btn.disabled = false;
+                document.getElementById('blog-wizard-loading').style.display = 'none';
+                resetBlogWizard();
             }
         }
         
-        async function createContentFromIdea(ideaId) {
-            const idea = contentIdeas.find(i => i.id === ideaId);
+        function resetBlogWizard() {
+            document.querySelectorAll('#blog-ideas-wizard .form-group').forEach(g => g.style.display = 'block');
+            document.getElementById('blog-wizard-results').style.display = 'none';
+            document.getElementById('blog-wizard-footer').style.display = 'flex';
+            if (selectedBlogCategory) {
+                document.getElementById('blog-wizard-subcategory-section').style.display = 'block';
+            }
+        }
+        
+        async function selectBlogIdeaFromWizard(ideaId, title, propertyId) {
+            closeBlogIdeasWizard();
+            showNotification('Opening blog editor...', 'info');
+            await openBlogEditor(title, propertyId, ideaId);
+        }
+        
+        async function createBlogFromIdea(ideaId) {
+            const idea = blogIdeas.find(i => i.id === ideaId);
             if (!idea) return;
             
-            if (idea.content_type === 'blog') {
-                // Open blog modal with idea pre-filled
-                await openAiBlogModal(idea.title, idea.property_id);
-                
-                // Store idea ID to mark as used when saved
-                const propertyIdEl = document.getElementById('ai-blog-property-id');
-                if (propertyIdEl) {
-                    propertyIdEl.dataset.contentIdeaId = ideaId;
-                }
-            } else if (idea.content_type === 'attraction') {
-                // Open attraction modal with idea pre-filled
-                openAttractionModalWithIdea(idea);
+            showNotification('Opening blog editor...', 'info');
+            await openBlogEditor(idea.title, idea.property_id, ideaId);
+        }
+        
+        async function dismissBlogIdea(ideaId) {
+            if (!confirm('Remove this idea?')) return;
+            
+            try {
+                await fetch(`/api/admin/content-ideas/${ideaId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                loadBlogByTab();
+            } catch (e) {
+                console.error('Error dismissing idea:', e);
             }
         }
         
-        async function openAttractionModalWithIdea(idea) {
-            // Open attraction modal first
-            await openAttractionModal();
+        // =====================================================
+        // ATTRACTIONS APP FUNCTIONS (with Suggestions, Published tabs)
+        // =====================================================
+        
+        let attractionSuggestions = [];
+        let publishedAttractions = [];
+        let currentAttractionTab = 'suggestions';
+        let selectedAttractionCategory = '';
+        
+        function switchAttractionTab(tab) {
+            currentAttractionTab = tab;
             
-            // Fill in the name and short description from idea
-            document.getElementById('attraction-name').value = idea.title || '';
-            document.getElementById('attraction-short-desc').value = idea.description || '';
+            // Update tab styling
+            document.querySelectorAll('.attraction-tab').forEach(t => {
+                if (t.dataset.tab === tab) {
+                    t.style.color = '#f59e0b';
+                    t.style.borderBottom = '2px solid #f59e0b';
+                    t.style.fontWeight = '600';
+                } else {
+                    t.style.color = '#6b7280';
+                    t.style.borderBottom = 'none';
+                    t.style.fontWeight = '500';
+                }
+            });
             
-            // Set property if available
-            if (idea.property_id) {
-                document.getElementById('attraction-property-id').value = idea.property_id;
+            // Show/hide panels
+            document.querySelectorAll('.attraction-tab-panel').forEach(p => p.style.display = 'none');
+            const panel = document.getElementById(`attraction-tab-${tab}`);
+            if (panel) panel.style.display = 'block';
+            
+            loadAttractionsByTab();
+        }
+        
+        async function loadAttractionsByTab() {
+            await loadAttractionsPropertySelect();
+            
+            const propertyId = document.getElementById('attractions-property-select')?.value || '';
+            const clientId = getClientId();
+            
+            if (currentAttractionTab === 'suggestions') {
+                await loadAttractionSuggestions(propertyId, clientId);
+            } else {
+                await loadPublishedAttractions(propertyId, clientId);
             }
             
-            // Store content idea ID for auto-marking as used
-            document.getElementById('attraction-content-idea-id').value = idea.id;
+            updateAttractionCounts(propertyId, clientId);
+        }
+        
+        async function loadAttractionsPropertySelect() {
+            const select = document.getElementById('attractions-property-select');
+            if (!select) return;
             
-            // Auto-trigger AI fill to populate remaining details
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">All Properties</option>';
+                
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+                    });
+                }
+                
+                if (currentValue) select.value = currentValue;
+            } catch (error) {
+                console.error('Error loading attractions properties:', error);
+            }
+        }
+        
+        async function loadAttractionSuggestions(propertyId, clientId) {
+            try {
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                params.push('content_type=attraction');
+                params.push('status=active');
+                
+                const url = '/api/admin/content-ideas?' + params.join('&');
+                const response = await fetch(url, { headers: authHeaders() });
+                const data = await response.json();
+                
+                attractionSuggestions = data.ideas || [];
+                renderAttractionSuggestions();
+            } catch (error) {
+                console.error('Error loading attraction suggestions:', error);
+            }
+        }
+        
+        function renderAttractionSuggestions() {
+            const container = document.getElementById('attraction-suggestions-list');
+            if (!container) return;
+            
+            const searchQuery = document.getElementById('attractions-search')?.value?.toLowerCase() || '';
+            let filtered = attractionSuggestions;
+            if (searchQuery) {
+                filtered = attractionSuggestions.filter(s => 
+                    s.title?.toLowerCase().includes(searchQuery) ||
+                    s.description?.toLowerCase().includes(searchQuery)
+                );
+            }
+            
+            if (!filtered.length) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">🎯</div>
+                        <h3 style="margin-bottom: 0.5rem;">No attraction suggestions yet</h3>
+                        <p style="margin-bottom: 1rem;">Get AI suggestions for local places near your property</p>
+                        <button class="btn" onclick="openAttractionIdeasWizard()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">🤖 Suggest Places</button>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                    ${filtered.map(s => `
+                        <div class="card" style="padding: 1.25rem; border-left: 4px solid #f59e0b;">
+                            <span style="background: #fef3c7; color: #b45309; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
+                                🎯 Suggestion
+                            </span>
+                            <h4 style="margin: 0.75rem 0 0.5rem; font-size: 1rem; line-height: 1.4;">${escapeHtml(s.title)}</h4>
+                            ${s.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem; line-height: 1.4;">${escapeHtml(s.description.substring(0, 100))}${s.description.length > 100 ? '...' : ''}</p>` : ''}
+                            ${s.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;">📍 ${escapeHtml(s.property_name)}</p>` : ''}
+                            <div style="display: flex; gap: 0.5rem;">
+                                <button class="btn btn-small" onclick="createAttractionFromSuggestion(${s.id})" style="flex: 1; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                                    ✨ Add This Place
+                                </button>
+                                <button class="btn btn-small" onclick="dismissAttractionSuggestion(${s.id})" style="background: #fee2e2; color: #dc2626; border: none;">
+                                    🗑️
+                                </button>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        async function loadPublishedAttractions(propertyId, clientId) {
+            try {
+                let url = '/api/admin/attractions';
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                if (params.length > 0) url += '?' + params.join('&');
+                
+                const response = await fetch(url, { headers: authHeaders() });
+                const data = await response.json();
+                
+                publishedAttractions = data.attractions || [];
+                renderPublishedAttractions();
+            } catch (error) {
+                console.error('Error loading attractions:', error);
+            }
+        }
+        
+        function renderPublishedAttractions() {
+            const container = document.getElementById('attraction-published-list');
+            if (!container) return;
+            
+            const searchQuery = document.getElementById('attractions-search')?.value?.toLowerCase() || '';
+            let filtered = publishedAttractions;
+            if (searchQuery) {
+                filtered = publishedAttractions.filter(a => 
+                    a.name?.toLowerCase().includes(searchQuery) ||
+                    a.description?.toLowerCase().includes(searchQuery)
+                );
+            }
+            
+            if (!filtered.length) {
+                container.innerHTML = `
+                    <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
+                        <h3 style="margin-bottom: 0.5rem;">No attractions added yet</h3>
+                        <p>Your published attractions will appear here</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            container.innerHTML = `
+                <div class="card">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th>Name</th>
+                                <th>Category</th>
+                                <th>Distance</th>
+                                <th>Property</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${filtered.map(a => `
+                                <tr>
+                                    <td><strong>${escapeHtml(a.name)}</strong></td>
+                                    <td>${escapeHtml(a.category || '-')}</td>
+                                    <td>${escapeHtml(a.distance_text || '-')}</td>
+                                    <td>${escapeHtml(a.property_name || '-')}</td>
+                                    <td>
+                                        <button class="btn btn-small btn-secondary" onclick="editAttraction(${a.id})">Edit</button>
+                                        <button class="btn btn-small" onclick="deleteAttractionById(${a.id})" style="background: #fee2e2; color: #dc2626;">Delete</button>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+        
+        function filterAttractions() {
+            if (currentAttractionTab === 'suggestions') {
+                renderAttractionSuggestions();
+            } else {
+                renderPublishedAttractions();
+            }
+        }
+        
+        async function updateAttractionCounts(propertyId, clientId) {
+            // Suggestions count
+            try {
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                params.push('content_type=attraction');
+                params.push('status=active');
+                
+                const res = await fetch('/api/admin/content-ideas?' + params.join('&'), { headers: authHeaders() });
+                const data = await res.json();
+                document.getElementById('attraction-count-suggestions').textContent = data.ideas?.length || 0;
+            } catch (e) {}
+            
+            // Published count
+            document.getElementById('attraction-count-published').textContent = publishedAttractions?.length || 0;
+        }
+        
+        // Attraction Ideas Wizard
+        async function openAttractionIdeasWizard() {
+            selectedAttractionCategory = '';
+            document.querySelectorAll('#attraction-ideas-wizard .wizard-option-small').forEach(o => o.classList.remove('selected'));
+            document.getElementById('attraction-wizard-loading').style.display = 'none';
+            document.getElementById('attraction-wizard-results').style.display = 'none';
+            document.getElementById('attraction-wizard-footer').style.display = 'flex';
+            document.getElementById('attraction-wizard-generate-btn').disabled = true;
+            document.querySelectorAll('#attraction-ideas-wizard .form-group').forEach(g => g.style.display = 'block');
+            
+            // Populate properties
+            const select = document.getElementById('attraction-wizard-property');
+            select.innerHTML = '<option value="">Choose a property...</option>';
+            try {
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
+                const data = await response.json();
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+                    });
+                }
+            } catch (e) {}
+            
+            const filterProp = document.getElementById('attractions-property-select')?.value;
+            if (filterProp) select.value = filterProp;
+            
+            document.getElementById('attraction-ideas-wizard').style.display = 'flex';
+        }
+        
+        function closeAttractionIdeasWizard() {
+            document.getElementById('attraction-ideas-wizard').style.display = 'none';
+        }
+        
+        function selectAttractionCategory(category) {
+            selectedAttractionCategory = category;
+            
+            document.querySelectorAll('#attraction-ideas-wizard .wizard-option-small').forEach(o => {
+                const radio = o.querySelector('input[type="radio"]');
+                if (radio && radio.value === category) {
+                    o.classList.add('selected');
+                    radio.checked = true;
+                } else {
+                    o.classList.remove('selected');
+                }
+            });
+            
+            // Enable button if property selected
+            const property = document.getElementById('attraction-wizard-property').value;
+            document.getElementById('attraction-wizard-generate-btn').disabled = !property;
+        }
+        
+        async function generateAttractionIdeas() {
+            const propertyId = document.getElementById('attraction-wizard-property').value;
+            
+            if (!propertyId || !selectedAttractionCategory) {
+                showNotification('Please select property and category', 'error');
+                return;
+            }
+            
+            // Show loading
+            document.getElementById('attraction-wizard-footer').style.display = 'none';
+            document.getElementById('attraction-wizard-loading').style.display = 'block';
+            document.querySelectorAll('#attraction-ideas-wizard .form-group').forEach(g => g.style.display = 'none');
+            
+            try {
+                const response = await fetch('/api/admin/content-ideas/generate', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        property_id: propertyId,
+                        content_type: 'attraction',
+                        category: selectedAttractionCategory,
+                        count: 10,
+                        client_id: getClientId()
+                    })
+                });
+                
+                const data = await response.json();
+                
+                document.getElementById('attraction-wizard-loading').style.display = 'none';
+                
+                if (data.success && data.ideas?.length > 0) {
+                    const listContainer = document.getElementById('attraction-wizard-ideas-list');
+                    listContainer.innerHTML = data.ideas.map((idea, idx) => `
+                        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s;"
+                             onclick="selectAttractionFromWizard(${idea.id})"
+                             onmouseover="this.style.borderColor='#f59e0b'; this.style.background='#fffbeb';"
+                             onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
+                            <span style="font-weight: 600; color: #f59e0b;">${idx + 1}.</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">${escapeHtml(idea.title)}</div>
+                                ${idea.description ? `<div style="font-size: 0.8rem; color: #6b7280;">${escapeHtml(idea.description.substring(0, 60))}...</div>` : ''}
+                            </div>
+                            <span style="color: #f59e0b;">✨</span>
+                        </div>
+                    `).join('');
+                    
+                    document.getElementById('attraction-wizard-results').style.display = 'block';
+                } else {
+                    showNotification(data.error || 'Failed to generate suggestions', 'error');
+                    resetAttractionWizard();
+                }
+            } catch (error) {
+                console.error('Generate attraction ideas error:', error);
+                showNotification('Error generating suggestions', 'error');
+                document.getElementById('attraction-wizard-loading').style.display = 'none';
+                resetAttractionWizard();
+            }
+        }
+        
+        function resetAttractionWizard() {
+            document.querySelectorAll('#attraction-ideas-wizard .form-group').forEach(g => g.style.display = 'block');
+            document.getElementById('attraction-wizard-results').style.display = 'none';
+            document.getElementById('attraction-wizard-footer').style.display = 'flex';
+        }
+        
+        async function selectAttractionFromWizard(ideaId) {
+            closeAttractionIdeasWizard();
+            await createAttractionFromSuggestion(ideaId);
+        }
+        
+        async function createAttractionFromSuggestion(ideaId) {
+            // Find in suggestions or fetch
+            let suggestion = attractionSuggestions.find(s => s.id === ideaId);
+            
+            if (!suggestion) {
+                // May have just been generated, fetch it
+                try {
+                    const response = await fetch(`/api/admin/content-ideas/${ideaId}`, { headers: authHeaders() });
+                    const data = await response.json();
+                    if (data.success) suggestion = data.idea;
+                } catch (e) {}
+            }
+            
+            if (!suggestion) {
+                showNotification('Could not find suggestion', 'error');
+                return;
+            }
+            
+            // Open attraction modal with pre-filled data
+            await openAttractionModal();
+            
+            document.getElementById('attraction-name').value = suggestion.title || '';
+            document.getElementById('attraction-short-desc').value = suggestion.description || '';
+            if (suggestion.property_id) {
+                document.getElementById('attraction-property-id').value = suggestion.property_id;
+            }
+            document.getElementById('attraction-content-idea-id').value = suggestion.id;
+            
+            // Auto-trigger AI fill
             showNotification('Loading AI details...', 'info');
             setTimeout(() => aiGenerateAttractionDetails(), 300);
         }
         
+        async function dismissAttractionSuggestion(ideaId) {
+            if (!confirm('Remove this suggestion?')) return;
+            
+            try {
+                await fetch(`/api/admin/content-ideas/${ideaId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                loadAttractionsByTab();
+            } catch (e) {
+                console.error('Error dismissing suggestion:', e);
+            }
+        }
+        
+        async function deleteAttractionById(id) {
+            if (!confirm('Delete this attraction?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/attractions/${id}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Attraction deleted', 'success');
+                    loadAttractionsByTab();
+                }
+            } catch (e) {
+                console.error('Error deleting attraction:', e);
+            }
+        }
+        
+        // Keep AI generate attraction details function
         async function aiGenerateAttractionDetails() {
             const name = document.getElementById('attraction-name').value.trim();
             const propertyId = document.getElementById('attraction-property-id').value;
@@ -29557,7 +30167,6 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Get property info for context
             let propertyName = '';
             let propertyCity = '';
             if (propertyId) {
@@ -29568,12 +30177,11 @@ Local honey and preserves"></textarea>
                         propertyName = propData.data.name || '';
                         propertyCity = propData.data.city || '';
                     }
-                } catch (e) {
-                    console.log('Could not get property details');
-                }
+                } catch (e) {}
             }
             
             const btn = document.querySelector('[onclick="aiGenerateAttractionDetails()"]');
+            if (!btn) return;
             const originalText = btn.innerHTML;
             btn.innerHTML = '⏳ Generating...';
             btn.disabled = true;
@@ -29594,7 +30202,6 @@ Local honey and preserves"></textarea>
                 if (data.success && data.attraction) {
                     const a = data.attraction;
                     
-                    // Fill in fields (don't overwrite if already has value)
                     if (!document.getElementById('attraction-short-desc').value && a.short_description) {
                         document.getElementById('attraction-short-desc').value = a.short_description;
                     }
@@ -29643,70 +30250,59 @@ Local honey and preserves"></textarea>
             }
         }
         
-        async function markIdeaUsed(ideaId) {
-            try {
-                const response = await fetch(`/api/admin/content-ideas/${ideaId}/status`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ status: 'used' })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    loadContentIdeas();
-                } else {
-                    showNotification(data.error || 'Failed to update', 'error');
-                }
-            } catch (error) {
-                console.error('Mark used error:', error);
-            }
-        }
+        // =====================================================
+        // BLOG EDITOR FUNCTIONS
+        // =====================================================
         
-        async function markIdeaActive(ideaId) {
-            try {
-                const response = await fetch(`/api/admin/content-ideas/${ideaId}/status`, {
-                    method: 'PUT',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ status: 'active' })
-                });
-                
-                const data = await response.json();
-                
-                if (data.success) {
-                    showNotification('Idea moved to Ready', 'success');
-                    loadContentIdeas();
-                } else {
-                    showNotification(data.error || 'Failed to restore', 'error');
-                }
-            } catch (error) {
-                console.error('Mark active error:', error);
-            }
-        }
-        
-        async function deleteContentIdea(ideaId) {
-            if (!confirm('Delete this content idea?')) return;
+        async function openBlogEditor(keyword = '', propertyId = null, ideaId = null) {
+            // Open the AI blog modal with pre-filled values
+            await openAiBlogModal(keyword, propertyId);
             
+            // Store the idea ID to mark as used when saved
+            if (ideaId) {
+                const propertyIdEl = document.getElementById('ai-blog-property-id');
+                if (propertyIdEl) {
+                    propertyIdEl.dataset.contentIdeaId = ideaId;
+                }
+            }
+        }
+        
+        async function editBlogPost(postId) {
             try {
-                const response = await fetch(`/api/admin/content-ideas/${ideaId}`, {
-                    method: 'DELETE',
-                    headers: authHeaders()
+                const response = await fetch(`/api/admin/blog/${postId}`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.post) {
+                    openBlogModal(data.post);
+                } else {
+                    showNotification('Could not load post', 'error');
+                }
+            } catch (e) {
+                console.error('Error loading blog post:', e);
+                showNotification('Error loading post', 'error');
+            }
+        }
+        
+        async function publishBlogPost(postId) {
+            try {
+                const response = await fetch(`/api/admin/blog/${postId}/publish`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
                 });
                 
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification('Idea deleted', 'success');
-                    loadContentIdeas();
+                    showNotification('Blog post published!', 'success');
+                    loadBlogByTab();
                 } else {
-                    showNotification(data.error || 'Failed to delete', 'error');
+                    showNotification(data.error || 'Failed to publish', 'error');
                 }
-            } catch (error) {
-                console.error('Delete idea error:', error);
+            } catch (e) {
+                console.error('Error publishing:', e);
+                showNotification('Error publishing post', 'error');
             }
         }
-
-        async function loadAppBlogPosts() {
             // Populate property dropdown first using standard pattern
             await loadBlogPropertySelect();
             
@@ -30299,9 +30895,20 @@ Local honey and preserves"></textarea>
                                 
                                 <!-- Featured Image -->
                                 <div style="margin-bottom: 1rem;">
-                                    <label style="font-weight: 600;">Featured Image URL</label>
-                                    <input type="text" id="ai-blog-image" class="form-input" placeholder="https://... (paste image URL or leave blank)" />
-                                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">⚠️ Use your own images to avoid copyright issues</p>
+                                    <label style="font-weight: 600;">Featured Image</label>
+                                    <div id="ai-blog-image-preview" style="margin-bottom: 0.5rem; display: none;">
+                                        <img id="ai-blog-image-img" src="" style="max-width: 100%; max-height: 200px; border-radius: 8px; border: 1px solid #e5e7eb;" />
+                                        <button type="button" onclick="removeAiBlogImage()" style="margin-top: 0.5rem;" class="btn btn-small btn-secondary">Remove Image</button>
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                        <input type="file" id="ai-blog-image-upload" accept="image/*" onchange="handleBlogImageUpload(this)" style="display: none;" />
+                                        <button type="button" onclick="document.getElementById('ai-blog-image-upload').click()" class="btn btn-secondary" style="flex: 1;">
+                                            📤 Upload Image
+                                        </button>
+                                        <span style="color: #6b7280;">or</span>
+                                        <input type="text" id="ai-blog-image" class="form-input" placeholder="Paste image URL" style="flex: 2;" onchange="previewBlogImageUrl()" />
+                                    </div>
+                                    <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">💡 Upload your own image or paste a URL</p>
                                 </div>
                                 
                                 <!-- Scheduling Options -->
@@ -30483,6 +31090,59 @@ Local honey and preserves"></textarea>
             document.getElementById('ai-blog-form').style.display = 'block';
             document.getElementById('ai-blog-result').style.display = 'none';
             document.getElementById('ai-blog-loading').style.display = 'none';
+        }
+        
+        async function handleBlogImageUpload(input) {
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            if (!file.type.startsWith('image/')) {
+                showNotification('Please select an image file', 'error');
+                return;
+            }
+            
+            showNotification('Uploading image...', 'info');
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            try {
+                const response = await fetch('/api/upload/image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.url) {
+                    document.getElementById('ai-blog-image').value = data.url;
+                    previewBlogImageUrl();
+                    showNotification('Image uploaded!', 'success');
+                } else {
+                    showNotification(data.error || 'Upload failed', 'error');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                showNotification('Error uploading image', 'error');
+            }
+        }
+        
+        function previewBlogImageUrl() {
+            const url = document.getElementById('ai-blog-image').value;
+            const preview = document.getElementById('ai-blog-image-preview');
+            const img = document.getElementById('ai-blog-image-img');
+            
+            if (url && url.startsWith('http')) {
+                img.src = url;
+                preview.style.display = 'block';
+            } else {
+                preview.style.display = 'none';
+            }
+        }
+        
+        function removeAiBlogImage() {
+            document.getElementById('ai-blog-image').value = '';
+            document.getElementById('ai-blog-image-preview').style.display = 'none';
         }
         
         function closeAiBlogModal() {
