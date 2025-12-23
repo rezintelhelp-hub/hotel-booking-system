@@ -28927,28 +28927,95 @@ app.post('/api/admin/content-ideas/generate', async (req, res) => {
         
         const property = propResult.rows[0];
         const propertyClientId = property.client_id || client_id;
+        const location = `${property.city || 'the area'}, ${property.country || ''}`.trim().replace(/,\s*$/, '');
+        
+        // Current date for time-relevant content
+        const now = new Date();
+        const currentMonth = now.toLocaleString('en-US', { month: 'long' });
+        const currentYear = now.getFullYear();
+        const next3Months = [];
+        for (let i = 0; i < 3; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() + i, 1);
+            next3Months.push(d.toLocaleString('en-US', { month: 'long', year: 'numeric' }));
+        }
         
         // Build prompt based on content type
         let prompt = '';
         const numIdeas = count || 10;
         
-        // System instruction prefix
-        const systemPrefix = `You are a travel content strategist. Generate creative, SEO-friendly content ideas. Always respond with a valid JSON array only, no other text.\n\n`;
+        // System instruction prefix with current date context
+        const systemPrefix = `You are a local travel expert and content strategist. Today's date is ${currentMonth} ${now.getDate()}, ${currentYear}.
+
+IMPORTANT: Generate content about REAL, ACTUAL places and events. Do not make up fictional events or places.
+Always respond with a valid JSON array only, no other text.
+
+`;
         
         if (content_type === 'blog') {
-            const categoryPrompts = {
-                'attractions': 'local attractions, landmarks, museums, parks, beaches, and places to visit',
-                'events': 'local events, festivals, concerts, markets, and seasonal happenings',
-                'food-dining': 'local restaurants, cafes, food experiences, and culinary highlights',
-                'travel-tips': 'travel tips, packing guides, transportation, and visitor advice',
-                'local-guide': 'neighborhood guides, hidden gems, and local insider knowledge'
-            };
+            // Parse category - format is "category_subcategory" like "events_sports" or "attractions_museums"
+            const [mainCategory, subCategory] = (category || '').split('_');
+            
+            let categoryContext = '';
+            let topicFocus = '';
+            
+            if (mainCategory === 'attractions') {
+                const subCategoryPrompts = {
+                    'museums': 'museums, galleries, and cultural institutions',
+                    'landmarks': 'famous landmarks, monuments, and iconic buildings',
+                    'parks': 'parks, gardens, nature reserves, and outdoor spaces',
+                    'beaches': 'beaches, coastline, and waterfront areas',
+                    'restaurants': 'restaurants, local cuisine, and dining experiences',
+                    'cafes': 'cafes, coffee shops, and bakeries',
+                    'nightlife': 'bars, clubs, pubs, and evening entertainment',
+                    'shopping': 'shopping districts, markets, and retail areas',
+                    'nature': 'hiking trails, nature walks, and outdoor activities',
+                    'daytrips': 'day trip destinations and nearby towns to explore'
+                };
+                topicFocus = subCategoryPrompts[subCategory] || 'local attractions and places to visit';
+                categoryContext = `Write about REAL ${topicFocus} in and around ${location}.
+Include actual place names, addresses where known, and what makes each place special.`;
+            } else if (mainCategory === 'events') {
+                const subCategoryPrompts = {
+                    'festivals': 'festivals, cultural celebrations, and annual events',
+                    'concerts': 'concerts, live music performances, and music venues',
+                    'theater': 'theater performances, shows, and performing arts',
+                    'sports': 'sporting events, matches, games, and sports venues',
+                    'markets': 'markets, fairs, craft shows, and pop-up events',
+                    'cultural': 'cultural events, exhibitions, and community gatherings',
+                    'seasonal': 'seasonal activities and events for the current time of year',
+                    'holidays': 'holiday events, celebrations, and special occasions',
+                    'family': 'family-friendly events and activities for children'
+                };
+                topicFocus = subCategoryPrompts[subCategory] || 'local events and happenings';
+                categoryContext = `Write about UPCOMING ${topicFocus} in ${location}.
+
+CRITICAL: Focus on events happening in the NEXT 3 MONTHS (${next3Months.join(', ')}).
+Include:
+- Actual event names and venues
+- Approximate dates or typical timing
+- What visitors can expect
+- Why it's worth attending
+
+For sports events, think about:
+- Local football/soccer teams and their home matches
+- Rugby, cricket, or other popular local sports
+- Major sporting venues in the area
+- Annual sporting events or tournaments
+
+DO NOT include past events or make up fictional events.`;
+            } else {
+                categoryContext = `Write about travel tips, local guides, and helpful information for visitors to ${location}.`;
+            }
             
             prompt = systemPrefix + `Generate ${numIdeas} unique blog post ideas for a vacation rental property.
 
 Property: ${property.name}
-Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
-Category Focus: ${categoryPrompts[category] || 'general travel content'}
+Location: ${location}
+Current Date: ${currentMonth} ${currentYear}
+
+TOPIC FOCUS: ${topicFocus}
+
+${categoryContext}
 
 For each idea, provide:
 1. A compelling, SEO-friendly title (50-60 characters ideal)
@@ -28960,40 +29027,53 @@ Format as JSON array:
   ...
 ]
 
-Make titles specific to the location when possible. Focus on topics that would help guests planning their stay.`;
+Make titles specific to ${location}. Use REAL place names and events.`;
+
         } else if (content_type === 'attraction') {
-            prompt = systemPrefix + `Generate ${numIdeas} local attraction ideas to add to a vacation rental website.
+            // Parse category for attractions
+            const attractionType = category || 'general';
+            
+            const typePrompts = {
+                'museums': 'museums, galleries, and cultural institutions',
+                'landmarks': 'historical landmarks, monuments, and famous buildings',
+                'parks': 'parks, gardens, and green spaces',
+                'beaches': 'beaches and coastal areas',
+                'restaurants': 'popular restaurants and dining spots',
+                'cafes': 'cafes and coffee shops',
+                'nightlife': 'bars, pubs, and nightlife venues',
+                'shopping': 'shopping areas and markets',
+                'nature': 'nature spots and outdoor areas',
+                'family': 'family-friendly attractions and activities'
+            };
+            
+            const focusType = typePrompts[attractionType] || 'local attractions';
+            
+            prompt = systemPrefix + `Generate ${numIdeas} REAL local ${focusType} to add to a vacation rental website.
 
 Property: ${property.name}
-Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
+Location: ${location}
 
-Generate ideas for LOCAL ATTRACTIONS near the property that guests would want to visit:
-- Museums and galleries
-- Parks and nature spots  
-- Historical landmarks
-- Restaurants and cafes
-- Beaches or waterfront areas
-- Shopping areas
-- Entertainment venues
-- Family activities
+Generate ideas for ACTUAL, REAL ${focusType} near ${location} that guests would want to visit.
 
 For each attraction, provide:
-1. The name of the attraction (real place name if known, or descriptive name)
+1. The REAL name of the place (actual business/venue name)
 2. A brief description of what it is and why guests should visit (1-2 sentences)
 
 Format as JSON array:
 [
-  {"title": "Attraction Name", "description": "Brief description of the attraction"},
+  {"title": "Real Place Name", "description": "Brief description of the attraction"},
   ...
 ]
 
-Focus on REAL attractions near ${property.city || 'the property location'}. Be specific with actual place names when possible.`;
+IMPORTANT: Only include REAL places that actually exist in ${location}. Be specific with actual names.
+If you're not certain a place exists, don't include it.`;
+
         } else {
             // Fallback for any other type
             prompt = systemPrefix + `Generate ${numIdeas} unique blog post ideas for a vacation rental website.
 
 Property: ${property.name}
-Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
+Location: ${location}
 
 Format as JSON array:
 [
