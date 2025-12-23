@@ -28066,15 +28066,27 @@ app.post('/api/admin/blog', async (req, res) => {
         
         console.log('Blog POST received:', { property_id, title });
         
-        // Get client_id from property's account_id (same relationship used by booking system)
-        let client_id = null;
-        if (property_id) {
-            const propResult = await pool.query('SELECT account_id FROM properties WHERE id = $1', [property_id]);
-            console.log('Property lookup for account_id:', propResult.rows[0]);
-            if (propResult.rows[0] && propResult.rows[0].account_id) {
-                client_id = propResult.rows[0].account_id;
-            }
+        // Property is required for blogs
+        if (!property_id) {
+            return res.json({ success: false, error: 'Property is required for blog posts' });
         }
+        
+        // Get client_id from property's account_id (same relationship used by booking system)
+        const propResult = await pool.query('SELECT account_id, client_id, name FROM properties WHERE id = $1', [property_id]);
+        console.log('Property lookup:', propResult.rows[0]);
+        
+        if (!propResult.rows[0]) {
+            return res.json({ success: false, error: 'Property not found' });
+        }
+        
+        // Use account_id (primary) or fall back to client_id 
+        const client_id = propResult.rows[0].account_id || propResult.rows[0].client_id;
+        
+        if (!client_id) {
+            console.error('Property has no account_id or client_id:', property_id, propResult.rows[0]);
+            return res.json({ success: false, error: `Property "${propResult.rows[0].name}" is not linked to an account. Please link it in Settings > Accounts.` });
+        }
+        
         console.log('Final client_id:', client_id);
         
         // Generate slug if not provided
