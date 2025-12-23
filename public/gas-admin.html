@@ -30228,7 +30228,7 @@ Local honey and preserves"></textarea>
                     
                     // Fill FAQ schema
                     if (data.blog.faq_schema) {
-                        const schemaScript = '<script type="application/ld+json">\\n' + JSON.stringify(data.blog.faq_schema, null, 2) + '\\n</script>';
+                        const schemaScript = '<scr' + 'ipt type="application/ld+json">\n' + JSON.stringify(data.blog.faq_schema, null, 2) + '\n<\/scr' + 'ipt>';
                         document.getElementById('ai-blog-faq-schema').value = schemaScript;
                     } else {
                         document.getElementById('ai-blog-faq-schema').value = '(No FAQ schema generated)';
