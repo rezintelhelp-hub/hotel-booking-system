@@ -29170,6 +29170,110 @@ app.get('/api/admin/attractions/:id', async (req, res) => {
     }
 });
 
+// AI Generate Attraction Details
+app.post('/api/admin/attractions/ai-generate', async (req, res) => {
+    try {
+        const { attraction_name, property_name, property_city } = req.body;
+        
+        if (!attraction_name) {
+            return res.json({ success: false, error: 'Attraction name required' });
+        }
+        
+        const prompt = `You are a local travel expert. Generate detailed information about this attraction for a vacation rental website.
+
+Attraction: ${attraction_name}
+${property_city ? `Location: Near ${property_city}` : ''}
+${property_name ? `For guests staying at: ${property_name}` : ''}
+
+Provide the following information in JSON format:
+{
+    "short_description": "1-2 sentence description for attraction cards (max 150 chars)",
+    "description": "2-3 paragraph detailed description mentioning why visitors/guests would enjoy it, what to expect, and practical tips. Mention the property name naturally if provided.",
+    "category": "One of: Museums & Galleries, Historic Sites, Parks & Gardens, Beaches, Entertainment, Shopping, Food & Drink, Sports & Activities, Nightlife, Family Fun",
+    "distance": "Estimated distance/time from city center, e.g. '10 min walk' or '2 miles'",
+    "address": "Full address if known, or best guess based on location",
+    "website": "Official website URL if known, otherwise leave empty",
+    "price_range": "One of: Free, £, ££, £££",
+    "duration": "Typical visit duration, e.g. '1-2 hours'",
+    "meta_title": "SEO title under 60 characters",
+    "meta_description": "SEO description under 160 characters",
+    "faq": [
+        {"question": "Common question about this attraction?", "answer": "Helpful answer"},
+        {"question": "Another question visitors often ask?", "answer": "Detailed answer"},
+        {"question": "Third common question?", "answer": "Practical answer"}
+    ]
+}
+
+Be accurate and helpful. If you're not certain about specific details like address or website, provide reasonable estimates or leave those fields empty.`;
+
+        const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: prompt }]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
+        });
+        
+        const responseText = claudeResponse.data.content[0].text;
+        
+        // Parse JSON response
+        let attractionData;
+        try {
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                attractionData = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('No JSON found');
+            }
+        } catch (parseError) {
+            console.error('Parse error:', parseError);
+            return res.json({ success: false, error: 'Failed to parse AI response' });
+        }
+        
+        // Build FAQ schema if FAQs provided
+        let faqSchema = null;
+        if (attractionData.faq && attractionData.faq.length > 0) {
+            faqSchema = {
+                "@context": "https://schema.org",
+                "@type": "FAQPage",
+                "mainEntity": attractionData.faq.map(item => ({
+                    "@type": "Question",
+                    "name": item.question,
+                    "acceptedAnswer": {
+                        "@type": "Answer",
+                        "text": item.answer
+                    }
+                }))
+            };
+        }
+        
+        res.json({
+            success: true,
+            attraction: {
+                short_description: attractionData.short_description,
+                description: attractionData.description,
+                category: attractionData.category,
+                distance: attractionData.distance,
+                address: attractionData.address,
+                website: attractionData.website,
+                price_range: attractionData.price_range,
+                duration: attractionData.duration,
+                meta_title: attractionData.meta_title,
+                meta_description: attractionData.meta_description,
+                faq_schema: faqSchema
+            }
+        });
+        
+    } catch (error) {
+        console.error('AI attraction generate error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Create attraction
 app.post('/api/admin/attractions', async (req, res) => {
     try {
