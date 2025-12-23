@@ -6530,28 +6530,36 @@
                     </div>
                 </div>
 
-                <!-- Tabs -->
-                <div style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
-                    <button class="attraction-tab active" data-tab="suggestions" onclick="switchAttractionTab('suggestions')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 600; color: #f59e0b; border-bottom: 2px solid #f59e0b; margin-bottom: -2px; cursor: pointer;">
-                        💡 Suggestions <span id="attraction-count-suggestions" style="background: #fef3c7; color: #b45309; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                <!-- Tabs - matching Blog pattern -->
+                <div style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; overflow-x: auto;">
+                    <button class="attraction-tab" data-tab="ideas" onclick="switchAttractionTab('ideas')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 600; color: #f59e0b; border-bottom: 2px solid #f59e0b; margin-bottom: -2px; cursor: pointer; white-space: nowrap;">
+                        💡 Ideas <span id="attraction-count-ideas" style="background: #fef3c7; color: #b45309; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
                     </button>
-                    <button class="attraction-tab" data-tab="published" onclick="switchAttractionTab('published')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">
+                    <button class="attraction-tab" data-tab="drafts" onclick="switchAttractionTab('drafts')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
+                        📝 Drafts <span id="attraction-count-drafts" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
+                    <button class="attraction-tab" data-tab="published" onclick="switchAttractionTab('published')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
                         ✅ Published <span id="attraction-count-published" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
                     </button>
                 </div>
 
                 <!-- Tab Content -->
                 <div id="attraction-tab-content">
-                    <!-- Suggestions Tab -->
-                    <div id="attraction-tab-suggestions" class="attraction-tab-panel">
-                        <div id="attraction-suggestions-list">
+                    <!-- Ideas Tab -->
+                    <div id="attraction-tab-ideas" class="attraction-tab-panel">
+                        <div id="attraction-ideas-list">
                             <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                                 <div style="font-size: 4rem; margin-bottom: 1rem;">🎯</div>
-                                <h3 style="margin-bottom: 0.5rem;">No attraction suggestions yet</h3>
+                                <h3 style="margin-bottom: 0.5rem;">No attraction ideas yet</h3>
                                 <p style="margin-bottom: 1rem;">Get AI suggestions for local places near your property</p>
                                 <button class="btn" onclick="openAttractionIdeasWizard()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">🤖 Suggest Places</button>
                             </div>
                         </div>
+                    </div>
+                    
+                    <!-- Drafts Tab -->
+                    <div id="attraction-tab-drafts" class="attraction-tab-panel" style="display: none;">
+                        <div id="attraction-drafts-list"></div>
                     </div>
                     
                     <!-- Published Tab -->
@@ -29769,12 +29777,12 @@ Local honey and preserves"></textarea>
         }
         
         // =====================================================
-        // ATTRACTIONS APP FUNCTIONS (with Suggestions, Published tabs)
+        // ATTRACTIONS APP FUNCTIONS (with Ideas, Drafts, Published tabs)
         // =====================================================
         
-        let attractionSuggestions = [];
-        let publishedAttractions = [];
-        let currentAttractionTab = 'suggestions';
+        let attractionIdeas = [];
+        let attractions = { drafts: [], published: [] };
+        let currentAttractionTab = 'ideas';
         let selectedAttractionCategory = '';
         
         function switchAttractionTab(tab) {
@@ -29807,10 +29815,10 @@ Local honey and preserves"></textarea>
             const propertyId = document.getElementById('attractions-property-select')?.value || '';
             const clientId = getClientId();
             
-            if (currentAttractionTab === 'suggestions') {
-                await loadAttractionSuggestions(propertyId, clientId);
+            if (currentAttractionTab === 'ideas') {
+                await loadAttractionIdeas(propertyId, clientId);
             } else {
-                await loadPublishedAttractions(propertyId, clientId);
+                await loadAttractions(propertyId, clientId);
             }
             
             updateAttractionCounts(propertyId, clientId);
@@ -29840,7 +29848,7 @@ Local honey and preserves"></textarea>
             }
         }
         
-        async function loadAttractionSuggestions(propertyId, clientId) {
+        async function loadAttractionIdeas(propertyId, clientId) {
             try {
                 const params = [];
                 if (clientId) params.push(`client_id=${clientId}`);
@@ -29852,21 +29860,21 @@ Local honey and preserves"></textarea>
                 const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
                 
-                attractionSuggestions = data.ideas || [];
-                renderAttractionSuggestions();
+                attractionIdeas = data.ideas || [];
+                renderAttractionIdeas();
             } catch (error) {
-                console.error('Error loading attraction suggestions:', error);
+                console.error('Error loading attraction ideas:', error);
             }
         }
         
-        function renderAttractionSuggestions() {
-            const container = document.getElementById('attraction-suggestions-list');
+        function renderAttractionIdeas() {
+            const container = document.getElementById('attraction-ideas-list');
             if (!container) return;
             
             const searchQuery = document.getElementById('attractions-search')?.value?.toLowerCase() || '';
-            let filtered = attractionSuggestions;
+            let filtered = attractionIdeas;
             if (searchQuery) {
-                filtered = attractionSuggestions.filter(s => 
+                filtered = attractionIdeas.filter(s => 
                     s.title?.toLowerCase().includes(searchQuery) ||
                     s.description?.toLowerCase().includes(searchQuery)
                 );
@@ -29876,7 +29884,7 @@ Local honey and preserves"></textarea>
                 container.innerHTML = `
                     <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                         <div style="font-size: 4rem; margin-bottom: 1rem;">🎯</div>
-                        <h3 style="margin-bottom: 0.5rem;">No attraction suggestions yet</h3>
+                        <h3 style="margin-bottom: 0.5rem;">No attraction ideas yet</h3>
                         <p style="margin-bottom: 1rem;">Get AI suggestions for local places near your property</p>
                         <button class="btn" onclick="openAttractionIdeasWizard()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">🤖 Suggest Places</button>
                     </div>
@@ -29889,16 +29897,16 @@ Local honey and preserves"></textarea>
                     ${filtered.map(s => `
                         <div class="card" style="padding: 1.25rem; border-left: 4px solid #f59e0b;">
                             <span style="background: #fef3c7; color: #b45309; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
-                                🎯 Suggestion
+                                💡 Idea
                             </span>
                             <h4 style="margin: 0.75rem 0 0.5rem; font-size: 1rem; line-height: 1.4;">${escapeHtml(s.title)}</h4>
                             ${s.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem; line-height: 1.4;">${escapeHtml(s.description.substring(0, 100))}${s.description.length > 100 ? '...' : ''}</p>` : ''}
                             ${s.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;">📍 ${escapeHtml(s.property_name)}</p>` : ''}
                             <div style="display: flex; gap: 0.5rem;">
-                                <button class="btn btn-small" onclick="createAttractionFromSuggestion(${s.id})" style="flex: 1; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                                <button class="btn btn-small" onclick="createAttractionFromIdea(${s.id})" style="flex: 1; background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
                                     ✨ Add This Place
                                 </button>
-                                <button class="btn btn-small" onclick="dismissAttractionSuggestion(${s.id})" style="background: #fee2e2; color: #dc2626; border: none;">
+                                <button class="btn btn-small" onclick="dismissAttractionIdea(${s.id})" style="background: #fee2e2; color: #dc2626; border: none;">
                                     🗑️
                                 </button>
                             </div>
@@ -29908,7 +29916,7 @@ Local honey and preserves"></textarea>
             `;
         }
         
-        async function loadPublishedAttractions(propertyId, clientId) {
+        async function loadAttractions(propertyId, clientId) {
             try {
                 let url = '/api/admin/attractions';
                 const params = [];
@@ -29919,32 +29927,42 @@ Local honey and preserves"></textarea>
                 const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
                 
-                publishedAttractions = data.attractions || [];
-                renderPublishedAttractions();
+                if (data.success && data.attractions) {
+                    attractions.drafts = data.attractions.filter(a => !a.is_published);
+                    attractions.published = data.attractions.filter(a => a.is_published);
+                }
+                
+                renderAttractions();
             } catch (error) {
                 console.error('Error loading attractions:', error);
             }
         }
         
-        function renderPublishedAttractions() {
-            const container = document.getElementById('attraction-published-list');
+        function renderAttractions() {
+            const items = attractions[currentAttractionTab] || [];
+            const container = document.getElementById(`attraction-${currentAttractionTab}-list`);
             if (!container) return;
             
             const searchQuery = document.getElementById('attractions-search')?.value?.toLowerCase() || '';
-            let filtered = publishedAttractions;
+            let filtered = items;
             if (searchQuery) {
-                filtered = publishedAttractions.filter(a => 
+                filtered = items.filter(a => 
                     a.name?.toLowerCase().includes(searchQuery) ||
                     a.description?.toLowerCase().includes(searchQuery)
                 );
             }
             
             if (!filtered.length) {
+                const messages = {
+                    drafts: { icon: '📝', title: 'No drafts', desc: 'Attractions you\'re working on will appear here' },
+                    published: { icon: '✅', title: 'No published attractions', desc: 'Your live attractions will appear here' }
+                };
+                const msg = messages[currentAttractionTab] || messages.drafts;
                 container.innerHTML = `
                     <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">✅</div>
-                        <h3 style="margin-bottom: 0.5rem;">No attractions added yet</h3>
-                        <p>Your published attractions will appear here</p>
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">${msg.icon}</div>
+                        <h3 style="margin-bottom: 0.5rem;">${msg.title}</h3>
+                        <p>${msg.desc}</p>
                     </div>
                 `;
                 return;
@@ -29971,7 +29989,8 @@ Local honey and preserves"></textarea>
                                     <td>${escapeHtml(a.property_name || '-')}</td>
                                     <td>
                                         <button class="btn btn-small btn-secondary" onclick="editAttraction(${a.id})">Edit</button>
-                                        <button class="btn btn-small" onclick="deleteAttractionById(${a.id})" style="background: #fee2e2; color: #dc2626;">Delete</button>
+                                        ${currentAttractionTab === 'drafts' ? `<button class="btn btn-small" onclick="publishAttraction(${a.id})" style="background: #10b981;">Publish</button>` : ''}
+                                        <button class="btn btn-small" onclick="deleteAttractionById(${a.id})" style="background: #ef4444;">Delete</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -29981,16 +30000,8 @@ Local honey and preserves"></textarea>
             `;
         }
         
-        function filterAttractions() {
-            if (currentAttractionTab === 'suggestions') {
-                renderAttractionSuggestions();
-            } else {
-                renderPublishedAttractions();
-            }
-        }
-        
         async function updateAttractionCounts(propertyId, clientId) {
-            // Suggestions count
+            // Ideas count
             try {
                 const params = [];
                 if (clientId) params.push(`client_id=${clientId}`);
@@ -29998,13 +30009,49 @@ Local honey and preserves"></textarea>
                 params.push('content_type=attraction');
                 params.push('status=active');
                 
-                const res = await fetch('/api/admin/content-ideas?' + params.join('&'), { headers: authHeaders() });
-                const data = await res.json();
-                document.getElementById('attraction-count-suggestions').textContent = data.ideas?.length || 0;
+                const ideasRes = await fetch('/api/admin/content-ideas?' + params.join('&'), { headers: authHeaders() });
+                const ideasData = await ideasRes.json();
+                document.getElementById('attraction-count-ideas').textContent = ideasData.ideas?.length || 0;
             } catch (e) {}
             
-            // Published count
-            document.getElementById('attraction-count-published').textContent = publishedAttractions?.length || 0;
+            // Attractions counts - always fetch fresh
+            try {
+                let url = '/api/admin/attractions';
+                const params = [];
+                if (clientId) params.push(`client_id=${clientId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                if (params.length > 0) url += '?' + params.join('&');
+                
+                const response = await fetch(url, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.attractions) {
+                    attractions.drafts = data.attractions.filter(a => !a.is_published);
+                    attractions.published = data.attractions.filter(a => a.is_published);
+                }
+                
+                document.getElementById('attraction-count-drafts').textContent = attractions.drafts?.length || 0;
+                document.getElementById('attraction-count-published').textContent = attractions.published?.length || 0;
+            } catch (e) {
+                console.error('Error updating attraction counts:', e);
+            }
+        }
+        
+        function filterAttractions() {
+            if (currentAttractionTab === 'ideas') {
+                renderAttractionIdeas();
+            } else {
+                renderAttractions();
+            }
+        }
+        
+        // Alias functions for compatibility
+        async function createAttractionFromIdea(ideaId) {
+            await createAttractionFromSuggestion(ideaId);
+        }
+        
+        async function dismissAttractionIdea(ideaId) {
+            await dismissAttractionSuggestion(ideaId);
         }
         
         // Attraction Ideas Wizard
@@ -30131,7 +30178,7 @@ Local honey and preserves"></textarea>
         
         async function createAttractionFromSuggestion(ideaId) {
             // Find in suggestions or fetch
-            let suggestion = attractionSuggestions.find(s => s.id === ideaId);
+            let suggestion = attractionIdeas.find(s => s.id === ideaId);
             
             if (!suggestion) {
                 // May have just been generated, fetch it
@@ -30191,6 +30238,25 @@ Local honey and preserves"></textarea>
                 }
             } catch (e) {
                 console.error('Error deleting attraction:', e);
+            }
+        }
+        
+        async function publishAttraction(id) {
+            try {
+                const response = await fetch(`/api/admin/attractions/${id}/publish`, {
+                    method: 'PUT',
+                    headers: { ...authHeaders(), 'Content-Type': 'application/json' }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Attraction published!', 'success');
+                    loadAttractionsByTab();
+                } else {
+                    showNotification('Error publishing: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Error publishing:', error);
+                showNotification('Error publishing attraction', 'error');
             }
         }
         
