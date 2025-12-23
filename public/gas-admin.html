@@ -6545,65 +6545,6 @@
                 </div>
             </div>
 
-            <!-- Generate Ideas Modal -->
-            <div id="generate-ideas-modal" class="modal" style="display: none;">
-                <div class="modal-content" style="max-width: 600px;">
-                    <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                        <h3 style="margin: 0; color: white;">🤖 Generate Content Ideas</h3>
-                    </div>
-                    <div class="modal-body" style="padding: 1.5rem;">
-                        <div class="form-group">
-                            <label class="form-label">Property <span style="color: #ef4444;">*</span></label>
-                            <select id="generate-ideas-property" class="form-select">
-                                <option value="">Select a property...</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Content Type <span style="color: #ef4444;">*</span></label>
-                            <select id="generate-ideas-type" class="form-select">
-                                <option value="blog">📰 Blog Post Ideas</option>
-                                <option value="property">🏠 Property Page Content</option>
-                                <option value="seo">📊 SEO Content Ideas</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Category (for blogs)</label>
-                            <select id="generate-ideas-category" class="form-select">
-                                <option value="things-to-do">🎯 Things to Do</option>
-                                <option value="food-dining">🍽️ Food & Dining</option>
-                                <option value="events">🎉 Events & Festivals</option>
-                                <option value="travel-tips">✈️ Travel Tips</option>
-                                <option value="local-guide">📍 Local Guide</option>
-                                <option value="seasonal">🌸 Seasonal Content</option>
-                            </select>
-                        </div>
-                        
-                        <div class="form-group">
-                            <label class="form-label">Number of Ideas</label>
-                            <select id="generate-ideas-count" class="form-select">
-                                <option value="5">5 Ideas</option>
-                                <option value="10" selected>10 Ideas</option>
-                                <option value="15">15 Ideas</option>
-                            </select>
-                        </div>
-                        
-                        <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem; margin-top: 1rem;">
-                            <p style="margin: 0; font-size: 0.875rem; color: #166534;">
-                                💡 AI will analyze your property and generate targeted content ideas based on location, amenities, and audience.
-                            </p>
-                        </div>
-                    </div>
-                    <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
-                        <button class="btn btn-secondary" onclick="closeGenerateIdeasModal()">Cancel</button>
-                        <button class="btn" id="generate-ideas-btn" onclick="submitGenerateIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                            🤖 Generate Ideas
-                        </button>
-                    </div>
-                </div>
-            </div>
-
             <!-- Attractions App View -->
             <div id="app-attractions" class="view">
                 <div class="header">
@@ -10095,6 +10036,66 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Generate Content Ideas Modal -->
+    <div id="generate-ideas-modal" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 style="margin: 0; color: white;">🤖 Generate Content Ideas</h3>
+                <button class="modal-close" onclick="closeGenerateIdeasModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Property <span style="color: #ef4444;">*</span></label>
+                    <select id="generate-ideas-property" class="form-input" style="width: 100%;">
+                        <option value="">Select a property...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Content Type <span style="color: #ef4444;">*</span></label>
+                    <select id="generate-ideas-type" class="form-input" style="width: 100%;">
+                        <option value="blog">📰 Blog Post Ideas</option>
+                        <option value="property">🏠 Property Page Content</option>
+                        <option value="seo">📊 SEO Content Ideas</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Category (for blogs)</label>
+                    <select id="generate-ideas-category" class="form-input" style="width: 100%;">
+                        <option value="things-to-do">🎯 Things to Do</option>
+                        <option value="food-dining">🍽️ Food & Dining</option>
+                        <option value="events">🎉 Events & Festivals</option>
+                        <option value="travel-tips">✈️ Travel Tips</option>
+                        <option value="local-guide">📍 Local Guide</option>
+                        <option value="seasonal">🌸 Seasonal Content</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" style="margin-bottom: 1rem;">
+                    <label class="form-label">Number of Ideas</label>
+                    <select id="generate-ideas-count" class="form-input" style="width: 100%;">
+                        <option value="5">5 Ideas</option>
+                        <option value="10" selected>10 Ideas</option>
+                        <option value="15">15 Ideas</option>
+                    </select>
+                </div>
+                
+                <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem;">
+                    <p style="margin: 0; font-size: 0.875rem; color: #166534;">
+                        💡 AI will analyze your property and generate targeted content ideas based on location, amenities, and audience.
+                    </p>
+                </div>
+            </div>
+            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                <button class="btn btn-secondary" onclick="closeGenerateIdeasModal()">Cancel</button>
+                <button class="btn" id="generate-ideas-btn" onclick="submitGenerateIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+                    🤖 Generate Ideas
+                </button>
             </div>
         </div>
     </div>
@@ -29102,15 +29103,12 @@ Local honey and preserves"></textarea>
                 const propertyId = document.getElementById('ideas-property-select')?.value || '';
                 const contentType = document.getElementById('ideas-type-select')?.value || '';
                 const status = document.getElementById('ideas-status-select')?.value || 'active';
-                const clientId = getClientId();
                 
-                let url = '/api/admin/content-ideas';
-                const params = [];
-                if (clientId) params.push(`client_id=${clientId}`);
-                if (propertyId) params.push(`property_id=${propertyId}`);
-                if (contentType) params.push(`content_type=${contentType}`);
-                if (status) params.push(`status=${status}`);
-                if (params.length > 0) url += '?' + params.join('&');
+                // Use buildQueryString for consistent client filtering
+                let url = '/api/admin/content-ideas' + buildQueryString();
+                if (propertyId) url += `&property_id=${propertyId}`;
+                if (contentType) url += `&content_type=${contentType}`;
+                if (status) url += `&status=${status}`;
                 
                 const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
@@ -29130,26 +29128,30 @@ Local honey and preserves"></textarea>
             const generateSelect = document.getElementById('generate-ideas-property');
             if (!select) return;
             
-            const clientId = getClientId();
-            let url = '/api/admin/properties';
-            if (clientId) url += `?client_id=${clientId}`;
-            
             try {
-                const response = await fetch(url, { headers: authHeaders() });
+                const queryString = buildQueryString();
+                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
                 
-                const options = '<option value="">All Properties</option>' + 
-                    (data.properties || []).map(p => 
-                        `<option value="${p.id}">${escapeHtml(p.name)}</option>`
-                    ).join('');
+                const currentValue = select.value;
+                select.innerHTML = '<option value="">All Properties</option>';
                 
-                select.innerHTML = options;
+                if (data.success && data.data) {
+                    data.data.forEach(p => {
+                        select.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+                    });
+                }
                 
+                if (currentValue) select.value = currentValue;
+                
+                // Also populate generate modal select
                 if (generateSelect) {
-                    generateSelect.innerHTML = '<option value="">Select a property...</option>' + 
-                        (data.properties || []).map(p => 
-                            `<option value="${p.id}">${escapeHtml(p.name)}</option>`
-                        ).join('');
+                    generateSelect.innerHTML = '<option value="">Select a property...</option>';
+                    if (data.success && data.data) {
+                        data.data.forEach(p => {
+                            generateSelect.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
+                        });
+                    }
                 }
             } catch (error) {
                 console.error('Error loading properties for ideas:', error);
@@ -29244,8 +29246,9 @@ Local honey and preserves"></textarea>
         }
         
         function generateContentIdeas() {
-            loadIdeasPropertySelect();
+            // Show modal first, then load properties
             document.getElementById('generate-ideas-modal').style.display = 'flex';
+            loadIdeasPropertySelect();
         }
         
         function closeGenerateIdeasModal() {
