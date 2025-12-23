@@ -1675,11 +1675,6 @@
                         <span>Blog</span>
                         <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
                     </a>
-                    <a class="nav-item" data-view="app-content-ideas" data-requires-feature="blog_module" href="#" onclick="return handleFeatureClick(this, 'app-content-ideas', 'blog_module');">
-                        <span class="nav-icon">💡</span>
-                        <span>Content Ideas</span>
-                        <span class="feature-lock" style="display:none; margin-left: auto; font-size: 0.75rem;">🔒</span>
-                    </a>
                     <a class="nav-item" data-view="app-attractions" data-requires-feature="attractions_module" href="#" onclick="return handleFeatureClick(this, 'app-attractions', 'attractions_module');">
                         <span class="nav-icon">🎯</span>
                         <span>Attractions</span>
@@ -6436,107 +6431,72 @@
                     <div class="header-top">
                         <div>
                             <h2>📝 Blog</h2>
-                            <p>Manage your blog posts and articles</p>
+                            <p>Create and manage blog posts for your properties</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="openAiBlogModalFromBlog()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 AI Generate</button>
-                            <button class="btn" onclick="openBlogModal()">+ New Post</button>
+                            <button class="btn" onclick="openBlogIdeasWizard()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Get Ideas</button>
+                            <button class="btn" onclick="openBlogEditor()">+ New Post</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Property Selector -->
-                <div class="card" style="margin-bottom: 1rem;">
-                    <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property / Website</label>
-                            <select id="blog-property-select" class="form-input" onchange="loadAppBlogPosts()">
-                                <option value="">All Properties</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card">
-                    <div id="app-blog-posts-list">
-                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                            <div style="font-size: 4rem; margin-bottom: 1rem;">📝</div>
-                            <h3 style="margin-bottom: 0.5rem;">No blog posts yet</h3>
-                            <p>Create your first blog post to engage your guests</p>
-                            <button class="btn" style="margin-top: 1rem;" onclick="openBlogModal()">Create Your First Post</button>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Content Ideas App View -->
-            <div id="app-content-ideas" class="view">
-                <div class="header">
-                    <div class="header-top">
-                        <div>
-                            <h2>💡 Content Ideas</h2>
-                            <p>AI-generated blog & attraction ideas for your properties</p>
-                        </div>
-                        <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="generateContentIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 Generate New Ideas</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- How It Works -->
-                <div class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #7dd3fc;">
-                    <div style="padding: 1rem;">
-                        <h4 style="margin: 0 0 0.5rem 0; color: #0369a1;">📋 How It Works</h4>
-                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.875rem; color: #0c4a6e;">
-                            <div><strong>1.</strong> Click "Generate New Ideas" and select a property</div>
-                            <div><strong>2.</strong> Choose: Blog ideas OR Attraction ideas</div>
-                            <div><strong>3.</strong> Click "Create Blog" or "Create Attraction" on any idea</div>
-                            <div><strong>4.</strong> Ideas auto-move to "Used" when saved</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Tabs: Ready / Used -->
-                <div style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
-                    <button id="ideas-tab-ready" onclick="switchIdeasTab('active')" style="padding: 0.75rem 1.5rem; border: none; background: none; font-weight: 600; color: #10b981; border-bottom: 2px solid #10b981; margin-bottom: -2px; cursor: pointer;">
-                        📝 Ready to Use (<span id="ideas-count-ready">0</span>)
-                    </button>
-                    <button id="ideas-tab-used" onclick="switchIdeasTab('used')" style="padding: 0.75rem 1.5rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">
-                        ✅ Already Used (<span id="ideas-count-used">0</span>)
-                    </button>
-                </div>
-
-                <!-- Filters Row -->
+                <!-- Property Filter -->
                 <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 180px;">
-                            <select id="ideas-property-select" class="form-input" onchange="loadContentIdeas()">
+                        <div style="flex: 1; min-width: 200px;">
+                            <select id="blog-property-select" class="form-input" onchange="loadBlogByTab()">
                                 <option value="">All Properties</option>
-                            </select>
-                        </div>
-                        <div style="flex: 1; min-width: 150px;">
-                            <select id="ideas-type-select" class="form-input" onchange="loadContentIdeas()">
-                                <option value="">All Types</option>
-                                <option value="blog">📝 Blog Ideas</option>
-                                <option value="attraction">🎯 Attraction Ideas</option>
                             </select>
                         </div>
                         <div style="flex: 2; min-width: 200px;">
-                            <input type="text" id="ideas-search" class="form-input" placeholder="🔍 Search ideas..." oninput="filterContentIdeas()">
+                            <input type="text" id="blog-search" class="form-input" placeholder="🔍 Search posts..." oninput="filterBlogPosts()">
                         </div>
                     </div>
                 </div>
-                
-                <!-- Hidden status for JS -->
-                <input type="hidden" id="ideas-status-select" value="active">
 
-                <!-- Ideas List -->
-                <div id="content-ideas-list">
-                    <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">💡</div>
-                        <h3 style="margin-bottom: 0.5rem;">No content ideas yet</h3>
-                        <p style="margin-bottom: 1rem;">Generate AI-powered blog and attraction ideas for your properties</p>
-                        <button class="btn" onclick="generateContentIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 Generate Ideas</button>
+                <!-- Tabs -->
+                <div style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb; overflow-x: auto;">
+                    <button class="blog-tab active" data-tab="ideas" onclick="switchBlogTab('ideas')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 600; color: #8b5cf6; border-bottom: 2px solid #8b5cf6; margin-bottom: -2px; cursor: pointer; white-space: nowrap;">
+                        💡 Ideas <span id="blog-count-ideas" style="background: #ede9fe; color: #7c3aed; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
+                    <button class="blog-tab" data-tab="drafts" onclick="switchBlogTab('drafts')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
+                        📝 Drafts <span id="blog-count-drafts" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
+                    <button class="blog-tab" data-tab="scheduled" onclick="switchBlogTab('scheduled')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
+                        📅 Scheduled <span id="blog-count-scheduled" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
+                    <button class="blog-tab" data-tab="published" onclick="switchBlogTab('published')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
+                        ✅ Published <span id="blog-count-published" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
+                </div>
+
+                <!-- Tab Content -->
+                <div id="blog-tab-content">
+                    <!-- Ideas Tab (default) -->
+                    <div id="blog-tab-ideas" class="blog-tab-panel">
+                        <div id="blog-ideas-list">
+                            <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <div style="font-size: 4rem; margin-bottom: 1rem;">💡</div>
+                                <h3 style="margin-bottom: 0.5rem;">No blog ideas yet</h3>
+                                <p style="margin-bottom: 1rem;">Get AI-powered blog topic suggestions for your property</p>
+                                <button class="btn" onclick="openBlogIdeasWizard()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Get Ideas</button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Drafts Tab -->
+                    <div id="blog-tab-drafts" class="blog-tab-panel" style="display: none;">
+                        <div id="blog-drafts-list"></div>
+                    </div>
+                    
+                    <!-- Scheduled Tab -->
+                    <div id="blog-tab-scheduled" class="blog-tab-panel" style="display: none;">
+                        <div id="blog-scheduled-list"></div>
+                    </div>
+                    
+                    <!-- Published Tab -->
+                    <div id="blog-tab-published" class="blog-tab-panel" style="display: none;">
+                        <div id="blog-published-list"></div>
                     </div>
                 </div>
             </div>
@@ -6547,32 +6507,56 @@
                     <div class="header-top">
                         <div>
                             <h2>🎯 Attractions</h2>
-                            <p>Manage local attractions and things to do</p>
+                            <p>Local attractions and things to do near your properties</p>
                         </div>
-                        <button class="btn" onclick="openAttractionModal()">+ Add Attraction</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="openAttractionIdeasWizard()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">🤖 Suggest Places</button>
+                            <button class="btn" onclick="openAttractionModal()">+ Add Attraction</button>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Property Selector -->
-                <div class="card" style="margin-bottom: 1rem;">
+                <!-- Property Filter -->
+                <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
                         <div style="flex: 1; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property / Website</label>
-                            <select id="attractions-property-select" class="form-input" onchange="loadAppAttractions()">
+                            <select id="attractions-property-select" class="form-input" onchange="loadAttractionsByTab()">
                                 <option value="">All Properties</option>
                             </select>
                         </div>
+                        <div style="flex: 2; min-width: 200px;">
+                            <input type="text" id="attractions-search" class="form-input" placeholder="🔍 Search attractions..." oninput="filterAttractions()">
+                        </div>
                     </div>
                 </div>
 
-                <div class="card">
-                    <div id="app-attractions-list">
-                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                            <div style="font-size: 4rem; margin-bottom: 1rem;">🎯</div>
-                            <h3 style="margin-bottom: 0.5rem;">No attractions yet</h3>
-                            <p>Add local attractions to help guests explore the area</p>
-                            <button class="btn" style="margin-top: 1rem;" onclick="openAttractionModal()">Add Your First Attraction</button>
+                <!-- Tabs -->
+                <div style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
+                    <button class="attraction-tab active" data-tab="suggestions" onclick="switchAttractionTab('suggestions')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 600; color: #f59e0b; border-bottom: 2px solid #f59e0b; margin-bottom: -2px; cursor: pointer;">
+                        💡 Suggestions <span id="attraction-count-suggestions" style="background: #fef3c7; color: #b45309; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
+                    <button class="attraction-tab" data-tab="published" onclick="switchAttractionTab('published')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">
+                        ✅ Published <span id="attraction-count-published" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
+                </div>
+
+                <!-- Tab Content -->
+                <div id="attraction-tab-content">
+                    <!-- Suggestions Tab -->
+                    <div id="attraction-tab-suggestions" class="attraction-tab-panel">
+                        <div id="attraction-suggestions-list">
+                            <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                                <div style="font-size: 4rem; margin-bottom: 1rem;">🎯</div>
+                                <h3 style="margin-bottom: 0.5rem;">No attraction suggestions yet</h3>
+                                <p style="margin-bottom: 1rem;">Get AI suggestions for local places near your property</p>
+                                <button class="btn" onclick="openAttractionIdeasWizard()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">🤖 Suggest Places</button>
+                            </div>
                         </div>
+                    </div>
+                    
+                    <!-- Published Tab -->
+                    <div id="attraction-tab-published" class="attraction-tab-panel" style="display: none;">
+                        <div id="attraction-published-list"></div>
                     </div>
                 </div>
             </div>
@@ -10036,78 +10020,211 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
-    <!-- Generate Content Ideas Modal -->
-    <div id="generate-ideas-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 550px; border-radius: 16px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
-                <h3 style="margin: 0; color: white;">🤖 Generate Content Ideas</h3>
-                <button class="modal-close" onclick="closeGenerateIdeasModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
+    <!-- Blog Ideas Wizard Modal -->
+    <div id="blog-ideas-wizard" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 style="margin: 0; color: white;">🤖 Get Blog Ideas</h3>
+                <button class="modal-close" onclick="closeBlogIdeasWizard()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 1.5rem;">
                 <!-- Step 1: Property -->
-                <div class="form-group" style="margin-bottom: 1.25rem;">
-                    <label class="form-label" style="font-weight: 600;">Step 1: Select Property <span style="color: #ef4444;">*</span></label>
-                    <select id="generate-ideas-property" class="form-input" style="width: 100%;">
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="font-weight: 600; font-size: 1rem;">Step 1: Select Property <span style="color: #ef4444;">*</span></label>
+                    <select id="blog-wizard-property" class="form-input" style="width: 100%;" onchange="updateBlogWizardSubcategories()">
                         <option value="">Choose a property...</option>
                     </select>
                 </div>
                 
-                <!-- Step 2: Content Type -->
-                <div class="form-group" style="margin-bottom: 1.25rem;">
-                    <label class="form-label" style="font-weight: 600;">Step 2: What do you want to create? <span style="color: #ef4444;">*</span></label>
+                <!-- Step 2: Category -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="font-weight: 600; font-size: 1rem;">Step 2: Blog Category <span style="color: #ef4444;">*</span></label>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
-                        <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer; transition: all 0.2s;" onclick="selectIdeaType('blog')">
-                            <input type="radio" name="idea-type" value="blog" id="idea-type-blog" style="margin-right: 0.75rem;" checked>
+                        <label class="wizard-option" onclick="selectBlogCategory('attractions')" style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer;">
+                            <input type="radio" name="blog-category" value="attractions" style="margin-right: 0.75rem;">
                             <div>
-                                <div style="font-size: 1.5rem;">📝</div>
-                                <div style="font-weight: 600;">Blog Ideas</div>
-                                <div style="font-size: 0.75rem; color: #6b7280;">Article topics for your blog</div>
+                                <div style="font-size: 1.25rem;">🏛️</div>
+                                <div style="font-weight: 600;">Attractions & Places</div>
                             </div>
                         </label>
-                        <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer; transition: all 0.2s;" onclick="selectIdeaType('attraction')">
-                            <input type="radio" name="idea-type" value="attraction" id="idea-type-attraction" style="margin-right: 0.75rem;">
+                        <label class="wizard-option" onclick="selectBlogCategory('events')" style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer;">
+                            <input type="radio" name="blog-category" value="events" style="margin-right: 0.75rem;">
                             <div>
-                                <div style="font-size: 1.5rem;">🎯</div>
-                                <div style="font-weight: 600;">Attraction Ideas</div>
-                                <div style="font-size: 0.75rem; color: #6b7280;">Local places to feature</div>
+                                <div style="font-size: 1.25rem;">🎉</div>
+                                <div style="font-weight: 600;">Events & What's On</div>
                             </div>
                         </label>
                     </div>
                 </div>
                 
-                <!-- Step 3: Category (for blogs) -->
-                <div id="idea-category-section" class="form-group" style="margin-bottom: 1.25rem;">
-                    <label class="form-label" style="font-weight: 600;">Step 3: Category</label>
-                    <select id="generate-ideas-category" class="form-input" style="width: 100%;">
-                        <option value="attractions">🏛️ Attractions & Places</option>
-                        <option value="events">🎉 Events & What's On</option>
-                        <option value="food-dining">🍽️ Food & Dining</option>
-                        <option value="travel-tips">✈️ Travel Tips</option>
-                        <option value="local-guide">📍 Local Guides</option>
+                <!-- Step 3: Subcategory -->
+                <div id="blog-wizard-subcategory-section" class="form-group" style="margin-bottom: 1.5rem; display: none;">
+                    <label class="form-label" style="font-weight: 600; font-size: 1rem;">Step 3: Specific Topic <span style="color: #ef4444;">*</span></label>
+                    <select id="blog-wizard-subcategory" class="form-input" style="width: 100%;">
+                        <option value="">Choose a topic...</option>
                     </select>
                 </div>
                 
-                <!-- Number of ideas -->
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label">Number of Ideas</label>
-                    <select id="generate-ideas-count" class="form-input" style="width: 100%;">
-                        <option value="5">5 Ideas</option>
-                        <option value="10" selected>10 Ideas</option>
-                    </select>
+                <!-- What You'll Get -->
+                <div id="blog-wizard-preview" style="display: none; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px; padding: 1rem;">
+                    <h4 style="margin: 0 0 0.5rem; color: #166534;">✨ What You'll Get:</h4>
+                    <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.875rem; color: #15803d;">
+                        <li>7-10 blog post title ideas</li>
+                        <li>Location-specific recommendations</li>
+                        <li>Click any idea to generate full article</li>
+                        <li>Meta tags + FAQ Schema included</li>
+                    </ul>
                 </div>
                 
-                <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 0.75rem; font-size: 0.875rem; color: #92400e;">
-                    💡 AI will create ideas based on your property's location and type
+                <!-- Loading State -->
+                <div id="blog-wizard-loading" style="display: none; text-align: center; padding: 2rem;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
+                    <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Generating Ideas...</div>
+                    <div style="color: #6b7280;">AI is analyzing your property location</div>
+                    <div style="margin-top: 1rem; width: 200px; height: 4px; background: #e5e7eb; border-radius: 2px; margin-left: auto; margin-right: auto; overflow: hidden;">
+                        <div style="width: 30%; height: 100%; background: linear-gradient(90deg, #8b5cf6, #7c3aed); border-radius: 2px; animation: loading-bar 1.5s infinite;"></div>
+                    </div>
+                </div>
+                
+                <!-- Results -->
+                <div id="blog-wizard-results" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0;">💡 Blog Ideas</h4>
+                        <button class="btn btn-small btn-secondary" onclick="resetBlogWizard()">← Back</button>
+                    </div>
+                    <div id="blog-wizard-ideas-list"></div>
                 </div>
             </div>
-            <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
-                <button class="btn btn-secondary" onclick="closeGenerateIdeasModal()">Cancel</button>
-                <button class="btn" id="generate-ideas-btn" onclick="submitGenerateIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
+            <div class="modal-footer" id="blog-wizard-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                <button class="btn btn-secondary" onclick="closeBlogIdeasWizard()">Cancel</button>
+                <button class="btn" id="blog-wizard-generate-btn" onclick="generateBlogIdeas()" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);" disabled>
                     🤖 Generate Ideas
                 </button>
             </div>
         </div>
     </div>
+    
+    <!-- Attraction Ideas Wizard Modal -->
+    <div id="attraction-ideas-wizard" class="modal" style="display: none;">
+        <div class="modal-content" style="max-width: 700px; border-radius: 16px;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+                <h3 style="margin: 0; color: white;">🤖 Suggest Local Places</h3>
+                <button class="modal-close" onclick="closeAttractionIdeasWizard()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
+            </div>
+            <div class="modal-body" style="padding: 1.5rem;">
+                <!-- Step 1: Property -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="font-weight: 600; font-size: 1rem;">Step 1: Select Property <span style="color: #ef4444;">*</span></label>
+                    <select id="attraction-wizard-property" class="form-input" style="width: 100%;">
+                        <option value="">Choose a property...</option>
+                    </select>
+                </div>
+                
+                <!-- Step 2: Category -->
+                <div class="form-group" style="margin-bottom: 1.5rem;">
+                    <label class="form-label" style="font-weight: 600; font-size: 1rem;">Step 2: What type of places? <span style="color: #ef4444;">*</span></label>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 0.5rem;">
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('museums')">
+                            <input type="radio" name="attraction-category" value="museums" style="display: none;">
+                            <span>🏛️ Museums</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('landmarks')">
+                            <input type="radio" name="attraction-category" value="landmarks" style="display: none;">
+                            <span>🏰 Landmarks</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('parks')">
+                            <input type="radio" name="attraction-category" value="parks" style="display: none;">
+                            <span>🌳 Parks</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('beaches')">
+                            <input type="radio" name="attraction-category" value="beaches" style="display: none;">
+                            <span>🏖️ Beaches</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('restaurants')">
+                            <input type="radio" name="attraction-category" value="restaurants" style="display: none;">
+                            <span>🍽️ Restaurants</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('cafes')">
+                            <input type="radio" name="attraction-category" value="cafes" style="display: none;">
+                            <span>☕ Cafes</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('nightlife')">
+                            <input type="radio" name="attraction-category" value="nightlife" style="display: none;">
+                            <span>🌃 Nightlife</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('shopping')">
+                            <input type="radio" name="attraction-category" value="shopping" style="display: none;">
+                            <span>🛍️ Shopping</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('nature')">
+                            <input type="radio" name="attraction-category" value="nature" style="display: none;">
+                            <span>🏞️ Nature</span>
+                        </label>
+                        <label class="wizard-option-small" onclick="selectAttractionCategory('family')">
+                            <input type="radio" name="attraction-category" value="family" style="display: none;">
+                            <span>👨‍👩‍👧 Family</span>
+                        </label>
+                    </div>
+                </div>
+                
+                <!-- Loading State -->
+                <div id="attraction-wizard-loading" style="display: none; text-align: center; padding: 2rem;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
+                    <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Finding Places...</div>
+                    <div style="color: #6b7280;">AI is searching for local attractions</div>
+                    <div style="margin-top: 1rem; width: 200px; height: 4px; background: #e5e7eb; border-radius: 2px; margin-left: auto; margin-right: auto; overflow: hidden;">
+                        <div style="width: 30%; height: 100%; background: linear-gradient(90deg, #f59e0b, #d97706); border-radius: 2px; animation: loading-bar 1.5s infinite;"></div>
+                    </div>
+                </div>
+                
+                <!-- Results -->
+                <div id="attraction-wizard-results" style="display: none;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h4 style="margin: 0;">🎯 Suggested Places</h4>
+                        <button class="btn btn-small btn-secondary" onclick="resetAttractionWizard()">← Back</button>
+                    </div>
+                    <div id="attraction-wizard-ideas-list"></div>
+                </div>
+            </div>
+            <div class="modal-footer" id="attraction-wizard-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
+                <button class="btn btn-secondary" onclick="closeAttractionIdeasWizard()">Cancel</button>
+                <button class="btn" id="attraction-wizard-generate-btn" onclick="generateAttractionIdeas()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);" disabled>
+                    🤖 Find Places
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <style>
+        .wizard-option-small {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0.75rem;
+            border: 2px solid #e5e7eb;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.875rem;
+        }
+        .wizard-option-small:hover {
+            border-color: #f59e0b;
+            background: #fffbeb;
+        }
+        .wizard-option-small.selected {
+            border-color: #f59e0b;
+            background: #fef3c7;
+        }
+        .wizard-option.selected {
+            border-color: #8b5cf6;
+            background: #ede9fe;
+        }
+        @keyframes loading-bar {
+            0% { transform: translateX(-100%); }
+            100% { transform: translateX(400%); }
+        }
+    </style>
+
 
     <!-- Deploy Site Modal -->
     <div id="deployModal" class="modal">
