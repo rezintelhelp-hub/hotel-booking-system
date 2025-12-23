@@ -6474,73 +6474,69 @@
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2>💡 Content Ideas Library</h2>
-                            <p>AI-generated content ideas for your properties - blogs, property pages, SEO content</p>
+                            <h2>💡 Content Ideas</h2>
+                            <p>AI-generated blog & attraction ideas for your properties</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="generateContentIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 Generate Ideas</button>
+                            <button class="btn" onclick="generateContentIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 Generate New Ideas</button>
                         </div>
                     </div>
                 </div>
 
-                <!-- Stats Cards -->
-                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
-                    <div class="card" style="text-align: center; padding: 1.5rem;">
-                        <div id="ideas-stat-ready" style="font-size: 2rem; font-weight: bold; color: #10b981;">0</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Ready to Use</div>
-                    </div>
-                    <div class="card" style="text-align: center; padding: 1.5rem;">
-                        <div id="ideas-stat-used" style="font-size: 2rem; font-weight: bold; color: #6b7280;">0</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Already Used</div>
-                    </div>
-                    <div class="card" style="text-align: center; padding: 1.5rem;">
-                        <div id="ideas-stat-total" style="font-size: 2rem; font-weight: bold; color: #8b5cf6;">0</div>
-                        <div style="color: var(--text-secondary); font-size: 0.875rem;">Total Ideas</div>
+                <!-- How It Works -->
+                <div class="card" style="margin-bottom: 1rem; background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border: 1px solid #7dd3fc;">
+                    <div style="padding: 1rem;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #0369a1;">📋 How It Works</h4>
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; font-size: 0.875rem; color: #0c4a6e;">
+                            <div><strong>1.</strong> Click "Generate New Ideas" and select a property</div>
+                            <div><strong>2.</strong> Choose: Blog ideas OR Attraction ideas</div>
+                            <div><strong>3.</strong> Click "Create Blog" or "Create Attraction" on any idea</div>
+                            <div><strong>4.</strong> Ideas auto-move to "Used" when saved</div>
+                        </div>
                     </div>
                 </div>
 
-                <!-- Filters -->
-                <div class="card" style="margin-bottom: 1rem;">
+                <!-- Tabs: Ready / Used -->
+                <div style="display: flex; gap: 0; margin-bottom: 1rem; border-bottom: 2px solid #e5e7eb;">
+                    <button id="ideas-tab-ready" onclick="switchIdeasTab('active')" style="padding: 0.75rem 1.5rem; border: none; background: none; font-weight: 600; color: #10b981; border-bottom: 2px solid #10b981; margin-bottom: -2px; cursor: pointer;">
+                        📝 Ready to Use (<span id="ideas-count-ready">0</span>)
+                    </button>
+                    <button id="ideas-tab-used" onclick="switchIdeasTab('used')" style="padding: 0.75rem 1.5rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer;">
+                        ✅ Already Used (<span id="ideas-count-used">0</span>)
+                    </button>
+                </div>
+
+                <!-- Filters Row -->
+                <div class="card" style="margin-bottom: 1rem; padding: 1rem;">
                     <div style="display: flex; gap: 1rem; align-items: center; flex-wrap: wrap;">
-                        <div style="flex: 1; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Property</label>
+                        <div style="flex: 1; min-width: 180px;">
                             <select id="ideas-property-select" class="form-input" onchange="loadContentIdeas()">
                                 <option value="">All Properties</option>
                             </select>
                         </div>
                         <div style="flex: 1; min-width: 150px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Content Type</label>
                             <select id="ideas-type-select" class="form-input" onchange="loadContentIdeas()">
                                 <option value="">All Types</option>
-                                <option value="blog">📰 Blog Posts</option>
-                                <option value="property">🏠 Property Content</option>
-                                <option value="seo">📊 SEO Content</option>
-                            </select>
-                        </div>
-                        <div style="flex: 1; min-width: 150px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Status</label>
-                            <select id="ideas-status-select" class="form-input" onchange="loadContentIdeas()">
-                                <option value="active">📝 Ready to Use</option>
-                                <option value="used">✅ Already Used</option>
-                                <option value="">All</option>
+                                <option value="blog">📝 Blog Ideas</option>
+                                <option value="attraction">🎯 Attraction Ideas</option>
                             </select>
                         </div>
                         <div style="flex: 2; min-width: 200px;">
-                            <label style="font-weight: 500; margin-bottom: 0.5rem; display: block;">Search</label>
-                            <input type="text" id="ideas-search" class="form-input" placeholder="Search ideas..." oninput="filterContentIdeas()">
+                            <input type="text" id="ideas-search" class="form-input" placeholder="🔍 Search ideas..." oninput="filterContentIdeas()">
                         </div>
                     </div>
                 </div>
+                
+                <!-- Hidden status for JS -->
+                <input type="hidden" id="ideas-status-select" value="active">
 
                 <!-- Ideas List -->
-                <div class="card">
-                    <div id="content-ideas-list">
-                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                            <div style="font-size: 4rem; margin-bottom: 1rem;">💡</div>
-                            <h3 style="margin-bottom: 0.5rem;">No content ideas yet</h3>
-                            <p>Generate AI-powered content ideas for your properties</p>
-                            <button class="btn" style="margin-top: 1rem;" onclick="generateContentIdeas()">🤖 Generate Ideas</button>
-                        </div>
+                <div id="content-ideas-list">
+                    <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">💡</div>
+                        <h3 style="margin-bottom: 0.5rem;">No content ideas yet</h3>
+                        <p style="margin-bottom: 1rem;">Generate AI-powered blog and attraction ideas for your properties</p>
+                        <button class="btn" onclick="generateContentIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 Generate Ideas</button>
                     </div>
                 </div>
             </div>
@@ -10042,53 +10038,66 @@ Local honey and preserves"></textarea>
 
     <!-- Generate Content Ideas Modal -->
     <div id="generate-ideas-modal" class="modal" style="display: none;">
-        <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 550px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 style="margin: 0; color: white;">🤖 Generate Content Ideas</h3>
                 <button class="modal-close" onclick="closeGenerateIdeasModal()" style="background: rgba(255,255,255,0.2); border: none; color: white; width: 32px; height: 32px; border-radius: 50%; cursor: pointer; font-size: 1.2rem;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 1.5rem;">
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label">Property <span style="color: #ef4444;">*</span></label>
+                <!-- Step 1: Property -->
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" style="font-weight: 600;">Step 1: Select Property <span style="color: #ef4444;">*</span></label>
                     <select id="generate-ideas-property" class="form-input" style="width: 100%;">
-                        <option value="">Select a property...</option>
+                        <option value="">Choose a property...</option>
                     </select>
                 </div>
                 
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label">Content Type <span style="color: #ef4444;">*</span></label>
-                    <select id="generate-ideas-type" class="form-input" style="width: 100%;">
-                        <option value="blog">📰 Blog Post Ideas</option>
-                        <option value="property">🏠 Property Page Content</option>
-                        <option value="seo">📊 SEO Content Ideas</option>
-                    </select>
+                <!-- Step 2: Content Type -->
+                <div class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" style="font-weight: 600;">Step 2: What do you want to create? <span style="color: #ef4444;">*</span></label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer; transition: all 0.2s;" onclick="selectIdeaType('blog')">
+                            <input type="radio" name="idea-type" value="blog" id="idea-type-blog" style="margin-right: 0.75rem;" checked>
+                            <div>
+                                <div style="font-size: 1.5rem;">📝</div>
+                                <div style="font-weight: 600;">Blog Ideas</div>
+                                <div style="font-size: 0.75rem; color: #6b7280;">Article topics for your blog</div>
+                            </div>
+                        </label>
+                        <label style="display: flex; align-items: center; padding: 1rem; border: 2px solid #e5e7eb; border-radius: 12px; cursor: pointer; transition: all 0.2s;" onclick="selectIdeaType('attraction')">
+                            <input type="radio" name="idea-type" value="attraction" id="idea-type-attraction" style="margin-right: 0.75rem;">
+                            <div>
+                                <div style="font-size: 1.5rem;">🎯</div>
+                                <div style="font-weight: 600;">Attraction Ideas</div>
+                                <div style="font-size: 0.75rem; color: #6b7280;">Local places to feature</div>
+                            </div>
+                        </label>
+                    </div>
                 </div>
                 
-                <div class="form-group" style="margin-bottom: 1rem;">
-                    <label class="form-label">Category (for blogs)</label>
+                <!-- Step 3: Category (for blogs) -->
+                <div id="idea-category-section" class="form-group" style="margin-bottom: 1.25rem;">
+                    <label class="form-label" style="font-weight: 600;">Step 3: Category</label>
                     <select id="generate-ideas-category" class="form-input" style="width: 100%;">
-                        <option value="things-to-do">🎯 Things to Do</option>
+                        <option value="attractions">🏛️ Attractions & Places</option>
+                        <option value="events">🎉 Events & What's On</option>
                         <option value="food-dining">🍽️ Food & Dining</option>
-                        <option value="events">🎉 Events & Festivals</option>
                         <option value="travel-tips">✈️ Travel Tips</option>
-                        <option value="local-guide">📍 Local Guide</option>
-                        <option value="seasonal">🌸 Seasonal Content</option>
+                        <option value="local-guide">📍 Local Guides</option>
                     </select>
                 </div>
                 
+                <!-- Number of ideas -->
                 <div class="form-group" style="margin-bottom: 1rem;">
                     <label class="form-label">Number of Ideas</label>
                     <select id="generate-ideas-count" class="form-input" style="width: 100%;">
                         <option value="5">5 Ideas</option>
                         <option value="10" selected>10 Ideas</option>
-                        <option value="15">15 Ideas</option>
                     </select>
                 </div>
                 
-                <div style="background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 1rem;">
-                    <p style="margin: 0; font-size: 0.875rem; color: #166534;">
-                        💡 AI will analyze your property and generate targeted content ideas based on location, amenities, and audience.
-                    </p>
+                <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 0.75rem; font-size: 0.875rem; color: #92400e;">
+                    💡 AI will create ideas based on your property's location and type
                 </div>
             </div>
             <div class="modal-footer" style="display: flex; justify-content: flex-end; gap: 0.5rem; padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb;">
@@ -29094,6 +29103,34 @@ Local honey and preserves"></textarea>
         // =====================================================
         
         let contentIdeas = [];
+        let currentIdeasStatus = 'active';
+        
+        function switchIdeasTab(status) {
+            currentIdeasStatus = status;
+            document.getElementById('ideas-status-select').value = status;
+            
+            // Update tab styling
+            const readyTab = document.getElementById('ideas-tab-ready');
+            const usedTab = document.getElementById('ideas-tab-used');
+            
+            if (status === 'active') {
+                readyTab.style.color = '#10b981';
+                readyTab.style.borderBottom = '2px solid #10b981';
+                readyTab.style.fontWeight = '600';
+                usedTab.style.color = '#6b7280';
+                usedTab.style.borderBottom = 'none';
+                usedTab.style.fontWeight = '500';
+            } else {
+                usedTab.style.color = '#10b981';
+                usedTab.style.borderBottom = '2px solid #10b981';
+                usedTab.style.fontWeight = '600';
+                readyTab.style.color = '#6b7280';
+                readyTab.style.borderBottom = 'none';
+                readyTab.style.fontWeight = '500';
+            }
+            
+            loadContentIdeas();
+        }
         
         async function loadContentIdeas() {
             try {
@@ -29119,7 +29156,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     contentIdeas = data.ideas || [];
                     renderContentIdeas();
-                    updateIdeasStats();
+                    updateIdeasCounts();
                 }
             } catch (error) {
                 console.error('Error loading content ideas:', error);
@@ -29149,7 +29186,7 @@ Local honey and preserves"></textarea>
                 
                 // Also populate generate modal select
                 if (generateSelect) {
-                    generateSelect.innerHTML = '<option value="">Select a property...</option>';
+                    generateSelect.innerHTML = '<option value="">Choose a property...</option>';
                     if (data.success && data.data) {
                         data.data.forEach(p => {
                             generateSelect.innerHTML += `<option value="${p.id}">${escapeHtml(p.name)}</option>`;
@@ -29174,58 +29211,41 @@ Local honey and preserves"></textarea>
             }
             
             if (!filtered || filtered.length === 0) {
+                const status = document.getElementById('ideas-status-select')?.value || 'active';
                 container.innerHTML = `
-                    <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
-                        <div style="font-size: 4rem; margin-bottom: 1rem;">💡</div>
-                        <h3 style="margin-bottom: 0.5rem;">No content ideas yet</h3>
-                        <p>Generate AI-powered content ideas for your properties</p>
-                        <button class="btn" style="margin-top: 1rem;" onclick="generateContentIdeas()">🤖 Generate Ideas</button>
+                    <div class="card" style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                        <div style="font-size: 4rem; margin-bottom: 1rem;">${status === 'used' ? '✅' : '💡'}</div>
+                        <h3 style="margin-bottom: 0.5rem;">${status === 'used' ? 'No used ideas yet' : 'No content ideas yet'}</h3>
+                        <p style="margin-bottom: 1rem;">${status === 'used' ? 'Ideas move here after you create content from them' : 'Generate AI-powered blog and attraction ideas'}</p>
+                        ${status !== 'used' ? '<button class="btn" onclick="generateContentIdeas()" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">🤖 Generate Ideas</button>' : ''}
                     </div>
                 `;
                 return;
             }
             
-            const typeIcons = {
-                'blog': '📰',
-                'property': '🏠',
-                'seo': '📊'
-            };
-            
-            const typeLabels = {
-                'blog': 'Blog Post',
-                'property': 'Property Content',
-                'seo': 'SEO Content'
-            };
-            
             container.innerHTML = `
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 1rem;">
+                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
                     ${filtered.map(idea => `
-                        <div class="card" style="padding: 1rem; border-left: 4px solid ${idea.status === 'used' ? '#6b7280' : '#10b981'};">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
-                                <span style="background: ${idea.status === 'used' ? '#f3f4f6' : '#ecfdf5'}; color: ${idea.status === 'used' ? '#6b7280' : '#059669'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">
-                                    ${typeIcons[idea.content_type] || '📄'} ${typeLabels[idea.content_type] || idea.content_type}
-                                </span>
-                                <span style="color: var(--text-muted); font-size: 0.75rem;">
-                                    ${idea.status === 'used' ? '✅ Used' : '📝 Ready'}
+                        <div class="card" style="padding: 1.25rem; border-left: 4px solid ${idea.content_type === 'blog' ? '#3b82f6' : '#f59e0b'};">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+                                <span style="background: ${idea.content_type === 'blog' ? '#dbeafe' : '#fef3c7'}; color: ${idea.content_type === 'blog' ? '#1d4ed8' : '#b45309'}; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
+                                    ${idea.content_type === 'blog' ? '📝 Blog' : '🎯 Attraction'}
                                 </span>
                             </div>
                             <h4 style="margin: 0 0 0.5rem 0; font-size: 1rem; line-height: 1.4;">${escapeHtml(idea.title)}</h4>
-                            ${idea.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem 0; line-height: 1.4;">${escapeHtml(idea.description)}</p>` : ''}
+                            ${idea.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem 0; line-height: 1.4;">${escapeHtml(idea.description.substring(0, 120))}${idea.description.length > 120 ? '...' : ''}</p>` : ''}
                             ${idea.property_name ? `<p style="color: var(--text-muted); font-size: 0.75rem; margin-bottom: 0.75rem;">📍 ${escapeHtml(idea.property_name)}</p>` : ''}
                             <div style="display: flex; gap: 0.5rem; margin-top: auto;">
                                 ${idea.status !== 'used' ? `
-                                    <button class="btn btn-small" onclick="createContentFromIdea(${idea.id})" style="flex: 1; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);">
-                                        ✨ Create Content
-                                    </button>
-                                    <button class="btn btn-small btn-secondary" onclick="markIdeaUsed(${idea.id})">
-                                        ✓ Mark Used
+                                    <button class="btn btn-small" onclick="createContentFromIdea(${idea.id})" style="flex: 1; background: ${idea.content_type === 'blog' ? 'linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%)' : 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)'};">
+                                        ${idea.content_type === 'blog' ? '📝 Create Blog' : '🎯 Create Attraction'}
                                     </button>
                                 ` : `
                                     <button class="btn btn-small btn-secondary" onclick="markIdeaActive(${idea.id})" style="flex: 1;">
-                                        ↩️ Restore
+                                        ↩️ Move to Ready
                                     </button>
                                 `}
-                                <button class="btn btn-small" onclick="deleteContentIdea(${idea.id})" style="background: #ef4444;">
+                                <button class="btn btn-small" onclick="deleteContentIdea(${idea.id})" style="background: #fee2e2; color: #dc2626; border: none;">
                                     🗑️
                                 </button>
                             </div>
@@ -29239,19 +29259,34 @@ Local honey and preserves"></textarea>
             renderContentIdeas();
         }
         
-        function updateIdeasStats() {
-            const ready = contentIdeas.filter(i => i.status === 'active').length;
-            const used = contentIdeas.filter(i => i.status === 'used').length;
+        function updateIdeasCounts() {
+            // Get counts from server for both statuses
+            fetch('/api/admin/content-ideas?' + buildQueryString().substring(1) + '&status=active', { headers: authHeaders() })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('ideas-count-ready').textContent = data.ideas?.length || 0;
+                });
             
-            document.getElementById('ideas-stat-ready').textContent = ready;
-            document.getElementById('ideas-stat-used').textContent = used;
-            document.getElementById('ideas-stat-total').textContent = contentIdeas.length;
+            fetch('/api/admin/content-ideas?' + buildQueryString().substring(1) + '&status=used', { headers: authHeaders() })
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('ideas-count-used').textContent = data.ideas?.length || 0;
+                });
+        }
+        
+        function selectIdeaType(type) {
+            // Update radio button
+            document.getElementById('idea-type-blog').checked = (type === 'blog');
+            document.getElementById('idea-type-attraction').checked = (type === 'attraction');
+            
+            // Show/hide category section (only for blogs)
+            document.getElementById('idea-category-section').style.display = (type === 'blog') ? 'block' : 'none';
         }
         
         function generateContentIdeas() {
-            // Show modal first, then load properties
-            document.getElementById('generate-ideas-modal').style.display = 'flex';
             loadIdeasPropertySelect();
+            selectIdeaType('blog'); // Default to blog
+            document.getElementById('generate-ideas-modal').style.display = 'flex';
         }
         
         function closeGenerateIdeasModal() {
@@ -29260,7 +29295,7 @@ Local honey and preserves"></textarea>
         
         async function submitGenerateIdeas() {
             const propertyId = document.getElementById('generate-ideas-property').value;
-            const contentType = document.getElementById('generate-ideas-type').value;
+            const contentType = document.getElementById('idea-type-blog').checked ? 'blog' : 'attraction';
             const category = document.getElementById('generate-ideas-category').value;
             const count = parseInt(document.getElementById('generate-ideas-count').value);
             
@@ -29290,8 +29325,9 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification(`Generated ${data.ideas?.length || count} content ideas!`, 'success');
+                    showNotification(`Generated ${data.ideas?.length || count} ${contentType} ideas!`, 'success');
                     closeGenerateIdeasModal();
+                    switchIdeasTab('active'); // Switch to Ready tab
                     loadContentIdeas();
                 } else {
                     showNotification(data.error || 'Failed to generate ideas', 'error');
@@ -29309,29 +29345,36 @@ Local honey and preserves"></textarea>
             const idea = contentIdeas.find(i => i.id === ideaId);
             if (!idea) return;
             
-            // Open the AI blog modal with the idea pre-filled
             if (idea.content_type === 'blog') {
-                showNotification('Opening Blog AI with your idea...', 'info');
-                
-                // Open blog modal and pre-fill the keyword
+                // Open blog modal with idea pre-filled
                 await openAiBlogModal(idea.title, idea.property_id);
                 
-                // Auto-mark as used once they click create
-                // Store the idea ID so we can mark it when blog is saved
+                // Store idea ID to mark as used when saved
                 const propertyIdEl = document.getElementById('ai-blog-property-id');
                 if (propertyIdEl) {
                     propertyIdEl.dataset.contentIdeaId = ideaId;
                 }
-            } else if (idea.content_type === 'property') {
-                showNotification('Property content generator coming soon! Use the idea title in your page content.', 'info');
-                // Copy title to clipboard for convenience
-                navigator.clipboard.writeText(idea.title);
-                showNotification('Idea title copied to clipboard!', 'success');
-            } else {
-                showNotification('SEO content generator coming soon! Use the idea title for your content.', 'info');
-                navigator.clipboard.writeText(idea.title);
-                showNotification('Idea title copied to clipboard!', 'success');
+            } else if (idea.content_type === 'attraction') {
+                // Open attraction modal with idea pre-filled
+                openAttractionModalWithIdea(idea);
             }
+        }
+        
+        function openAttractionModalWithIdea(idea) {
+            // Open attraction modal and pre-fill
+            openAttractionModal();
+            
+            // Wait a moment for modal to render, then fill
+            setTimeout(() => {
+                const nameField = document.getElementById('attraction-name');
+                const descField = document.getElementById('attraction-description');
+                if (nameField) nameField.value = idea.title || '';
+                if (descField) descField.value = idea.description || '';
+                
+                // Store idea ID
+                const form = document.getElementById('attractionForm');
+                if (form) form.dataset.contentIdeaId = idea.id;
+            }, 100);
         }
         
         async function markIdeaUsed(ideaId) {
@@ -29345,14 +29388,12 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification('Idea marked as used', 'success');
                     loadContentIdeas();
                 } else {
                     showNotification(data.error || 'Failed to update', 'error');
                 }
             } catch (error) {
                 console.error('Mark used error:', error);
-                showNotification('Error updating idea', 'error');
             }
         }
         
@@ -29367,14 +29408,13 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    showNotification('Idea restored', 'success');
+                    showNotification('Idea moved to Ready', 'success');
                     loadContentIdeas();
                 } else {
                     showNotification(data.error || 'Failed to restore', 'error');
                 }
             } catch (error) {
                 console.error('Mark active error:', error);
-                showNotification('Error restoring idea', 'error');
             }
         }
         
@@ -29397,7 +29437,6 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 console.error('Delete idea error:', error);
-                showNotification('Error deleting idea', 'error');
             }
         }
 
