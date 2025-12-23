@@ -29523,6 +29523,28 @@ app.delete('/api/admin/attractions/:id', async (req, res) => {
     }
 });
 
+// Publish attraction
+app.put('/api/admin/attractions/:id/publish', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            UPDATE attractions 
+            SET is_published = true, updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+        `, [id]);
+        
+        if (result.rows.length === 0) {
+            return res.json({ success: false, error: 'Attraction not found' });
+        }
+        
+        res.json({ success: true, attraction: result.rows[0] });
+    } catch (error) {
+        console.error('Publish attraction error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Get attraction categories
 app.get('/api/admin/attraction-categories', async (req, res) => {
     try {
