@@ -28957,7 +28957,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     showNotification(id ? 'Blog post updated!' : 'Blog post created!', 'success');
                     closeModal('blogModal');
-                    loadAppBlogPosts();
+                    loadBlogByTab();
                 } else {
                     showNotification('Error: ' + (data.error || 'Could not save'), 'error');
                 }
@@ -28984,7 +28984,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     showNotification('Blog post deleted', 'success');
                     closeModal('blogModal');
-                    loadAppBlogPosts();
+                    loadBlogByTab();
                 } else {
                     showNotification('Error: ' + (data.error || 'Could not delete'), 'error');
                 }
@@ -30901,6 +30901,8 @@ Local honey and preserves"></textarea>
                 return;
             }
             
+            container.innerHTML = '<p style="text-align: center; color: var(--text-secondary); padding: 1rem;">Loading suggestions...</p>';
+            
             try {
                 let url = '/api/admin/blog/suggestions';
                 if (propertyId) url += `?property_id=${propertyId}`;
@@ -30908,7 +30910,7 @@ Local honey and preserves"></textarea>
                 const response = await fetch(url);
                 const data = await response.json();
                 
-                if (data.success && data.suggestions) {
+                if (data.success && data.suggestions && Object.keys(data.suggestions).length > 0) {
                     const categoryLabels = {
                         'location': '📍 Location',
                         'regional': '🗺️ Regional',
@@ -30959,11 +30961,32 @@ Local honey and preserves"></textarea>
                     
                     container.innerHTML = html || '<p style="text-align: center; color: var(--text-secondary);">No suggestions available. Type your own topic below.</p>';
                 } else {
-                    container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Type your own topic below.</p>';
+                    // No templates - show helpful default suggestions
+                    container.innerHTML = `
+                        <div style="padding: 0.5rem;">
+                            <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.75rem;">Quick ideas - click to use:</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                                <button onclick="selectBlogTopic('Things to do nearby')" style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">Things to do nearby</button>
+                                <button onclick="selectBlogTopic('Best restaurants in the area')" style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">Best restaurants</button>
+                                <button onclick="selectBlogTopic('Local attractions guide')" style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">Local attractions</button>
+                                <button onclick="selectBlogTopic('Family activities')" style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">Family activities</button>
+                                <button onclick="selectBlogTopic('Weekend getaway tips')" style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">Weekend tips</button>
+                            </div>
+                        </div>
+                    `;
                 }
             } catch (error) {
                 console.error('Error loading suggestions:', error);
-                container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">Type your own topic below.</p>';
+                container.innerHTML = `
+                    <div style="padding: 0.5rem;">
+                        <p style="color: var(--text-secondary); font-size: 0.85rem; margin-bottom: 0.75rem;">Quick ideas - click to use:</p>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.25rem;">
+                            <button onclick="selectBlogTopic('Things to do nearby')" style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">Things to do nearby</button>
+                            <button onclick="selectBlogTopic('Best restaurants')" style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">Best restaurants</button>
+                            <button onclick="selectBlogTopic('Local attractions')" style="background: #e0e7ff; color: #4338ca; border: none; padding: 0.35rem 0.75rem; border-radius: 15px; font-size: 0.85rem; cursor: pointer;">Local attractions</button>
+                        </div>
+                    </div>
+                `;
             }
         }
         
@@ -31221,7 +31244,7 @@ Local honey and preserves"></textarea>
                     closeAiBlogModal();
                     // Switch to Blog view and refresh
                     showView('app-blog');
-                    loadAppBlogPosts();
+                    loadBlogByTab();
                 } else {
                     throw new Error(data.error || 'Failed to save blog');
                 }
