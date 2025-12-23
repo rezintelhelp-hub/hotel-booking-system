@@ -29104,11 +29104,14 @@ Local honey and preserves"></textarea>
                 const contentType = document.getElementById('ideas-type-select')?.value || '';
                 const status = document.getElementById('ideas-status-select')?.value || 'active';
                 
-                // Use buildQueryString for consistent client filtering
-                let url = '/api/admin/content-ideas' + buildQueryString();
-                if (propertyId) url += `&property_id=${propertyId}`;
-                if (contentType) url += `&content_type=${contentType}`;
-                if (status) url += `&status=${status}`;
+                // Build params array
+                const params = [];
+                if (selectedAccountId) params.push(`client_id=${selectedAccountId}`);
+                if (propertyId) params.push(`property_id=${propertyId}`);
+                if (contentType) params.push(`content_type=${contentType}`);
+                if (status) params.push(`status=${status}`);
+                
+                const url = '/api/admin/content-ideas' + (params.length > 0 ? '?' + params.join('&') : '');
                 
                 const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
