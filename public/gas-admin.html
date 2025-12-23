@@ -1703,6 +1703,16 @@
                     </div>
                 </div>
 
+                <div class="nav-section collapsed master-only" style="display: none;">
+                    <div class="nav-label" onclick="toggleNavSection(this)">🔐 Services</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="service-credentials" href="#" onclick="navClick(this, 'service-credentials'); return false;">
+                        <span class="nav-icon">🔑</span>
+                        <span>Credentials Vault</span>
+                    </a>
+                    </div>
+                </div>
+
                 <div class="nav-section collapsed">
                     <div class="nav-label" onclick="toggleNavSection(this)">Website</div>
                     <div class="nav-section-items">
@@ -7119,6 +7129,166 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="modal-footer">
                         <button class="btn btn-secondary" onclick="closeApiKeyModal()">Cancel</button>
                         <button class="btn" onclick="saveApiKey()">Create Key</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Service Credentials Vault View -->
+            <div id="service-credentials" class="view">
+                <div class="header">
+                    <h2>🔐 Service Credentials Vault</h2>
+                    <p>Centralized storage for all external service logins, API keys, and important links</p>
+                </div>
+
+                <!-- Quick Links Card -->
+                <div class="card" style="margin-bottom: 1.5rem; background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); color: white;">
+                    <div class="card-header" style="border-bottom-color: rgba(255,255,255,0.1);">
+                        <h3 style="color: white;">⚡ Quick Access Links</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1rem;">
+                            <a href="https://dash.cloudflare.com" target="_blank" class="quick-link-btn" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px; color: white; text-decoration: none; transition: all 0.2s;">
+                                <span style="font-size: 1.5rem;">☁️</span>
+                                <div>
+                                    <div style="font-weight: 600;">Cloudflare</div>
+                                    <div style="font-size: 0.8rem; opacity: 0.7;">R2 Storage & CDN</div>
+                                </div>
+                            </a>
+                            <a href="https://railway.app/dashboard" target="_blank" class="quick-link-btn" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px; color: white; text-decoration: none; transition: all 0.2s;">
+                                <span style="font-size: 1.5rem;">🚂</span>
+                                <div>
+                                    <div style="font-weight: 600;">Railway</div>
+                                    <div style="font-size: 0.8rem; opacity: 0.7;">GAS App & Database</div>
+                                </div>
+                            </a>
+                            <a href="https://hpanel.hostinger.com" target="_blank" class="quick-link-btn" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px; color: white; text-decoration: none; transition: all 0.2s;">
+                                <span style="font-size: 1.5rem;">🌐</span>
+                                <div>
+                                    <div style="font-weight: 600;">Hostinger</div>
+                                    <div style="font-size: 0.8rem; opacity: 0.7;">VPS & WordPress</div>
+                                </div>
+                            </a>
+                            <a href="https://dcc.godaddy.com" target="_blank" class="quick-link-btn" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px; color: white; text-decoration: none; transition: all 0.2s;">
+                                <span style="font-size: 1.5rem;">🔗</span>
+                                <div>
+                                    <div style="font-weight: 600;">GoDaddy</div>
+                                    <div style="font-size: 0.8rem; opacity: 0.7;">Domains & DNS</div>
+                                </div>
+                            </a>
+                            <a href="https://github.com" target="_blank" class="quick-link-btn" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px; color: white; text-decoration: none; transition: all 0.2s;">
+                                <span style="font-size: 1.5rem;">🐙</span>
+                                <div>
+                                    <div style="font-weight: 600;">GitHub</div>
+                                    <div style="font-size: 0.8rem; opacity: 0.7;">Code Repository</div>
+                                </div>
+                            </a>
+                            <a href="https://dashboard.stripe.com" target="_blank" class="quick-link-btn" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px; color: white; text-decoration: none; transition: all 0.2s;">
+                                <span style="font-size: 1.5rem;">💳</span>
+                                <div>
+                                    <div style="font-weight: 600;">Stripe</div>
+                                    <div style="font-size: 0.8rem; opacity: 0.7;">Payments</div>
+                                </div>
+                            </a>
+                            <a href="https://analytics.google.com" target="_blank" class="quick-link-btn" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px; color: white; text-decoration: none; transition: all 0.2s;">
+                                <span style="font-size: 1.5rem;">📊</span>
+                                <div>
+                                    <div style="font-weight: 600;">Google Analytics</div>
+                                    <div style="font-size: 0.8rem; opacity: 0.7;">Traffic & Analytics</div>
+                                </div>
+                            </a>
+                            <a href="https://search.google.com/search-console" target="_blank" class="quick-link-btn" style="display: flex; align-items: center; gap: 0.75rem; padding: 1rem; background: rgba(255,255,255,0.1); border-radius: 8px; color: white; text-decoration: none; transition: all 0.2s;">
+                                <span style="font-size: 1.5rem;">🔍</span>
+                                <div>
+                                    <div style="font-weight: 600;">Search Console</div>
+                                    <div style="font-size: 0.8rem; opacity: 0.7;">SEO & Indexing</div>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Add New Credential Button -->
+                <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
+                    <button class="btn" onclick="openAddCredentialModal()" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                        ➕ Add Credential
+                    </button>
+                </div>
+
+                <!-- Credentials List -->
+                <div id="credentials-list">
+                    <!-- Will be populated by loadCredentials() -->
+                </div>
+
+                <!-- Empty State -->
+                <div id="credentials-empty" class="card" style="text-align: center; padding: 3rem; display: none;">
+                    <div style="font-size: 3rem; margin-bottom: 1rem;">🔑</div>
+                    <h3>No Credentials Stored Yet</h3>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">Add your first service credential to get started</p>
+                    <button class="btn" onclick="openAddCredentialModal()">➕ Add First Credential</button>
+                </div>
+            </div>
+
+            <!-- Add/Edit Credential Modal -->
+            <div id="credential-modal" class="modal" style="display: none;">
+                <div class="modal-content" style="max-width: 600px; border-radius: 12px; overflow: hidden;">
+                    <div class="modal-header" style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); color: white; padding: 1.25rem 1.5rem;">
+                        <h3 id="credential-modal-title" style="margin: 0; color: white;">Add Credential</h3>
+                    </div>
+                    <div class="modal-body" style="padding: 1.5rem;">
+                        <input type="hidden" id="credential-id">
+                        
+                        <div class="form-group">
+                            <label class="form-label">Service Name <span style="color: #ef4444;">*</span></label>
+                            <input type="text" class="form-input" id="credential-name" placeholder="e.g., Cloudflare, Railway, Stripe">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Category</label>
+                            <select class="form-select" id="credential-category">
+                                <option value="hosting">🌐 Hosting & Infrastructure</option>
+                                <option value="payments">💳 Payments</option>
+                                <option value="analytics">📊 Analytics</option>
+                                <option value="email">📧 Email</option>
+                                <option value="api">🔌 API & Integrations</option>
+                                <option value="domains">🔗 Domains & DNS</option>
+                                <option value="other">📁 Other</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Dashboard URL</label>
+                            <input type="url" class="form-input" id="credential-url" placeholder="https://dashboard.service.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Username / Email</label>
+                            <input type="text" class="form-input" id="credential-username" placeholder="login@email.com">
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Password</label>
+                            <div style="position: relative;">
+                                <input type="password" class="form-input" id="credential-password" placeholder="••••••••" style="padding-right: 40px;">
+                                <button type="button" onclick="toggleCredentialPassword()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">👁️</button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">API Key / Secret</label>
+                            <div style="position: relative;">
+                                <input type="password" class="form-input" id="credential-api-key" placeholder="sk_live_..." style="padding-right: 40px;">
+                                <button type="button" onclick="toggleCredentialApiKey()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">👁️</button>
+                            </div>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label class="form-label">Notes</label>
+                            <textarea class="form-input" id="credential-notes" rows="3" placeholder="Any additional info, renewal dates, account numbers, etc."></textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end; gap: 0.5rem;">
+                        <button class="btn btn-secondary" onclick="closeCredentialModal()">Cancel</button>
+                        <button class="btn" onclick="saveCredential()">💾 Save</button>
                     </div>
                 </div>
             </div>
@@ -14178,6 +14348,7 @@ Local honey and preserves"></textarea>
             if (viewName === 'upsells') loadUpsells();
             if (viewName === 'vendors') loadVendors();
             if (viewName === 'vendor-requests') loadVendorRequests();
+            if (viewName === 'service-credentials') loadCredentials();
             if (viewName === 'fees') loadFees();
             if (viewName === 'taxes') loadTaxes();
             if (viewName === 'payments') initPaymentsView();
@@ -32266,6 +32437,250 @@ Local honey and preserves"></textarea>
         loadClientSelector();
         loadDashboard();
         handleUrlParams();
+
+        // =====================================================
+        // SERVICE CREDENTIALS VAULT FUNCTIONS
+        // =====================================================
+        
+        let serviceCredentials = [];
+        
+        async function loadCredentials() {
+            try {
+                const response = await fetch('/api/admin/credentials', { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success) {
+                    serviceCredentials = data.credentials || [];
+                    renderCredentials();
+                }
+            } catch (error) {
+                console.error('Error loading credentials:', error);
+            }
+        }
+        
+        function renderCredentials() {
+            const container = document.getElementById('credentials-list');
+            const emptyState = document.getElementById('credentials-empty');
+            
+            if (!serviceCredentials || serviceCredentials.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            
+            // Group by category
+            const grouped = {};
+            serviceCredentials.forEach(cred => {
+                const cat = cred.category || 'other';
+                if (!grouped[cat]) grouped[cat] = [];
+                grouped[cat].push(cred);
+            });
+            
+            const categoryLabels = {
+                hosting: '🌐 Hosting & Infrastructure',
+                payments: '💳 Payments',
+                analytics: '📊 Analytics',
+                email: '📧 Email',
+                api: '🔌 API & Integrations',
+                domains: '🔗 Domains & DNS',
+                other: '📁 Other'
+            };
+            
+            let html = '';
+            for (const [category, creds] of Object.entries(grouped)) {
+                html += `
+                    <div class="card" style="margin-bottom: 1rem;">
+                        <div class="card-header">
+                            <h3>${categoryLabels[category] || category}</h3>
+                        </div>
+                        <div class="card-body" style="padding: 0;">
+                            <table style="width: 100%;">
+                                <tbody>
+                                    ${creds.map(cred => `
+                                        <tr style="border-bottom: 1px solid #f0f0f0;">
+                                            <td style="padding: 1rem; width: 40%;">
+                                                <div style="font-weight: 600; margin-bottom: 0.25rem;">${escapeHtml(cred.name)}</div>
+                                                ${cred.username ? `<div style="font-size: 0.85rem; color: var(--text-secondary);">${escapeHtml(cred.username)}</div>` : ''}
+                                            </td>
+                                            <td style="padding: 1rem; width: 30%;">
+                                                ${cred.url ? `<a href="${escapeHtml(cred.url)}" target="_blank" style="color: var(--primary); font-size: 0.85rem;">🔗 Open Dashboard</a>` : '<span style="color: var(--text-muted); font-size: 0.85rem;">No URL</span>'}
+                                            </td>
+                                            <td style="padding: 1rem; text-align: right;">
+                                                <button class="btn btn-small" onclick="viewCredential(${cred.id})" style="margin-right: 0.5rem;">👁️ View</button>
+                                                <button class="btn btn-small btn-secondary" onclick="editCredential(${cred.id})">✏️</button>
+                                                <button class="btn btn-small" onclick="deleteCredential(${cred.id})" style="background: #ef4444; margin-left: 0.5rem;">🗑️</button>
+                                            </td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                `;
+            }
+            
+            container.innerHTML = html;
+        }
+        
+        function openAddCredentialModal() {
+            document.getElementById('credential-modal-title').textContent = 'Add Credential';
+            document.getElementById('credential-id').value = '';
+            document.getElementById('credential-name').value = '';
+            document.getElementById('credential-category').value = 'hosting';
+            document.getElementById('credential-url').value = '';
+            document.getElementById('credential-username').value = '';
+            document.getElementById('credential-password').value = '';
+            document.getElementById('credential-api-key').value = '';
+            document.getElementById('credential-notes').value = '';
+            document.getElementById('credential-modal').style.display = 'flex';
+        }
+        
+        function closeCredentialModal() {
+            document.getElementById('credential-modal').style.display = 'none';
+        }
+        
+        async function editCredential(id) {
+            const cred = serviceCredentials.find(c => c.id === id);
+            if (!cred) return;
+            
+            document.getElementById('credential-modal-title').textContent = 'Edit Credential';
+            document.getElementById('credential-id').value = cred.id;
+            document.getElementById('credential-name').value = cred.name || '';
+            document.getElementById('credential-category').value = cred.category || 'other';
+            document.getElementById('credential-url').value = cred.url || '';
+            document.getElementById('credential-username').value = cred.username || '';
+            document.getElementById('credential-password').value = cred.password || '';
+            document.getElementById('credential-api-key').value = cred.api_key || '';
+            document.getElementById('credential-notes').value = cred.notes || '';
+            document.getElementById('credential-modal').style.display = 'flex';
+        }
+        
+        async function viewCredential(id) {
+            const cred = serviceCredentials.find(c => c.id === id);
+            if (!cred) return;
+            
+            let content = `<div style="text-align: left;">`;
+            content += `<p><strong>Service:</strong> ${escapeHtml(cred.name)}</p>`;
+            if (cred.url) content += `<p><strong>URL:</strong> <a href="${escapeHtml(cred.url)}" target="_blank">${escapeHtml(cred.url)}</a></p>`;
+            if (cred.username) content += `<p><strong>Username:</strong> ${escapeHtml(cred.username)} <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.username)}')">📋</button></p>`;
+            if (cred.password) content += `<p><strong>Password:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px;">${escapeHtml(cred.password)}</code> <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.password)}')">📋</button></p>`;
+            if (cred.api_key) content += `<p><strong>API Key:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; word-break: break-all;">${escapeHtml(cred.api_key)}</code> <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.api_key)}')">📋</button></p>`;
+            if (cred.notes) content += `<p><strong>Notes:</strong><br>${escapeHtml(cred.notes).replace(/\n/g, '<br>')}</p>`;
+            content += `</div>`;
+            
+            showModal('🔐 ' + cred.name, content);
+        }
+        
+        function copyToClipboard(text) {
+            navigator.clipboard.writeText(text).then(() => {
+                showNotification('Copied to clipboard!', 'success');
+            }).catch(() => {
+                showNotification('Failed to copy', 'error');
+            });
+        }
+        
+        async function saveCredential() {
+            const id = document.getElementById('credential-id').value;
+            const data = {
+                name: document.getElementById('credential-name').value.trim(),
+                category: document.getElementById('credential-category').value,
+                url: document.getElementById('credential-url').value.trim(),
+                username: document.getElementById('credential-username').value.trim(),
+                password: document.getElementById('credential-password').value,
+                api_key: document.getElementById('credential-api-key').value.trim(),
+                notes: document.getElementById('credential-notes').value.trim()
+            };
+            
+            if (!data.name) {
+                showNotification('Service name is required', 'error');
+                return;
+            }
+            
+            try {
+                const url = id ? `/api/admin/credentials/${id}` : '/api/admin/credentials';
+                const method = id ? 'PUT' : 'POST';
+                
+                const response = await fetch(url, {
+                    method,
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify(data)
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification(id ? 'Credential updated!' : 'Credential added!', 'success');
+                    closeCredentialModal();
+                    loadCredentials();
+                } else {
+                    showNotification(result.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                console.error('Save credential error:', error);
+                showNotification('Error saving credential', 'error');
+            }
+        }
+        
+        async function deleteCredential(id) {
+            if (!confirm('Are you sure you want to delete this credential?')) return;
+            
+            try {
+                const response = await fetch(`/api/admin/credentials/${id}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    showNotification('Credential deleted', 'success');
+                    loadCredentials();
+                } else {
+                    showNotification(result.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                console.error('Delete credential error:', error);
+                showNotification('Error deleting credential', 'error');
+            }
+        }
+        
+        function toggleCredentialPassword() {
+            const input = document.getElementById('credential-password');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+        
+        function toggleCredentialApiKey() {
+            const input = document.getElementById('credential-api-key');
+            input.type = input.type === 'password' ? 'text' : 'password';
+        }
+        
+        function showModal(title, content) {
+            // Create modal if it doesn't exist
+            let modal = document.getElementById('quick-view-modal');
+            if (!modal) {
+                modal = document.createElement('div');
+                modal.id = 'quick-view-modal';
+                modal.className = 'modal';
+                modal.innerHTML = `
+                    <div class="modal-content" style="max-width: 600px; border-radius: 12px; overflow: hidden;">
+                        <div class="modal-header" style="background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); color: white; padding: 1.25rem 1.5rem;">
+                            <h3 id="quick-view-title" style="margin: 0; color: white;"></h3>
+                        </div>
+                        <div class="modal-body" id="quick-view-content" style="padding: 1.5rem;"></div>
+                        <div class="modal-footer" style="padding: 1rem 1.5rem; border-top: 1px solid #e5e7eb; display: flex; justify-content: flex-end;">
+                            <button class="btn btn-secondary" onclick="document.getElementById('quick-view-modal').style.display='none'">Close</button>
+                        </div>
+                    </div>
+                `;
+                document.body.appendChild(modal);
+            }
+            
+            document.getElementById('quick-view-title').textContent = title;
+            document.getElementById('quick-view-content').innerHTML = content;
+            modal.style.display = 'flex';
+        }
 
         // =====================================================
         // GASSYNC JAVASCRIPT FUNCTIONS
