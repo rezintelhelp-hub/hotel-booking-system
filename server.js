@@ -27686,6 +27686,7 @@ Requirements:
 5. Include practical tips or information visitors would find useful
 6. End with a subtle call-to-action encouraging booking
 7. Write in ${languageName}
+8. Include 3-5 FAQ questions and answers based on the content
 
 Return your response in this exact JSON format:
 {
@@ -27694,7 +27695,12 @@ Return your response in this exact JSON format:
     "content": "The full blog post content in HTML format with <h2>, <h3>, <p> tags",
     "meta_title": "SEO title (max 60 chars)",
     "meta_description": "SEO description (max 160 chars)",
-    "suggested_tags": ["tag1", "tag2", "tag3"]
+    "suggested_tags": ["tag1", "tag2", "tag3"],
+    "faq": [
+        {"question": "Question 1?", "answer": "Answer 1"},
+        {"question": "Question 2?", "answer": "Answer 2"},
+        {"question": "Question 3?", "answer": "Answer 3"}
+    ]
 }`;
 
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
@@ -27738,7 +27744,20 @@ Return your response in this exact JSON format:
                 keyword: keyword,
                 property_id: property_id,
                 property_name: propertyName,
-                language: language
+                language: language,
+                faq: blogData.faq || [],
+                faq_schema: blogData.faq && blogData.faq.length > 0 ? {
+                    "@context": "https://schema.org",
+                    "@type": "FAQPage",
+                    "mainEntity": blogData.faq.map(item => ({
+                        "@type": "Question",
+                        "name": item.question,
+                        "acceptedAnswer": {
+                            "@type": "Answer",
+                            "text": item.answer
+                        }
+                    }))
+                } : null
             }
         });
         
@@ -28073,16 +28092,17 @@ app.post('/api/admin/blog', async (req, res) => {
                 category, tags, meta_title, meta_description,
                 author_name, author_image_url, read_time_minutes,
                 is_featured, is_published, published_at,
-                scheduled_at, ai_generated, source_keyword, language
+                scheduled_at, ai_generated, source_keyword, language, faq_schema
             )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
             RETURNING *
         `, [
             client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
             category, tags || [], meta_title, meta_description,
             author_name, author_image_url, read_time_minutes || 5,
             is_featured || false, is_published !== false, published_at || new Date(),
-            scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en'
+            scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en',
+            req.body.faq_schema || null
         ]);
         
         res.json({ success: true, post: result.rows[0] });
@@ -28791,7 +28811,16 @@ app.get('/api/setup-content-ideas', async (req, res) => {
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_ideas_client ON content_ideas(client_id)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_ideas_property ON content_ideas(property_id)`);
         await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_ideas_status ON content_ideas(status)`);
-        res.json({ success: true, message: 'Content ideas table created' });
+        
+        // Also add faq_schema column to blog_posts if it doesn't exist
+        await pool.query(`ALTER TABLE blog_posts ADD COLUMN IF NOT EXISTS faq_schema JSONB`);
+        
+        // Add faq_schema column to attractions if it doesn't exist
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS faq_schema JSONB`);
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_title VARCHAR(100)`);
+        await pool.query(`ALTER TABLE attractions ADD COLUMN IF NOT EXISTS meta_description VARCHAR(300)`);
+        
+        res.json({ success: true, message: 'Content ideas table created + FAQ schema columns added to blog_posts and attractions' });
     } catch (error) {
         res.json({ success: false, error: error.message });
     }
@@ -28878,12 +28907,11 @@ app.post('/api/admin/content-ideas/generate', async (req, res) => {
         
         if (content_type === 'blog') {
             const categoryPrompts = {
-                'things-to-do': 'local activities, attractions, and things to do near the property',
+                'attractions': 'local attractions, landmarks, museums, parks, beaches, and places to visit',
+                'events': 'local events, festivals, concerts, markets, and seasonal happenings',
                 'food-dining': 'local restaurants, cafes, food experiences, and culinary highlights',
-                'events': 'local events, festivals, seasonal happenings, and celebrations',
                 'travel-tips': 'travel tips, packing guides, transportation, and visitor advice',
-                'local-guide': 'neighborhood guides, hidden gems, and local insider knowledge',
-                'seasonal': 'seasonal activities, holiday events, and time-specific content'
+                'local-guide': 'neighborhood guides, hidden gems, and local insider knowledge'
             };
             
             prompt = systemPrefix + `Generate ${numIdeas} unique blog post ideas for a vacation rental property.
@@ -28903,35 +28931,39 @@ Format as JSON array:
 ]
 
 Make titles specific to the location when possible. Focus on topics that would help guests planning their stay.`;
-        } else if (content_type === 'property') {
-            prompt = systemPrefix + `Generate ${numIdeas} unique content ideas for property pages/descriptions.
+        } else if (content_type === 'attraction') {
+            prompt = systemPrefix + `Generate ${numIdeas} local attraction ideas to add to a vacation rental website.
 
 Property: ${property.name}
 Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
 
-Generate ideas for content that describes:
-- Room features and amenities
-- Property highlights
-- Guest experience descriptions
-- Unique selling points
-- Location benefits
+Generate ideas for LOCAL ATTRACTIONS near the property that guests would want to visit:
+- Museums and galleries
+- Parks and nature spots  
+- Historical landmarks
+- Restaurants and cafes
+- Beaches or waterfront areas
+- Shopping areas
+- Entertainment venues
+- Family activities
+
+For each attraction, provide:
+1. The name of the attraction (real place name if known, or descriptive name)
+2. A brief description of what it is and why guests should visit (1-2 sentences)
 
 Format as JSON array:
 [
-  {"title": "Content Topic", "description": "What this content should highlight"},
+  {"title": "Attraction Name", "description": "Brief description of the attraction"},
   ...
-]`;
+]
+
+Focus on REAL attractions near ${property.city || 'the property location'}. Be specific with actual place names when possible.`;
         } else {
-            prompt = systemPrefix + `Generate ${numIdeas} unique SEO content ideas for a vacation rental website.
+            // Fallback for any other type
+            prompt = systemPrefix + `Generate ${numIdeas} unique blog post ideas for a vacation rental website.
 
 Property: ${property.name}
 Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
-
-Generate ideas for:
-- FAQ pages
-- Location guides
-- Service descriptions
-- Landing page content
 
 Format as JSON array:
 [
