@@ -29705,16 +29705,34 @@ Local honey and preserves"></textarea>
         
         async function selectBlogIdeaFromWizard(ideaId, title, propertyId) {
             closeBlogIdeasWizard();
-            showNotification('Opening blog editor...', 'info');
-            await openBlogEditor(title, propertyId, ideaId);
+            
+            // Generate blog immediately - no extra form
+            await generateBlogFromIdea(ideaId, title, propertyId);
         }
         
         async function createBlogFromIdea(ideaId) {
             const idea = blogIdeas.find(i => i.id === ideaId);
             if (!idea) return;
             
-            showNotification('Opening blog editor...', 'info');
-            await openBlogEditor(idea.title, idea.property_id, ideaId);
+            // Generate blog immediately
+            await generateBlogFromIdea(ideaId, idea.title, idea.property_id);
+        }
+        
+        async function generateBlogFromIdea(ideaId, title, propertyId) {
+            // Open AI blog modal but skip to loading/generation immediately
+            await openAiBlogModal(title, propertyId);
+            
+            // Store idea ID for marking as used later
+            const propertyIdEl = document.getElementById('ai-blog-property-id');
+            if (propertyIdEl) {
+                propertyIdEl.dataset.contentIdeaId = ideaId;
+            }
+            
+            // Set the keyword
+            document.getElementById('ai-blog-keyword').value = title;
+            
+            // Trigger generation immediately
+            generateAiBlog();
         }
         
         async function dismissBlogIdea(ideaId) {
