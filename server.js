@@ -10275,6 +10275,117 @@ app.get('/api/admin/partners', async (req, res) => {
 });
 
 // =====================================================
+// SERVICE CREDENTIALS VAULT
+// =====================================================
+
+// Setup credentials table
+app.get('/api/setup-credentials', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS service_credentials (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        category VARCHAR(50) DEFAULT 'other',
+        url TEXT,
+        username VARCHAR(255),
+        password TEXT,
+        api_key TEXT,
+        notes TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    res.json({ success: true, message: 'Credentials table created' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// List all credentials (Master Admin only)
+app.get('/api/admin/credentials', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM service_credentials ORDER BY category, name
+    `);
+    res.json({ success: true, credentials: result.rows });
+  } catch (error) {
+    // Table might not exist yet
+    if (error.message.includes('does not exist')) {
+      res.json({ success: true, credentials: [] });
+    } else {
+      res.json({ success: false, error: error.message });
+    }
+  }
+});
+
+// Create credential
+app.post('/api/admin/credentials', async (req, res) => {
+  try {
+    const { name, category, url, username, password, api_key, notes } = req.body;
+    
+    if (!name) {
+      return res.json({ success: false, error: 'Name is required' });
+    }
+    
+    const result = await pool.query(`
+      INSERT INTO service_credentials (name, category, url, username, password, api_key, notes)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      RETURNING *
+    `, [name, category || 'other', url, username, password, api_key, notes]);
+    
+    res.json({ success: true, credential: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update credential
+app.put('/api/admin/credentials/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, category, url, username, password, api_key, notes } = req.body;
+    
+    if (!name) {
+      return res.json({ success: false, error: 'Name is required' });
+    }
+    
+    const result = await pool.query(`
+      UPDATE service_credentials 
+      SET name = $1, category = $2, url = $3, username = $4, password = $5, api_key = $6, notes = $7, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8
+      RETURNING *
+    `, [name, category || 'other', url, username, password, api_key, notes, id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Credential not found' });
+    }
+    
+    res.json({ success: true, credential: result.rows[0] });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete credential
+app.delete('/api/admin/credentials/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      DELETE FROM service_credentials WHERE id = $1 RETURNING *
+    `, [id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Credential not found' });
+    }
+    
+    res.json({ success: true, message: 'Credential deleted' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// =====================================================
 // GASSYNC PARTNER API - Calry-Compatible Schema
 // =====================================================
 
