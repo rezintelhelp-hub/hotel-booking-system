@@ -28204,6 +28204,28 @@ app.delete('/api/admin/blog/:id', async (req, res) => {
     }
 });
 
+// Publish blog post
+app.put('/api/admin/blog/:id/publish', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const result = await pool.query(`
+            UPDATE blog_posts 
+            SET is_published = true, published_at = NOW(), updated_at = NOW()
+            WHERE id = $1
+            RETURNING *
+        `, [id]);
+        
+        if (result.rows.length === 0) {
+            return res.json({ success: false, error: 'Post not found' });
+        }
+        
+        res.json({ success: true, post: result.rows[0] });
+    } catch (error) {
+        console.error('Publish blog error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Get blog categories
 app.get('/api/admin/blog-categories', async (req, res) => {
     try {
