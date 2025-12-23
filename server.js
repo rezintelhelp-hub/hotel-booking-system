@@ -11365,54 +11365,37 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
     console.log(`Pushing ${section} to WordPress: ${siteUrl}`);
     
     // Key mapping from GAS short keys to WordPress theme_mod keys
+    // Note: WordPress API adds section prefix (e.g. developer_header_) so we only need the suffix
     const keyMapping = {
-      // Hero section
-      'image-url': 'developer_hero_bg',
-      'video-url': 'developer_hero_video_url',
-      'headline': 'developer_hero_title',
-      'subheadline': 'developer_hero_subtitle',
-      'overlay-color': 'developer_hero_overlay_color',
-      'overlay': 'developer_hero_opacity',
-      'height': 'developer_hero_height',
-      'badge-text': 'developer_hero_badge',
-      'badge-link': 'developer_hero_badge_link',
-      'badge-bg': 'developer_hero_badge_bg',
-      'badge-text-color': 'developer_hero_badge_text',
-      'badge-border': 'developer_hero_badge_border',
-      // Header section
-      'logo-image-url': 'developer_logo_image',
-      'logo-text': 'developer_logo_text',
-      'site-name': 'developer_logo_text',
-      'bg-color': 'developer_header_bg',
-      'text-color': 'developer_header_text',
-      'transparent': 'developer_header_transparent',
-      'sticky': 'developer_header_sticky',
-      'cta-text': 'developer_header_cta_text',
-      'cta-bg': 'developer_header_cta_bg',
+      // Hero section - these get developer_hero_ prefix from WP
+      'image-url': 'bg',
+      'video-url': 'video_url',
+      'headline': 'title',
+      'subheadline': 'subtitle',
+      'overlay-color': 'overlay_color',
+      'overlay': 'opacity',
+      'height': 'height',
+      'badge-text': 'badge',
+      'badge-link': 'badge_link',
+      'badge-bg': 'badge_bg',
+      'badge-text-color': 'badge_text',
+      'badge-border': 'badge_border',
+      // Header section - these get developer_header_ prefix from WP
+      'logo-image-url': 'logo_image',
+      'logo-text': 'logo_text',
+      'site-name': 'logo_text',
+      'bg-color': 'bg',
+      'text-color': 'text',
+      'transparent': 'transparent',
+      'sticky': 'sticky',
+      'cta-text': 'cta_text',
+      'cta-bg': 'cta_bg',
       // Trust badges
-      'trust-1': 'developer_hero_trust_1',
-      'trust-2': 'developer_hero_trust_2',
-      'trust-3': 'developer_hero_trust_3',
+      'trust-1': 'trust_1',
+      'trust-2': 'trust_2',
+      'trust-3': 'trust_3',
       // Search
-      'search-btn-bg': 'developer_search_btn_bg',
-      // Intro
-      'intro-enabled': 'developer_intro_enabled',
-      'intro-title': 'developer_intro_title',
-      'intro-text': 'developer_intro_text',
-      'intro-bg': 'developer_intro_bg',
-      // Featured
-      'featured-title': 'developer_featured_title',
-      'featured-subtitle': 'developer_featured_subtitle',
-      // About
-      'about-image-url': 'developer_about_image',
-      'about-title': 'developer_about_title',
-      'about-text': 'developer_about_text',
-      // CTA
-      'cta-title': 'developer_cta_title',
-      'cta-text': 'developer_cta_text',
-      'cta-background': 'developer_cta_background',
-      'cta-btn-text': 'developer_cta_btn_text',
-      'cta-btn-url': 'developer_cta_btn_url'
+      'search-btn-bg': 'search_btn_bg'
     };
     
     // Transform settings keys
