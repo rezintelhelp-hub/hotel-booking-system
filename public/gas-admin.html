@@ -6538,6 +6538,9 @@
                     <button class="attraction-tab" data-tab="drafts" onclick="switchAttractionTab('drafts')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
                         📝 Drafts <span id="attraction-count-drafts" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
                     </button>
+                    <button class="attraction-tab" data-tab="scheduled" onclick="switchAttractionTab('scheduled')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
+                        📅 Scheduled <span id="attraction-count-scheduled" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
+                    </button>
                     <button class="attraction-tab" data-tab="published" onclick="switchAttractionTab('published')" style="padding: 0.75rem 1.25rem; border: none; background: none; font-weight: 500; color: #6b7280; cursor: pointer; white-space: nowrap;">
                         ✅ Published <span id="attraction-count-published" style="background: #f3f4f6; padding: 0.125rem 0.5rem; border-radius: 10px; font-size: 0.75rem; margin-left: 0.25rem;">0</span>
                     </button>
@@ -6560,6 +6563,11 @@
                     <!-- Drafts Tab -->
                     <div id="attraction-tab-drafts" class="attraction-tab-panel" style="display: none;">
                         <div id="attraction-drafts-list"></div>
+                    </div>
+                    
+                    <!-- Scheduled Tab -->
+                    <div id="attraction-tab-scheduled" class="attraction-tab-panel" style="display: none;">
+                        <div id="attraction-scheduled-list"></div>
                     </div>
                     
                     <!-- Published Tab -->
@@ -29781,7 +29789,7 @@ Local honey and preserves"></textarea>
         // =====================================================
         
         let attractionIdeas = [];
-        let attractions = { drafts: [], published: [] };
+        let attractions = { drafts: [], scheduled: [], published: [] };
         let currentAttractionTab = 'ideas';
         let selectedAttractionCategory = '';
         
@@ -29928,7 +29936,8 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success && data.attractions) {
-                    attractions.drafts = data.attractions.filter(a => !a.is_published);
+                    attractions.drafts = data.attractions.filter(a => !a.is_published && !a.scheduled_at);
+                    attractions.scheduled = data.attractions.filter(a => !a.is_published && a.scheduled_at);
                     attractions.published = data.attractions.filter(a => a.is_published);
                 }
                 
@@ -29955,6 +29964,7 @@ Local honey and preserves"></textarea>
             if (!filtered.length) {
                 const messages = {
                     drafts: { icon: '📝', title: 'No drafts', desc: 'Attractions you\'re working on will appear here' },
+                    scheduled: { icon: '📅', title: 'Nothing scheduled', desc: 'Schedule attractions to publish automatically' },
                     published: { icon: '✅', title: 'No published attractions', desc: 'Your live attractions will appear here' }
                 };
                 const msg = messages[currentAttractionTab] || messages.drafts;
@@ -29990,6 +30000,7 @@ Local honey and preserves"></textarea>
                                     <td>
                                         <button class="btn btn-small btn-secondary" onclick="editAttraction(${a.id})">Edit</button>
                                         ${currentAttractionTab === 'drafts' ? `<button class="btn btn-small" onclick="publishAttraction(${a.id})" style="background: #10b981;">Publish</button>` : ''}
+                                        ${currentAttractionTab === 'scheduled' ? `<button class="btn btn-small" onclick="publishAttraction(${a.id})" style="background: #10b981;">Publish Now</button>` : ''}
                                         <button class="btn btn-small" onclick="deleteAttractionById(${a.id})" style="background: #ef4444;">Delete</button>
                                     </td>
                                 </tr>
@@ -30026,11 +30037,13 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success && data.attractions) {
-                    attractions.drafts = data.attractions.filter(a => !a.is_published);
+                    attractions.drafts = data.attractions.filter(a => !a.is_published && !a.scheduled_at);
+                    attractions.scheduled = data.attractions.filter(a => !a.is_published && a.scheduled_at);
                     attractions.published = data.attractions.filter(a => a.is_published);
                 }
                 
                 document.getElementById('attraction-count-drafts').textContent = attractions.drafts?.length || 0;
+                document.getElementById('attraction-count-scheduled').textContent = attractions.scheduled?.length || 0;
                 document.getElementById('attraction-count-published').textContent = attractions.published?.length || 0;
             } catch (e) {
                 console.error('Error updating attraction counts:', e);
