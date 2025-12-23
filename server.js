@@ -11364,6 +11364,66 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
     
     console.log(`Pushing ${section} to WordPress: ${siteUrl}`);
     
+    // Key mapping from GAS short keys to WordPress theme_mod keys
+    const keyMapping = {
+      // Hero section
+      'image-url': 'developer_hero_bg',
+      'video-url': 'developer_hero_video_url',
+      'headline': 'developer_hero_title',
+      'subheadline': 'developer_hero_subtitle',
+      'overlay-color': 'developer_hero_overlay_color',
+      'overlay': 'developer_hero_opacity',
+      'height': 'developer_hero_height',
+      'badge-text': 'developer_hero_badge',
+      'badge-link': 'developer_hero_badge_link',
+      'badge-bg': 'developer_hero_badge_bg',
+      'badge-text-color': 'developer_hero_badge_text',
+      'badge-border': 'developer_hero_badge_border',
+      // Header section
+      'logo-image-url': 'developer_logo_image',
+      'logo-text': 'developer_logo_text',
+      'site-name': 'developer_logo_text',
+      'bg-color': 'developer_header_bg',
+      'text-color': 'developer_header_text',
+      'transparent': 'developer_header_transparent',
+      'sticky': 'developer_header_sticky',
+      'cta-text': 'developer_header_cta_text',
+      'cta-bg': 'developer_header_cta_bg',
+      // Trust badges
+      'trust-1': 'developer_hero_trust_1',
+      'trust-2': 'developer_hero_trust_2',
+      'trust-3': 'developer_hero_trust_3',
+      // Search
+      'search-btn-bg': 'developer_search_btn_bg',
+      // Intro
+      'intro-enabled': 'developer_intro_enabled',
+      'intro-title': 'developer_intro_title',
+      'intro-text': 'developer_intro_text',
+      'intro-bg': 'developer_intro_bg',
+      // Featured
+      'featured-title': 'developer_featured_title',
+      'featured-subtitle': 'developer_featured_subtitle',
+      // About
+      'about-image-url': 'developer_about_image',
+      'about-title': 'developer_about_title',
+      'about-text': 'developer_about_text',
+      // CTA
+      'cta-title': 'developer_cta_title',
+      'cta-text': 'developer_cta_text',
+      'cta-background': 'developer_cta_background',
+      'cta-btn-text': 'developer_cta_btn_text',
+      'cta-btn-url': 'developer_cta_btn_url'
+    };
+    
+    // Transform settings keys
+    const transformedSettings = {};
+    for (const [key, value] of Object.entries(settings)) {
+      const wpKey = keyMapping[key] || key;
+      transformedSettings[wpKey] = value;
+    }
+    
+    console.log('Transformed settings:', JSON.stringify(transformedSettings, null, 2));
+    
     const response = await fetch('https://sites.gas.travel/gas-api.php', {
       method: 'POST',
       headers: {
@@ -11374,7 +11434,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
         action: 'update_settings',
         site_url: siteUrl,
         section,
-        settings
+        settings: transformedSettings
       })
     });
     
