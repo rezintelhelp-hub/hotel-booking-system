@@ -28768,6 +28768,281 @@ app.get('/api/admin/seo/ga4-stats', async (req, res) => {
 });
 
 // =========================================================
+// CONTENT IDEAS LIBRARY
+// =========================================================
+
+// Setup content_ideas table
+app.get('/api/setup-content-ideas', async (req, res) => {
+    try {
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS content_ideas (
+                id SERIAL PRIMARY KEY,
+                client_id INTEGER,
+                property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+                title VARCHAR(500) NOT NULL,
+                description TEXT,
+                content_type VARCHAR(50) DEFAULT 'blog',
+                category VARCHAR(100),
+                status VARCHAR(50) DEFAULT 'active',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        `);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_ideas_client ON content_ideas(client_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_ideas_property ON content_ideas(property_id)`);
+        await pool.query(`CREATE INDEX IF NOT EXISTS idx_content_ideas_status ON content_ideas(status)`);
+        res.json({ success: true, message: 'Content ideas table created' });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Get content ideas
+app.get('/api/admin/content-ideas', async (req, res) => {
+    try {
+        let { client_id, property_id, content_type, status } = req.query;
+        
+        let query = `
+            SELECT ci.*, p.name as property_name 
+            FROM content_ideas ci
+            LEFT JOIN properties p ON ci.property_id = p.id
+            WHERE 1=1
+        `;
+        const params = [];
+        let paramIndex = 1;
+        
+        if (client_id && client_id !== 'null' && client_id !== 'undefined') {
+            query += ` AND ci.client_id = $${paramIndex}`;
+            params.push(parseInt(client_id));
+            paramIndex++;
+        }
+        
+        if (property_id) {
+            query += ` AND ci.property_id = $${paramIndex}`;
+            params.push(parseInt(property_id));
+            paramIndex++;
+        }
+        
+        if (content_type) {
+            query += ` AND ci.content_type = $${paramIndex}`;
+            params.push(content_type);
+            paramIndex++;
+        }
+        
+        if (status) {
+            query += ` AND ci.status = $${paramIndex}`;
+            params.push(status);
+            paramIndex++;
+        }
+        
+        query += ` ORDER BY ci.created_at DESC`;
+        
+        const result = await pool.query(query, params);
+        res.json({ success: true, ideas: result.rows });
+    } catch (error) {
+        console.error('Get content ideas error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Generate content ideas with AI
+app.post('/api/admin/content-ideas/generate', async (req, res) => {
+    try {
+        const { property_id, content_type, category, count, client_id } = req.body;
+        
+        if (!property_id) {
+            return res.json({ success: false, error: 'Property ID required' });
+        }
+        
+        // Get property info for context
+        const propResult = await pool.query(`
+            SELECT p.*, a.city, a.country 
+            FROM properties p 
+            LEFT JOIN accounts a ON p.client_id = a.id
+            WHERE p.id = $1
+        `, [property_id]);
+        
+        if (propResult.rows.length === 0) {
+            return res.json({ success: false, error: 'Property not found' });
+        }
+        
+        const property = propResult.rows[0];
+        const propertyClientId = property.client_id || client_id;
+        
+        // Build prompt based on content type
+        let prompt = '';
+        const numIdeas = count || 10;
+        
+        if (content_type === 'blog') {
+            const categoryPrompts = {
+                'things-to-do': 'local activities, attractions, and things to do near the property',
+                'food-dining': 'local restaurants, cafes, food experiences, and culinary highlights',
+                'events': 'local events, festivals, seasonal happenings, and celebrations',
+                'travel-tips': 'travel tips, packing guides, transportation, and visitor advice',
+                'local-guide': 'neighborhood guides, hidden gems, and local insider knowledge',
+                'seasonal': 'seasonal activities, holiday events, and time-specific content'
+            };
+            
+            prompt = `Generate ${numIdeas} unique blog post ideas for a vacation rental property.
+
+Property: ${property.name}
+Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
+Category Focus: ${categoryPrompts[category] || 'general travel content'}
+
+For each idea, provide:
+1. A compelling, SEO-friendly title (50-60 characters ideal)
+2. A brief description of what the post should cover (1-2 sentences)
+
+Format as JSON array:
+[
+  {"title": "Blog Title Here", "description": "Brief description of the content"},
+  ...
+]
+
+Make titles specific to the location when possible. Focus on topics that would help guests planning their stay.`;
+        } else if (content_type === 'property') {
+            prompt = `Generate ${numIdeas} unique content ideas for property pages/descriptions.
+
+Property: ${property.name}
+Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
+
+Generate ideas for content that describes:
+- Room features and amenities
+- Property highlights
+- Guest experience descriptions
+- Unique selling points
+- Location benefits
+
+Format as JSON array:
+[
+  {"title": "Content Topic", "description": "What this content should highlight"},
+  ...
+]`;
+        } else {
+            prompt = `Generate ${numIdeas} unique SEO content ideas for a vacation rental website.
+
+Property: ${property.name}
+Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
+
+Generate ideas for:
+- FAQ pages
+- Location guides
+- Service descriptions
+- Landing page content
+
+Format as JSON array:
+[
+  {"title": "Content Topic", "description": "Brief description of the content"},
+  ...
+]`;
+        }
+        
+        // Call OpenAI API
+        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: 'gpt-4o-mini',
+                messages: [
+                    { role: 'system', content: 'You are a travel content strategist. Generate creative, SEO-friendly content ideas. Always respond with valid JSON.' },
+                    { role: 'user', content: prompt }
+                ],
+                temperature: 0.8,
+                max_tokens: 2000
+            })
+        });
+        
+        const aiData = await openaiResponse.json();
+        
+        if (!aiData.choices || !aiData.choices[0]) {
+            return res.json({ success: false, error: 'AI generation failed' });
+        }
+        
+        // Parse AI response
+        let ideas = [];
+        try {
+            let content = aiData.choices[0].message.content.trim();
+            // Remove markdown code blocks if present
+            if (content.startsWith('```json')) content = content.slice(7);
+            if (content.startsWith('```')) content = content.slice(3);
+            if (content.endsWith('```')) content = content.slice(0, -3);
+            ideas = JSON.parse(content.trim());
+        } catch (parseError) {
+            console.error('Parse error:', parseError);
+            return res.json({ success: false, error: 'Failed to parse AI response' });
+        }
+        
+        // Save ideas to database
+        const savedIdeas = [];
+        for (const idea of ideas) {
+            const insertResult = await pool.query(`
+                INSERT INTO content_ideas (client_id, property_id, title, description, content_type, category, status)
+                VALUES ($1, $2, $3, $4, $5, $6, 'active')
+                RETURNING *
+            `, [propertyClientId, property_id, idea.title, idea.description, content_type, category]);
+            savedIdeas.push(insertResult.rows[0]);
+        }
+        
+        res.json({ success: true, ideas: savedIdeas, count: savedIdeas.length });
+        
+    } catch (error) {
+        console.error('Generate content ideas error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Update idea status
+app.put('/api/admin/content-ideas/:id/status', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+        
+        if (!['active', 'used', 'archived'].includes(status)) {
+            return res.json({ success: false, error: 'Invalid status' });
+        }
+        
+        const result = await pool.query(`
+            UPDATE content_ideas 
+            SET status = $1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = $2
+            RETURNING *
+        `, [status, id]);
+        
+        if (result.rows.length === 0) {
+            return res.json({ success: false, error: 'Idea not found' });
+        }
+        
+        res.json({ success: true, idea: result.rows[0] });
+    } catch (error) {
+        console.error('Update idea status error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// Delete content idea
+app.delete('/api/admin/content-ideas/:id', async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        const result = await pool.query(`
+            DELETE FROM content_ideas WHERE id = $1 RETURNING *
+        `, [id]);
+        
+        if (result.rows.length === 0) {
+            return res.json({ success: false, error: 'Idea not found' });
+        }
+        
+        res.json({ success: true, message: 'Idea deleted' });
+    } catch (error) {
+        console.error('Delete idea error:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
+// =========================================================
 // ATTRACTIONS
 // =========================================================
 
