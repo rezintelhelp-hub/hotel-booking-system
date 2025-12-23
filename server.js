@@ -28086,24 +28086,53 @@ app.post('/api/admin/blog', async (req, res) => {
         // Generate slug if not provided
         const finalSlug = slug || title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         
-        const result = await pool.query(`
-            INSERT INTO blog_posts (
-                client_id, property_id, title, slug, excerpt, content, featured_image_url,
-                category, tags, meta_title, meta_description,
-                author_name, author_image_url, read_time_minutes,
-                is_featured, is_published, published_at,
-                scheduled_at, ai_generated, source_keyword, language, faq_schema
-            )
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
-            RETURNING *
-        `, [
-            client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
-            category, tags || [], meta_title, meta_description,
-            author_name, author_image_url, read_time_minutes || 5,
-            is_featured || false, is_published !== false, published_at || new Date(),
-            scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en',
-            req.body.faq_schema || null
-        ]);
+        // Check if faq_schema column exists
+        let hasFaqSchema = true;
+        try {
+            await pool.query("SELECT faq_schema FROM blog_posts LIMIT 1");
+        } catch (e) {
+            hasFaqSchema = false;
+        }
+        
+        let result;
+        if (hasFaqSchema) {
+            result = await pool.query(`
+                INSERT INTO blog_posts (
+                    client_id, property_id, title, slug, excerpt, content, featured_image_url,
+                    category, tags, meta_title, meta_description,
+                    author_name, author_image_url, read_time_minutes,
+                    is_featured, is_published, published_at,
+                    scheduled_at, ai_generated, source_keyword, language, faq_schema
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+                RETURNING *
+            `, [
+                client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
+                category, tags || [], meta_title, meta_description,
+                author_name, author_image_url, read_time_minutes || 5,
+                is_featured || false, is_published !== false, published_at || new Date(),
+                scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en',
+                req.body.faq_schema || null
+            ]);
+        } else {
+            result = await pool.query(`
+                INSERT INTO blog_posts (
+                    client_id, property_id, title, slug, excerpt, content, featured_image_url,
+                    category, tags, meta_title, meta_description,
+                    author_name, author_image_url, read_time_minutes,
+                    is_featured, is_published, published_at,
+                    scheduled_at, ai_generated, source_keyword, language
+                )
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21)
+                RETURNING *
+            `, [
+                client_id, property_id || null, title, finalSlug, excerpt, content, featured_image_url,
+                category, tags || [], meta_title, meta_description,
+                author_name, author_image_url, read_time_minutes || 5,
+                is_featured || false, is_published !== false, published_at || new Date(),
+                scheduled_at || null, ai_generated || false, source_keyword || null, language || 'en'
+            ]);
+        }
         
         res.json({ success: true, post: result.rows[0] });
     } catch (error) {
