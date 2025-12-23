@@ -29909,16 +29909,27 @@ app.get('/api/public/client/:clientId/page/:pageType', async (req, res) => {
 app.get('/api/public/client/:clientId/blog', async (req, res) => {
     try {
         const { clientId } = req.params;
-        const { category, limit = 10, offset = 0 } = req.query;
+        const { category, property_id, limit = 10, offset = 0 } = req.query;
         
         let query = `
             SELECT id, title, slug, excerpt, featured_image_url, category, 
                    author_name, read_time_minutes, published_at
             FROM blog_posts 
-            WHERE client_id = $1 AND is_published = true
+            WHERE is_published = true
         `;
-        const params = [clientId];
-        let paramIndex = 2;
+        const params = [];
+        let paramIndex = 1;
+        
+        // Support both client_id and property_id filtering
+        if (property_id) {
+            query += ` AND property_id = $${paramIndex}`;
+            params.push(property_id);
+            paramIndex++;
+        } else if (clientId && clientId !== '0') {
+            query += ` AND client_id = $${paramIndex}`;
+            params.push(clientId);
+            paramIndex++;
+        }
         
         if (category) {
             query += ` AND category = $${paramIndex}`;
