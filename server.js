@@ -28873,6 +28873,9 @@ app.post('/api/admin/content-ideas/generate', async (req, res) => {
         let prompt = '';
         const numIdeas = count || 10;
         
+        // System instruction prefix
+        const systemPrefix = `You are a travel content strategist. Generate creative, SEO-friendly content ideas. Always respond with a valid JSON array only, no other text.\n\n`;
+        
         if (content_type === 'blog') {
             const categoryPrompts = {
                 'things-to-do': 'local activities, attractions, and things to do near the property',
@@ -28883,7 +28886,7 @@ app.post('/api/admin/content-ideas/generate', async (req, res) => {
                 'seasonal': 'seasonal activities, holiday events, and time-specific content'
             };
             
-            prompt = `Generate ${numIdeas} unique blog post ideas for a vacation rental property.
+            prompt = systemPrefix + `Generate ${numIdeas} unique blog post ideas for a vacation rental property.
 
 Property: ${property.name}
 Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
@@ -28901,7 +28904,7 @@ Format as JSON array:
 
 Make titles specific to the location when possible. Focus on topics that would help guests planning their stay.`;
         } else if (content_type === 'property') {
-            prompt = `Generate ${numIdeas} unique content ideas for property pages/descriptions.
+            prompt = systemPrefix + `Generate ${numIdeas} unique content ideas for property pages/descriptions.
 
 Property: ${property.name}
 Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
@@ -28919,7 +28922,7 @@ Format as JSON array:
   ...
 ]`;
         } else {
-            prompt = `Generate ${numIdeas} unique SEO content ideas for a vacation rental website.
+            prompt = systemPrefix + `Generate ${numIdeas} unique SEO content ideas for a vacation rental website.
 
 Property: ${property.name}
 Location: ${property.city || 'Unknown'}, ${property.country || 'Unknown'}
@@ -28937,39 +28940,31 @@ Format as JSON array:
 ]`;
         }
         
-        // Call OpenAI API
-        const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
-            method: 'POST',
+        // Call Claude API (same as blog generator)
+        const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: prompt }]
+        }, {
             headers: {
-                'Authorization': `Bearer ${process.env.OPENAI_API_KEY}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                model: 'gpt-4o-mini',
-                messages: [
-                    { role: 'system', content: 'You are a travel content strategist. Generate creative, SEO-friendly content ideas. Always respond with valid JSON.' },
-                    { role: 'user', content: prompt }
-                ],
-                temperature: 0.8,
-                max_tokens: 2000
-            })
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
         });
         
-        const aiData = await openaiResponse.json();
-        
-        if (!aiData.choices || !aiData.choices[0]) {
-            return res.json({ success: false, error: 'AI generation failed' });
-        }
+        const responseText = claudeResponse.data.content[0].text;
         
         // Parse AI response
         let ideas = [];
         try {
-            let content = aiData.choices[0].message.content.trim();
-            // Remove markdown code blocks if present
-            if (content.startsWith('```json')) content = content.slice(7);
-            if (content.startsWith('```')) content = content.slice(3);
-            if (content.endsWith('```')) content = content.slice(0, -3);
-            ideas = JSON.parse(content.trim());
+            // Extract JSON from response (handle markdown code blocks)
+            const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                ideas = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('No JSON array found in response');
+            }
         } catch (parseError) {
             console.error('Parse error:', parseError);
             return res.json({ success: false, error: 'Failed to parse AI response' });
