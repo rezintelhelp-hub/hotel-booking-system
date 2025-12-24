@@ -21750,22 +21750,49 @@ Local honey and preserves"></textarea>
                 dates.push(d);
             }
             
-            // Build header row
+            // Pre-compute month backgrounds for each date
+            const monthColors = [
+                { bg: '#eff6ff', bgDark: '#dbeafe', text: '#1d4ed8' },  // Blue
+                { bg: '#f0fdf4', bgDark: '#dcfce7', text: '#15803d' }   // Green
+            ];
+            let currentMonthTrack = '';
+            let monthIdx = 0;
+            const dateColors = dates.map(d => {
+                const monthName = d.toLocaleDateString('en-US', { month: 'short' });
+                if (monthName !== currentMonthTrack) {
+                    if (currentMonthTrack !== '') monthIdx++;
+                    currentMonthTrack = monthName;
+                }
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const colors = monthColors[monthIdx % 2];
+                return {
+                    bg: isWeekend ? colors.bgDark : colors.bg,
+                    bgLight: colors.bg,
+                    text: colors.text,
+                    isWeekend
+                };
+            });
+            
+            // Build header row with month labels
             let html = '<thead><tr>';
             html += '<th style="position: sticky; left: 0; background: #f9fafb; z-index: 10; padding: 8px; min-width: 180px; text-align: left; font-weight: 600; color: #374151;">Room</th>';
             html += '<th style="padding: 4px; min-width: 45px; text-align: center; background: #f9fafb;">Row</th>';
             
-            dates.forEach(d => {
+            let currentMonth = '';
+            dates.forEach((d, idx) => {
                 const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
                 const dayNum = d.getDate();
-                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const monthName = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
                 const isToday = d.getTime() === today.getTime();
+                const colors = dateColors[idx];
+                const showMonth = (dayNum === 1 || idx === 0 || monthName !== currentMonth);
+                currentMonth = monthName;
                 
                 html += `<th style="padding: 4px 2px; min-width: 52px; text-align: center; font-weight: normal; 
-                    background: ${isWeekend ? '#f3f4f6' : '#f9fafb'};
-                    ${isToday ? 'background: #dbeafe; font-weight: 600;' : ''}">
-                    <div style="font-size: 0.65rem; color: #9ca3af;">${dayName}</div>
-                    <div style="color: #374151;">${dayNum}</div>
+                    background: ${isToday ? '#fbbf24' : colors.bg};">
+                    ${showMonth ? `<div style="font-size: 0.6rem; color: ${colors.text}; font-weight: 700;">${monthName}</div>` : '<div style="height: 12px;"></div>'}
+                    <div style="font-size: 0.65rem; color: #6b7280;">${dayName}</div>
+                    <div style="color: #374151; font-weight: ${isToday ? '700' : '500'};">${dayNum}</div>
                 </th>`;
             });
             html += '</tr></thead>';
@@ -21781,10 +21808,11 @@ Local honey and preserves"></textarea>
                 html += `<td rowspan="2" style="position: sticky; left: 0; background: #ffffff; z-index: 5; padding: 8px; font-weight: 500; border-bottom: 2px solid #e5e7eb; color: #1f2937;">${room.name}</td>`;
                 html += `<td style="padding: 4px; font-size: 0.65rem; color: #9ca3af; background: #fafafa;">Status</td>`;
                 
-                dates.forEach(d => {
+                dates.forEach((d, idx) => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = roomData[dateStr];
                     const isPast = d < today;
+                    const colors = dateColors[idx];
                     
                     let bgColor = '#d1fae5'; // green - available
                     let text = '';
@@ -21803,7 +21831,13 @@ Local honey and preserves"></textarea>
                             bgColor = '#fef3c7'; // yellow
                             text = '✕';
                             textColor = '#92400e';
+                        } else {
+                            // Available - use month color
+                            bgColor = colors.bgLight;
                         }
+                    } else {
+                        // No data - use month color for available
+                        bgColor = colors.bgLight;
                     }
                     
                     if (isPast) {
@@ -21828,10 +21862,11 @@ Local honey and preserves"></textarea>
                 html += '<tr style="border-bottom: 2px solid #e5e7eb;">';
                 html += `<td style="padding: 4px; font-size: 0.65rem; color: #9ca3af; background: #fafafa;">Price</td>`;
                 
-                dates.forEach(d => {
+                dates.forEach((d, idx) => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = roomData[dateStr];
                     const isPast = d < today;
+                    const colors = dateColors[idx];
                     
                     let priceText = '-';
                     let priceStyle = 'color: var(--text-secondary);';
@@ -21848,7 +21883,7 @@ Local honey and preserves"></textarea>
                         }
                     }
                     
-                    html += `<td style="padding: 2px; text-align: center; font-size: 0.7rem; ${priceStyle} ${isPast ? 'opacity: 0.4;' : ''}">${priceText}</td>`;
+                    html += `<td style="padding: 2px; text-align: center; font-size: 0.7rem; background: ${colors.bgLight}; ${priceStyle} ${isPast ? 'opacity: 0.4;' : ''}">${priceText}</td>`;
                 });
                 html += '</tr>';
             });
