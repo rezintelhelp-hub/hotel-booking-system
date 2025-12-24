@@ -29235,7 +29235,7 @@ Local honey and preserves"></textarea>
                     
                     showNotification(id ? 'Attraction updated!' : 'Attraction added!', 'success');
                     closeModal('attractionModal');
-                    loadAppAttractions();
+                    loadAttractionsByTab();
                 } else {
                     showNotification('Error: ' + (data.error || 'Could not save'), 'error');
                 }
@@ -29262,7 +29262,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     showNotification('Attraction deleted', 'success');
                     closeModal('attractionModal');
-                    loadAppAttractions();
+                    loadAttractionsByTab();
                 } else {
                     showNotification('Error: ' + (data.error || 'Could not delete'), 'error');
                 }
