@@ -25215,8 +25215,36 @@ app.post('/api/public/calculate-price', async (req, res) => {
   try {
     const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells, pricing_tier } = req.body;
     
-    // Get effective pricing tier (default to standard)
-    const effectivePricingTier = pricing_tier || 'standard';
+    // Get effective pricing tier - check multiple sources:
+    // 1. Explicit body parameter
+    // 2. Auto-detect from Referer header (deployed site URL)
+    // 3. Default to 'standard'
+    let effectivePricingTier = pricing_tier || 'standard';
+    
+    // Auto-detect from Referer if no explicit pricing_tier provided
+    if (!pricing_tier) {
+      const referer = req.headers.referer || req.headers.origin || '';
+      if (referer) {
+        try {
+          const refererUrl = new URL(referer);
+          const refererHost = refererUrl.hostname;
+          
+          // Look up pricing tier from deployed_sites by site_url
+          const siteResult = await pool.query(`
+            SELECT pricing_tier FROM deployed_sites 
+            WHERE site_url ILIKE $1 OR site_url ILIKE $2
+            LIMIT 1
+          `, [`%${refererHost}%`, `%${refererHost.replace('www.', '')}%`]);
+          
+          if (siteResult.rows[0]?.pricing_tier) {
+            effectivePricingTier = siteResult.rows[0].pricing_tier;
+            console.log(`[Calculate Price] Auto-detected pricing_tier '${effectivePricingTier}' from referer: ${refererHost}`);
+          }
+        } catch (e) {
+          // Invalid referer URL, ignore
+        }
+      }
+    }
     
     if (!unit_id || !check_in || !check_out) {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
@@ -26155,8 +26183,36 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     const { clientId } = req.params;
     const { property_id, room_ids, limit, random, pricing_tier } = req.query;
     
-    // Get effective pricing tier (default to standard)
-    const effectivePricingTier = pricing_tier || 'standard';
+    // Get effective pricing tier - check multiple sources:
+    // 1. Explicit query parameter
+    // 2. Auto-detect from Referer header (deployed site URL)
+    // 3. Default to 'standard'
+    let effectivePricingTier = pricing_tier || 'standard';
+    
+    // Auto-detect from Referer if no explicit pricing_tier provided
+    if (!pricing_tier) {
+      const referer = req.headers.referer || req.headers.origin || '';
+      if (referer) {
+        try {
+          const refererUrl = new URL(referer);
+          const refererHost = refererUrl.hostname;
+          
+          // Look up pricing tier from deployed_sites by site_url
+          const siteResult = await pool.query(`
+            SELECT pricing_tier FROM deployed_sites 
+            WHERE site_url ILIKE $1 OR site_url ILIKE $2
+            LIMIT 1
+          `, [`%${refererHost}%`, `%${refererHost.replace('www.', '')}%`]);
+          
+          if (siteResult.rows[0]?.pricing_tier) {
+            effectivePricingTier = siteResult.rows[0].pricing_tier;
+            console.log(`[Rooms API] Auto-detected pricing_tier '${effectivePricingTier}' from referer: ${refererHost}`);
+          }
+        } catch (e) {
+          // Invalid referer URL, ignore
+        }
+      }
+    }
     
     // Get today's date for rate calendar lookup
     const today = new Date().toISOString().split('T')[0];
