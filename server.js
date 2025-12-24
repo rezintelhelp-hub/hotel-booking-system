@@ -26192,24 +26192,28 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     // Auto-detect from Referer if no explicit pricing_tier provided
     if (!pricing_tier) {
       const referer = req.headers.referer || req.headers.origin || '';
+      console.log(`[Rooms API] Referer header: ${referer || 'NONE'}`);
       if (referer) {
         try {
           const refererUrl = new URL(referer);
           const refererHost = refererUrl.hostname;
+          console.log(`[Rooms API] Looking up pricing_tier for host: ${refererHost}`);
           
           // Look up pricing tier from deployed_sites by site_url
           const siteResult = await pool.query(`
-            SELECT pricing_tier FROM deployed_sites 
+            SELECT pricing_tier, site_url FROM deployed_sites 
             WHERE site_url ILIKE $1 OR site_url ILIKE $2
             LIMIT 1
           `, [`%${refererHost}%`, `%${refererHost.replace('www.', '')}%`]);
+          
+          console.log(`[Rooms API] Lookup result: ${JSON.stringify(siteResult.rows[0] || 'NO MATCH')}`);
           
           if (siteResult.rows[0]?.pricing_tier) {
             effectivePricingTier = siteResult.rows[0].pricing_tier;
             console.log(`[Rooms API] Auto-detected pricing_tier '${effectivePricingTier}' from referer: ${refererHost}`);
           }
         } catch (e) {
-          // Invalid referer URL, ignore
+          console.log(`[Rooms API] Referer lookup error: ${e.message}`);
         }
       }
     }
