@@ -25213,7 +25213,10 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
 // Calculate price for dates (public) - supports offers, vouchers, upsells
 app.post('/api/public/calculate-price', async (req, res) => {
   try {
-    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells } = req.body;
+    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells, pricing_tier } = req.body;
+    
+    // Get effective pricing tier (default to standard)
+    const effectivePricingTier = pricing_tier || 'standard';
     
     if (!unit_id || !check_in || !check_out) {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
@@ -25375,7 +25378,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
-    // Check for applicable offers
+    // Check for applicable offers - filter by pricing tier
     let discount = 0;
     let offerApplied = null;
     
@@ -25387,9 +25390,13 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (min_nights IS NULL OR min_nights <= $2)
         AND (valid_from IS NULL OR valid_from <= $3)
         AND (valid_until IS NULL OR valid_until >= $4)
-      ORDER BY priority DESC, discount_value DESC
+        AND (pricing_tier IS NULL OR pricing_tier = $5 OR pricing_tier = 'standard')
+      ORDER BY 
+        CASE WHEN pricing_tier = $5 THEN 0 ELSE 1 END,
+        priority DESC, 
+        discount_value DESC
       LIMIT 1
-    `, [unit_id, nights, check_in, check_out]);
+    `, [unit_id, nights, check_in, check_out, effectivePricingTier]);
     
     if (offers.rows[0]) {
       const offer = offers.rows[0];
@@ -25398,7 +25405,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       } else {
         discount = parseFloat(offer.discount_value);
       }
-      offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value };
+      offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value, pricing_tier: offer.pricing_tier };
     }
     
     // Check voucher
