@@ -25208,10 +25208,23 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
 // Calculate price for dates (public) - supports offers, vouchers, upsells
 app.post('/api/public/calculate-price', async (req, res) => {
   try {
-    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells } = req.body;
+    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells, pricing_tier, site_id } = req.body;
     
     if (!unit_id || !check_in || !check_out) {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
+    }
+    
+    // Determine pricing tier - from direct parameter or from site lookup
+    let effectivePricingTier = pricing_tier || 'standard';
+    if (!pricing_tier && site_id) {
+      try {
+        const siteResult = await pool.query('SELECT pricing_tier FROM deployed_sites WHERE id = $1', [site_id]);
+        if (siteResult.rows[0]) {
+          effectivePricingTier = siteResult.rows[0].pricing_tier || 'standard';
+        }
+      } catch (e) {
+        console.log('Could not look up site pricing tier:', e.message);
+      }
     }
     
     // Get availability for date range - include min_stay
@@ -25370,7 +25383,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
-    // Check for applicable offers
+    // Check for applicable offers - filter by pricing tier
     let discount = 0;
     let offerApplied = null;
     
@@ -25382,9 +25395,13 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (min_nights IS NULL OR min_nights <= $2)
         AND (valid_from IS NULL OR valid_from <= $3)
         AND (valid_until IS NULL OR valid_until >= $4)
-      ORDER BY priority DESC, discount_value DESC
+        AND (pricing_tier IS NULL OR pricing_tier = $5 OR pricing_tier = 'standard')
+      ORDER BY 
+        CASE WHEN pricing_tier = $5 THEN 0 ELSE 1 END,  -- Prefer matching tier
+        priority DESC, 
+        discount_value DESC
       LIMIT 1
-    `, [unit_id, nights, check_in, check_out]);
+    `, [unit_id, nights, check_in, check_out, effectivePricingTier]);
     
     if (offers.rows[0]) {
       const offer = offers.rows[0];
@@ -25393,7 +25410,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       } else {
         discount = parseFloat(offer.discount_value);
       }
-      offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value };
+      offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value, pricing_tier: offer.pricing_tier };
     }
     
     // Check voucher
@@ -26141,7 +26158,20 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
 app.get('/api/public/client/:clientId/rooms', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { property_id, room_ids, limit, random } = req.query;
+    const { property_id, room_ids, limit, random, pricing_tier, site_id } = req.query;
+    
+    // Determine effective pricing tier
+    let effectivePricingTier = pricing_tier || 'standard';
+    if (!pricing_tier && site_id) {
+      try {
+        const siteResult = await pool.query('SELECT pricing_tier FROM deployed_sites WHERE id = $1', [site_id]);
+        if (siteResult.rows[0]) {
+          effectivePricingTier = siteResult.rows[0].pricing_tier || 'standard';
+        }
+      } catch (e) {
+        console.log('Could not look up site pricing tier:', e.message);
+      }
+    }
     
     // Get today's date for rate calendar lookup
     const today = new Date().toISOString().split('T')[0];
@@ -26206,11 +26236,51 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     
     const result = await pool.query(query, params);
     
-    // Use today's rate if available, otherwise fall back to base_price
-    const rooms = result.rows.map(room => ({
-      ...room,
-      price: room.todays_rate || room.base_price || 0
-    }));
+    // Get applicable offers for this pricing tier
+    let tierOffers = [];
+    if (effectivePricingTier !== 'standard') {
+      const offersResult = await pool.query(`
+        SELECT * FROM offers 
+        WHERE active = true 
+          AND pricing_tier = $1
+          AND (valid_from IS NULL OR valid_from <= $2)
+          AND (valid_until IS NULL OR valid_until >= $2)
+      `, [effectivePricingTier, today]);
+      tierOffers = offersResult.rows;
+    }
+    
+    // Process rooms - apply pricing tier offers if applicable
+    const rooms = result.rows.map(room => {
+      let price = parseFloat(room.todays_rate || room.base_price || 0);
+      let appliedOffer = null;
+      
+      // Find best offer for this room's pricing tier
+      const roomOffers = tierOffers.filter(o => 
+        (!o.property_id || o.property_id === room.property_id) &&
+        (!o.room_id || o.room_id === room.id)
+      );
+      
+      if (roomOffers.length > 0) {
+        // Sort by priority and discount value
+        roomOffers.sort((a, b) => (b.priority || 0) - (a.priority || 0) || b.discount_value - a.discount_value);
+        const offer = roomOffers[0];
+        
+        if (offer.discount_type === 'percentage') {
+          price = price * (1 - offer.discount_value / 100);
+        } else {
+          price = price - parseFloat(offer.discount_value);
+        }
+        appliedOffer = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value };
+      }
+      
+      return {
+        ...room,
+        price: Math.round(price * 100) / 100,
+        standard_price: room.todays_rate || room.base_price || 0,
+        applied_offer: appliedOffer,
+        pricing_tier: effectivePricingTier
+      };
+    });
     
     // Get max guests across all rooms
     const maxGuestsResult = await pool.query(`
@@ -26225,7 +26295,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       rooms: rooms,
       meta: {
         total: rooms.length,
-        max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10
+        max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10,
+        pricing_tier: effectivePricingTier
       }
     });
   } catch (error) {
