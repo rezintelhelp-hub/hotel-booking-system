@@ -10131,7 +10131,7 @@ Local honey and preserves"></textarea>
                 <!-- Step 1: Property -->
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label class="form-label" style="font-weight: 600; font-size: 1rem;">Step 1: Select Property <span style="color: #ef4444;">*</span></label>
-                    <select id="attraction-wizard-property" class="form-input" style="width: 100%;">
+                    <select id="attraction-wizard-property" class="form-input" style="width: 100%;" onchange="checkAttractionWizardReady()">
                         <option value="">Choose a property...</option>
                     </select>
                 </div>
@@ -29466,17 +29466,24 @@ Local honey and preserves"></textarea>
                     
                     // Show appropriate message
                     let message = id ? 'Attraction updated!' : 'Attraction saved!';
+                    let targetTab = 'drafts'; // Default to drafts
+                    
                     if (shouldPublish) {
                         message = 'Attraction published!';
+                        targetTab = 'published';
                     } else if (scheduledAt) {
                         message = 'Attraction scheduled!';
+                        targetTab = 'scheduled';
                     } else {
                         message = 'Saved as draft!';
+                        targetTab = 'drafts';
                     }
                     
                     showNotification(message, 'success');
                     closeModal('attractionModal');
-                    loadAttractionsByTab();
+                    
+                    // Switch to appropriate tab and reload
+                    switchAttractionTab(targetTab);
                 } else {
                     showNotification('Error: ' + (data.error || 'Could not save'), 'error');
                 }
@@ -30370,9 +30377,13 @@ Local honey and preserves"></textarea>
                 }
             });
             
-            // Enable button if property selected
+            checkAttractionWizardReady();
+        }
+        
+        function checkAttractionWizardReady() {
             const property = document.getElementById('attraction-wizard-property').value;
-            document.getElementById('attraction-wizard-generate-btn').disabled = !property;
+            const btn = document.getElementById('attraction-wizard-generate-btn');
+            btn.disabled = !(property && selectedAttractionCategory);
         }
         
         async function generateAttractionIdeas() {
@@ -30382,6 +30393,8 @@ Local honey and preserves"></textarea>
                 showNotification('Please select property and category', 'error');
                 return;
             }
+            
+            console.log('Generating attractions:', { propertyId, category: selectedAttractionCategory });
             
             // Show loading
             document.getElementById('attraction-wizard-footer').style.display = 'none';
@@ -30402,6 +30415,7 @@ Local honey and preserves"></textarea>
                 });
                 
                 const data = await response.json();
+                console.log('Generation response:', data);
                 
                 document.getElementById('attraction-wizard-loading').style.display = 'none';
                 
@@ -30418,12 +30432,13 @@ Local honey and preserves"></textarea>
                     // Refresh to show new ideas
                     loadAttractionsByTab();
                 } else {
-                    showNotification(data.error || 'Failed to generate suggestions', 'error');
+                    console.error('Generation failed:', data);
+                    showNotification(data.error || 'Failed to generate suggestions. Please try again.', 'error');
                     resetAttractionWizard();
                 }
             } catch (error) {
                 console.error('Generate attraction ideas error:', error);
-                showNotification('Error generating suggestions', 'error');
+                showNotification('Error generating suggestions: ' + error.message, 'error');
                 document.getElementById('attraction-wizard-loading').style.display = 'none';
                 resetAttractionWizard();
             }
@@ -30485,7 +30500,7 @@ Local honey and preserves"></textarea>
             }
             
             // Auto-trigger AI fill
-            showNotification('Loading AI details...', 'info');
+            showNotification('AI generating details, please wait...', 'info');
             setTimeout(() => aiGenerateAttractionDetails(), 300);
         }
         
@@ -30565,8 +30580,7 @@ Local honey and preserves"></textarea>
             
             const btn = document.querySelector('[onclick="aiGenerateAttractionDetails()"]');
             if (!btn) return;
-            const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳ Generating...';
+            btn.innerHTML = '⏳ AI Generating, please wait...';
             btn.disabled = true;
             
             try {
@@ -30620,16 +30634,22 @@ Local honey and preserves"></textarea>
                         document.getElementById('attraction-faq-schema').value = schemaScript;
                     }
                     
-                    showNotification('AI details loaded!', 'success');
+                    // Change button to show ready state
+                    btn.innerHTML = '✅ Ready to Save';
+                    btn.disabled = false;
+                    btn.style.background = '#10b981';
+                    
+                    showNotification('AI details loaded! Review and save.', 'success');
                 } else {
+                    btn.innerHTML = '✨ AI Fill Details';
+                    btn.disabled = false;
                     showNotification(data.error || 'AI generation failed', 'error');
                 }
             } catch (error) {
                 console.error('AI generate error:', error);
-                showNotification('Error generating details', 'error');
-            } finally {
-                btn.innerHTML = originalText;
+                btn.innerHTML = '✨ AI Fill Details';
                 btn.disabled = false;
+                showNotification('Error generating details', 'error');
             }
         }
         
