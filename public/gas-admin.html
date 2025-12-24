@@ -13399,15 +13399,40 @@ Local honey and preserves"></textarea>
                             
                             <div class="form-group">
                                 <label class="form-label">Category</label>
-                                <select class="form-input" id="blog-category">
+                                <select class="form-input" id="blog-category" onchange="toggleBlogCustomCategory()">
                                     <option value="">Select category...</option>
-                                    <option value="News">News</option>
-                                    <option value="Travel Tips">Travel Tips</option>
-                                    <option value="Local Guide">Local Guide</option>
-                                    <option value="Events">Events</option>
-                                    <option value="Food & Drink">Food & Drink</option>
-                                    <option value="Offers">Offers</option>
+                                    <optgroup label="Attractions & Places">
+                                        <option value="Museums & Galleries">🏛️ Museums & Galleries</option>
+                                        <option value="Landmarks & Monuments">🗿 Landmarks & Monuments</option>
+                                        <option value="Parks & Gardens">🌳 Parks & Gardens</option>
+                                        <option value="Beaches & Coastline">🏖️ Beaches & Coastline</option>
+                                        <option value="Restaurants & Dining">🍽️ Restaurants & Dining</option>
+                                        <option value="Cafes & Coffee Shops">☕ Cafes & Coffee Shops</option>
+                                        <option value="Nightlife & Bars">🌃 Nightlife & Bars</option>
+                                        <option value="Shopping & Markets">🛍️ Shopping & Markets</option>
+                                        <option value="Nature & Outdoor">🏞️ Nature & Outdoor</option>
+                                        <option value="Day Trips">🚗 Day Trips</option>
+                                    </optgroup>
+                                    <optgroup label="Events & What's On">
+                                        <option value="Festivals & Celebrations">🎪 Festivals & Celebrations</option>
+                                        <option value="Concerts & Live Music">🎵 Concerts & Live Music</option>
+                                        <option value="Theater & Performances">🎭 Theater & Performances</option>
+                                        <option value="Sports Events">⚽ Sports Events</option>
+                                        <option value="Markets & Fairs">🛍️ Markets & Fairs</option>
+                                        <option value="Cultural Events">🎨 Cultural Events</option>
+                                        <option value="Seasonal Activities">❄️ Seasonal Activities</option>
+                                        <option value="Holiday Events">🎄 Holiday Events</option>
+                                        <option value="Family Events">👨‍👩‍👧‍👦 Family Events</option>
+                                    </optgroup>
+                                    <optgroup label="General">
+                                        <option value="News">📰 News</option>
+                                        <option value="Travel Tips">✈️ Travel Tips</option>
+                                        <option value="Local Guide">📍 Local Guide</option>
+                                        <option value="Offers">🏷️ Offers</option>
+                                        <option value="Other">✏️ Other (custom)</option>
+                                    </optgroup>
                                 </select>
+                                <input type="text" class="form-input" id="blog-category-custom" placeholder="Enter custom category..." style="display: none; margin-top: 0.5rem;">
                             </div>
                             
                             <div class="form-group">
@@ -13578,40 +13603,12 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                     
-                    <!-- Featured Image -->
                     <div class="form-group">
-                        <label class="form-label">Featured Image</label>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('attraction-image-upload').click()" style="white-space: nowrap;">📷 Upload Image</button>
-                            <input type="file" id="attraction-image-upload" accept="image/*" style="display: none;" onchange="uploadAttractionImage(this)">
-                            <span style="color: var(--text-secondary);">or</span>
-                            <input type="text" class="form-input" id="attraction-image" placeholder="Paste image URL" style="flex: 1;">
-                        </div>
-                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">💡 Upload your own image or paste a URL</p>
-                    </div>
-                    
-                    <!-- Scheduling Options -->
-                    <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-                        <label style="font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
-                            <input type="checkbox" id="attraction-schedule" onchange="toggleAttractionSchedule()" />
-                            ⏰ Schedule for later
+                        <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" id="attraction-published" checked style="width: 18px; height: 18px;">
+                            Published (visible on website)
                         </label>
-                        <div id="attraction-schedule-options" style="display: none; margin-top: 1rem;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                                <div>
-                                    <label class="form-label">Publish Date</label>
-                                    <input type="date" id="attraction-schedule-date" class="form-input" />
-                                </div>
-                                <div>
-                                    <label class="form-label">Publish Time</label>
-                                    <input type="time" id="attraction-schedule-time" class="form-input" value="09:00" />
-                                </div>
-                            </div>
-                        </div>
                     </div>
-                    
-                    <!-- Hidden field for published state -->
-                    <input type="hidden" id="attraction-published" value="false">
                     
                     <!-- SEO Section -->
                     <div style="background: #f0fdf4; padding: 1rem; border-radius: 8px; border: 1px solid #86efac; margin-top: 1rem;">
@@ -13627,7 +13624,6 @@ Local honey and preserves"></textarea>
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label" style="font-size: 0.85rem;">FAQ Schema (JSON-LD)</label>
                             <textarea class="form-input" id="attraction-faq-schema" rows="3" style="font-family: monospace; font-size: 0.8rem;" placeholder="Generated by AI or paste your own"></textarea>
-                            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">💡 Add this to your page's &lt;head&gt; section for rich FAQ snippets in Google</p>
                         </div>
                     </div>
                 </form>
@@ -13635,9 +13631,8 @@ Local honey and preserves"></textarea>
             <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid var(--border);">
                 <button type="button" class="btn btn-secondary" id="attraction-delete-btn" onclick="deleteAttraction()" style="background: #fee2e2; color: #dc2626; border-color: #fecaca; display: none;">🗑️ Delete</button>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button type="button" class="btn" onclick="saveAttractionAsDraft()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">💾 Save as Draft</button>
-                    <button type="button" class="btn" onclick="saveAttractionAndPublish()" style="background: #10b981;">🚀 Publish</button>
-                    <button type="button" class="btn btn-secondary" onclick="closeModal('attractionModal')">← Back</button>
+                    <button type="button" class="btn btn-secondary" onclick="closeModal('attractionModal')">Cancel</button>
+                    <button type="button" class="btn" onclick="saveAttraction()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">💾 Save Attraction</button>
                 </div>
             </div>
         </div>
@@ -28924,6 +28919,8 @@ Local honey and preserves"></textarea>
                 document.getElementById('blog-content').value = post.content || '';
                 document.getElementById('blog-featured-image').value = post.featured_image_url || '';
                 document.getElementById('blog-category').value = post.category || '';
+                // Handle custom categories when editing
+                setBlogCategory('blog-category', post.category || '');
                 document.getElementById('blog-author').value = post.author_name || '';
                 document.getElementById('blog-read-time').value = post.read_time_minutes || '';
                 document.getElementById('blog-published').checked = post.is_published;
@@ -28972,6 +28969,12 @@ Local honey and preserves"></textarea>
                 return;
             }
             
+            // Handle custom category
+            let category = document.getElementById('blog-category').value;
+            if (category === 'Other') {
+                category = document.getElementById('blog-category-custom').value.trim() || 'General';
+            }
+            
             const postData = {
                 property_id: parseInt(propertyId),
                 title: title,
@@ -28979,7 +28982,7 @@ Local honey and preserves"></textarea>
                 excerpt: document.getElementById('blog-excerpt').value.trim(),
                 content: content,
                 featured_image_url: document.getElementById('blog-featured-image').value.trim(),
-                category: document.getElementById('blog-category').value,
+                category: category,
                 author_name: document.getElementById('blog-author').value.trim(),
                 read_time_minutes: parseInt(document.getElementById('blog-read-time').value) || null,
                 is_published: document.getElementById('blog-published').checked,
@@ -29037,6 +29040,86 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error deleting blog post:', error);
                 showNotification('Error deleting blog post', 'error');
+            }
+        }
+
+        // Toggle custom category input visibility
+        function toggleBlogCustomCategory() {
+            const select = document.getElementById('blog-category');
+            const customInput = document.getElementById('blog-category-custom');
+            if (select.value === 'Other') {
+                customInput.style.display = 'block';
+                customInput.focus();
+            } else {
+                customInput.style.display = 'none';
+                customInput.value = '';
+            }
+        }
+        
+        function toggleAiBlogCustomCategory() {
+            const select = document.getElementById('ai-blog-category');
+            const customInput = document.getElementById('ai-blog-category-custom');
+            if (select.value === 'Other') {
+                customInput.style.display = 'block';
+                customInput.focus();
+            } else {
+                customInput.style.display = 'none';
+                customInput.value = '';
+            }
+        }
+        
+        // Map wizard subcategory to category dropdown value
+        const subcategoryToCategoryMap = {
+            // Attractions & Places
+            'museums': 'Museums & Galleries',
+            'landmarks': 'Landmarks & Monuments',
+            'parks': 'Parks & Gardens',
+            'beaches': 'Beaches & Coastline',
+            'restaurants': 'Restaurants & Dining',
+            'cafes': 'Cafes & Coffee Shops',
+            'nightlife': 'Nightlife & Bars',
+            'shopping': 'Shopping & Markets',
+            'nature': 'Nature & Outdoor',
+            'daytrips': 'Day Trips',
+            // Events & What's On
+            'festivals': 'Festivals & Celebrations',
+            'concerts': 'Concerts & Live Music',
+            'theater': 'Theater & Performances',
+            'sports': 'Sports Events',
+            'markets': 'Markets & Fairs',
+            'cultural': 'Cultural Events',
+            'seasonal': 'Seasonal Activities',
+            'holidays': 'Holiday Events',
+            'family': 'Family Events'
+        };
+        
+        function mapSubcategoryToCategory(subcategory) {
+            return subcategoryToCategoryMap[subcategory] || 'Local Guide';
+        }
+        
+        // Set category in blog form, handling custom values
+        function setBlogCategory(selectId, category) {
+            const select = document.getElementById(selectId);
+            const customInput = document.getElementById(selectId + '-custom');
+            
+            if (!select) return;
+            
+            // Check if category exists in dropdown options
+            const optionExists = Array.from(select.options).some(opt => opt.value === category);
+            
+            if (optionExists) {
+                select.value = category;
+                if (customInput) {
+                    customInput.style.display = 'none';
+                    customInput.value = '';
+                }
+            } else if (category) {
+                // Custom category - select "Other" and show input
+                select.value = 'Other';
+                if (customInput) {
+                    customInput.style.display = 'block';
+                    customInput.value = category;
+                }
             }
         }
 
@@ -29127,7 +29210,7 @@ Local honey and preserves"></textarea>
             document.getElementById('attraction-form').reset();
             document.getElementById('attraction-id').value = '';
             document.getElementById('attraction-delete-btn').style.display = 'none';
-            document.getElementById('attraction-published').checked = false; // Default to draft for new attractions
+            document.getElementById('attraction-published').checked = true;
             
             // Populate property dropdown in modal
             await populatePropertySelect('attraction-property-id');
@@ -29155,27 +29238,12 @@ Local honey and preserves"></textarea>
                 document.getElementById('attraction-price').value = attraction.price_range || '';
                 document.getElementById('attraction-duration').value = attraction.duration || '';
                 document.getElementById('attraction-order').value = attraction.display_order || 0;
-                document.getElementById('attraction-published').value = attraction.is_published ? 'true' : 'false';
+                document.getElementById('attraction-published').checked = attraction.is_published !== false;
                 document.getElementById('attraction-meta-title').value = attraction.meta_title || '';
                 document.getElementById('attraction-meta-description').value = attraction.meta_description || '';
-                
-                // Handle schedule
-                if (attraction.scheduled_at) {
-                    const schedDate = new Date(attraction.scheduled_at);
-                    document.getElementById('attraction-schedule').checked = true;
-                    document.getElementById('attraction-schedule-date').value = schedDate.toISOString().split('T')[0];
-                    document.getElementById('attraction-schedule-time').value = schedDate.toTimeString().slice(0, 5);
-                    document.getElementById('attraction-schedule-options').style.display = 'block';
-                } else {
-                    document.getElementById('attraction-schedule').checked = false;
-                    document.getElementById('attraction-schedule-options').style.display = 'none';
-                }
-                
                 document.getElementById('attraction-delete-btn').style.display = 'block';
             } else {
                 document.getElementById('attraction-modal-title').textContent = '🎯 Add Attraction';
-                document.getElementById('attraction-schedule').checked = false;
-                document.getElementById('attraction-schedule-options').style.display = 'none';
             }
             
             openModal('attractionModal');
@@ -29196,7 +29264,7 @@ Local honey and preserves"></textarea>
             }
         }
 
-        async function saveAttraction(shouldPublish = false) {
+        async function saveAttraction() {
             const id = document.getElementById('attraction-id').value;
             const propertyId = document.getElementById('attraction-property-id').value;
             const name = document.getElementById('attraction-name').value.trim();
@@ -29229,17 +29297,6 @@ Local honey and preserves"></textarea>
                 }
             }
             
-            // Handle scheduling
-            let scheduledAt = null;
-            const isScheduled = document.getElementById('attraction-schedule')?.checked;
-            if (isScheduled && !shouldPublish) {
-                const schedDate = document.getElementById('attraction-schedule-date').value;
-                const schedTime = document.getElementById('attraction-schedule-time').value || '09:00';
-                if (schedDate) {
-                    scheduledAt = new Date(`${schedDate}T${schedTime}`).toISOString();
-                }
-            }
-            
             const attractionData = {
                 property_id: parseInt(propertyId),
                 name: name,
@@ -29255,8 +29312,7 @@ Local honey and preserves"></textarea>
                 price_range: document.getElementById('attraction-price').value,
                 duration: document.getElementById('attraction-duration').value.trim(),
                 display_order: parseInt(document.getElementById('attraction-order').value) || 0,
-                is_published: shouldPublish,
-                scheduled_at: scheduledAt,
+                is_published: document.getElementById('attraction-published').checked,
                 meta_title: document.getElementById('attraction-meta-title').value.trim(),
                 meta_description: document.getElementById('attraction-meta-description').value.trim(),
                 faq_schema: faqSchema,
@@ -29290,17 +29346,9 @@ Local honey and preserves"></textarea>
                         }
                     }
                     
-                    let message = id ? 'Attraction updated!' : 'Attraction created!';
-                    if (shouldPublish) {
-                        message = 'Attraction published!';
-                    } else if (scheduledAt) {
-                        message = 'Attraction scheduled!';
-                    } else {
-                        message = id ? 'Draft updated!' : 'Saved as draft!';
-                    }
-                    showNotification(message, 'success');
+                    showNotification(id ? 'Attraction updated!' : 'Attraction added!', 'success');
                     closeModal('attractionModal');
-                    loadAttractionsByTab();
+                    loadAppAttractions();
                 } else {
                     showNotification('Error: ' + (data.error || 'Could not save'), 'error');
                 }
@@ -29327,68 +29375,13 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     showNotification('Attraction deleted', 'success');
                     closeModal('attractionModal');
-                    loadAttractionsByTab();
+                    loadAppAttractions();
                 } else {
                     showNotification('Error: ' + (data.error || 'Could not delete'), 'error');
                 }
             } catch (error) {
                 console.error('Error deleting attraction:', error);
                 showNotification('Error deleting attraction', 'error');
-            }
-        }
-        
-        // Save as Draft wrapper
-        async function saveAttractionAsDraft() {
-            await saveAttraction(false);
-        }
-        
-        // Publish wrapper
-        async function saveAttractionAndPublish() {
-            await saveAttraction(true);
-        }
-        
-        // Toggle schedule options visibility
-        function toggleAttractionSchedule() {
-            const isChecked = document.getElementById('attraction-schedule').checked;
-            const optionsDiv = document.getElementById('attraction-schedule-options');
-            optionsDiv.style.display = isChecked ? 'block' : 'none';
-            
-            // Set default date to tomorrow if not set
-            if (isChecked && !document.getElementById('attraction-schedule-date').value) {
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                document.getElementById('attraction-schedule-date').value = tomorrow.toISOString().split('T')[0];
-            }
-        }
-        
-        // Upload attraction image
-        async function uploadAttractionImage(input) {
-            if (!input.files || !input.files[0]) return;
-            
-            const file = input.files[0];
-            const formData = new FormData();
-            formData.append('image', file);
-            
-            showNotification('Uploading image...', 'info');
-            
-            try {
-                const response = await fetch('/api/admin/upload-image', {
-                    method: 'POST',
-                    headers: authHeaders(),
-                    body: formData
-                });
-                
-                const data = await response.json();
-                
-                if (data.success && data.url) {
-                    document.getElementById('attraction-image').value = data.url;
-                    showNotification('Image uploaded!', 'success');
-                } else {
-                    showNotification('Upload failed: ' + (data.error || 'Unknown error'), 'error');
-                }
-            } catch (error) {
-                console.error('Upload error:', error);
-                showNotification('Error uploading image', 'error');
             }
         }
 
@@ -29869,11 +29862,17 @@ Local honey and preserves"></textarea>
             const idea = blogIdeas.find(i => i.id === ideaId);
             if (!idea) return;
             
-            // Generate blog immediately
-            await generateBlogFromIdea(ideaId, idea.title, idea.property_id);
+            // Extract subcategory from idea.category (format: "attractions_parks" or "events_festivals")
+            let subcategory = '';
+            if (idea.category && idea.category.includes('_')) {
+                subcategory = idea.category.split('_')[1];
+            }
+            
+            // Generate blog immediately with category
+            await generateBlogFromIdea(ideaId, idea.title, idea.property_id, subcategory);
         }
         
-        async function generateBlogFromIdea(ideaId, title, propertyId) {
+        async function generateBlogFromIdea(ideaId, title, propertyId, subcategory = '') {
             // Open AI blog modal but skip to loading/generation immediately
             await openAiBlogModal(title, propertyId);
             
@@ -29881,10 +29880,18 @@ Local honey and preserves"></textarea>
             const propertyIdEl = document.getElementById('ai-blog-property-id');
             if (propertyIdEl) {
                 propertyIdEl.dataset.contentIdeaId = ideaId;
+                // Store subcategory for use after generation
+                propertyIdEl.dataset.subcategory = subcategory;
             }
             
             // Set the keyword
             document.getElementById('ai-blog-keyword').value = title;
+            
+            // Set the category based on subcategory
+            if (subcategory) {
+                const category = mapSubcategoryToCategory(subcategory);
+                document.getElementById('ai-blog-category').value = category;
+            }
             
             // Trigger generation immediately
             generateAiBlog();
@@ -30220,8 +30227,6 @@ Local honey and preserves"></textarea>
         
         function closeAttractionIdeasWizard() {
             document.getElementById('attraction-ideas-wizard').style.display = 'none';
-            // Switch to Ideas tab to show the newly generated ideas
-            switchAttractionTab('ideas');
         }
         
         function selectAttractionCategory(category) {
@@ -30273,9 +30278,6 @@ Local honey and preserves"></textarea>
                 document.getElementById('attraction-wizard-loading').style.display = 'none';
                 
                 if (data.success && data.ideas?.length > 0) {
-                    // Store generated ideas in the attractionIdeas array so they can be found later
-                    attractionIdeas = [...attractionIdeas, ...data.ideas];
-                    
                     const listContainer = document.getElementById('attraction-wizard-ideas-list');
                     listContainer.innerHTML = data.ideas.map((idea, idx) => `
                         <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s;"
@@ -30292,9 +30294,6 @@ Local honey and preserves"></textarea>
                     `).join('');
                     
                     document.getElementById('attraction-wizard-results').style.display = 'block';
-                    
-                    // Refresh the Ideas tab in background so it's ready when wizard closes
-                    loadAttractionsByTab();
                 } else {
                     showNotification(data.error || 'Failed to generate suggestions', 'error');
                     resetAttractionWizard();
@@ -30976,15 +30975,39 @@ Local honey and preserves"></textarea>
                                     </div>
                                     <div>
                                         <label style="font-weight: 600;">Category</label>
-                                        <select id="ai-blog-category" class="form-input">
-                                            <option value="General">General</option>
-                                            <option value="Local Guide">Local Guide</option>
-                                            <option value="Travel Tips">Travel Tips</option>
-                                            <option value="Events">Events</option>
-                                            <option value="Food & Drink">Food & Drink</option>
-                                            <option value="Activities">Activities</option>
-                                            <option value="Seasonal">Seasonal</option>
+                                        <select id="ai-blog-category" class="form-input" onchange="toggleAiBlogCustomCategory()">
+                                            <optgroup label="Attractions & Places">
+                                                <option value="Museums & Galleries">🏛️ Museums & Galleries</option>
+                                                <option value="Landmarks & Monuments">🗿 Landmarks & Monuments</option>
+                                                <option value="Parks & Gardens">🌳 Parks & Gardens</option>
+                                                <option value="Beaches & Coastline">🏖️ Beaches & Coastline</option>
+                                                <option value="Restaurants & Dining">🍽️ Restaurants & Dining</option>
+                                                <option value="Cafes & Coffee Shops">☕ Cafes & Coffee Shops</option>
+                                                <option value="Nightlife & Bars">🌃 Nightlife & Bars</option>
+                                                <option value="Shopping & Markets">🛍️ Shopping & Markets</option>
+                                                <option value="Nature & Outdoor">🏞️ Nature & Outdoor</option>
+                                                <option value="Day Trips">🚗 Day Trips</option>
+                                            </optgroup>
+                                            <optgroup label="Events & What's On">
+                                                <option value="Festivals & Celebrations">🎪 Festivals & Celebrations</option>
+                                                <option value="Concerts & Live Music">🎵 Concerts & Live Music</option>
+                                                <option value="Theater & Performances">🎭 Theater & Performances</option>
+                                                <option value="Sports Events">⚽ Sports Events</option>
+                                                <option value="Markets & Fairs">🛍️ Markets & Fairs</option>
+                                                <option value="Cultural Events">🎨 Cultural Events</option>
+                                                <option value="Seasonal Activities">❄️ Seasonal Activities</option>
+                                                <option value="Holiday Events">🎄 Holiday Events</option>
+                                                <option value="Family Events">👨‍👩‍👧‍👦 Family Events</option>
+                                            </optgroup>
+                                            <optgroup label="General">
+                                                <option value="News">📰 News</option>
+                                                <option value="Travel Tips">✈️ Travel Tips</option>
+                                                <option value="Local Guide" selected>📍 Local Guide</option>
+                                                <option value="Offers">🏷️ Offers</option>
+                                                <option value="Other">✏️ Other (custom)</option>
+                                            </optgroup>
                                         </select>
+                                        <input type="text" class="form-input" id="ai-blog-category-custom" placeholder="Enter custom category..." style="display: none; margin-top: 0.5rem;">
                                     </div>
                                 </div>
                                 
@@ -31418,6 +31441,12 @@ Local honey and preserves"></textarea>
                 }
             }
             
+            // Handle custom category
+            let category = document.getElementById('ai-blog-category')?.value || 'Local Guide';
+            if (category === 'Other') {
+                category = document.getElementById('ai-blog-category-custom')?.value?.trim() || 'General';
+            }
+            
             const blogData = {
                 title: document.getElementById('ai-blog-title').value,
                 slug: document.getElementById('ai-blog-title').value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
@@ -31425,7 +31454,7 @@ Local honey and preserves"></textarea>
                 content: document.getElementById('ai-blog-content').value,
                 meta_title: document.getElementById('ai-blog-meta-title').value,
                 meta_description: document.getElementById('ai-blog-meta-desc').value,
-                category: document.getElementById('ai-blog-category')?.value || 'General',
+                category: category,
                 featured_image_url: document.getElementById('ai-blog-image')?.value || null,
                 is_published: publish,
                 is_featured: false,
