@@ -24307,12 +24307,14 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     closeModal('addOfferModal');
                     loadOffers();
-                    alert('✅ Offer saved successfully!');
+                    // Also refresh the pricing grid which contains the distribution list
+                    loadOffersPricingGrid();
+                    showNotification('Offer saved successfully!', 'success');
                 } else {
-                    alert('Error: ' + data.error);
+                    showNotification('Error: ' + data.error, 'error');
                 }
             } catch (error) {
-                alert('Error saving offer: ' + error.message);
+                showNotification('Error saving offer: ' + error.message, 'error');
             }
         }
         
@@ -24325,11 +24327,14 @@ Local honey and preserves"></textarea>
                 
                 if (data.success) {
                     loadOffers();
+                    // Also refresh the pricing grid which contains the distribution list
+                    loadOffersPricingGrid();
+                    showNotification('Offer deleted', 'success');
                 } else {
-                    alert('Error: ' + data.error);
+                    showNotification('Error: ' + data.error, 'error');
                 }
             } catch (error) {
-                alert('Error deleting offer: ' + error.message);
+                showNotification('Error deleting offer: ' + error.message, 'error');
             }
         }
 
