@@ -18,6 +18,47 @@ const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
+// =====================================================
+// UNIFIED CATEGORY MAPPING
+// Maps wizard short names to display names for attractions
+// This ensures consistency across the entire system
+// =====================================================
+const ATTRACTION_CATEGORY_MAP = {
+  'museums': 'Museums & Galleries',
+  'landmarks': 'Landmarks & Monuments',
+  'parks': 'Parks & Gardens',
+  'beaches': 'Beaches & Coastline',
+  'restaurants': 'Restaurants & Dining',
+  'cafes': 'Cafes & Coffee Shops',
+  'nightlife': 'Nightlife & Bars',
+  'shopping': 'Shopping & Markets',
+  'nature': 'Nature & Outdoor',
+  'daytrips': 'Day Trips',
+  'day trips': 'Day Trips',
+  'entertainment': 'Theater & Performances',
+  'family': 'Family Events',
+  // Also map some common variations
+  'museum': 'Museums & Galleries',
+  'landmark': 'Landmarks & Monuments',
+  'park': 'Parks & Gardens',
+  'beach': 'Beaches & Coastline',
+  'restaurant': 'Restaurants & Dining',
+  'cafe': 'Cafes & Coffee Shops',
+  'bar': 'Nightlife & Bars',
+  'bars': 'Nightlife & Bars',
+  'pubs': 'Nightlife & Bars',
+  'shop': 'Shopping & Markets',
+  'market': 'Shopping & Markets',
+  'markets': 'Shopping & Markets'
+};
+
+// Helper function to map category to unified name
+function mapAttractionCategory(category) {
+  if (!category) return '';
+  const lower = category.toLowerCase().trim();
+  return ATTRACTION_CATEGORY_MAP[lower] || category; // Return original if no mapping found
+}
+
 // Google APIs for Analytics & Search Console
 const { google } = require('googleapis');
 let googleAuth = null;
@@ -21634,6 +21675,83 @@ app.post('/api/admin/migrate-content-columns', async (req, res) => {
   }
 });
 
+// Migration: Unify attraction categories to standard names
+app.post('/api/admin/migrate-attraction-categories', async (req, res) => {
+  try {
+    // Update attractions table
+    const attractionUpdates = await pool.query(`
+      UPDATE attractions 
+      SET category = CASE 
+        WHEN LOWER(category) = 'museums' THEN 'Museums & Galleries'
+        WHEN LOWER(category) = 'museum' THEN 'Museums & Galleries'
+        WHEN LOWER(category) = 'landmarks' THEN 'Landmarks & Monuments'
+        WHEN LOWER(category) = 'landmark' THEN 'Landmarks & Monuments'
+        WHEN LOWER(category) = 'historic sites' THEN 'Landmarks & Monuments'
+        WHEN LOWER(category) = 'parks' THEN 'Parks & Gardens'
+        WHEN LOWER(category) = 'park' THEN 'Parks & Gardens'
+        WHEN LOWER(category) = 'beaches' THEN 'Beaches & Coastline'
+        WHEN LOWER(category) = 'beach' THEN 'Beaches & Coastline'
+        WHEN LOWER(category) = 'restaurants' THEN 'Restaurants & Dining'
+        WHEN LOWER(category) = 'restaurant' THEN 'Restaurants & Dining'
+        WHEN LOWER(category) = 'food & drink' THEN 'Restaurants & Dining'
+        WHEN LOWER(category) = 'food and drink' THEN 'Restaurants & Dining'
+        WHEN LOWER(category) = 'cafes' THEN 'Cafes & Coffee Shops'
+        WHEN LOWER(category) = 'cafe' THEN 'Cafes & Coffee Shops'
+        WHEN LOWER(category) = 'nightlife' THEN 'Nightlife & Bars'
+        WHEN LOWER(category) = 'bars' THEN 'Nightlife & Bars'
+        WHEN LOWER(category) = 'bar' THEN 'Nightlife & Bars'
+        WHEN LOWER(category) = 'pubs' THEN 'Nightlife & Bars'
+        WHEN LOWER(category) = 'shopping' THEN 'Shopping & Markets'
+        WHEN LOWER(category) = 'shop' THEN 'Shopping & Markets'
+        WHEN LOWER(category) = 'market' THEN 'Shopping & Markets'
+        WHEN LOWER(category) = 'markets' THEN 'Shopping & Markets'
+        WHEN LOWER(category) = 'nature' THEN 'Nature & Outdoor'
+        WHEN LOWER(category) = 'daytrips' THEN 'Day Trips'
+        WHEN LOWER(category) = 'day trips' THEN 'Day Trips'
+        WHEN LOWER(category) = 'entertainment' THEN 'Theater & Performances'
+        WHEN LOWER(category) = 'family' THEN 'Family Events'
+        WHEN LOWER(category) = 'family fun' THEN 'Family Events'
+        WHEN LOWER(category) = 'sports & activities' THEN 'Nature & Outdoor'
+        ELSE category
+      END
+      WHERE category IS NOT NULL
+      RETURNING id
+    `);
+    
+    // Update content_ideas table
+    const ideasUpdates = await pool.query(`
+      UPDATE content_ideas 
+      SET category = CASE 
+        WHEN LOWER(category) = 'museums' THEN 'Museums & Galleries'
+        WHEN LOWER(category) = 'landmarks' THEN 'Landmarks & Monuments'
+        WHEN LOWER(category) = 'parks' THEN 'Parks & Gardens'
+        WHEN LOWER(category) = 'beaches' THEN 'Beaches & Coastline'
+        WHEN LOWER(category) = 'restaurants' THEN 'Restaurants & Dining'
+        WHEN LOWER(category) = 'cafes' THEN 'Cafes & Coffee Shops'
+        WHEN LOWER(category) = 'nightlife' THEN 'Nightlife & Bars'
+        WHEN LOWER(category) = 'shopping' THEN 'Shopping & Markets'
+        WHEN LOWER(category) = 'nature' THEN 'Nature & Outdoor'
+        WHEN LOWER(category) = 'daytrips' THEN 'Day Trips'
+        WHEN LOWER(category) = 'entertainment' THEN 'Theater & Performances'
+        WHEN LOWER(category) = 'family' THEN 'Family Events'
+        ELSE category
+      END
+      WHERE content_type = 'attraction' AND category IS NOT NULL
+      RETURNING id
+    `);
+    
+    res.json({ 
+      success: true, 
+      message: 'Categories unified',
+      attractions_updated: attractionUpdates.rowCount,
+      ideas_updated: ideasUpdates.rowCount
+    });
+  } catch (error) {
+    console.error('Category migration error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get integrations/connections
 app.get('/api/admin/channels', async (req, res) => {
   try {
@@ -29162,13 +29280,16 @@ Format as JSON array:
         }
         
         // Save ideas to database
+        // Map category to unified name for attractions
+        const mappedCategory = content_type === 'attraction' ? mapAttractionCategory(category) : category;
+        
         const savedIdeas = [];
         for (const idea of ideas) {
             const insertResult = await pool.query(`
                 INSERT INTO content_ideas (client_id, property_id, title, description, content_type, category, status)
                 VALUES ($1, $2, $3, $4, $5, $6, 'active')
                 RETURNING *
-            `, [propertyClientId, property_id, idea.title, idea.description, content_type, category]);
+            `, [propertyClientId, property_id, idea.title, idea.description, content_type, mappedCategory]);
             savedIdeas.push(insertResult.rows[0]);
         }
         
@@ -29348,7 +29469,7 @@ Provide the following information in JSON format:
 {
     "short_description": "1-2 sentence description for attraction cards (max 150 chars)",
     "description": "2-3 paragraph detailed description mentioning why visitors/guests would enjoy it, what to expect, and practical tips. Mention the property name naturally if provided.",
-    "category": "One of: Museums & Galleries, Historic Sites, Parks & Gardens, Beaches, Entertainment, Shopping, Food & Drink, Sports & Activities, Nightlife, Family Fun",
+    "category": "One of: Museums & Galleries, Landmarks & Monuments, Parks & Gardens, Beaches & Coastline, Restaurants & Dining, Cafes & Coffee Shops, Nightlife & Bars, Shopping & Markets, Nature & Outdoor, Day Trips, Theater & Performances, Family Events",
     "distance": "Estimated distance/time from city center, e.g. '10 min walk' or '2 miles'",
     "address": "Full address if known, or best guess based on location",
     "website": "Official website URL if known, otherwise leave empty",
@@ -29410,12 +29531,15 @@ Be accurate and helpful. If you're not certain about specific details like addre
             };
         }
         
+        // Map category to unified name (in case AI returns old format)
+        const mappedCategory = mapAttractionCategory(attractionData.category);
+        
         res.json({
             success: true,
             attraction: {
                 short_description: attractionData.short_description,
                 description: attractionData.description,
-                category: attractionData.category,
+                category: mappedCategory,
                 distance: attractionData.distance,
                 address: attractionData.address,
                 website: attractionData.website,
@@ -29456,6 +29580,9 @@ app.post('/api/admin/attractions', async (req, res) => {
         
         const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         
+        // Map category to unified name
+        const mappedCategory = mapAttractionCategory(category);
+        
         const result = await pool.query(`
             INSERT INTO attractions (
                 client_id, property_id, name, slug, description, short_description, featured_image_url,
@@ -29468,7 +29595,7 @@ app.post('/api/admin/attractions', async (req, res) => {
         `, [
             client_id, property_id, name, finalSlug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
-            category, phone, website_url, opening_hours, price_range, rating,
+            mappedCategory, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description, is_featured || false, is_published !== false, display_order || 0
         ]);
         
@@ -29492,6 +29619,9 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
             category, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description, is_featured, is_published, display_order
         } = req.body;
+        
+        // Map category to unified name
+        const mappedCategory = mapAttractionCategory(category);
         
         const result = await pool.query(`
             UPDATE attractions SET
@@ -29525,7 +29655,7 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
         `, [
             property_id, name, slug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
-            category, phone, website_url, opening_hours, price_range, rating,
+            mappedCategory, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description, is_featured, is_published, display_order, id
         ]);
         
