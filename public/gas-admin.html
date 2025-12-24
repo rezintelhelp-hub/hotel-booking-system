@@ -2823,21 +2823,13 @@
                                 <option value="">Select Room...</option>
                             </select>
                         </div>
-                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
-                            <label style="font-weight: 500; display: block;">Jump to Date</label>
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <input type="date" id="offers-date-picker" class="form-input" style="width: 150px;" onchange="offersGoToDate(this.value)">
-                                <button class="btn btn-secondary" onclick="shiftOffersDays(-7)" title="Back 1 week">‹‹</button>
-                                <button class="btn btn-secondary" onclick="shiftOffersDays(-1)" title="Back 1 day">‹</button>
-                                <button class="btn btn-secondary" onclick="offersGoToToday()">Today</button>
-                                <button class="btn btn-secondary" onclick="shiftOffersDays(1)" title="Forward 1 day">›</button>
-                                <button class="btn btn-secondary" onclick="shiftOffersDays(7)" title="Forward 1 week">››</button>
-                            </div>
+                        <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(-7)">‹‹</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(-1)">‹</button>
+                            <button class="btn btn-secondary" onclick="offersGoToToday()">Today</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(1)">›</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(7)">››</button>
                         </div>
-                    </div>
-                    <!-- Month Display -->
-                    <div id="offers-month-display" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); display: none;">
-                        <h3 id="offers-current-month" style="margin: 0; color: var(--accent); font-size: 1.25rem; text-align: center;">📅 January 2025</h3>
                     </div>
                 </div>
 
@@ -10139,7 +10131,7 @@ Local honey and preserves"></textarea>
                 <!-- Step 1: Property -->
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label class="form-label" style="font-weight: 600; font-size: 1rem;">Step 1: Select Property <span style="color: #ef4444;">*</span></label>
-                    <select id="attraction-wizard-property" class="form-input" style="width: 100%;" onchange="checkAttractionWizardReady()">
+                    <select id="attraction-wizard-property" class="form-input" style="width: 100%;">
                         <option value="">Choose a property...</option>
                     </select>
                 </div>
@@ -13407,40 +13399,15 @@ Local honey and preserves"></textarea>
                             
                             <div class="form-group">
                                 <label class="form-label">Category</label>
-                                <select class="form-input" id="blog-category" onchange="toggleBlogCustomCategory()">
+                                <select class="form-input" id="blog-category">
                                     <option value="">Select category...</option>
-                                    <optgroup label="Attractions & Places">
-                                        <option value="Museums & Galleries">🏛️ Museums & Galleries</option>
-                                        <option value="Landmarks & Monuments">🗿 Landmarks & Monuments</option>
-                                        <option value="Parks & Gardens">🌳 Parks & Gardens</option>
-                                        <option value="Beaches & Coastline">🏖️ Beaches & Coastline</option>
-                                        <option value="Restaurants & Dining">🍽️ Restaurants & Dining</option>
-                                        <option value="Cafes & Coffee Shops">☕ Cafes & Coffee Shops</option>
-                                        <option value="Nightlife & Bars">🌃 Nightlife & Bars</option>
-                                        <option value="Shopping & Markets">🛍️ Shopping & Markets</option>
-                                        <option value="Nature & Outdoor">🏞️ Nature & Outdoor</option>
-                                        <option value="Day Trips">🚗 Day Trips</option>
-                                    </optgroup>
-                                    <optgroup label="Events & What's On">
-                                        <option value="Festivals & Celebrations">🎪 Festivals & Celebrations</option>
-                                        <option value="Concerts & Live Music">🎵 Concerts & Live Music</option>
-                                        <option value="Theater & Performances">🎭 Theater & Performances</option>
-                                        <option value="Sports Events">⚽ Sports Events</option>
-                                        <option value="Markets & Fairs">🛍️ Markets & Fairs</option>
-                                        <option value="Cultural Events">🎨 Cultural Events</option>
-                                        <option value="Seasonal Activities">❄️ Seasonal Activities</option>
-                                        <option value="Holiday Events">🎄 Holiday Events</option>
-                                        <option value="Family Events">👨‍👩‍👧‍👦 Family Events</option>
-                                    </optgroup>
-                                    <optgroup label="General">
-                                        <option value="News">📰 News</option>
-                                        <option value="Travel Tips">✈️ Travel Tips</option>
-                                        <option value="Local Guide">📍 Local Guide</option>
-                                        <option value="Offers">🏷️ Offers</option>
-                                        <option value="Other">✏️ Other (custom)</option>
-                                    </optgroup>
+                                    <option value="News">News</option>
+                                    <option value="Travel Tips">Travel Tips</option>
+                                    <option value="Local Guide">Local Guide</option>
+                                    <option value="Events">Events</option>
+                                    <option value="Food & Drink">Food & Drink</option>
+                                    <option value="Offers">Offers</option>
                                 </select>
-                                <input type="text" class="form-input" id="blog-category-custom" placeholder="Enter custom category..." style="display: none; margin-top: 0.5rem;">
                             </div>
                             
                             <div class="form-group">
@@ -13537,32 +13504,19 @@ Local honey and preserves"></textarea>
                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                         <div class="form-group">
                             <label class="form-label">Category *</label>
-                            <select class="form-input" id="attraction-category" required onchange="toggleAttractionCustomCategory()">
+                            <select class="form-input" id="attraction-category" required>
                                 <option value="">Select category...</option>
-                                <optgroup label="Attractions & Places">
-                                    <option value="Museums & Galleries">🏛️ Museums & Galleries</option>
-                                    <option value="Landmarks & Monuments">🗿 Landmarks & Monuments</option>
-                                    <option value="Parks & Gardens">🌳 Parks & Gardens</option>
-                                    <option value="Beaches & Coastline">🏖️ Beaches & Coastline</option>
-                                    <option value="Restaurants & Dining">🍽️ Restaurants & Dining</option>
-                                    <option value="Cafes & Coffee Shops">☕ Cafes & Coffee Shops</option>
-                                    <option value="Nightlife & Bars">🌃 Nightlife & Bars</option>
-                                    <option value="Shopping & Markets">🛍️ Shopping & Markets</option>
-                                    <option value="Nature & Outdoor">🏞️ Nature & Outdoor</option>
-                                    <option value="Day Trips">🚗 Day Trips</option>
-                                </optgroup>
-                                <optgroup label="Events & Entertainment">
-                                    <option value="Festivals & Celebrations">🎪 Festivals & Celebrations</option>
-                                    <option value="Concerts & Live Music">🎵 Concerts & Live Music</option>
-                                    <option value="Theater & Performances">🎭 Theater & Performances</option>
-                                    <option value="Sports Events">⚽ Sports Events</option>
-                                    <option value="Family Events">👨‍👩‍👧‍👦 Family Events</option>
-                                </optgroup>
-                                <optgroup label="Other">
-                                    <option value="Other">✏️ Other (custom)</option>
-                                </optgroup>
+                                <option value="Museums & Galleries">🏛️ Museums & Galleries</option>
+                                <option value="Historic Sites">🏰 Historic Sites</option>
+                                <option value="Parks & Gardens">🌳 Parks & Gardens</option>
+                                <option value="Beaches">🏖️ Beaches</option>
+                                <option value="Entertainment">🎭 Entertainment</option>
+                                <option value="Shopping">🛍️ Shopping</option>
+                                <option value="Food & Drink">🍽️ Food & Drink</option>
+                                <option value="Sports & Activities">⚽ Sports & Activities</option>
+                                <option value="Nightlife">🌃 Nightlife</option>
+                                <option value="Family Fun">👨‍👩‍👧 Family Fun</option>
                             </select>
-                            <input type="text" class="form-input" id="attraction-category-custom" placeholder="Enter custom category..." style="display: none; margin-top: 0.5rem;">
                         </div>
                         <div class="form-group">
                             <label class="form-label">Price Range</label>
@@ -13624,29 +13578,40 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                     
+                    <!-- Featured Image -->
                     <div class="form-group">
-                        <input type="hidden" id="attraction-published" value="false">
+                        <label class="form-label">Featured Image</label>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <button type="button" class="btn btn-secondary" onclick="document.getElementById('attraction-image-upload').click()" style="white-space: nowrap;">📷 Upload Image</button>
+                            <input type="file" id="attraction-image-upload" accept="image/*" style="display: none;" onchange="uploadAttractionImage(this)">
+                            <span style="color: var(--text-secondary);">or</span>
+                            <input type="text" class="form-input" id="attraction-image" placeholder="Paste image URL" style="flex: 1;">
+                        </div>
+                        <p style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.25rem;">💡 Upload your own image or paste a URL</p>
                     </div>
                     
-                    <!-- Schedule Option -->
-                    <div class="form-group" style="background: #f0f9ff; padding: 1rem; border-radius: 8px; border: 1px solid #bae6fd;">
-                        <label class="form-label" style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-                            <input type="checkbox" id="attraction-schedule" onchange="toggleAttractionSchedule()" style="width: 18px; height: 18px;">
+                    <!-- Scheduling Options -->
+                    <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                        <label style="font-weight: 600; display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="checkbox" id="attraction-schedule" onchange="toggleAttractionSchedule()" />
                             ⏰ Schedule for later
                         </label>
-                        <div id="attraction-schedule-options" style="display: none; margin-top: 0.75rem;">
-                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.75rem;">
+                        <div id="attraction-schedule-options" style="display: none; margin-top: 1rem;">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                                 <div>
-                                    <label class="form-label" style="font-size: 0.85rem;">Date</label>
-                                    <input type="date" class="form-input" id="attraction-schedule-date">
+                                    <label class="form-label">Publish Date</label>
+                                    <input type="date" id="attraction-schedule-date" class="form-input" />
                                 </div>
                                 <div>
-                                    <label class="form-label" style="font-size: 0.85rem;">Time</label>
-                                    <input type="time" class="form-input" id="attraction-schedule-time" value="09:00">
+                                    <label class="form-label">Publish Time</label>
+                                    <input type="time" id="attraction-schedule-time" class="form-input" value="09:00" />
                                 </div>
                             </div>
                         </div>
                     </div>
+                    
+                    <!-- Hidden field for published state -->
+                    <input type="hidden" id="attraction-published" value="false">
                     
                     <!-- SEO Section -->
                     <div style="background: #f0fdf4; padding: 1rem; border-radius: 8px; border: 1px solid #86efac; margin-top: 1rem;">
@@ -13662,18 +13627,17 @@ Local honey and preserves"></textarea>
                         <div class="form-group" style="margin: 0;">
                             <label class="form-label" style="font-size: 0.85rem;">FAQ Schema (JSON-LD)</label>
                             <textarea class="form-input" id="attraction-faq-schema" rows="3" style="font-family: monospace; font-size: 0.8rem;" placeholder="Generated by AI or paste your own"></textarea>
+                            <p style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 0.25rem;">💡 Add this to your page's &lt;head&gt; section for rich FAQ snippets in Google</p>
                         </div>
                     </div>
                 </form>
             </div>
             <div class="modal-footer" style="display: flex; justify-content: space-between; padding: 1rem 1.5rem; border-top: 1px solid var(--border);">
+                <button type="button" class="btn btn-secondary" id="attraction-delete-btn" onclick="deleteAttraction()" style="background: #fee2e2; color: #dc2626; border-color: #fecaca; display: none;">🗑️ Delete</button>
                 <div style="display: flex; gap: 0.5rem;">
-                    <button type="button" class="btn btn-secondary" id="attraction-delete-btn" onclick="deleteAttraction()" style="background: #fee2e2; color: #dc2626; border-color: #fecaca; display: none;">🗑️ Delete</button>
-                </div>
-                <div style="display: flex; gap: 0.5rem;">
+                    <button type="button" class="btn" onclick="saveAttractionAsDraft()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">💾 Save as Draft</button>
+                    <button type="button" class="btn" onclick="saveAttractionAndPublish()" style="background: #10b981;">🚀 Publish</button>
                     <button type="button" class="btn btn-secondary" onclick="closeModal('attractionModal')">← Back</button>
-                    <button type="button" class="btn" onclick="saveAttractionAsDraft()" style="background: #f59e0b; color: white;">📝 Save as Draft</button>
-                    <button type="button" class="btn" onclick="saveAttractionAndPublish()" style="background: #10b981; color: white;">✅ Publish</button>
                 </div>
             </div>
         </div>
@@ -21750,49 +21714,22 @@ Local honey and preserves"></textarea>
                 dates.push(d);
             }
             
-            // Pre-compute month backgrounds for each date
-            const monthColors = [
-                { bg: '#eff6ff', bgDark: '#dbeafe', text: '#1d4ed8' },  // Blue
-                { bg: '#f0fdf4', bgDark: '#dcfce7', text: '#15803d' }   // Green
-            ];
-            let currentMonthTrack = '';
-            let monthIdx = 0;
-            const dateColors = dates.map(d => {
-                const monthName = d.toLocaleDateString('en-US', { month: 'short' });
-                if (monthName !== currentMonthTrack) {
-                    if (currentMonthTrack !== '') monthIdx++;
-                    currentMonthTrack = monthName;
-                }
-                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                const colors = monthColors[monthIdx % 2];
-                return {
-                    bg: isWeekend ? colors.bgDark : colors.bg,
-                    bgLight: colors.bg,
-                    text: colors.text,
-                    isWeekend
-                };
-            });
-            
-            // Build header row with month labels
+            // Build header row
             let html = '<thead><tr>';
             html += '<th style="position: sticky; left: 0; background: #f9fafb; z-index: 10; padding: 8px; min-width: 180px; text-align: left; font-weight: 600; color: #374151;">Room</th>';
             html += '<th style="padding: 4px; min-width: 45px; text-align: center; background: #f9fafb;">Row</th>';
             
-            let currentMonth = '';
-            dates.forEach((d, idx) => {
+            dates.forEach(d => {
                 const dayName = d.toLocaleDateString('en-US', { weekday: 'short' });
                 const dayNum = d.getDate();
-                const monthName = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                 const isToday = d.getTime() === today.getTime();
-                const colors = dateColors[idx];
-                const showMonth = (dayNum === 1 || idx === 0 || monthName !== currentMonth);
-                currentMonth = monthName;
                 
                 html += `<th style="padding: 4px 2px; min-width: 52px; text-align: center; font-weight: normal; 
-                    background: ${isToday ? '#fbbf24' : colors.bg};">
-                    ${showMonth ? `<div style="font-size: 0.6rem; color: ${colors.text}; font-weight: 700;">${monthName}</div>` : '<div style="height: 12px;"></div>'}
-                    <div style="font-size: 0.65rem; color: #6b7280;">${dayName}</div>
-                    <div style="color: #374151; font-weight: ${isToday ? '700' : '500'};">${dayNum}</div>
+                    background: ${isWeekend ? '#f3f4f6' : '#f9fafb'};
+                    ${isToday ? 'background: #dbeafe; font-weight: 600;' : ''}">
+                    <div style="font-size: 0.65rem; color: #9ca3af;">${dayName}</div>
+                    <div style="color: #374151;">${dayNum}</div>
                 </th>`;
             });
             html += '</tr></thead>';
@@ -21808,11 +21745,10 @@ Local honey and preserves"></textarea>
                 html += `<td rowspan="2" style="position: sticky; left: 0; background: #ffffff; z-index: 5; padding: 8px; font-weight: 500; border-bottom: 2px solid #e5e7eb; color: #1f2937;">${room.name}</td>`;
                 html += `<td style="padding: 4px; font-size: 0.65rem; color: #9ca3af; background: #fafafa;">Status</td>`;
                 
-                dates.forEach((d, idx) => {
+                dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = roomData[dateStr];
                     const isPast = d < today;
-                    const colors = dateColors[idx];
                     
                     let bgColor = '#d1fae5'; // green - available
                     let text = '';
@@ -21831,13 +21767,7 @@ Local honey and preserves"></textarea>
                             bgColor = '#fef3c7'; // yellow
                             text = '✕';
                             textColor = '#92400e';
-                        } else {
-                            // Available - use month color
-                            bgColor = colors.bgLight;
                         }
-                    } else {
-                        // No data - use month color for available
-                        bgColor = colors.bgLight;
                     }
                     
                     if (isPast) {
@@ -21862,11 +21792,10 @@ Local honey and preserves"></textarea>
                 html += '<tr style="border-bottom: 2px solid #e5e7eb;">';
                 html += `<td style="padding: 4px; font-size: 0.65rem; color: #9ca3af; background: #fafafa;">Price</td>`;
                 
-                dates.forEach((d, idx) => {
+                dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = roomData[dateStr];
                     const isPast = d < today;
-                    const colors = dateColors[idx];
                     
                     let priceText = '-';
                     let priceStyle = 'color: var(--text-secondary);';
@@ -21883,7 +21812,7 @@ Local honey and preserves"></textarea>
                         }
                     }
                     
-                    html += `<td style="padding: 2px; text-align: center; font-size: 0.7rem; background: ${colors.bgLight}; ${priceStyle} ${isPast ? 'opacity: 0.4;' : ''}">${priceText}</td>`;
+                    html += `<td style="padding: 2px; text-align: center; font-size: 0.7rem; ${priceStyle} ${isPast ? 'opacity: 0.4;' : ''}">${priceText}</td>`;
                 });
                 html += '</tr>';
             });
@@ -22129,10 +22058,6 @@ Local honey and preserves"></textarea>
             const container = document.getElementById('offers-pricing-grid');
             const distributionCard = document.getElementById('offer-distribution-card');
             
-            // Update date picker and month display
-            updateOffersDatePicker();
-            updateOffersMonthDisplay();
-            
             if (!roomId) {
                 container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Select a room to view pricing</p>';
                 distributionCard.style.display = 'none';
@@ -22146,29 +22071,6 @@ Local honey and preserves"></textarea>
                 d.setDate(d.getDate() + i);
                 dates.push(d);
             }
-            
-            // Pre-compute month backgrounds for each date
-            const monthColors = [
-                { bg: '#eff6ff', bgDark: '#dbeafe', text: '#1d4ed8' },  // Blue
-                { bg: '#f0fdf4', bgDark: '#dcfce7', text: '#15803d' }   // Green
-            ];
-            let currentMonthTrack = '';
-            let monthIdx = 0;
-            const dateColors = dates.map(d => {
-                const monthName = d.toLocaleDateString('en-US', { month: 'short' });
-                if (monthName !== currentMonthTrack) {
-                    if (currentMonthTrack !== '') monthIdx++;
-                    currentMonthTrack = monthName;
-                }
-                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                const colors = monthColors[monthIdx % 2];
-                return {
-                    bg: isWeekend ? colors.bgDark : colors.bg,
-                    bgLight: colors.bg,
-                    text: colors.text,
-                    isWeekend
-                };
-            });
             
             const fromDate = dates[0].toISOString().split('T')[0];
             const toDate = dates[dates.length - 1].toISOString().split('T')[0];
@@ -22215,21 +22117,12 @@ Local honey and preserves"></textarea>
                                     <th style="padding: 0.75rem; text-align: left; position: sticky; left: 0; background: var(--bg-secondary); min-width: 180px; z-index: 2;">PRICE TYPE</th>
                 `;
                 
-                // Date headers - show month on 1st of month or first column, alternate backgrounds per month
-                let currentMonth = '';
-                
-                dates.forEach((d, idx) => {
+                // Date headers
+                dates.forEach(d => {
                     const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
                     const dayNum = d.getDate();
-                    const monthName = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
-                    const colors = dateColors[idx];
-                    const showMonth = (dayNum === 1 || idx === 0 || monthName !== currentMonth);
-                    currentMonth = monthName;
-                    
-                    html += `<th style="padding: 0.5rem; text-align: center; min-width: 75px; background: ${colors.bg};">
-                        ${showMonth ? `<span style="font-size: 0.7rem; color: ${colors.text}; font-weight: 700; display: block; margin-bottom: 2px;">${monthName}</span>` : '<span style="display: block; height: 14px;"></span>'}
-                        <span style="font-size: 0.7rem; color: #64748b;">${dayName}</span><br><span style="font-size: 1.1rem; font-weight: 600; color: #1e293b;">${dayNum}</span>
-                    </th>`;
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<th style="padding: 0.5rem; text-align: center; min-width: 75px; ${isWeekend ? 'background: #fef3c7;' : ''}">${dayName}<br><span style="font-size: 1.1rem;">${dayNum}</span></th>`;
                 });
                 
                 html += `</tr></thead><tbody>`;
@@ -22249,11 +22142,12 @@ Local honey and preserves"></textarea>
                             </div>
                         </td>`;
                 
-                dates.forEach((d, idx) => {
+                dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const refPrice = dayData.cm_price || '-';
-                    html += `<td style="padding: 0.75rem; text-align: center; background: ${dateColors[idx].bg}; color: #475569; font-weight: 600;">
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f1f5f9'}; color: #475569; font-weight: 600;">
                         ${refPrice !== '-' ? currencySymbol + parseFloat(refPrice).toFixed(0) : '-'}
                     </td>`;
                 });
@@ -22274,12 +22168,13 @@ Local honey and preserves"></textarea>
                             </div>
                         </td>`;
                 
-                dates.forEach((d, idx) => {
+                dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const cmMinStay = dayData.cm_min_stay || dayData.min_stay || 1;
                     const override = dayData.min_stay_override;
-                    html += `<td style="padding: 0.25rem; text-align: center; background: ${dateColors[idx].bgLight}; font-size: 0.85rem;">
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<td style="padding: 0.25rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f8fafc'}; font-size: 0.85rem;">
                         <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
                             <span style="color: #94a3b8; font-size: 0.7rem;">${cmMinStay}</span>
                             <input type="number" 
@@ -22313,11 +22208,12 @@ Local honey and preserves"></textarea>
                             </div>
                         </td>`;
                 
-                dates.forEach((d, idx) => {
+                dates.forEach(d => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const stdPrice = dayData.standard_price || dayData.cm_price || '';
-                    html += `<td style="padding: 0.25rem; text-align: center; background: ${dateColors[idx].bgLight};">
+                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                    html += `<td style="padding: 0.25rem; text-align: center; background: ${isWeekend ? '#ecfdf5' : '#f0fdf4'};">
                         <input type="number" 
                             value="${stdPrice ? parseFloat(stdPrice).toFixed(0) : ''}" 
                             data-room="${roomId}" 
@@ -22377,7 +22273,7 @@ Local honey and preserves"></textarea>
                                     </div>
                                 </td>`;
                         
-                        dates.forEach((d, idx) => {
+                        dates.forEach(d => {
                             const dateStr = d.toISOString().split('T')[0];
                             const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                             const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price) || 0;
@@ -22403,9 +22299,10 @@ Local honey and preserves"></textarea>
                                 }
                             }
                             
+                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                             const priceColor = isBase ? '#5b21b6' : (adjPrice < stdPrice ? '#16a34a' : (adjPrice > stdPrice ? '#dc2626' : '#6b7280'));
                             
-                            html += `<td style="padding: 0.5rem; text-align: center; background: ${dateColors[idx].bgLight}; color: ${priceColor}; font-size: 0.85rem;">
+                            html += `<td style="padding: 0.5rem; text-align: center; background: ${isWeekend ? '#f5f3ff' : '#faf5ff'}; color: ${priceColor}; font-size: 0.85rem;">
                                 ${stdPrice > 0 ? currencySymbol + Math.round(adjPrice) : '-'}
                             </td>`;
                         });
@@ -22462,7 +22359,7 @@ Local honey and preserves"></textarea>
                                     </div>
                                 </td>`;
                         
-                        dates.forEach((d, idx) => {
+                        dates.forEach(d => {
                             const dateStr = d.toISOString().split('T')[0];
                             const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                             // Calculate from STANDARD PRICE, not Reference
@@ -22475,7 +22372,8 @@ Local honey and preserves"></textarea>
                                 offerPrice = stdPrice - offer.discount_value;
                             }
                             
-                            html += `<td style="padding: 0.75rem; text-align: center; background: ${dateColors[idx].bg}; color: #b45309; font-weight: 500;">
+                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                            html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9c3' : '#fffbeb'}; color: #b45309; font-weight: 500;">
                                 ${stdPrice > 0 ? currencySymbol + offerPrice.toFixed(0) : '-'}
                             </td>`;
                         });
@@ -24055,49 +23953,13 @@ Local honey and preserves"></textarea>
         
         function shiftOffersDays(days) {
             offersStartDate.setDate(offersStartDate.getDate() + days);
-            updateOffersDatePicker();
             loadOffersPricingGrid();
         }
         
         function offersGoToToday() {
             offersStartDate = new Date();
             offersStartDate.setHours(0, 0, 0, 0);
-            updateOffersDatePicker();
             loadOffersPricingGrid();
-        }
-        
-        function offersGoToDate(dateStr) {
-            if (!dateStr) return;
-            offersStartDate = new Date(dateStr);
-            offersStartDate.setHours(0, 0, 0, 0);
-            loadOffersPricingGrid();
-        }
-        
-        function updateOffersDatePicker() {
-            const picker = document.getElementById('offers-date-picker');
-            if (picker) {
-                picker.value = offersStartDate.toISOString().split('T')[0];
-            }
-        }
-        
-        function updateOffersMonthDisplay() {
-            const monthDisplay = document.getElementById('offers-month-display');
-            const monthText = document.getElementById('offers-current-month');
-            if (monthDisplay && monthText) {
-                // Get the range of months shown (14 days from start)
-                const endDate = new Date(offersStartDate);
-                endDate.setDate(endDate.getDate() + 13);
-                
-                const startMonth = offersStartDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-                const endMonth = endDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
-                
-                if (startMonth === endMonth) {
-                    monthText.textContent = '📅 ' + startMonth;
-                } else {
-                    monthText.textContent = '📅 ' + offersStartDate.toLocaleString('en-US', { month: 'short' }) + ' - ' + endDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
-                }
-                monthDisplay.style.display = 'block';
-            }
         }
         
         function openAddOfferModal() {
@@ -24417,14 +24279,12 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     closeModal('addOfferModal');
                     loadOffers();
-                    // Also refresh the pricing grid which contains the distribution list
-                    loadOffersPricingGrid();
-                    showNotification('Offer saved successfully!', 'success');
+                    alert('✅ Offer saved successfully!');
                 } else {
-                    showNotification('Error: ' + data.error, 'error');
+                    alert('Error: ' + data.error);
                 }
             } catch (error) {
-                showNotification('Error saving offer: ' + error.message, 'error');
+                alert('Error saving offer: ' + error.message);
             }
         }
         
@@ -24437,14 +24297,11 @@ Local honey and preserves"></textarea>
                 
                 if (data.success) {
                     loadOffers();
-                    // Also refresh the pricing grid which contains the distribution list
-                    loadOffersPricingGrid();
-                    showNotification('Offer deleted', 'success');
                 } else {
-                    showNotification('Error: ' + data.error, 'error');
+                    alert('Error: ' + data.error);
                 }
             } catch (error) {
-                showNotification('Error deleting offer: ' + error.message, 'error');
+                alert('Error deleting offer: ' + error.message);
             }
         }
 
@@ -29067,8 +28924,6 @@ Local honey and preserves"></textarea>
                 document.getElementById('blog-content').value = post.content || '';
                 document.getElementById('blog-featured-image').value = post.featured_image_url || '';
                 document.getElementById('blog-category').value = post.category || '';
-                // Handle custom categories when editing
-                setBlogCategory('blog-category', post.category || '');
                 document.getElementById('blog-author').value = post.author_name || '';
                 document.getElementById('blog-read-time').value = post.read_time_minutes || '';
                 document.getElementById('blog-published').checked = post.is_published;
@@ -29117,12 +28972,6 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Handle custom category
-            let category = document.getElementById('blog-category').value;
-            if (category === 'Other') {
-                category = document.getElementById('blog-category-custom').value.trim() || 'General';
-            }
-            
             const postData = {
                 property_id: parseInt(propertyId),
                 title: title,
@@ -29130,7 +28979,7 @@ Local honey and preserves"></textarea>
                 excerpt: document.getElementById('blog-excerpt').value.trim(),
                 content: content,
                 featured_image_url: document.getElementById('blog-featured-image').value.trim(),
-                category: category,
+                category: document.getElementById('blog-category').value,
                 author_name: document.getElementById('blog-author').value.trim(),
                 read_time_minutes: parseInt(document.getElementById('blog-read-time').value) || null,
                 is_published: document.getElementById('blog-published').checked,
@@ -29188,86 +29037,6 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error deleting blog post:', error);
                 showNotification('Error deleting blog post', 'error');
-            }
-        }
-
-        // Toggle custom category input visibility
-        function toggleBlogCustomCategory() {
-            const select = document.getElementById('blog-category');
-            const customInput = document.getElementById('blog-category-custom');
-            if (select.value === 'Other') {
-                customInput.style.display = 'block';
-                customInput.focus();
-            } else {
-                customInput.style.display = 'none';
-                customInput.value = '';
-            }
-        }
-        
-        function toggleAiBlogCustomCategory() {
-            const select = document.getElementById('ai-blog-category');
-            const customInput = document.getElementById('ai-blog-category-custom');
-            if (select.value === 'Other') {
-                customInput.style.display = 'block';
-                customInput.focus();
-            } else {
-                customInput.style.display = 'none';
-                customInput.value = '';
-            }
-        }
-        
-        // Map wizard subcategory to category dropdown value
-        const subcategoryToCategoryMap = {
-            // Attractions & Places
-            'museums': 'Museums & Galleries',
-            'landmarks': 'Landmarks & Monuments',
-            'parks': 'Parks & Gardens',
-            'beaches': 'Beaches & Coastline',
-            'restaurants': 'Restaurants & Dining',
-            'cafes': 'Cafes & Coffee Shops',
-            'nightlife': 'Nightlife & Bars',
-            'shopping': 'Shopping & Markets',
-            'nature': 'Nature & Outdoor',
-            'daytrips': 'Day Trips',
-            // Events & What's On
-            'festivals': 'Festivals & Celebrations',
-            'concerts': 'Concerts & Live Music',
-            'theater': 'Theater & Performances',
-            'sports': 'Sports Events',
-            'markets': 'Markets & Fairs',
-            'cultural': 'Cultural Events',
-            'seasonal': 'Seasonal Activities',
-            'holidays': 'Holiday Events',
-            'family': 'Family Events'
-        };
-        
-        function mapSubcategoryToCategory(subcategory) {
-            return subcategoryToCategoryMap[subcategory] || 'Local Guide';
-        }
-        
-        // Set category in blog form, handling custom values
-        function setBlogCategory(selectId, category) {
-            const select = document.getElementById(selectId);
-            const customInput = document.getElementById(selectId + '-custom');
-            
-            if (!select) return;
-            
-            // Check if category exists in dropdown options
-            const optionExists = Array.from(select.options).some(opt => opt.value === category);
-            
-            if (optionExists) {
-                select.value = category;
-                if (customInput) {
-                    customInput.style.display = 'none';
-                    customInput.value = '';
-                }
-            } else if (category) {
-                // Custom category - select "Other" and show input
-                select.value = 'Other';
-                if (customInput) {
-                    customInput.style.display = 'block';
-                    customInput.value = category;
-                }
             }
         }
 
@@ -29358,13 +29127,7 @@ Local honey and preserves"></textarea>
             document.getElementById('attraction-form').reset();
             document.getElementById('attraction-id').value = '';
             document.getElementById('attraction-delete-btn').style.display = 'none';
-            document.getElementById('attraction-published').value = 'false';
-            
-            // Reset schedule options
-            document.getElementById('attraction-schedule').checked = false;
-            document.getElementById('attraction-schedule-options').style.display = 'none';
-            document.getElementById('attraction-schedule-date').value = '';
-            document.getElementById('attraction-schedule-time').value = '09:00';
+            document.getElementById('attraction-published').checked = false; // Default to draft for new attractions
             
             // Populate property dropdown in modal
             await populatePropertySelect('attraction-property-id');
@@ -29395,18 +29158,24 @@ Local honey and preserves"></textarea>
                 document.getElementById('attraction-published').value = attraction.is_published ? 'true' : 'false';
                 document.getElementById('attraction-meta-title').value = attraction.meta_title || '';
                 document.getElementById('attraction-meta-description').value = attraction.meta_description || '';
-                document.getElementById('attraction-delete-btn').style.display = 'block';
                 
-                // Handle scheduled_at if exists
+                // Handle schedule
                 if (attraction.scheduled_at) {
-                    const scheduledDate = new Date(attraction.scheduled_at);
+                    const schedDate = new Date(attraction.scheduled_at);
                     document.getElementById('attraction-schedule').checked = true;
+                    document.getElementById('attraction-schedule-date').value = schedDate.toISOString().split('T')[0];
+                    document.getElementById('attraction-schedule-time').value = schedDate.toTimeString().slice(0, 5);
                     document.getElementById('attraction-schedule-options').style.display = 'block';
-                    document.getElementById('attraction-schedule-date').value = scheduledDate.toISOString().split('T')[0];
-                    document.getElementById('attraction-schedule-time').value = scheduledDate.toTimeString().substring(0, 5);
+                } else {
+                    document.getElementById('attraction-schedule').checked = false;
+                    document.getElementById('attraction-schedule-options').style.display = 'none';
                 }
+                
+                document.getElementById('attraction-delete-btn').style.display = 'block';
             } else {
                 document.getElementById('attraction-modal-title').textContent = '🎯 Add Attraction';
+                document.getElementById('attraction-schedule').checked = false;
+                document.getElementById('attraction-schedule-options').style.display = 'none';
             }
             
             openModal('attractionModal');
@@ -29427,70 +29196,11 @@ Local honey and preserves"></textarea>
             }
         }
 
-        // Helper functions for attraction save buttons
-        function saveAttractionAsDraft() {
-            saveAttraction(false);
-        }
-        
-        function saveAttractionAndPublish() {
-            saveAttraction(true);
-        }
-        
-        function toggleAttractionSchedule() {
-            const checkbox = document.getElementById('attraction-schedule');
-            const options = document.getElementById('attraction-schedule-options');
-            if (checkbox.checked) {
-                options.style.display = 'block';
-                // Set default date to tomorrow
-                const tomorrow = new Date();
-                tomorrow.setDate(tomorrow.getDate() + 1);
-                document.getElementById('attraction-schedule-date').value = tomorrow.toISOString().split('T')[0];
-            } else {
-                options.style.display = 'none';
-            }
-        }
-        
-        function toggleAttractionCustomCategory() {
-            const select = document.getElementById('attraction-category');
-            const customInput = document.getElementById('attraction-category-custom');
-            if (select.value === 'Other') {
-                customInput.style.display = 'block';
-                customInput.focus();
-            } else {
-                customInput.style.display = 'none';
-                customInput.value = '';
-            }
-        }
-        
-        // Map attraction wizard category to dropdown category
-        const attractionCategoryMap = {
-            'museums': 'Museums & Galleries',
-            'landmarks': 'Landmarks & Monuments',
-            'parks': 'Parks & Gardens',
-            'beaches': 'Beaches & Coastline',
-            'restaurants': 'Restaurants & Dining',
-            'cafes': 'Cafes & Coffee Shops',
-            'nightlife': 'Nightlife & Bars',
-            'shopping': 'Shopping & Markets',
-            'nature': 'Nature & Outdoor',
-            'daytrips': 'Day Trips',
-            'entertainment': 'Theater & Performances',
-            'family': 'Family Events'
-        };
-        
-        function mapAttractionCategory(wizardCategory) {
-            return attractionCategoryMap[wizardCategory] || wizardCategory || '';
-        }
-
         async function saveAttraction(shouldPublish = false) {
             const id = document.getElementById('attraction-id').value;
             const propertyId = document.getElementById('attraction-property-id').value;
             const name = document.getElementById('attraction-name').value.trim();
-            let category = document.getElementById('attraction-category').value;
-            // Handle custom category
-            if (category === 'Other') {
-                category = document.getElementById('attraction-category-custom').value.trim() || '';
-            }
+            const category = document.getElementById('attraction-category').value;
             const shortDesc = document.getElementById('attraction-short-desc').value.trim();
             const distance = document.getElementById('attraction-distance').value.trim();
             
@@ -29504,28 +29214,29 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Handle scheduling
-            let scheduledAt = null;
-            const scheduleCheckbox = document.getElementById('attraction-schedule');
-            if (scheduleCheckbox && scheduleCheckbox.checked && !shouldPublish) {
-                const scheduleDate = document.getElementById('attraction-schedule-date').value;
-                const scheduleTime = document.getElementById('attraction-schedule-time').value || '09:00';
-                if (scheduleDate) {
-                    scheduledAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-                }
-            }
-            
             // Parse FAQ schema if present
             let faqSchema = null;
             const faqSchemaText = document.getElementById('attraction-faq-schema')?.value || '';
             if (faqSchemaText && !faqSchemaText.includes('Generated by AI')) {
                 try {
+                    // Extract JSON from script tags
                     const jsonMatch = faqSchemaText.match(/\{[\s\S]*\}/);
                     if (jsonMatch) {
                         faqSchema = JSON.parse(jsonMatch[0]);
                     }
                 } catch (e) {
                     console.log('Could not parse FAQ schema');
+                }
+            }
+            
+            // Handle scheduling
+            let scheduledAt = null;
+            const isScheduled = document.getElementById('attraction-schedule')?.checked;
+            if (isScheduled && !shouldPublish) {
+                const schedDate = document.getElementById('attraction-schedule-date').value;
+                const schedTime = document.getElementById('attraction-schedule-time').value || '09:00';
+                if (schedDate) {
+                    scheduledAt = new Date(`${schedDate}T${schedTime}`).toISOString();
                 }
             }
             
@@ -29579,26 +29290,17 @@ Local honey and preserves"></textarea>
                         }
                     }
                     
-                    // Show appropriate message
-                    let message = id ? 'Attraction updated!' : 'Attraction saved!';
-                    let targetTab = 'drafts'; // Default to drafts
-                    
+                    let message = id ? 'Attraction updated!' : 'Attraction created!';
                     if (shouldPublish) {
                         message = 'Attraction published!';
-                        targetTab = 'published';
                     } else if (scheduledAt) {
                         message = 'Attraction scheduled!';
-                        targetTab = 'scheduled';
                     } else {
-                        message = 'Saved as draft!';
-                        targetTab = 'drafts';
+                        message = id ? 'Draft updated!' : 'Saved as draft!';
                     }
-                    
                     showNotification(message, 'success');
                     closeModal('attractionModal');
-                    
-                    // Switch to appropriate tab and reload
-                    switchAttractionTab(targetTab);
+                    loadAttractionsByTab();
                 } else {
                     showNotification('Error: ' + (data.error || 'Could not save'), 'error');
                 }
@@ -29632,6 +29334,61 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error deleting attraction:', error);
                 showNotification('Error deleting attraction', 'error');
+            }
+        }
+        
+        // Save as Draft wrapper
+        async function saveAttractionAsDraft() {
+            await saveAttraction(false);
+        }
+        
+        // Publish wrapper
+        async function saveAttractionAndPublish() {
+            await saveAttraction(true);
+        }
+        
+        // Toggle schedule options visibility
+        function toggleAttractionSchedule() {
+            const isChecked = document.getElementById('attraction-schedule').checked;
+            const optionsDiv = document.getElementById('attraction-schedule-options');
+            optionsDiv.style.display = isChecked ? 'block' : 'none';
+            
+            // Set default date to tomorrow if not set
+            if (isChecked && !document.getElementById('attraction-schedule-date').value) {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                document.getElementById('attraction-schedule-date').value = tomorrow.toISOString().split('T')[0];
+            }
+        }
+        
+        // Upload attraction image
+        async function uploadAttractionImage(input) {
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            const formData = new FormData();
+            formData.append('image', file);
+            
+            showNotification('Uploading image...', 'info');
+            
+            try {
+                const response = await fetch('/api/admin/upload-image', {
+                    method: 'POST',
+                    headers: authHeaders(),
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.url) {
+                    document.getElementById('attraction-image').value = data.url;
+                    showNotification('Image uploaded!', 'success');
+                } else {
+                    showNotification('Upload failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                showNotification('Error uploading image', 'error');
             }
         }
 
@@ -30112,17 +29869,11 @@ Local honey and preserves"></textarea>
             const idea = blogIdeas.find(i => i.id === ideaId);
             if (!idea) return;
             
-            // Extract subcategory from idea.category (format: "attractions_parks" or "events_festivals")
-            let subcategory = '';
-            if (idea.category && idea.category.includes('_')) {
-                subcategory = idea.category.split('_')[1];
-            }
-            
-            // Generate blog immediately with category
-            await generateBlogFromIdea(ideaId, idea.title, idea.property_id, subcategory);
+            // Generate blog immediately
+            await generateBlogFromIdea(ideaId, idea.title, idea.property_id);
         }
         
-        async function generateBlogFromIdea(ideaId, title, propertyId, subcategory = '') {
+        async function generateBlogFromIdea(ideaId, title, propertyId) {
             // Open AI blog modal but skip to loading/generation immediately
             await openAiBlogModal(title, propertyId);
             
@@ -30130,18 +29881,10 @@ Local honey and preserves"></textarea>
             const propertyIdEl = document.getElementById('ai-blog-property-id');
             if (propertyIdEl) {
                 propertyIdEl.dataset.contentIdeaId = ideaId;
-                // Store subcategory for use after generation
-                propertyIdEl.dataset.subcategory = subcategory;
             }
             
             // Set the keyword
             document.getElementById('ai-blog-keyword').value = title;
-            
-            // Set the category based on subcategory
-            if (subcategory) {
-                const category = mapSubcategoryToCategory(subcategory);
-                document.getElementById('ai-blog-category').value = category;
-            }
             
             // Trigger generation immediately
             generateAiBlog();
@@ -30477,6 +30220,8 @@ Local honey and preserves"></textarea>
         
         function closeAttractionIdeasWizard() {
             document.getElementById('attraction-ideas-wizard').style.display = 'none';
+            // Switch to Ideas tab to show the newly generated ideas
+            switchAttractionTab('ideas');
         }
         
         function selectAttractionCategory(category) {
@@ -30492,13 +30237,9 @@ Local honey and preserves"></textarea>
                 }
             });
             
-            checkAttractionWizardReady();
-        }
-        
-        function checkAttractionWizardReady() {
+            // Enable button if property selected
             const property = document.getElementById('attraction-wizard-property').value;
-            const btn = document.getElementById('attraction-wizard-generate-btn');
-            btn.disabled = !(property && selectedAttractionCategory);
+            document.getElementById('attraction-wizard-generate-btn').disabled = !property;
         }
         
         async function generateAttractionIdeas() {
@@ -30508,8 +30249,6 @@ Local honey and preserves"></textarea>
                 showNotification('Please select property and category', 'error');
                 return;
             }
-            
-            console.log('Generating attractions:', { propertyId, category: selectedAttractionCategory });
             
             // Show loading
             document.getElementById('attraction-wizard-footer').style.display = 'none';
@@ -30530,30 +30269,39 @@ Local honey and preserves"></textarea>
                 });
                 
                 const data = await response.json();
-                console.log('Generation response:', data);
                 
                 document.getElementById('attraction-wizard-loading').style.display = 'none';
                 
                 if (data.success && data.ideas?.length > 0) {
-                    // Add new ideas to the attractionIdeas array
+                    // Store generated ideas in the attractionIdeas array so they can be found later
                     attractionIdeas = [...attractionIdeas, ...data.ideas];
                     
-                    showNotification(`Generated ${data.ideas.length} suggestions!`, 'success');
+                    const listContainer = document.getElementById('attraction-wizard-ideas-list');
+                    listContainer.innerHTML = data.ideas.map((idea, idx) => `
+                        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s;"
+                             onclick="selectAttractionFromWizard(${idea.id})"
+                             onmouseover="this.style.borderColor='#f59e0b'; this.style.background='#fffbeb';"
+                             onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
+                            <span style="font-weight: 600; color: #f59e0b;">${idx + 1}.</span>
+                            <div style="flex: 1;">
+                                <div style="font-weight: 500;">${escapeHtml(idea.title)}</div>
+                                ${idea.description ? `<div style="font-size: 0.8rem; color: #6b7280;">${escapeHtml(idea.description.substring(0, 60))}...</div>` : ''}
+                            </div>
+                            <span style="color: #f59e0b;">✨</span>
+                        </div>
+                    `).join('');
                     
-                    // Close wizard and go to Ideas tab
-                    closeAttractionIdeasWizard();
-                    switchAttractionTab('ideas');
+                    document.getElementById('attraction-wizard-results').style.display = 'block';
                     
-                    // Refresh to show new ideas
+                    // Refresh the Ideas tab in background so it's ready when wizard closes
                     loadAttractionsByTab();
                 } else {
-                    console.error('Generation failed:', data);
-                    showNotification(data.error || 'Failed to generate suggestions. Please try again.', 'error');
+                    showNotification(data.error || 'Failed to generate suggestions', 'error');
                     resetAttractionWizard();
                 }
             } catch (error) {
                 console.error('Generate attraction ideas error:', error);
-                showNotification('Error generating suggestions: ' + error.message, 'error');
+                showNotification('Error generating suggestions', 'error');
                 document.getElementById('attraction-wizard-loading').style.display = 'none';
                 resetAttractionWizard();
             }
@@ -30598,24 +30346,8 @@ Local honey and preserves"></textarea>
             }
             document.getElementById('attraction-content-idea-id').value = suggestion.id;
             
-            // Set category from suggestion (format might be "cafes" or similar)
-            if (suggestion.category) {
-                const mappedCategory = mapAttractionCategory(suggestion.category);
-                const categorySelect = document.getElementById('attraction-category');
-                // Check if category exists in dropdown
-                const optionExists = Array.from(categorySelect.options).some(opt => opt.value === mappedCategory);
-                if (optionExists) {
-                    categorySelect.value = mappedCategory;
-                } else if (mappedCategory) {
-                    // Use custom category
-                    categorySelect.value = 'Other';
-                    document.getElementById('attraction-category-custom').style.display = 'block';
-                    document.getElementById('attraction-category-custom').value = mappedCategory;
-                }
-            }
-            
             // Auto-trigger AI fill
-            showNotification('AI generating details, please wait...', 'info');
+            showNotification('Loading AI details...', 'info');
             setTimeout(() => aiGenerateAttractionDetails(), 300);
         }
         
@@ -30660,7 +30392,7 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Attraction published!', 'success');
-                    switchAttractionTab('published');
+                    loadAttractionsByTab();
                 } else {
                     showNotification('Error publishing: ' + (data.error || 'Unknown error'), 'error');
                 }
@@ -30695,7 +30427,8 @@ Local honey and preserves"></textarea>
             
             const btn = document.querySelector('[onclick="aiGenerateAttractionDetails()"]');
             if (!btn) return;
-            btn.innerHTML = '⏳ AI Generating, please wait...';
+            const originalText = btn.innerHTML;
+            btn.innerHTML = '⏳ Generating...';
             btn.disabled = true;
             
             try {
@@ -30749,22 +30482,16 @@ Local honey and preserves"></textarea>
                         document.getElementById('attraction-faq-schema').value = schemaScript;
                     }
                     
-                    // Change button to show ready state
-                    btn.innerHTML = '✅ Ready to Save';
-                    btn.disabled = false;
-                    btn.style.background = '#10b981';
-                    
-                    showNotification('AI details loaded! Review and save.', 'success');
+                    showNotification('AI details loaded!', 'success');
                 } else {
-                    btn.innerHTML = '✨ AI Fill Details';
-                    btn.disabled = false;
                     showNotification(data.error || 'AI generation failed', 'error');
                 }
             } catch (error) {
                 console.error('AI generate error:', error);
-                btn.innerHTML = '✨ AI Fill Details';
-                btn.disabled = false;
                 showNotification('Error generating details', 'error');
+            } finally {
+                btn.innerHTML = originalText;
+                btn.disabled = false;
             }
         }
         
@@ -31249,39 +30976,15 @@ Local honey and preserves"></textarea>
                                     </div>
                                     <div>
                                         <label style="font-weight: 600;">Category</label>
-                                        <select id="ai-blog-category" class="form-input" onchange="toggleAiBlogCustomCategory()">
-                                            <optgroup label="Attractions & Places">
-                                                <option value="Museums & Galleries">🏛️ Museums & Galleries</option>
-                                                <option value="Landmarks & Monuments">🗿 Landmarks & Monuments</option>
-                                                <option value="Parks & Gardens">🌳 Parks & Gardens</option>
-                                                <option value="Beaches & Coastline">🏖️ Beaches & Coastline</option>
-                                                <option value="Restaurants & Dining">🍽️ Restaurants & Dining</option>
-                                                <option value="Cafes & Coffee Shops">☕ Cafes & Coffee Shops</option>
-                                                <option value="Nightlife & Bars">🌃 Nightlife & Bars</option>
-                                                <option value="Shopping & Markets">🛍️ Shopping & Markets</option>
-                                                <option value="Nature & Outdoor">🏞️ Nature & Outdoor</option>
-                                                <option value="Day Trips">🚗 Day Trips</option>
-                                            </optgroup>
-                                            <optgroup label="Events & What's On">
-                                                <option value="Festivals & Celebrations">🎪 Festivals & Celebrations</option>
-                                                <option value="Concerts & Live Music">🎵 Concerts & Live Music</option>
-                                                <option value="Theater & Performances">🎭 Theater & Performances</option>
-                                                <option value="Sports Events">⚽ Sports Events</option>
-                                                <option value="Markets & Fairs">🛍️ Markets & Fairs</option>
-                                                <option value="Cultural Events">🎨 Cultural Events</option>
-                                                <option value="Seasonal Activities">❄️ Seasonal Activities</option>
-                                                <option value="Holiday Events">🎄 Holiday Events</option>
-                                                <option value="Family Events">👨‍👩‍👧‍👦 Family Events</option>
-                                            </optgroup>
-                                            <optgroup label="General">
-                                                <option value="News">📰 News</option>
-                                                <option value="Travel Tips">✈️ Travel Tips</option>
-                                                <option value="Local Guide" selected>📍 Local Guide</option>
-                                                <option value="Offers">🏷️ Offers</option>
-                                                <option value="Other">✏️ Other (custom)</option>
-                                            </optgroup>
+                                        <select id="ai-blog-category" class="form-input">
+                                            <option value="General">General</option>
+                                            <option value="Local Guide">Local Guide</option>
+                                            <option value="Travel Tips">Travel Tips</option>
+                                            <option value="Events">Events</option>
+                                            <option value="Food & Drink">Food & Drink</option>
+                                            <option value="Activities">Activities</option>
+                                            <option value="Seasonal">Seasonal</option>
                                         </select>
-                                        <input type="text" class="form-input" id="ai-blog-category-custom" placeholder="Enter custom category..." style="display: none; margin-top: 0.5rem;">
                                     </div>
                                 </div>
                                 
@@ -31715,12 +31418,6 @@ Local honey and preserves"></textarea>
                 }
             }
             
-            // Handle custom category
-            let category = document.getElementById('ai-blog-category')?.value || 'Local Guide';
-            if (category === 'Other') {
-                category = document.getElementById('ai-blog-category-custom')?.value?.trim() || 'General';
-            }
-            
             const blogData = {
                 title: document.getElementById('ai-blog-title').value,
                 slug: document.getElementById('ai-blog-title').value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
@@ -31728,7 +31425,7 @@ Local honey and preserves"></textarea>
                 content: document.getElementById('ai-blog-content').value,
                 meta_title: document.getElementById('ai-blog-meta-title').value,
                 meta_description: document.getElementById('ai-blog-meta-desc').value,
-                category: category,
+                category: document.getElementById('ai-blog-category')?.value || 'General',
                 featured_image_url: document.getElementById('ai-blog-image')?.value || null,
                 is_published: publish,
                 is_featured: false,
