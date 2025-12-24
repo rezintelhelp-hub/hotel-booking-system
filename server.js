@@ -18,47 +18,6 @@ const { v4: uuidv4 } = require('uuid');
 const Stripe = require('stripe');
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
-// =====================================================
-// UNIFIED CATEGORY MAPPING
-// Maps wizard short names to display names for attractions
-// This ensures consistency across the entire system
-// =====================================================
-const ATTRACTION_CATEGORY_MAP = {
-  'museums': 'Museums & Galleries',
-  'landmarks': 'Landmarks & Monuments',
-  'parks': 'Parks & Gardens',
-  'beaches': 'Beaches & Coastline',
-  'restaurants': 'Restaurants & Dining',
-  'cafes': 'Cafes & Coffee Shops',
-  'nightlife': 'Nightlife & Bars',
-  'shopping': 'Shopping & Markets',
-  'nature': 'Nature & Outdoor',
-  'daytrips': 'Day Trips',
-  'day trips': 'Day Trips',
-  'entertainment': 'Theater & Performances',
-  'family': 'Family Events',
-  // Also map some common variations
-  'museum': 'Museums & Galleries',
-  'landmark': 'Landmarks & Monuments',
-  'park': 'Parks & Gardens',
-  'beach': 'Beaches & Coastline',
-  'restaurant': 'Restaurants & Dining',
-  'cafe': 'Cafes & Coffee Shops',
-  'bar': 'Nightlife & Bars',
-  'bars': 'Nightlife & Bars',
-  'pubs': 'Nightlife & Bars',
-  'shop': 'Shopping & Markets',
-  'market': 'Shopping & Markets',
-  'markets': 'Shopping & Markets'
-};
-
-// Helper function to map category to unified name
-function mapAttractionCategory(category) {
-  if (!category) return '';
-  const lower = category.toLowerCase().trim();
-  return ATTRACTION_CATEGORY_MAP[lower] || category; // Return original if no mapping found
-}
-
 // Google APIs for Analytics & Search Console
 const { google } = require('googleapis');
 let googleAuth = null;
@@ -680,7 +639,6 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS child_max_age INTEGER DEFAULT 12`);
-      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS website_url VARCHAR(500)`);
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
@@ -2254,7 +2212,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_email VARCHAR(255)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS contact_phone VARCHAR(50)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS website VARCHAR(255)');
-    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS website_url VARCHAR(500)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS latitude DECIMAL(10,7)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS longitude DECIMAL(10,7)');
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS postal_code VARCHAR(20)');
@@ -11539,7 +11496,7 @@ app.get('/api/deploy/sites', async (req, res) => {
 // Deploy a new site (room-level selection)
 app.post('/api/deploy/create', async (req, res) => {
   try {
-    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin, template, pricing_tier } = req.body;
+    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin, template } = req.body;
     
     // Validate required fields
     if (!site_name || !slug || !admin_email) {
@@ -11563,9 +11520,6 @@ app.post('/api/deploy/create', async (req, res) => {
     // Determine theme based on template
     const selectedTemplate = template || 'developer-light';
     const wpTheme = selectedTemplate === 'developer-dark' ? 'gas-theme-developer-dark' : 'gas-theme-developer';
-    
-    // Set pricing tier (default to standard)
-    const sitePricingTier = pricing_tier || 'standard';
     
     // Get unique property IDs from selected rooms
     const uniquePropertyIds = property_ids || [...new Set(rooms.map(r => r.property_id))];
@@ -11595,7 +11549,7 @@ app.post('/api/deploy/create', async (req, res) => {
       console.log('Note: account_code not available');
     }
     
-    console.log(`[Deploy] Creating site "${site_name}" for account ${account_id} (${accountCheck.rows[0].name}) with template ${selectedTemplate}, pricing tier ${sitePricingTier}`);
+    console.log(`[Deploy] Creating site "${site_name}" for account ${account_id} (${accountCheck.rows[0].name}) with template ${selectedTemplate}`);
     
     // Call VPS to create site (no API key required in auto mode)
     const response = await fetch(`${VPS_DEPLOY_URL}?action=create-site`, {
@@ -11616,20 +11570,19 @@ app.post('/api/deploy/create', async (req, res) => {
         use_theme: use_theme !== false,
         use_plugin: use_plugin !== false,
         theme: wpTheme,
-        template: selectedTemplate,
-        pricing_tier: sitePricingTier
+        template: selectedTemplate
       })
     });
     
     const data = await response.json();
     
     if (data.success) {
-      // Store deployment record with template and pricing tier
+      // Store deployment record with template
       try {
         await pool.query(`
           INSERT INTO deployed_sites 
-          (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, pricing_tier, deployed_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
+          (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, deployed_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
         `, [
           uniquePropertyIds[0],
           JSON.stringify(uniquePropertyIds),
@@ -11643,8 +11596,7 @@ app.post('/api/deploy/create', async (req, res) => {
           'deployed',
           data.credentials.username,
           data.credentials.password || null,
-          selectedTemplate,
-          sitePricingTier
+          selectedTemplate
         ]);
         
         console.log(`[Deploy] Site "${site_name}" saved to database for account ${account_id}`);
@@ -21682,83 +21634,6 @@ app.post('/api/admin/migrate-content-columns', async (req, res) => {
   }
 });
 
-// Migration: Unify attraction categories to standard names
-app.post('/api/admin/migrate-attraction-categories', async (req, res) => {
-  try {
-    // Update attractions table
-    const attractionUpdates = await pool.query(`
-      UPDATE attractions 
-      SET category = CASE 
-        WHEN LOWER(category) = 'museums' THEN 'Museums & Galleries'
-        WHEN LOWER(category) = 'museum' THEN 'Museums & Galleries'
-        WHEN LOWER(category) = 'landmarks' THEN 'Landmarks & Monuments'
-        WHEN LOWER(category) = 'landmark' THEN 'Landmarks & Monuments'
-        WHEN LOWER(category) = 'historic sites' THEN 'Landmarks & Monuments'
-        WHEN LOWER(category) = 'parks' THEN 'Parks & Gardens'
-        WHEN LOWER(category) = 'park' THEN 'Parks & Gardens'
-        WHEN LOWER(category) = 'beaches' THEN 'Beaches & Coastline'
-        WHEN LOWER(category) = 'beach' THEN 'Beaches & Coastline'
-        WHEN LOWER(category) = 'restaurants' THEN 'Restaurants & Dining'
-        WHEN LOWER(category) = 'restaurant' THEN 'Restaurants & Dining'
-        WHEN LOWER(category) = 'food & drink' THEN 'Restaurants & Dining'
-        WHEN LOWER(category) = 'food and drink' THEN 'Restaurants & Dining'
-        WHEN LOWER(category) = 'cafes' THEN 'Cafes & Coffee Shops'
-        WHEN LOWER(category) = 'cafe' THEN 'Cafes & Coffee Shops'
-        WHEN LOWER(category) = 'nightlife' THEN 'Nightlife & Bars'
-        WHEN LOWER(category) = 'bars' THEN 'Nightlife & Bars'
-        WHEN LOWER(category) = 'bar' THEN 'Nightlife & Bars'
-        WHEN LOWER(category) = 'pubs' THEN 'Nightlife & Bars'
-        WHEN LOWER(category) = 'shopping' THEN 'Shopping & Markets'
-        WHEN LOWER(category) = 'shop' THEN 'Shopping & Markets'
-        WHEN LOWER(category) = 'market' THEN 'Shopping & Markets'
-        WHEN LOWER(category) = 'markets' THEN 'Shopping & Markets'
-        WHEN LOWER(category) = 'nature' THEN 'Nature & Outdoor'
-        WHEN LOWER(category) = 'daytrips' THEN 'Day Trips'
-        WHEN LOWER(category) = 'day trips' THEN 'Day Trips'
-        WHEN LOWER(category) = 'entertainment' THEN 'Theater & Performances'
-        WHEN LOWER(category) = 'family' THEN 'Family Events'
-        WHEN LOWER(category) = 'family fun' THEN 'Family Events'
-        WHEN LOWER(category) = 'sports & activities' THEN 'Nature & Outdoor'
-        ELSE category
-      END
-      WHERE category IS NOT NULL
-      RETURNING id
-    `);
-    
-    // Update content_ideas table
-    const ideasUpdates = await pool.query(`
-      UPDATE content_ideas 
-      SET category = CASE 
-        WHEN LOWER(category) = 'museums' THEN 'Museums & Galleries'
-        WHEN LOWER(category) = 'landmarks' THEN 'Landmarks & Monuments'
-        WHEN LOWER(category) = 'parks' THEN 'Parks & Gardens'
-        WHEN LOWER(category) = 'beaches' THEN 'Beaches & Coastline'
-        WHEN LOWER(category) = 'restaurants' THEN 'Restaurants & Dining'
-        WHEN LOWER(category) = 'cafes' THEN 'Cafes & Coffee Shops'
-        WHEN LOWER(category) = 'nightlife' THEN 'Nightlife & Bars'
-        WHEN LOWER(category) = 'shopping' THEN 'Shopping & Markets'
-        WHEN LOWER(category) = 'nature' THEN 'Nature & Outdoor'
-        WHEN LOWER(category) = 'daytrips' THEN 'Day Trips'
-        WHEN LOWER(category) = 'entertainment' THEN 'Theater & Performances'
-        WHEN LOWER(category) = 'family' THEN 'Family Events'
-        ELSE category
-      END
-      WHERE content_type = 'attraction' AND category IS NOT NULL
-      RETURNING id
-    `);
-    
-    res.json({ 
-      success: true, 
-      message: 'Categories unified',
-      attractions_updated: attractionUpdates.rowCount,
-      ideas_updated: ideasUpdates.rowCount
-    });
-  } catch (error) {
-    console.error('Category migration error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // Get integrations/connections
 app.get('/api/admin/channels', async (req, res) => {
   try {
@@ -25215,38 +25090,7 @@ app.get('/api/public/availability/:unitId', async (req, res) => {
 // Calculate price for dates (public) - supports offers, vouchers, upsells
 app.post('/api/public/calculate-price', async (req, res) => {
   try {
-    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells, pricing_tier } = req.body;
-    
-    // Get effective pricing tier - check multiple sources:
-    // 1. Explicit body parameter
-    // 2. Auto-detect from Referer header (deployed site URL)
-    // 3. Default to 'standard'
-    let effectivePricingTier = pricing_tier || 'standard';
-    
-    // Auto-detect from Referer if no explicit pricing_tier provided
-    if (!pricing_tier) {
-      const referer = req.headers.referer || req.headers.origin || '';
-      if (referer) {
-        try {
-          const refererUrl = new URL(referer);
-          const refererHost = refererUrl.hostname;
-          
-          // Look up pricing tier from deployed_sites by site_url
-          const siteResult = await pool.query(`
-            SELECT pricing_tier FROM deployed_sites 
-            WHERE site_url ILIKE $1 OR site_url ILIKE $2
-            LIMIT 1
-          `, [`%${refererHost}%`, `%${refererHost.replace('www.', '')}%`]);
-          
-          if (siteResult.rows[0]?.pricing_tier) {
-            effectivePricingTier = siteResult.rows[0].pricing_tier;
-            console.log(`[Calculate Price] Auto-detected pricing_tier '${effectivePricingTier}' from referer: ${refererHost}`);
-          }
-        } catch (e) {
-          // Invalid referer URL, ignore
-        }
-      }
-    }
+    const { unit_id, check_in, check_out, guests, adults, children, voucher_code, upsells } = req.body;
     
     if (!unit_id || !check_in || !check_out) {
       return res.json({ success: false, error: 'unit_id, check_in, and check_out required' });
@@ -25408,7 +25252,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
-    // Check for applicable offers - filter by pricing tier
+    // Check for applicable offers
     let discount = 0;
     let offerApplied = null;
     
@@ -25420,13 +25264,9 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (min_nights IS NULL OR min_nights <= $2)
         AND (valid_from IS NULL OR valid_from <= $3)
         AND (valid_until IS NULL OR valid_until >= $4)
-        AND (pricing_tier IS NULL OR pricing_tier = $5 OR pricing_tier = 'standard')
-      ORDER BY 
-        CASE WHEN pricing_tier = $5 THEN 0 ELSE 1 END,
-        priority DESC, 
-        discount_value DESC
+      ORDER BY priority DESC, discount_value DESC
       LIMIT 1
-    `, [unit_id, nights, check_in, check_out, effectivePricingTier]);
+    `, [unit_id, nights, check_in, check_out]);
     
     if (offers.rows[0]) {
       const offer = offers.rows[0];
@@ -25435,7 +25275,7 @@ app.post('/api/public/calculate-price', async (req, res) => {
       } else {
         discount = parseFloat(offer.discount_value);
       }
-      offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value, pricing_tier: offer.pricing_tier };
+      offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value };
     }
     
     // Check voucher
@@ -26183,42 +26023,7 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
 app.get('/api/public/client/:clientId/rooms', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { property_id, room_ids, limit, random, pricing_tier } = req.query;
-    
-    // Get effective pricing tier - check multiple sources:
-    // 1. Explicit query parameter
-    // 2. Auto-detect from Referer header (deployed site URL)
-    // 3. Default to 'standard'
-    let effectivePricingTier = pricing_tier || 'standard';
-    
-    // Auto-detect from Referer if no explicit pricing_tier provided
-    if (!pricing_tier) {
-      const referer = req.headers.referer || req.headers.origin || '';
-      console.log(`[Rooms API] Referer header: ${referer || 'NONE'}`);
-      if (referer) {
-        try {
-          const refererUrl = new URL(referer);
-          const refererHost = refererUrl.hostname;
-          console.log(`[Rooms API] Looking up pricing_tier for host: ${refererHost}`);
-          
-          // Look up pricing tier from deployed_sites by site_url
-          const siteResult = await pool.query(`
-            SELECT pricing_tier, site_url FROM deployed_sites 
-            WHERE site_url ILIKE $1 OR site_url ILIKE $2
-            LIMIT 1
-          `, [`%${refererHost}%`, `%${refererHost.replace('www.', '')}%`]);
-          
-          console.log(`[Rooms API] Lookup result: ${JSON.stringify(siteResult.rows[0] || 'NO MATCH')}`);
-          
-          if (siteResult.rows[0]?.pricing_tier) {
-            effectivePricingTier = siteResult.rows[0].pricing_tier;
-            console.log(`[Rooms API] Auto-detected pricing_tier '${effectivePricingTier}' from referer: ${refererHost}`);
-          }
-        } catch (e) {
-          console.log(`[Rooms API] Referer lookup error: ${e.message}`);
-        }
-      }
-    }
+    const { property_id, room_ids, limit, random } = req.query;
     
     // Get today's date for rate calendar lookup
     const today = new Date().toISOString().split('T')[0];
@@ -26283,63 +26088,11 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     
     const result = await pool.query(query, params);
     
-    // Get applicable offers for this pricing tier (if not standard)
-    let tierOffers = [];
-    if (effectivePricingTier !== 'standard') {
-      try {
-        const offersResult = await pool.query(`
-          SELECT * FROM offers 
-          WHERE active = true 
-            AND pricing_tier = $1
-            AND (valid_from IS NULL OR valid_from <= $2)
-            AND (valid_until IS NULL OR valid_until >= $2)
-        `, [effectivePricingTier, today]);
-        tierOffers = offersResult.rows;
-      } catch (e) {
-        console.log('Could not fetch tier offers:', e.message);
-      }
-    }
-    
-    // Process rooms - apply pricing tier offers if applicable
-    const rooms = result.rows.map(room => {
-      let price = parseFloat(room.todays_rate || room.base_price || 0);
-      let standardPrice = price;
-      let appliedOffer = null;
-      
-      // Find best offer for this room's pricing tier
-      const roomOffers = tierOffers.filter(o => 
-        (!o.property_id || o.property_id === room.property_id) &&
-        (!o.room_id || o.room_id === room.id)
-      );
-      
-      if (roomOffers.length > 0) {
-        // Sort by priority and discount value
-        roomOffers.sort((a, b) => (b.priority || 0) - (a.priority || 0) || b.discount_value - a.discount_value);
-        const offer = roomOffers[0];
-        
-        // Corporate/other tiers often have INCREASES not discounts
-        // discount_value can be negative for increases
-        if (offer.discount_type === 'percentage') {
-          price = price * (1 - offer.discount_value / 100);
-        } else {
-          price = price - parseFloat(offer.discount_value);
-        }
-        appliedOffer = { 
-          name: offer.name, 
-          discount_type: offer.discount_type, 
-          discount_value: offer.discount_value,
-          pricing_tier: offer.pricing_tier
-        };
-      }
-      
-      return {
-        ...room,
-        price: Math.round(price * 100) / 100,
-        standard_price: standardPrice,
-        applied_offer: appliedOffer,
-        pricing_tier: effectivePricingTier
-      };
-    });
+    // Use today's rate if available, otherwise fall back to base_price
+    const rooms = result.rows.map(room => ({
+      ...room,
+      price: room.todays_rate || room.base_price || 0
+    }));
     
     // Get max guests across all rooms
     const maxGuestsResult = await pool.query(`
@@ -26354,8 +26107,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       rooms: rooms,
       meta: {
         total: rooms.length,
-        max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10,
-        pricing_tier: effectivePricingTier
+        max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10
       }
     });
   } catch (error) {
@@ -29410,16 +29162,13 @@ Format as JSON array:
         }
         
         // Save ideas to database
-        // Map category to unified name for attractions
-        const mappedCategory = content_type === 'attraction' ? mapAttractionCategory(category) : category;
-        
         const savedIdeas = [];
         for (const idea of ideas) {
             const insertResult = await pool.query(`
                 INSERT INTO content_ideas (client_id, property_id, title, description, content_type, category, status)
                 VALUES ($1, $2, $3, $4, $5, $6, 'active')
                 RETURNING *
-            `, [propertyClientId, property_id, idea.title, idea.description, content_type, mappedCategory]);
+            `, [propertyClientId, property_id, idea.title, idea.description, content_type, category]);
             savedIdeas.push(insertResult.rows[0]);
         }
         
@@ -29599,7 +29348,7 @@ Provide the following information in JSON format:
 {
     "short_description": "1-2 sentence description for attraction cards (max 150 chars)",
     "description": "2-3 paragraph detailed description mentioning why visitors/guests would enjoy it, what to expect, and practical tips. Mention the property name naturally if provided.",
-    "category": "One of: Museums & Galleries, Landmarks & Monuments, Parks & Gardens, Beaches & Coastline, Restaurants & Dining, Cafes & Coffee Shops, Nightlife & Bars, Shopping & Markets, Nature & Outdoor, Day Trips, Theater & Performances, Family Events",
+    "category": "One of: Museums & Galleries, Historic Sites, Parks & Gardens, Beaches, Entertainment, Shopping, Food & Drink, Sports & Activities, Nightlife, Family Fun",
     "distance": "Estimated distance/time from city center, e.g. '10 min walk' or '2 miles'",
     "address": "Full address if known, or best guess based on location",
     "website": "Official website URL if known, otherwise leave empty",
@@ -29661,15 +29410,12 @@ Be accurate and helpful. If you're not certain about specific details like addre
             };
         }
         
-        // Map category to unified name (in case AI returns old format)
-        const mappedCategory = mapAttractionCategory(attractionData.category);
-        
         res.json({
             success: true,
             attraction: {
                 short_description: attractionData.short_description,
                 description: attractionData.description,
-                category: mappedCategory,
+                category: attractionData.category,
                 distance: attractionData.distance,
                 address: attractionData.address,
                 website: attractionData.website,
@@ -29710,9 +29456,6 @@ app.post('/api/admin/attractions', async (req, res) => {
         
         const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
         
-        // Map category to unified name
-        const mappedCategory = mapAttractionCategory(category);
-        
         const result = await pool.query(`
             INSERT INTO attractions (
                 client_id, property_id, name, slug, description, short_description, featured_image_url,
@@ -29725,7 +29468,7 @@ app.post('/api/admin/attractions', async (req, res) => {
         `, [
             client_id, property_id, name, finalSlug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
-            mappedCategory, phone, website_url, opening_hours, price_range, rating,
+            category, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description, is_featured || false, is_published !== false, display_order || 0
         ]);
         
@@ -29749,9 +29492,6 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
             category, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description, is_featured, is_published, display_order
         } = req.body;
-        
-        // Map category to unified name
-        const mappedCategory = mapAttractionCategory(category);
         
         const result = await pool.query(`
             UPDATE attractions SET
@@ -29785,7 +29525,7 @@ app.put('/api/admin/attractions/:id', async (req, res) => {
         `, [
             property_id, name, slug, description, short_description, featured_image_url,
             address, city, distance_text, distance_value, latitude, longitude, google_maps_url,
-            mappedCategory, phone, website_url, opening_hours, price_range, rating,
+            category, phone, website_url, opening_hours, price_range, rating,
             meta_title, meta_description, is_featured, is_published, display_order, id
         ]);
         
