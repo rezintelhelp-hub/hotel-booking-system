@@ -2823,13 +2823,21 @@
                                 <option value="">Select Room...</option>
                             </select>
                         </div>
-                        <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(-7)">‹‹</button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(-1)">‹</button>
-                            <button class="btn btn-secondary" onclick="offersGoToToday()">Today</button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(1)">›</button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(7)">››</button>
+                        <div style="display: flex; flex-direction: column; gap: 0.5rem;">
+                            <label style="font-weight: 500; display: block;">Jump to Date</label>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="date" id="offers-date-picker" class="form-input" style="width: 150px;" onchange="offersGoToDate(this.value)">
+                                <button class="btn btn-secondary" onclick="shiftOffersDays(-7)" title="Back 1 week">‹‹</button>
+                                <button class="btn btn-secondary" onclick="shiftOffersDays(-1)" title="Back 1 day">‹</button>
+                                <button class="btn btn-secondary" onclick="offersGoToToday()">Today</button>
+                                <button class="btn btn-secondary" onclick="shiftOffersDays(1)" title="Forward 1 day">›</button>
+                                <button class="btn btn-secondary" onclick="shiftOffersDays(7)" title="Forward 1 week">››</button>
+                            </div>
                         </div>
+                    </div>
+                    <!-- Month Display -->
+                    <div id="offers-month-display" style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid var(--border); display: none;">
+                        <h3 id="offers-current-month" style="margin: 0; color: var(--accent); font-size: 1.25rem; text-align: center;">📅 January 2025</h3>
                     </div>
                 </div>
 
@@ -22086,6 +22094,10 @@ Local honey and preserves"></textarea>
             const container = document.getElementById('offers-pricing-grid');
             const distributionCard = document.getElementById('offer-distribution-card');
             
+            // Update date picker and month display
+            updateOffersDatePicker();
+            updateOffersMonthDisplay();
+            
             if (!roomId) {
                 container.innerHTML = '<p style="color: var(--text-secondary); text-align: center; padding: 2rem;">Select a room to view pricing</p>';
                 distributionCard.style.display = 'none';
@@ -22099,6 +22111,29 @@ Local honey and preserves"></textarea>
                 d.setDate(d.getDate() + i);
                 dates.push(d);
             }
+            
+            // Pre-compute month backgrounds for each date
+            const monthColors = [
+                { bg: '#eff6ff', bgDark: '#dbeafe', text: '#1d4ed8' },  // Blue
+                { bg: '#f0fdf4', bgDark: '#dcfce7', text: '#15803d' }   // Green
+            ];
+            let currentMonthTrack = '';
+            let monthIdx = 0;
+            const dateColors = dates.map(d => {
+                const monthName = d.toLocaleDateString('en-US', { month: 'short' });
+                if (monthName !== currentMonthTrack) {
+                    if (currentMonthTrack !== '') monthIdx++;
+                    currentMonthTrack = monthName;
+                }
+                const isWeekend = d.getDay() === 0 || d.getDay() === 6;
+                const colors = monthColors[monthIdx % 2];
+                return {
+                    bg: isWeekend ? colors.bgDark : colors.bg,
+                    bgLight: colors.bg,
+                    text: colors.text,
+                    isWeekend
+                };
+            });
             
             const fromDate = dates[0].toISOString().split('T')[0];
             const toDate = dates[dates.length - 1].toISOString().split('T')[0];
@@ -22145,12 +22180,21 @@ Local honey and preserves"></textarea>
                                     <th style="padding: 0.75rem; text-align: left; position: sticky; left: 0; background: var(--bg-secondary); min-width: 180px; z-index: 2;">PRICE TYPE</th>
                 `;
                 
-                // Date headers
-                dates.forEach(d => {
+                // Date headers - show month on 1st of month or first column, alternate backgrounds per month
+                let currentMonth = '';
+                
+                dates.forEach((d, idx) => {
                     const dayName = d.toLocaleDateString('en-US', { weekday: 'short' }).toUpperCase();
                     const dayNum = d.getDate();
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    html += `<th style="padding: 0.5rem; text-align: center; min-width: 75px; ${isWeekend ? 'background: #fef3c7;' : ''}">${dayName}<br><span style="font-size: 1.1rem;">${dayNum}</span></th>`;
+                    const monthName = d.toLocaleDateString('en-US', { month: 'short' }).toUpperCase();
+                    const colors = dateColors[idx];
+                    const showMonth = (dayNum === 1 || idx === 0 || monthName !== currentMonth);
+                    currentMonth = monthName;
+                    
+                    html += `<th style="padding: 0.5rem; text-align: center; min-width: 75px; background: ${colors.bg};">
+                        ${showMonth ? `<span style="font-size: 0.7rem; color: ${colors.text}; font-weight: 700; display: block; margin-bottom: 2px;">${monthName}</span>` : '<span style="display: block; height: 14px;"></span>'}
+                        <span style="font-size: 0.7rem; color: #64748b;">${dayName}</span><br><span style="font-size: 1.1rem; font-weight: 600; color: #1e293b;">${dayNum}</span>
+                    </th>`;
                 });
                 
                 html += `</tr></thead><tbody>`;
@@ -22170,12 +22214,11 @@ Local honey and preserves"></textarea>
                             </div>
                         </td>`;
                 
-                dates.forEach(d => {
+                dates.forEach((d, idx) => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const refPrice = dayData.cm_price || '-';
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f1f5f9'}; color: #475569; font-weight: 600;">
+                    html += `<td style="padding: 0.75rem; text-align: center; background: ${dateColors[idx].bg}; color: #475569; font-weight: 600;">
                         ${refPrice !== '-' ? currencySymbol + parseFloat(refPrice).toFixed(0) : '-'}
                     </td>`;
                 });
@@ -22196,13 +22239,12 @@ Local honey and preserves"></textarea>
                             </div>
                         </td>`;
                 
-                dates.forEach(d => {
+                dates.forEach((d, idx) => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const cmMinStay = dayData.cm_min_stay || dayData.min_stay || 1;
                     const override = dayData.min_stay_override;
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    html += `<td style="padding: 0.25rem; text-align: center; background: ${isWeekend ? '#fef9e7' : '#f8fafc'}; font-size: 0.85rem;">
+                    html += `<td style="padding: 0.25rem; text-align: center; background: ${dateColors[idx].bgLight}; font-size: 0.85rem;">
                         <div style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
                             <span style="color: #94a3b8; font-size: 0.7rem;">${cmMinStay}</span>
                             <input type="number" 
@@ -22236,12 +22278,11 @@ Local honey and preserves"></textarea>
                             </div>
                         </td>`;
                 
-                dates.forEach(d => {
+                dates.forEach((d, idx) => {
                     const dateStr = d.toISOString().split('T')[0];
                     const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                     const stdPrice = dayData.standard_price || dayData.cm_price || '';
-                    const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                    html += `<td style="padding: 0.25rem; text-align: center; background: ${isWeekend ? '#ecfdf5' : '#f0fdf4'};">
+                    html += `<td style="padding: 0.25rem; text-align: center; background: ${dateColors[idx].bgLight};">
                         <input type="number" 
                             value="${stdPrice ? parseFloat(stdPrice).toFixed(0) : ''}" 
                             data-room="${roomId}" 
@@ -22301,7 +22342,7 @@ Local honey and preserves"></textarea>
                                     </div>
                                 </td>`;
                         
-                        dates.forEach(d => {
+                        dates.forEach((d, idx) => {
                             const dateStr = d.toISOString().split('T')[0];
                             const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                             const stdPrice = parseFloat(dayData.standard_price || dayData.cm_price) || 0;
@@ -22327,10 +22368,9 @@ Local honey and preserves"></textarea>
                                 }
                             }
                             
-                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
                             const priceColor = isBase ? '#5b21b6' : (adjPrice < stdPrice ? '#16a34a' : (adjPrice > stdPrice ? '#dc2626' : '#6b7280'));
                             
-                            html += `<td style="padding: 0.5rem; text-align: center; background: ${isWeekend ? '#f5f3ff' : '#faf5ff'}; color: ${priceColor}; font-size: 0.85rem;">
+                            html += `<td style="padding: 0.5rem; text-align: center; background: ${dateColors[idx].bgLight}; color: ${priceColor}; font-size: 0.85rem;">
                                 ${stdPrice > 0 ? currencySymbol + Math.round(adjPrice) : '-'}
                             </td>`;
                         });
@@ -22387,7 +22427,7 @@ Local honey and preserves"></textarea>
                                     </div>
                                 </td>`;
                         
-                        dates.forEach(d => {
+                        dates.forEach((d, idx) => {
                             const dateStr = d.toISOString().split('T')[0];
                             const dayData = data.availability?.find(dd => dd.date === dateStr) || {};
                             // Calculate from STANDARD PRICE, not Reference
@@ -22400,8 +22440,7 @@ Local honey and preserves"></textarea>
                                 offerPrice = stdPrice - offer.discount_value;
                             }
                             
-                            const isWeekend = d.getDay() === 0 || d.getDay() === 6;
-                            html += `<td style="padding: 0.75rem; text-align: center; background: ${isWeekend ? '#fef9c3' : '#fffbeb'}; color: #b45309; font-weight: 500;">
+                            html += `<td style="padding: 0.75rem; text-align: center; background: ${dateColors[idx].bg}; color: #b45309; font-weight: 500;">
                                 ${stdPrice > 0 ? currencySymbol + offerPrice.toFixed(0) : '-'}
                             </td>`;
                         });
@@ -23981,13 +24020,49 @@ Local honey and preserves"></textarea>
         
         function shiftOffersDays(days) {
             offersStartDate.setDate(offersStartDate.getDate() + days);
+            updateOffersDatePicker();
             loadOffersPricingGrid();
         }
         
         function offersGoToToday() {
             offersStartDate = new Date();
             offersStartDate.setHours(0, 0, 0, 0);
+            updateOffersDatePicker();
             loadOffersPricingGrid();
+        }
+        
+        function offersGoToDate(dateStr) {
+            if (!dateStr) return;
+            offersStartDate = new Date(dateStr);
+            offersStartDate.setHours(0, 0, 0, 0);
+            loadOffersPricingGrid();
+        }
+        
+        function updateOffersDatePicker() {
+            const picker = document.getElementById('offers-date-picker');
+            if (picker) {
+                picker.value = offersStartDate.toISOString().split('T')[0];
+            }
+        }
+        
+        function updateOffersMonthDisplay() {
+            const monthDisplay = document.getElementById('offers-month-display');
+            const monthText = document.getElementById('offers-current-month');
+            if (monthDisplay && monthText) {
+                // Get the range of months shown (14 days from start)
+                const endDate = new Date(offersStartDate);
+                endDate.setDate(endDate.getDate() + 13);
+                
+                const startMonth = offersStartDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                const endMonth = endDate.toLocaleString('en-US', { month: 'long', year: 'numeric' });
+                
+                if (startMonth === endMonth) {
+                    monthText.textContent = '📅 ' + startMonth;
+                } else {
+                    monthText.textContent = '📅 ' + offersStartDate.toLocaleString('en-US', { month: 'short' }) + ' - ' + endDate.toLocaleString('en-US', { month: 'short', year: 'numeric' });
+                }
+                monthDisplay.style.display = 'block';
+            }
         }
         
         function openAddOfferModal() {
