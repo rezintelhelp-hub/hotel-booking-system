@@ -30545,7 +30545,7 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 if (data.success) {
                     showNotification('Attraction published!', 'success');
-                    loadAttractionsByTab();
+                    switchAttractionTab('published');
                 } else {
                     showNotification('Error publishing: ' + (data.error || 'Unknown error'), 'error');
                 }
