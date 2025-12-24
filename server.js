@@ -680,6 +680,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS child_max_age INTEGER DEFAULT 12`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS website_url VARCHAR(500)`);
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
