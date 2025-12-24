@@ -639,6 +639,7 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_secret_key TEXT`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS stripe_enabled BOOLEAN DEFAULT false`);
       await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS child_max_age INTEGER DEFAULT 12`);
+      await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS website_url VARCHAR(500)`);
       console.log('✅ Property Stripe keys columns ensured');
     } catch (stripeError) {
       console.log('ℹ️  Stripe columns:', stripeError.message);
@@ -8172,6 +8173,9 @@ app.get('/api/setup-database', async (req, res) => {
     // Add array columns for multi-select property/room targeting
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
+    // Fix discount_value to allow NULL or default to 0
+    await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value SET DEFAULT 0`);
+    await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value DROP NOT NULL`);
     
     // Create vouchers table
     await pool.query(`
