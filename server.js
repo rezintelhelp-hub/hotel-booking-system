@@ -11537,7 +11537,7 @@ app.get('/api/deploy/sites', async (req, res) => {
 // Deploy a new site (room-level selection)
 app.post('/api/deploy/create', async (req, res) => {
   try {
-    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin, template } = req.body;
+    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin, template, pricing_tier } = req.body;
     
     // Validate required fields
     if (!site_name || !slug || !admin_email) {
@@ -11561,6 +11561,9 @@ app.post('/api/deploy/create', async (req, res) => {
     // Determine theme based on template
     const selectedTemplate = template || 'developer-light';
     const wpTheme = selectedTemplate === 'developer-dark' ? 'gas-theme-developer-dark' : 'gas-theme-developer';
+    
+    // Set pricing tier (default to standard)
+    const sitePricingTier = pricing_tier || 'standard';
     
     // Get unique property IDs from selected rooms
     const uniquePropertyIds = property_ids || [...new Set(rooms.map(r => r.property_id))];
@@ -11590,7 +11593,7 @@ app.post('/api/deploy/create', async (req, res) => {
       console.log('Note: account_code not available');
     }
     
-    console.log(`[Deploy] Creating site "${site_name}" for account ${account_id} (${accountCheck.rows[0].name}) with template ${selectedTemplate}`);
+    console.log(`[Deploy] Creating site "${site_name}" for account ${account_id} (${accountCheck.rows[0].name}) with template ${selectedTemplate}, pricing tier ${sitePricingTier}`);
     
     // Call VPS to create site (no API key required in auto mode)
     const response = await fetch(`${VPS_DEPLOY_URL}?action=create-site`, {
@@ -11611,19 +11614,20 @@ app.post('/api/deploy/create', async (req, res) => {
         use_theme: use_theme !== false,
         use_plugin: use_plugin !== false,
         theme: wpTheme,
-        template: selectedTemplate
+        template: selectedTemplate,
+        pricing_tier: sitePricingTier
       })
     });
     
     const data = await response.json();
     
     if (data.success) {
-      // Store deployment record with template
+      // Store deployment record with template and pricing tier
       try {
         await pool.query(`
           INSERT INTO deployed_sites 
-          (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, deployed_at)
-          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW())
+          (property_id, property_ids, room_ids, account_id, blog_id, site_url, admin_url, slug, site_name, status, wp_username, wp_password_temp, template, pricing_tier, deployed_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, NOW())
         `, [
           uniquePropertyIds[0],
           JSON.stringify(uniquePropertyIds),
@@ -11637,7 +11641,8 @@ app.post('/api/deploy/create', async (req, res) => {
           'deployed',
           data.credentials.username,
           data.credentials.password || null,
-          selectedTemplate
+          selectedTemplate,
+          sitePricingTier
         ]);
         
         console.log(`[Deploy] Site "${site_name}" saved to database for account ${account_id}`);
@@ -26141,7 +26146,10 @@ app.get('/api/public/upsells/:unitId', async (req, res) => {
 app.get('/api/public/client/:clientId/rooms', async (req, res) => {
   try {
     const { clientId } = req.params;
-    const { property_id, room_ids, limit, random } = req.query;
+    const { property_id, room_ids, limit, random, pricing_tier } = req.query;
+    
+    // Get effective pricing tier (default to standard)
+    const effectivePricingTier = pricing_tier || 'standard';
     
     // Get today's date for rate calendar lookup
     const today = new Date().toISOString().split('T')[0];
@@ -26206,11 +26214,63 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     
     const result = await pool.query(query, params);
     
-    // Use today's rate if available, otherwise fall back to base_price
-    const rooms = result.rows.map(room => ({
-      ...room,
-      price: room.todays_rate || room.base_price || 0
-    }));
+    // Get applicable offers for this pricing tier (if not standard)
+    let tierOffers = [];
+    if (effectivePricingTier !== 'standard') {
+      try {
+        const offersResult = await pool.query(`
+          SELECT * FROM offers 
+          WHERE active = true 
+            AND pricing_tier = $1
+            AND (valid_from IS NULL OR valid_from <= $2)
+            AND (valid_until IS NULL OR valid_until >= $2)
+        `, [effectivePricingTier, today]);
+        tierOffers = offersResult.rows;
+      } catch (e) {
+        console.log('Could not fetch tier offers:', e.message);
+      }
+    }
+    
+    // Process rooms - apply pricing tier offers if applicable
+    const rooms = result.rows.map(room => {
+      let price = parseFloat(room.todays_rate || room.base_price || 0);
+      let standardPrice = price;
+      let appliedOffer = null;
+      
+      // Find best offer for this room's pricing tier
+      const roomOffers = tierOffers.filter(o => 
+        (!o.property_id || o.property_id === room.property_id) &&
+        (!o.room_id || o.room_id === room.id)
+      );
+      
+      if (roomOffers.length > 0) {
+        // Sort by priority and discount value
+        roomOffers.sort((a, b) => (b.priority || 0) - (a.priority || 0) || b.discount_value - a.discount_value);
+        const offer = roomOffers[0];
+        
+        // Corporate/other tiers often have INCREASES not discounts
+        // discount_value can be negative for increases
+        if (offer.discount_type === 'percentage') {
+          price = price * (1 - offer.discount_value / 100);
+        } else {
+          price = price - parseFloat(offer.discount_value);
+        }
+        appliedOffer = { 
+          name: offer.name, 
+          discount_type: offer.discount_type, 
+          discount_value: offer.discount_value,
+          pricing_tier: offer.pricing_tier
+        };
+      }
+      
+      return {
+        ...room,
+        price: Math.round(price * 100) / 100,
+        standard_price: standardPrice,
+        applied_offer: appliedOffer,
+        pricing_tier: effectivePricingTier
+      };
+    });
     
     // Get max guests across all rooms
     const maxGuestsResult = await pool.query(`
@@ -26225,7 +26285,8 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
       rooms: rooms,
       meta: {
         total: rooms.length,
-        max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10
+        max_guests_available: maxGuestsResult.rows[0]?.max_guests || 10,
+        pricing_tier: effectivePricingTier
       }
     });
   } catch (error) {
