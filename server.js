@@ -19876,11 +19876,16 @@ app.post('/api/pricing/calculate', async (req, res) => {
     `, [room_id]);
     const roomAccountId = roomAccountResult.rows[0]?.account_id;
     
-    // Get applicable offers - filtered by account_id
+    // Get the room's property_id for offer filtering
+    const roomPropertyResult = await pool.query(`SELECT property_id FROM bookable_units WHERE id = $1`, [room_id]);
+    const roomPropertyId = roomPropertyResult.rows[0]?.property_id;
+    
+    // Get applicable offers - filtered by account_id and property_id
     const offersResult = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
       AND (account_id IS NULL OR account_id = $6)
+      AND (property_id IS NULL OR property_id = $7)
       AND (room_id IS NULL OR room_id = $1)
       AND (min_nights IS NULL OR min_nights <= $2)
       AND (max_nights IS NULL OR max_nights >= $2)
@@ -19889,7 +19894,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
       AND (valid_from IS NULL OR valid_from <= $4)
       AND (valid_until IS NULL OR valid_until >= $5)
       ORDER BY priority DESC
-    `, [room_id, nights, guests, check_in, check_out, roomAccountId]);
+    `, [room_id, nights, guests, check_in, check_out, roomAccountId, roomPropertyId]);
     
     // Calculate pricing
     let baseTotal = 0;
