@@ -8174,7 +8174,7 @@ app.get('/api/setup-database', async (req, res) => {
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
     // Add account_id for proper multi-tenant scoping
-    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id)`);
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS account_id INTEGER`);
     // Fix discount_value to allow NULL or default to 0
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value SET DEFAULT 0`);
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value DROP NOT NULL`);
