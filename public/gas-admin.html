@@ -22045,7 +22045,7 @@ Local honey and preserves"></textarea>
                 if (data.success && data.data) {
                     const rooms = data.data.filter(r => r.property_id == propertyId);
                     rooms.forEach(r => {
-                        roomSelect.innerHTML += `<option value="${r.id}">${r.name}</option>`;
+                        roomSelect.innerHTML += `<option value="${r.id}" data-property-id="${r.property_id}">${r.name}</option>`;
                     });
                 }
             } catch (error) {
@@ -22102,7 +22102,20 @@ Local honey and preserves"></textarea>
                 // Get offers for this room
                 const offersResponse = await fetch('/api/admin/offers');
                 const offersData = await offersResponse.json();
-                const roomOffers = (offersData.data || []).filter(o => !o.room_id || o.room_id == roomId);
+                
+                // Get property_id for this room
+                const roomSelect = document.getElementById('offers-room-select');
+                const selectedOption = roomSelect.options[roomSelect.selectedIndex];
+                const roomPropertyId = selectedOption ? selectedOption.dataset.propertyId : null;
+                
+                // Filter offers by property_id AND room_id
+                const roomOffers = (offersData.data || []).filter(o => {
+                    // Check property match - offer applies if no property_id OR matches this room's property
+                    const propertyMatch = !o.property_id || o.property_id == roomPropertyId;
+                    // Check room match - offer applies if no room_id OR matches this room
+                    const roomMatch = !o.room_id || o.room_id == roomId;
+                    return propertyMatch && roomMatch;
+                });
                 
                 // Ensure "Standard Price" offer exists (create virtually if not in DB)
                 let standardOffer = roomOffers.find(o => o.name === 'Standard Price');
