@@ -24241,6 +24241,14 @@ Local honey and preserves"></textarea>
             const selectedPropertyIds = getSelectedOfferProperties();
             const selectedRoomIds = getSelectedOfferRooms();
             
+            // Get account_id - use selectedAccountId if set, otherwise try to get from first selected property
+            let offerAccountId = selectedAccountId;
+            if (!offerAccountId && selectedPropertyIds && selectedPropertyIds.length > 0) {
+                // Try to get account_id from the first selected property
+                const prop = allProperties.find(p => p.id === selectedPropertyIds[0]);
+                if (prop) offerAccountId = prop.account_id;
+            }
+            
             const offerData = {
                 name: document.getElementById('offer-name').value,
                 description: document.getElementById('offer-description').value,
@@ -24251,6 +24259,7 @@ Local honey and preserves"></textarea>
                 // Keep legacy single property_id/room_id for backward compatibility
                 property_id: selectedPropertyIds && selectedPropertyIds.length === 1 ? selectedPropertyIds[0] : null,
                 room_id: selectedRoomIds && selectedRoomIds.length === 1 ? selectedRoomIds[0] : null,
+                account_id: offerAccountId,
                 min_nights: parseInt(document.getElementById('offer-min-nights').value) || 1,
                 max_nights: parseInt(document.getElementById('offer-max-nights').value) || null,
                 min_advance_days: parseInt(document.getElementById('offer-min-advance').value) || null,
