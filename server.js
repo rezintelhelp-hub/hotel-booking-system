@@ -8173,6 +8173,8 @@ app.get('/api/setup-database', async (req, res) => {
     // Add array columns for multi-select property/room targeting
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS property_ids INTEGER[]`);
     await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS room_ids INTEGER[]`);
+    // Add account_id for proper multi-tenant scoping
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS account_id INTEGER REFERENCES accounts(id)`);
     // Fix discount_value to allow NULL or default to 0
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value SET DEFAULT 0`);
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value DROP NOT NULL`);
@@ -17857,13 +17859,25 @@ app.get('/api/webhooks/smoobu', (req, res) => {
 // Get all offers
 app.get('/api/admin/offers', async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT o.*, p.name as property_name, bu.name as room_name
+    const { account_id } = req.query;
+    
+    let query = `
+      SELECT o.*, p.name as property_name, bu.name as room_name, a.name as account_name
       FROM offers o
       LEFT JOIN properties p ON o.property_id = p.id
       LEFT JOIN bookable_units bu ON o.room_id = bu.id
-      ORDER BY o.priority DESC, o.created_at DESC
-    `);
+      LEFT JOIN accounts a ON o.account_id = a.id
+    `;
+    
+    const params = [];
+    if (account_id) {
+      query += ` WHERE o.account_id = $1`;
+      params.push(account_id);
+    }
+    
+    query += ` ORDER BY o.priority DESC, o.created_at DESC`;
+    
+    const result = await pool.query(query, params);
     res.json({ success: true, data: result.rows });
   } catch (error) {
     res.json({ success: false, error: error.message });
@@ -17891,7 +17905,7 @@ app.post('/api/admin/offers', async (req, res) => {
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
       allowed_checkin_days, allowed_checkout_days,
-      stackable, priority, active, pricing_tier
+      stackable, priority, active, pricing_tier, account_id
     } = req.body;
     
     let result;
@@ -17899,16 +17913,17 @@ app.post('/api/admin/offers', async (req, res) => {
       // Try with array columns and pricing_tier
       result = await pool.query(`
         INSERT INTO offers (
-          name, description, property_id, room_id, property_ids, room_ids,
+          account_id, name, description, property_id, room_id, property_ids, room_ids,
           discount_type, discount_value, applies_to,
           min_nights, max_nights, min_guests, max_guests,
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
           stackable, priority, active, pricing_tier
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
         RETURNING *
       `, [
+        account_id || null,
         name, description, property_id || null, room_id || null,
         property_ids || null, room_ids || null,
         discount_type || 'percentage', discount_value || 0, applies_to || 'standard_price',
@@ -17922,16 +17937,17 @@ app.post('/api/admin/offers', async (req, res) => {
       // Fallback without array columns
       result = await pool.query(`
         INSERT INTO offers (
-          name, description, property_id, room_id,
+          account_id, name, description, property_id, room_id,
           discount_type, discount_value, applies_to,
           min_nights, max_nights, min_guests, max_guests,
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
           stackable, priority, active, pricing_tier
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23)
         RETURNING *
       `, [
+        account_id || null,
         name, description, property_id || null, room_id || null,
         discount_type || 'percentage', discount_value || 0, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
@@ -19852,10 +19868,19 @@ app.post('/api/pricing/calculate', async (req, res) => {
     
     const nights = availResult.rows.length;
     
-    // Get applicable offers
+    // Get the property's account_id for offer filtering
+    const roomAccountResult = await pool.query(`
+      SELECT p.account_id FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE bu.id = $1
+    `, [room_id]);
+    const roomAccountId = roomAccountResult.rows[0]?.account_id;
+    
+    // Get applicable offers - filtered by account_id
     const offersResult = await pool.query(`
       SELECT * FROM offers
       WHERE active = true
+      AND (account_id IS NULL OR account_id = $6)
       AND (room_id IS NULL OR room_id = $1)
       AND (min_nights IS NULL OR min_nights <= $2)
       AND (max_nights IS NULL OR max_nights >= $2)
@@ -19864,7 +19889,7 @@ app.post('/api/pricing/calculate', async (req, res) => {
       AND (valid_from IS NULL OR valid_from <= $4)
       AND (valid_until IS NULL OR valid_until >= $5)
       ORDER BY priority DESC
-    `, [room_id, nights, guests, check_in, check_out]);
+    `, [room_id, nights, guests, check_in, check_out, roomAccountId]);
     
     // Calculate pricing
     let baseTotal = 0;
@@ -25256,19 +25281,20 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
-    // Check for applicable offers
+    // Check for applicable offers - filter by account via property
     let discount = 0;
     let offerApplied = null;
     
     const offers = await pool.query(`
-      SELECT * FROM offers
-      WHERE active = true
-        AND (property_id IS NULL OR property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
-        AND (room_id IS NULL OR room_id = $1)
-        AND (min_nights IS NULL OR min_nights <= $2)
-        AND (valid_from IS NULL OR valid_from <= $3)
-        AND (valid_until IS NULL OR valid_until >= $4)
-      ORDER BY priority DESC, discount_value DESC
+      SELECT o.* FROM offers o
+      WHERE o.active = true
+        AND (o.account_id IS NULL OR o.account_id = (SELECT p.account_id FROM bookable_units bu JOIN properties p ON bu.property_id = p.id WHERE bu.id = $1))
+        AND (o.property_id IS NULL OR o.property_id = (SELECT property_id FROM bookable_units WHERE id = $1))
+        AND (o.room_id IS NULL OR o.room_id = $1)
+        AND (o.min_nights IS NULL OR o.min_nights <= $2)
+        AND (o.valid_from IS NULL OR o.valid_from <= $3)
+        AND (o.valid_until IS NULL OR o.valid_until >= $4)
+      ORDER BY o.priority DESC, o.discount_value DESC
       LIMIT 1
     `, [unit_id, nights, check_in, check_out]);
     
