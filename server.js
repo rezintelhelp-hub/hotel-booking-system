@@ -943,14 +943,6 @@ async function runMigrations() {
       console.log('ℹ️  vouchers vendor columns:', voucherVendorError.message);
     }
     
-    // Add account_id to offers for multi-tenant scoping
-    try {
-      await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS account_id INTEGER`);
-      console.log('✅ offers.account_id column ensured');
-    } catch (offersAccountError) {
-      console.log('ℹ️  offers.account_id column:', offersAccountError.message);
-    }
-    
     // Vendor service requests - when a booking includes external upsell/voucher
     try {
       await pool.query(`
