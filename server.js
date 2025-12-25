@@ -17911,7 +17911,7 @@ app.post('/api/admin/offers', async (req, res) => {
       `, [
         name, description, property_id || null, room_id || null,
         property_ids || null, room_ids || null,
-        discount_type || 'percentage', discount_value, applies_to || 'standard_price',
+        discount_type || 'percentage', discount_value || 0, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
@@ -17933,7 +17933,7 @@ app.post('/api/admin/offers', async (req, res) => {
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
-        discount_type || 'percentage', discount_value, applies_to || 'standard_price',
+        discount_type || 'percentage', discount_value || 0, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
