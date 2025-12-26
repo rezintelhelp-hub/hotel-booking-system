@@ -32999,7 +32999,7 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
     
     // First try by gas_property_id link
     let result = await pool.query(`
-      SELECT sp.*, c.adapter_code, c.name as connection_name
+      SELECT sp.*, c.adapter_code
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.gas_property_id = $1
@@ -33023,7 +33023,7 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
         
         // Try exact match first
         result = await pool.query(`
-          SELECT sp.*, c.adapter_code, c.name as connection_name
+          SELECT sp.*, c.adapter_code
           FROM gas_sync_properties sp
           JOIN gas_sync_connections c ON sp.connection_id = c.id
           WHERE sp.name = $1 AND c.account_id = $2
@@ -33034,7 +33034,7 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
         // If not found, try partial match (property name contains sync name or vice versa)
         if (result.rows.length === 0) {
           result = await pool.query(`
-            SELECT sp.*, c.adapter_code, c.name as connection_name
+            SELECT sp.*, c.adapter_code
             FROM gas_sync_properties sp
             JOIN gas_sync_connections c ON sp.connection_id = c.id
             WHERE c.account_id = $1 
