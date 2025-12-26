@@ -2618,6 +2618,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       
       roomIdMap[String(room.external_id)] = gasRoomId;
       
+      // Save gas_room_id back to gas_sync_room_types for the fix-room-ids endpoint
+      await pool.query('UPDATE gas_sync_room_types SET gas_room_id = $1 WHERE id = $2', [gasRoomId, room.id]);
+      
       // Map feature codes to amenities
       if (featureCodes && gasRoomId) {
         const codes = featureCodes.split(',').map(c => c.trim()).filter(c => c);
