@@ -611,7 +611,7 @@
                 
                 <div id="setup-loading" class="loading" style="display: none;">
                     <div class="spinner"></div>
-                    <p>Saving credentials and syncing images...</p>
+                    <p id="setup-status">Saving credentials and syncing images...</p>
                 </div>
             </div>
             
@@ -1124,6 +1124,7 @@
                 // Save propKeys and download images for each property
                 const propertyCards = document.querySelectorAll('.property-setup-card');
                 let totalImages = 0;
+                let totalRooms = 0;
                 
                 for (const card of propertyCards) {
                     const propertyId = card.dataset.propertyId;
@@ -1149,9 +1150,24 @@
                             }
                         }
                     }
+                    
+                    // Link to GAS - creates actual property and rooms
+                    document.getElementById('setup-status').textContent = `Creating GAS property from ${card.querySelector('h4')?.textContent || 'property'}...`;
+                    const linkResponse = await fetch(`/api/gas-sync/properties/${propertyId}/link-to-gas`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ accountId: wizardData.account.id })
+                    });
+                    const linkData = await linkResponse.json();
+                    console.log('Link to GAS result:', linkData);
+                    
+                    if (linkData.success && linkData.stats) {
+                        totalRooms += linkData.stats.roomsCreated || linkData.stats.roomsUpdated || 0;
+                    }
                 }
                 
                 wizardData.imageCount = totalImages;
+                wizardData.roomCount = totalRooms || wizardData.roomCount;
                 
                 currentStep++;
                 showStep(currentStep);
