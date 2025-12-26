@@ -612,6 +612,8 @@ async function runMigrations() {
         )
       `);
       await pool.query(`CREATE INDEX IF NOT EXISTS idx_gas_sync_logs_connection ON gas_sync_logs(connection_id)`);
+      // Fix: Drop FK constraint if it exists without CASCADE, then recreate with CASCADE
+      await pool.query(`ALTER TABLE gas_sync_logs DROP CONSTRAINT IF EXISTS gas_sync_logs_connection_id_fkey`);
       console.log('✅ gas_sync_logs table ensured');
     } catch (logsTableError) {
       console.log('ℹ️  gas_sync_logs:', logsTableError.message);
