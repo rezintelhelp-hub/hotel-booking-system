@@ -32995,6 +32995,7 @@ app.get('/api/gas-sync/properties/:propertyId/images', async (req, res) => {
 app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, res) => {
   try {
     const { gasPropertyId } = req.params;
+    console.log('Resync lookup for GAS property:', gasPropertyId);
     
     // First try by gas_property_id link
     let result = await pool.query(`
@@ -33004,12 +33005,21 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
       WHERE sp.gas_property_id = $1
     `, [gasPropertyId]);
     
+    console.log('Direct link result:', result.rows.length, 'rows');
+    
     // If not found, try matching by property name
     if (result.rows.length === 0) {
       const propResult = await pool.query('SELECT name, account_id FROM properties WHERE id = $1', [gasPropertyId]);
+      console.log('Property lookup:', propResult.rows[0] || 'NOT FOUND');
+      
       if (propResult.rows.length > 0) {
         const propName = propResult.rows[0].name;
         const accountId = propResult.rows[0].account_id;
+        
+        if (!accountId) {
+          console.log('Property has no account_id');
+          return res.json({ success: false, error: 'Property has no account assigned' });
+        }
         
         // Try exact match first
         result = await pool.query(`
@@ -33018,6 +33028,8 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
           JOIN gas_sync_connections c ON sp.connection_id = c.id
           WHERE sp.name = $1 AND c.account_id = $2
         `, [propName, accountId]);
+        
+        console.log('Exact name match result:', result.rows.length, 'rows');
         
         // If not found, try partial match (property name contains sync name or vice versa)
         if (result.rows.length === 0) {
@@ -33028,11 +33040,14 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
             WHERE c.account_id = $1 
             AND ($2 ILIKE '%' || sp.name || '%' OR sp.name ILIKE '%' || $2 || '%')
           `, [accountId, propName]);
+          
+          console.log('Partial name match result:', result.rows.length, 'rows');
         }
         
         // If found by name, update the link for future
         if (result.rows.length > 0) {
           await pool.query('UPDATE gas_sync_properties SET gas_property_id = $1 WHERE id = $2', [gasPropertyId, result.rows[0].id]);
+          console.log('Updated link for future');
         }
       }
     }
@@ -33043,6 +33058,7 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
     
     res.json({ success: true, syncProperty: result.rows[0] });
   } catch (error) {
+    console.error('Resync lookup error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
