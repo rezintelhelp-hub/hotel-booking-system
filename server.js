@@ -33011,12 +33011,24 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
         const propName = propResult.rows[0].name;
         const accountId = propResult.rows[0].account_id;
         
+        // Try exact match first
         result = await pool.query(`
           SELECT sp.*, c.adapter_code, c.name as connection_name
           FROM gas_sync_properties sp
           JOIN gas_sync_connections c ON sp.connection_id = c.id
           WHERE sp.name = $1 AND c.account_id = $2
         `, [propName, accountId]);
+        
+        // If not found, try partial match (property name contains sync name or vice versa)
+        if (result.rows.length === 0) {
+          result = await pool.query(`
+            SELECT sp.*, c.adapter_code, c.name as connection_name
+            FROM gas_sync_properties sp
+            JOIN gas_sync_connections c ON sp.connection_id = c.id
+            WHERE c.account_id = $1 
+            AND ($2 ILIKE '%' || sp.name || '%' OR sp.name ILIKE '%' || $2 || '%')
+          `, [accountId, propName]);
+        }
         
         // If found by name, update the link for future
         if (result.rows.length > 0) {
