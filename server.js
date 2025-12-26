@@ -6048,7 +6048,33 @@ app.post('/api/accounts', async (req, res) => {
       RETURNING *
     `, [name, email || null, phone || null, account_code || null, role || 'agency_admin', status || 'active', passwordHash]);
     
-    res.json({ success: true, account: result.rows[0] });
+    const account = result.rows[0];
+    
+    // Generate session token for auto-login after registration
+    let sessionToken = null;
+    if (password && account.id) {
+      sessionToken = crypto.randomBytes(32).toString('hex');
+      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+      
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS account_sessions (
+          id SERIAL PRIMARY KEY,
+          account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+          token VARCHAR(255) UNIQUE NOT NULL,
+          expires_at TIMESTAMP NOT NULL,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          ip_address VARCHAR(45),
+          user_agent TEXT
+        )
+      `);
+      
+      await pool.query(`
+        INSERT INTO account_sessions (account_id, token, expires_at, ip_address, user_agent)
+        VALUES ($1, $2, $3, $4, $5)
+      `, [account.id, sessionToken, expiresAt, req.ip, req.get('User-Agent')]);
+    }
+    
+    res.json({ success: true, account: account, token: sessionToken });
   } catch (error) {
     console.error('Create account error:', error);
     res.json({ success: false, error: error.message });
@@ -32970,12 +32996,34 @@ app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, r
   try {
     const { gasPropertyId } = req.params;
     
-    const result = await pool.query(`
+    // First try by gas_property_id link
+    let result = await pool.query(`
       SELECT sp.*, c.adapter_code, c.name as connection_name
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.gas_property_id = $1
     `, [gasPropertyId]);
+    
+    // If not found, try matching by property name
+    if (result.rows.length === 0) {
+      const propResult = await pool.query('SELECT name, account_id FROM properties WHERE id = $1', [gasPropertyId]);
+      if (propResult.rows.length > 0) {
+        const propName = propResult.rows[0].name;
+        const accountId = propResult.rows[0].account_id;
+        
+        result = await pool.query(`
+          SELECT sp.*, c.adapter_code, c.name as connection_name
+          FROM gas_sync_properties sp
+          JOIN gas_sync_connections c ON sp.connection_id = c.id
+          WHERE sp.name = $1 AND c.account_id = $2
+        `, [propName, accountId]);
+        
+        // If found by name, update the link for future
+        if (result.rows.length > 0) {
+          await pool.query('UPDATE gas_sync_properties SET gas_property_id = $1 WHERE id = $2', [gasPropertyId, result.rows[0].id]);
+        }
+      }
+    }
     
     if (result.rows.length === 0) {
       return res.json({ success: false, error: 'No sync property found for this GAS property' });
