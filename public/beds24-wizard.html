@@ -909,6 +909,11 @@
                     throw new Error(data.error || 'Login failed');
                 }
                 
+                // Save auth token for auto-login to gas-admin
+                if (data.token) {
+                    localStorage.setItem('gas_token', data.token);
+                }
+                
                 wizardData.account = data.account;
                 currentStep++;
                 showStep(currentStep);
@@ -957,6 +962,11 @@
                         return;
                     }
                     throw new Error(data.error || 'Registration failed');
+                }
+                
+                // Save auth token for auto-login to gas-admin
+                if (data.token) {
+                    localStorage.setItem('gas_token', data.token);
                 }
                 
                 wizardData.account = data.account;
