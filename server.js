@@ -32965,6 +32965,28 @@ app.get('/api/gas-sync/properties/:propertyId/images', async (req, res) => {
   }
 });
 
+// Find sync property by GAS property ID (for resync)
+app.get('/api/gas-sync/properties/by-gas-property/:gasPropertyId', async (req, res) => {
+  try {
+    const { gasPropertyId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT sp.*, c.adapter_code, c.name as connection_name
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.gas_property_id = $1
+    `, [gasPropertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'No sync property found for this GAS property' });
+    }
+    
+    res.json({ success: true, syncProperty: result.rows[0] });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Download images for a property (Beds24 V1)
 app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res) => {
   try {
