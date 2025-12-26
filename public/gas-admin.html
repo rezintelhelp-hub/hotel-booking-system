@@ -18449,6 +18449,7 @@ Local honey and preserves"></textarea>
                                                 <div style="display: flex; gap: 0.25rem;">
                                                     <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button>
                                                     <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings">💳</button>
+                                                    <button class="btn btn-secondary btn-small" onclick="resyncProperty(${prop.id})" title="Resync from Channel Manager">🔄</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -18471,6 +18472,61 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 console.error('Error loading properties:', error);
                 container.innerHTML = '<p style="color: var(--error); padding: 2rem; text-align: center;">Error loading properties</p>';
+            }
+        }
+        
+        async function resyncProperty(propertyId) {
+            if (!confirm('Resync this property from the channel manager? This will update property details, rooms, and images.')) return;
+            
+            try {
+                showNotification('Starting resync...', 'info');
+                
+                // Find the gas_sync_property linked to this GAS property
+                const syncPropResponse = await fetch(`/api/gas-sync/properties/by-gas-property/${propertyId}`, { headers: authHeaders() });
+                const syncPropData = await syncPropResponse.json();
+                
+                if (!syncPropData.success || !syncPropData.syncProperty) {
+                    showNotification('This property is not linked to a channel manager', 'error');
+                    return;
+                }
+                
+                const syncPropertyId = syncPropData.syncProperty.id;
+                const connectionId = syncPropData.syncProperty.connection_id;
+                
+                // Step 1: Trigger sync for the connection
+                showNotification('Syncing from channel manager...', 'info');
+                await fetch(`/api/gas-sync/connections/${connectionId}/sync`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                
+                // Step 2: Download images
+                showNotification('Downloading images...', 'info');
+                await fetch(`/api/gas-sync/properties/${syncPropertyId}/download-images`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
+                });
+                
+                // Step 3: Re-link to update GAS property and rooms
+                showNotification('Updating property and rooms...', 'info');
+                const linkResponse = await fetch(`/api/gas-sync/properties/${syncPropertyId}/link-to-gas`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({})
+                });
+                const linkData = await linkResponse.json();
+                
+                if (linkData.success) {
+                    const stats = linkData.stats || {};
+                    showNotification(`✅ Resync complete! Rooms: ${stats.roomsCreated || 0} created, ${stats.roomsUpdated || 0} updated. Images: ${stats.imagesLinked || 0}`, 'success');
+                    loadProperties();
+                } else {
+                    showNotification('Resync failed: ' + (linkData.error || 'Unknown error'), 'error');
+                }
+                
+            } catch (error) {
+                console.error('Resync error:', error);
+                showNotification('Resync failed: ' + error.message, 'error');
             }
         }
         
