@@ -8807,96 +8807,76 @@ app.post('/api/ai-chat', async (req, res) => {
             return res.json({ success: false, error: 'Message required' });
         }
         
-        // Knowledge base content - focused on dashboard users (already connected)
-        const knowledgeBase = `
-# GAS Dashboard Help
+        // Search knowledge base for relevant articles
+        let knowledgeContent = '';
+        let articlesFound = 0;
+        
+        try {
+            // Extract keywords from the message (simple approach)
+            const searchTerms = message.toLowerCase()
+                .replace(/[^a-z0-9\s]/g, '')
+                .split(/\s+/)
+                .filter(word => word.length > 2 && !['the', 'how', 'what', 'why', 'when', 'where', 'can', 'does', 'this', 'that', 'with', 'for', 'and', 'but', 'not'].includes(word));
+            
+            if (searchTerms.length > 0) {
+                // Search articles by title, content, and keywords
+                const searchQuery = searchTerms.join(' | '); // OR search
+                const articlesResult = await pool.query(`
+                    SELECT title, summary, content, 
+                           ts_rank(to_tsvector('english', title || ' ' || COALESCE(summary, '') || ' ' || content), plainto_tsquery('english', $1)) as rank
+                    FROM kb_articles 
+                    WHERE status = 'published'
+                      AND (
+                          to_tsvector('english', title || ' ' || COALESCE(summary, '') || ' ' || content) @@ plainto_tsquery('english', $1)
+                          OR title ILIKE ANY($2)
+                          OR $1 = ANY(keywords)
+                      )
+                    ORDER BY rank DESC
+                    LIMIT 5
+                `, [searchTerms.join(' '), searchTerms.map(t => '%' + t + '%')]);
+                
+                if (articlesResult.rows.length > 0) {
+                    articlesFound = articlesResult.rows.length;
+                    knowledgeContent = articlesResult.rows.map(article => 
+                        `### ${article.title}\n${article.content}`
+                    ).join('\n\n---\n\n');
+                }
+            }
+        } catch (dbError) {
+            console.log('KB search error (tables may not exist):', dbError.message);
+        }
+        
+        // Fallback base knowledge if no articles found
+        const baseKnowledge = `
+## GAS Dashboard Quick Reference
 
-## You're Already Set Up!
-Since you're in the dashboard, your Channel Manager is connected and properties are imported. Here's what you can do now:
+### Blog
+Create SEO content: Blog menu → Get Ideas → Select category → Generate Ideas → Create Post from any idea
 
-## Creating Blog Content
-The Blog section lets you create SEO-optimized content for your property website:
-1. Go to Blog in the menu
-2. Click "🤖 Get Ideas" button
-3. Choose a category: Attractions & Places OR Events & What's On
-4. Select a specific topic (Parks, Museums, Festivals, etc.)
-5. Click "Generate Ideas" - AI creates 5 topic suggestions
-6. Review ideas in the Ideas tab
-7. Click "✨ Create Post" on any idea you like
-8. AI writes the full article with title, content, meta tags, and FAQ schema
-9. Review, edit if needed, then Publish or Save as Draft
+### Attractions  
+Add local places: Attractions menu → Suggest Places → Select category → Add This Place
 
-Blog categories include: Events & Holidays, Events & Festivals, Attractions & Museums, Attractions & Parks, Attractions & Nature, and more.
+### Pricing
+- Standard tier: Public rates with discount badges
+- Corporate/Agent tiers: Clean pricing without badges
+- Create offers: Offers & Pricing → Add Offer
 
-## Adding Local Attractions
-Help guests discover your area with the Attractions feature:
-1. Go to Attractions in the menu
-2. Click "🤖 Suggest Places" button
-3. Select a category: Museums, Restaurants, Parks, Beaches, Nightlife, Shopping, etc.
-4. AI finds real local places near your property
-5. Review suggestions in the Ideas tab
-6. Click "Add This Place" - AI fills in details (address, description, website)
-7. Edit if needed, then Publish
+### Websites
+Manage at: Websites → Deployed Sites
 
-Attraction categories: 🏛️ Museums & Galleries, 🏰 Historic Sites, 🌳 Parks & Gardens, 🏖️ Beaches, 🎭 Entertainment, 🛍️ Shopping, 🍽️ Restaurants, ☕ Cafes, 🌃 Nightlife, ⚽ Sports, 🌲 Nature, 👨‍👩‍👧 Family Fun
+### Common Issues
+- Content not showing? Check it's Published
+- Prices wrong? Resync Connection
+- Changes not visible? Clear browser cache (Ctrl+Shift+R)
 
-## Pricing & Offers
-
-### Creating Offers
-1. Go to Offers & Pricing
-2. Click "+ Add Offer"
-3. Set: name, discount %, dates, which rooms
-4. Save - shows on your website with "Save X%" badge
-
-### Pricing Tiers
-- Standard: Public rates with discount badges
-- Corporate 1/2/3: Negotiated business rates (no badges, clean pricing)
-- Travel Agent 1/2/3: Commission-based rates for resellers
-
-To change a website's pricing tier: Websites → Deployed Sites → Edit → Pricing Tier dropdown
-
-## Managing Websites
-- View your sites: Websites → Deployed Sites
-- Each property can have its own site at yourname.sites.gas.travel
-- Custom domains supported
-- Edit content, colors, settings from GAS Admin
-
-## Properties
-- View all your imported properties
-- Edit property details, currency, description
-- See which Channel Manager each is connected to
-- Properties sync automatically from your CM
-
-## Troubleshooting
-
-### Website not showing updates?
-- Clear browser cache (Ctrl+Shift+R)
-- Wait 30 seconds for sync
-- Try incognito mode
-
-### Blog/Attractions not appearing on site?
-- Make sure items are set to "Published"
-- Check property ID matches
-- Refresh the website
-
-### Prices look wrong?
-- Check your Channel Manager has correct rates
-- Click Resync on your Connection
-- Verify pricing tier setting on the website
-
-### Need to change currency?
-- Go to Properties
-- Find the property
-- Use the Currency dropdown to change
-
-## Quick Tips
-- Use Blog for SEO and guest engagement
-- Attractions help guests plan their stay
-- Corporate pricing removes discount badges for business clients
-- All content is AI-generated but you can edit everything
-- Support: hello@gas.travel
+### Support
+Email: hello@gas.travel
 `;
 
+        const fullKnowledge = articlesFound > 0 
+            ? `RELEVANT KNOWLEDGE BASE ARTICLES:\n\n${knowledgeContent}\n\n---\n\nGENERAL REFERENCE:\n${baseKnowledge}`
+            : `KNOWLEDGE BASE:\n${baseKnowledge}`;
+        
         // Build messages array
         const messages = [];
         
@@ -8916,22 +8896,20 @@ To change a website's pricing tier: Websites → Deployed Sites → Edit → Pri
         const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
             model: 'claude-sonnet-4-20250514',
             max_tokens: 1000,
-            system: `You are a helpful support assistant for GAS (Global Accommodation System). You help property owners use the platform.
+            system: `You are a helpful support assistant for GAS (Global Accommodation System). You help property owners use the dashboard.
 
-KNOWLEDGE BASE:
-${knowledgeBase}
+${fullKnowledge}
 
 CURRENT CONTEXT:
 - User is viewing: ${context || 'Dashboard'} section
-- Platform: GAS Admin Dashboard
+- Articles found in knowledge base: ${articlesFound}
 
 GUIDELINES:
 - Be friendly, concise, and helpful
-- Use the knowledge base to answer questions accurately
-- If you don't know something, say so and suggest contacting hello@gas.travel
+- Use the knowledge base articles to answer accurately
+- If you cannot find a clear answer in the knowledge base, say "I don't have specific information about that yet, but our team can help at hello@gas.travel"
 - Keep responses brief (2-3 paragraphs max)
 - Use bullet points for steps
-- Offer follow-up suggestions when helpful
 - Don't use markdown formatting like ** or ## - just plain text`,
             messages: messages
         }, {
@@ -8944,21 +8922,34 @@ GUIDELINES:
         
         const responseText = claudeResponse.data.content[0].text;
         
-        // Log unanswered if response indicates uncertainty
-        if (responseText.toLowerCase().includes("i don't know") || 
-            responseText.toLowerCase().includes("not sure") ||
-            responseText.toLowerCase().includes("contact support")) {
+        // Log to unanswered if AI couldn't find good info
+        const needsAnswer = responseText.toLowerCase().includes("don't have specific information") || 
+                           responseText.toLowerCase().includes("i don't know") ||
+                           responseText.toLowerCase().includes("not sure") ||
+                           responseText.toLowerCase().includes("hello@gas.travel");
+        
+        if (needsAnswer) {
             try {
                 await pool.query(`
                     INSERT INTO kb_unanswered (question, context, status)
                     VALUES ($1, $2, 'new')
+                    ON CONFLICT DO NOTHING
                 `, [message, context || 'general']);
             } catch (e) {
                 // Table might not exist, ignore
             }
         }
         
-        res.json({ success: true, response: responseText });
+        // Log successful article usage for analytics (optional)
+        if (articlesFound > 0) {
+            console.log(`AI Chat: Found ${articlesFound} relevant articles for: "${message.substring(0, 50)}..."`);
+        }
+        
+        res.json({ 
+            success: true, 
+            response: responseText,
+            articlesUsed: articlesFound
+        });
         
     } catch (error) {
         console.error('AI Chat error:', error.response?.data || error.message);
