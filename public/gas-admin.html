@@ -29963,11 +29963,23 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Close the wizard immediately
-            closeBlogIdeasWizard();
-            
-            // Show generating toast
-            showNotification('🤖 Generating blog ideas...', 'info');
+            // Show loading state in wizard instead of closing
+            const wizardFooter = document.getElementById('blog-wizard-footer');
+            const wizardLoading = document.getElementById('blog-wizard-loading');
+            if (wizardFooter) wizardFooter.style.display = 'none';
+            if (wizardLoading) {
+                wizardLoading.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
+                        <h3 style="margin: 0 0 0.5rem;">Generating Blog Posts...</h3>
+                        <p id="blog-gen-status" style="color: #6b7280;">Finding great topics for your property...</p>
+                        <div style="margin-top: 1rem; width: 200px; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 1rem auto;">
+                            <div id="blog-gen-progress" style="width: 10%; height: 100%; background: linear-gradient(90deg, #8b5cf6, #7c3aed); border-radius: 2px; transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                `;
+                wizardLoading.style.display = 'block';
+            }
             
             try {
                 const response = await fetch('/api/admin/content-ideas/generate', {
@@ -29985,33 +29997,56 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success && data.ideas?.length > 0) {
-                    showNotification(`✅ Generated ${data.ideas.length} blog ideas! Now creating posts...`, 'success');
+                    const statusEl = document.getElementById('blog-gen-status');
+                    const progressEl = document.getElementById('blog-gen-progress');
                     
-                    // Generate each blog post as a toast notification sequence
+                    let created = 0;
+                    let skipped = 0;
+                    
+                    // Generate each blog post
                     for (let i = 0; i < data.ideas.length; i++) {
                         const idea = data.ideas[i];
-                        showNotification(`📝 Creating blog ${i + 1}/${data.ideas.length}: "${idea.title.substring(0, 40)}..."`, 'info');
+                        const progress = Math.round(((i + 1) / data.ideas.length) * 100);
+                        
+                        if (statusEl) statusEl.textContent = `Creating ${i + 1}/${data.ideas.length}: "${idea.title.substring(0, 35)}..."`;
+                        if (progressEl) progressEl.style.width = `${progress}%`;
                         
                         try {
+                            // Check for duplicate before creating
+                            const slug = idea.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
+                            const checkResponse = await fetch(`/api/admin/blog?slug=${encodeURIComponent(slug)}&property_id=${propertyId}`, { headers: authHeaders() });
+                            const checkData = await checkResponse.json();
+                            
+                            if (checkData.success && checkData.posts?.some(p => p.slug === slug)) {
+                                skipped++;
+                                continue; // Skip duplicate
+                            }
+                            
                             await generateBlogFromIdeaSilent(idea.id, idea.title, propertyId);
-                            showNotification(`✅ Created: "${idea.title.substring(0, 50)}..."`, 'success');
+                            created++;
                         } catch (err) {
-                            showNotification(`❌ Failed: "${idea.title.substring(0, 30)}..."`, 'error');
+                            console.error('Blog creation error:', err);
                         }
                         
                         // Small delay between generations
                         if (i < data.ideas.length - 1) {
-                            await new Promise(r => setTimeout(r, 1000));
+                            await new Promise(r => setTimeout(r, 500));
                         }
                     }
                     
-                    showNotification(`🎉 All ${data.ideas.length} blog posts created as drafts!`, 'success');
+                    closeBlogIdeasWizard();
+                    
+                    let message = `🎉 Created ${created} blog posts as drafts!`;
+                    if (skipped > 0) message += ` (${skipped} skipped - already exist)`;
+                    showNotification(message, 'success');
                     loadBlogByTab();
                 } else {
+                    closeBlogIdeasWizard();
                     showNotification(data.error || 'Failed to generate ideas', 'error');
                 }
             } catch (error) {
                 console.error('Generate blog ideas error:', error);
+                closeBlogIdeasWizard();
                 showNotification('Error generating ideas', 'error');
             }
         }
@@ -30458,11 +30493,23 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Close the wizard immediately
-            closeAttractionIdeasWizard();
-            
-            // Show generating toast
-            showNotification('🤖 Finding local places...', 'info');
+            // Show loading state in wizard instead of closing
+            const wizardFooter = document.getElementById('attraction-wizard-footer');
+            const wizardLoading = document.getElementById('attraction-wizard-loading');
+            if (wizardFooter) wizardFooter.style.display = 'none';
+            if (wizardLoading) {
+                wizardLoading.innerHTML = `
+                    <div style="text-align: center; padding: 2rem;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
+                        <h3 style="margin: 0 0 0.5rem;">Finding Local Places...</h3>
+                        <p id="attraction-gen-status" style="color: #6b7280;">Searching for great attractions nearby...</p>
+                        <div style="margin-top: 1rem; width: 200px; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 1rem auto;">
+                            <div id="attraction-gen-progress" style="width: 10%; height: 100%; background: linear-gradient(90deg, #f59e0b, #d97706); border-radius: 2px; transition: width 0.3s;"></div>
+                        </div>
+                    </div>
+                `;
+                wizardLoading.style.display = 'block';
+            }
             
             try {
                 const response = await fetch('/api/admin/content-ideas/generate', {
@@ -30480,33 +30527,58 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success && data.ideas?.length > 0) {
-                    showNotification(`✅ Found ${data.ideas.length} places! Now creating attractions...`, 'success');
+                    const statusEl = document.getElementById('attraction-gen-status');
+                    const progressEl = document.getElementById('attraction-gen-progress');
                     
-                    // Generate each attraction as a toast notification sequence
+                    let created = 0;
+                    let skipped = 0;
+                    
+                    // Generate each attraction
                     for (let i = 0; i < data.ideas.length; i++) {
                         const idea = data.ideas[i];
-                        showNotification(`🎯 Creating ${i + 1}/${data.ideas.length}: "${idea.title.substring(0, 40)}..."`, 'info');
+                        const progress = Math.round(((i + 1) / data.ideas.length) * 100);
+                        
+                        if (statusEl) statusEl.textContent = `Creating ${i + 1}/${data.ideas.length}: "${idea.title.substring(0, 35)}..."`;
+                        if (progressEl) progressEl.style.width = `${progress}%`;
                         
                         try {
+                            // Check for duplicate by name before creating
+                            const checkResponse = await fetch(`/api/admin/attractions?property_id=${propertyId}`, { headers: authHeaders() });
+                            const checkData = await checkResponse.json();
+                            
+                            if (checkData.success && checkData.attractions?.some(a => 
+                                a.name.toLowerCase() === idea.title.toLowerCase() ||
+                                a.slug === idea.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
+                            )) {
+                                skipped++;
+                                continue; // Skip duplicate
+                            }
+                            
                             await createAttractionFromIdeaSilent(idea, propertyId);
-                            showNotification(`✅ Created: "${idea.title.substring(0, 50)}..."`, 'success');
+                            created++;
                         } catch (err) {
-                            showNotification(`❌ Failed: "${idea.title.substring(0, 30)}..."`, 'error');
+                            console.error('Attraction creation error:', err);
                         }
                         
                         // Small delay between generations
                         if (i < data.ideas.length - 1) {
-                            await new Promise(r => setTimeout(r, 1000));
+                            await new Promise(r => setTimeout(r, 500));
                         }
                     }
                     
-                    showNotification(`🎉 All ${data.ideas.length} attractions created!`, 'success');
+                    closeAttractionIdeasWizard();
+                    
+                    let message = `🎉 Created ${created} attractions!`;
+                    if (skipped > 0) message += ` (${skipped} skipped - already exist)`;
+                    showNotification(message, 'success');
                     loadAttractionsByTab();
                 } else {
+                    closeAttractionIdeasWizard();
                     showNotification(data.error || 'Failed to find places', 'error');
                 }
             } catch (error) {
                 console.error('Generate attraction ideas error:', error);
+                closeAttractionIdeasWizard();
                 showNotification('Error generating suggestions', 'error');
             }
         }
