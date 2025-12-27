@@ -30214,10 +30214,27 @@ Local honey and preserves"></textarea>
             
             container.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
-                    ${filtered.map(s => `
+                    ${filtered.map(s => {
+                        // Category display mapping
+                        const catLabels = {
+                            'museums': '🏛️ Museums',
+                            'landmarks': '🏰 Landmarks',
+                            'parks': '🌳 Parks',
+                            'beaches': '🏖️ Beaches',
+                            'entertainment': '🎭 Entertainment',
+                            'shopping': '🛍️ Shopping',
+                            'restaurants': '🍽️ Restaurants',
+                            'cafes': '☕ Cafes',
+                            'nightlife': '🌃 Nightlife',
+                            'sports': '⚽ Sports',
+                            'nature': '🌲 Nature',
+                            'family': '👨‍👩‍👧 Family'
+                        };
+                        const catLabel = catLabels[s.category] || (s.category ? '📍 ' + s.category : '💡 Idea');
+                        return `
                         <div class="card" style="padding: 1.25rem; border-left: 4px solid #f59e0b;">
                             <span style="background: #fef3c7; color: #b45309; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
-                                💡 Idea
+                                ${catLabel}
                             </span>
                             <h4 style="margin: 0.75rem 0 0.5rem; font-size: 1rem; line-height: 1.4;">${escapeHtml(s.title)}</h4>
                             ${s.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem; line-height: 1.4;">${escapeHtml(s.description.substring(0, 100))}${s.description.length > 100 ? '...' : ''}</p>` : ''}
@@ -30231,7 +30248,7 @@ Local honey and preserves"></textarea>
                                 </button>
                             </div>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `;
         }
@@ -30590,6 +30607,10 @@ Local honey and preserves"></textarea>
             document.getElementById('attraction-short-desc').value = suggestion.description || '';
             if (suggestion.property_id) {
                 document.getElementById('attraction-property-id').value = suggestion.property_id;
+            }
+            // Set category from the suggestion (stored when idea was generated)
+            if (suggestion.category) {
+                document.getElementById('attraction-category').value = suggestion.category;
             }
             document.getElementById('attraction-content-idea-id').value = suggestion.id;
             
