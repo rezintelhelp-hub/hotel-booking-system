@@ -8929,13 +8929,62 @@ GUIDELINES:
                            responseText.toLowerCase().includes("hello@gas.travel");
         
         if (needsAnswer) {
+            let unansweredId = null;
             try {
-                await pool.query(`
+                const result = await pool.query(`
                     INSERT INTO kb_unanswered (question, context, status)
                     VALUES ($1, $2, 'new')
+                    RETURNING id
                 `, [message, context || 'general']);
+                unansweredId = result.rows[0]?.id;
             } catch (e) {
                 // Table might not exist, ignore
+            }
+            
+            // Send Slack notification
+            if (process.env.SLACK_WEBHOOK_URL) {
+                try {
+                    await axios.post(process.env.SLACK_WEBHOOK_URL, {
+                        blocks: [
+                            {
+                                type: "header",
+                                text: {
+                                    type: "plain_text",
+                                    text: "🧳 Gus couldn't answer this question",
+                                    emoji: true
+                                }
+                            },
+                            {
+                                type: "section",
+                                text: {
+                                    type: "mrkdwn",
+                                    text: `*Question:*\n"${message}"`
+                                }
+                            },
+                            {
+                                type: "context",
+                                elements: [
+                                    {
+                                        type: "mrkdwn",
+                                        text: `📍 *Section:* ${context || 'General'}  |  🆔 *ID:* #${unansweredId || 'N/A'}  |  🕐 ${new Date().toLocaleTimeString()}`
+                                    }
+                                ]
+                            },
+                            {
+                                type: "divider"
+                            },
+                            {
+                                type: "section",
+                                text: {
+                                    type: "mrkdwn",
+                                    text: "👉 Add answer in <https://www.gas.travel/gas-admin.html|GAS Admin> → Knowledge Base → Unanswered"
+                                }
+                            }
+                        ]
+                    });
+                } catch (slackError) {
+                    console.error('Slack notification failed:', slackError.message);
+                }
             }
         }
         
