@@ -14692,12 +14692,8 @@ Local honey and preserves"></textarea>
             showView(viewName);
             
             // Update AI chat context if open
-            console.log('navClick: checking updateAIChatContext, aiChatOpen=', aiChatOpen);
             if (typeof updateAIChatContext === 'function') {
-                console.log('navClick: calling updateAIChatContext');
                 updateAIChatContext();
-            } else {
-                console.log('navClick: updateAIChatContext not defined yet');
             }
         }
 
@@ -35590,8 +35586,14 @@ Local honey and preserves"></textarea>
                 chatButton.innerHTML = '✕';
                 chatButton.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
                 
-                // Update current view
-                aiChatCurrentView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
+                // Get clean view name
+                const activeNav = document.querySelector('.nav-item.active');
+                if (activeNav) {
+                    const textSpan = activeNav.querySelector('span:not(.nav-icon)');
+                    aiChatCurrentView = textSpan ? textSpan.textContent.trim() : 'Dashboard';
+                } else {
+                    aiChatCurrentView = 'Dashboard';
+                }
                 
                 // Update header to show current section
                 const headerInfo = document.querySelector('.ai-chat-header-info span');
@@ -35618,20 +35620,24 @@ Local honey and preserves"></textarea>
         
         // Called when user navigates to update chat context
         function updateAIChatContext() {
-            console.log('updateAIChatContext called, aiChatOpen=', aiChatOpen);
-            if (typeof aiChatOpen === 'undefined') {
-                console.log('aiChatOpen undefined, returning');
-                return;
-            }
+            if (typeof aiChatOpen === 'undefined') return;
             
-            const newView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
-            console.log('updateAIChatContext: newView=', newView, 'currentView=', aiChatCurrentView);
+            // Get clean view name (remove emoji, trim whitespace)
+            const activeNav = document.querySelector('.nav-item.active');
+            let newView = 'Dashboard';
+            if (activeNav) {
+                // Get just the text from the span, not the icon
+                const textSpan = activeNav.querySelector('span:not(.nav-icon)');
+                if (textSpan) {
+                    newView = textSpan.textContent.trim();
+                } else {
+                    newView = activeNav.textContent.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
+                }
+            }
             
             if (newView !== aiChatCurrentView) {
                 aiChatCurrentView = newView;
-                console.log('View changed, aiChatOpen=', aiChatOpen);
                 if (aiChatOpen) {
-                    console.log('Updating quick buttons');
                     updateAIChatQuickButtons();
                     // Update header to show current section
                     const headerInfo = document.querySelector('.ai-chat-header-info span');
