@@ -30055,6 +30055,23 @@ Local honey and preserves"></textarea>
         async function generateBlogFromIdeaSilent(ideaId, title, propertyId) {
             const clientId = getClientId();
             
+            // First, get the category from the content idea
+            let ideaCategory = 'General';
+            try {
+                const ideaResponse = await fetch(`/api/admin/content-ideas/${ideaId}`, { headers: authHeaders() });
+                const ideaData = await ideaResponse.json();
+                if (ideaData.success && ideaData.idea?.category) {
+                    // Category is stored like "events_holidays" - convert to display format
+                    ideaCategory = ideaData.idea.category
+                        .split('_')
+                        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+                        .join(' & ');
+                }
+            } catch (e) {
+                console.error('Could not fetch idea category:', e);
+            }
+            
+            // Generate blog content
             const response = await fetch('/api/admin/blog/generate', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', ...authHeaders() },
@@ -30068,11 +30085,47 @@ Local honey and preserves"></textarea>
             
             const data = await response.json();
             
-            if (!data.success) {
+            if (!data.success || !data.blog) {
                 throw new Error(data.error || 'Generation failed');
             }
             
-            return data;
+            // Save the blog post with the correct category
+            const blog = data.blog;
+            const saveResponse = await fetch('/api/admin/blog', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({
+                    property_id: propertyId,
+                    title: blog.title,
+                    excerpt: blog.excerpt,
+                    content: blog.content,
+                    category: ideaCategory,
+                    meta_title: blog.meta_title,
+                    meta_description: blog.meta_description,
+                    tags: blog.suggested_tags || [],
+                    faq_schema: blog.faq_schema,
+                    ai_generated: true,
+                    source_keyword: title,
+                    is_published: false
+                })
+            });
+            
+            const saveData = await saveResponse.json();
+            
+            if (!saveData.success) {
+                throw new Error(saveData.error || 'Failed to save blog');
+            }
+            
+            // Mark the idea as used
+            try {
+                await fetch(`/api/admin/content-ideas/${ideaId}/status`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ status: 'used' })
+                });
+            } catch (e) {}
+            
+            return saveData;
         }
         
         function resetBlogWizard() {
