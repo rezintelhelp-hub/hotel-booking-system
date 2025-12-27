@@ -12006,8 +12006,36 @@ app.put('/api/deployed-sites/:id/pricing-tier', async (req, res) => {
       return res.json({ success: false, error: 'Deployed site not found' });
     }
     
+    const site = result.rows[0];
     console.log(`Deployed site ${id} pricing tier updated to: ${pricing_tier}`);
-    res.json({ success: true, site: result.rows[0] });
+    
+    // Push pricing_tier to WordPress
+    try {
+      const wpSettings = await pool.query('SELECT api_key FROM wordpress_settings LIMIT 1');
+      const apiKey = wpSettings.rows[0]?.api_key;
+      
+      if (apiKey && site.site_url) {
+        const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${apiKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'update_option',
+            site_url: site.site_url,
+            option_name: 'gas_pricing_tier',
+            option_value: pricing_tier
+          })
+        });
+        const wpData = await wpResponse.json();
+        console.log('WordPress pricing_tier update:', wpData);
+      }
+    } catch (wpError) {
+      console.log('WordPress pricing_tier push failed:', wpError.message);
+    }
+    
+    res.json({ success: true, site: site });
   } catch (error) {
     console.error('Update deployed site pricing tier error:', error);
     res.json({ success: false, error: error.message });
