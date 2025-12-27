@@ -1,4 +1,4 @@
-// GAS - Guest Accommodation System Server
+å// GAS - Guest Accommodation System Server
 // Multi-tenant SaaS for property management
 require('dotenv').config();
 const express = require('express');
@@ -9049,7 +9049,7 @@ app.post('/api/telegram/webhook', async (req, res) => {
 // Setup Telegram webhook (call this once to register)
 app.get('/api/telegram/setup', async (req, res) => {
     try {
-        const webhookUrl = `${process.env.APP_URL || 'https://your-railway-app.railway.app'}/api/telegram/webhook`;
+        const webhookUrl = `${process.env.APP_URL || 'https://www.gas.travel'}/api/telegram/webhook`;
         
         const response = await axios.post(
             `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/setWebhook`,
@@ -9059,6 +9059,30 @@ app.get('/api/telegram/setup', async (req, res) => {
         res.json({ success: true, result: response.data });
     } catch (error) {
         res.json({ success: false, error: error.message });
+    }
+});
+
+// Test Telegram notification
+app.get('/api/telegram/test', async (req, res) => {
+    try {
+        if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_CHAT_ID) {
+            return res.json({ 
+                success: false, 
+                error: 'Missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID',
+                hasToken: !!process.env.TELEGRAM_BOT_TOKEN,
+                hasChatId: !!process.env.TELEGRAM_CHAT_ID
+            });
+        }
+        
+        const response = await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+            chat_id: process.env.TELEGRAM_CHAT_ID,
+            text: `🧳 *Test from Gus!*\n\nIf you see this, Telegram notifications are working!\n\n_${new Date().toISOString()}_`,
+            parse_mode: 'Markdown'
+        });
+        
+        res.json({ success: true, result: response.data });
+    } catch (error) {
+        res.json({ success: false, error: error.message, details: error.response?.data });
     }
 });
 
