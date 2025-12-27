@@ -8929,14 +8929,31 @@ GUIDELINES:
                            responseText.toLowerCase().includes("hello@gas.travel");
         
         if (needsAnswer) {
+            let unansweredId = null;
             try {
-                await pool.query(`
+                const insertResult = await pool.query(`
                     INSERT INTO kb_unanswered (question, context, status)
                     VALUES ($1, $2, 'new')
-                    ON CONFLICT DO NOTHING
+                    RETURNING id
                 `, [message, context || 'general']);
+                unansweredId = insertResult.rows[0]?.id;
             } catch (e) {
                 // Table might not exist, ignore
+            }
+            
+            // Send Telegram notification
+            if (process.env.TELEGRAM_BOT_TOKEN && process.env.TELEGRAM_CHAT_ID) {
+                try {
+                    const telegramMessage = `🧳 *Gus couldn't answer:*\n\n"${message}"\n\n📍 Section: ${context || 'General'}\n🆔 ID: #${unansweredId || 'N/A'}\n\n_Reply to this message with the answer_`;
+                    
+                    await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                        chat_id: process.env.TELEGRAM_CHAT_ID,
+                        text: telegramMessage,
+                        parse_mode: 'Markdown'
+                    });
+                } catch (telegramError) {
+                    console.error('Telegram notification failed:', telegramError.message);
+                }
             }
         }
         
@@ -8954,6 +8971,94 @@ GUIDELINES:
     } catch (error) {
         console.error('AI Chat error:', error.response?.data || error.message);
         res.json({ success: false, error: 'Failed to get AI response' });
+    }
+});
+
+// =====================================================
+// TELEGRAM BOT - Receive answers to unanswered questions
+// =====================================================
+
+// Telegram webhook endpoint - receives messages from your bot
+app.post('/api/telegram/webhook', async (req, res) => {
+    try {
+        const { message } = req.body;
+        
+        if (!message || !message.text) {
+            return res.json({ ok: true });
+        }
+        
+        // Check if it's a reply to a Gus question
+        if (message.reply_to_message && message.reply_to_message.text) {
+            const originalText = message.reply_to_message.text;
+            
+            // Check if it's replying to a Gus question
+            if (originalText.includes("Gus couldn't answer")) {
+                const answer = message.text;
+                
+                // Extract question from original message
+                const questionMatch = originalText.match(/"([^"]+)"/);
+                const question = questionMatch ? questionMatch[1] : 'Unknown question';
+                
+                // Extract ID
+                const idMatch = originalText.match(/#(\d+)/);
+                const questionId = idMatch ? idMatch[1] : null;
+                
+                // Create KB article
+                const title = question.length > 100 ? question.substring(0, 100) + '...' : question;
+                const slug = title.toLowerCase()
+                    .replace(/[^a-z0-9]+/g, '-')
+                    .replace(/(^-|-$)/g, '')
+                    .substring(0, 80) + '-' + Date.now();
+                
+                // Insert article
+                await pool.query(`
+                    INSERT INTO kb_articles (title, slug, content, summary, status, keywords)
+                    VALUES ($1, $2, $3, $4, 'published', $5)
+                `, [
+                    title,
+                    slug,
+                    answer,
+                    answer.substring(0, 200),
+                    question.toLowerCase().split(' ').filter(w => w.length > 3).slice(0, 10)
+                ]);
+                
+                // Mark unanswered as resolved
+                if (questionId) {
+                    await pool.query(`
+                        UPDATE kb_unanswered SET status = 'resolved' WHERE id = $1
+                    `, [questionId]);
+                }
+                
+                // Send confirmation
+                await axios.post(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+                    chat_id: message.chat.id,
+                    text: `✅ *Added to Knowledge Base!*\n\n*Q:* ${question}\n\n*A:* ${answer.substring(0, 300)}${answer.length > 300 ? '...' : ''}\n\n_Gus will now know this answer!_`,
+                    parse_mode: 'Markdown',
+                    reply_to_message_id: message.message_id
+                });
+            }
+        }
+        
+        res.json({ ok: true });
+    } catch (error) {
+        console.error('Telegram webhook error:', error);
+        res.json({ ok: true }); // Always return ok to Telegram
+    }
+});
+
+// Setup Telegram webhook (call this once to register)
+app.get('/api/telegram/setup', async (req, res) => {
+    try {
+        const webhookUrl = `${process.env.APP_URL || 'https://your-railway-app.railway.app'}/api/telegram/webhook`;
+        
+        const response = await axios.post(
+            `https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/setWebhook`,
+            { url: webhookUrl }
+        );
+        
+        res.json({ success: true, result: response.data });
+    } catch (error) {
+        res.json({ success: false, error: error.message });
     }
 });
 
