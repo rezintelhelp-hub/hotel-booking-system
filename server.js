@@ -8798,6 +8798,163 @@ app.post('/api/kb/import', async (req, res) => {
   }
 });
 
+// AI Chat Support Endpoint
+app.post('/api/ai-chat', async (req, res) => {
+    try {
+        const { message, context, history } = req.body;
+        
+        if (!message) {
+            return res.json({ success: false, error: 'Message required' });
+        }
+        
+        // Knowledge base content
+        const knowledgeBase = `
+# GAS Knowledge Base - AI Support Context
+
+## What is GAS?
+GAS (Global Accommodation System) is a FREE accommodation inventory management system for hotels, B&Bs, hostels, vacation rentals, and self-catering properties. Property owners upload their units for FREE. The ONE requirement: must connect via a Channel Manager (Beds24, Smoobu, Hostaway, etc.). GAS is NOT a booking engine - bookings flow through the property's Channel Manager. Optional paid services include: GAS-hosted websites, travel agent distribution, premium features.
+
+## Getting Started
+1. Create account (property name, type, location, channel manager, email)
+2. Connect Channel Manager (Beds24 supported now, others coming)
+3. Properties auto-import from channel manager
+4. Optionally deploy a GAS website
+
+## Connecting Beds24
+1. Go to Connections in GAS Admin
+2. Click + Add Connection, select Beds24
+3. Enter API Key (from Beds24 > Settings > Account Access > API)
+4. Enter Prop Key (property-specific)
+5. Click Connect - properties import automatically
+
+## Main Sections
+
+### Dashboard
+Overview with quick stats and recent activity.
+
+### Properties
+View/edit imported properties. Shows name, type, location, currency, connection status.
+
+### Connections
+Manage Channel Manager integrations. Green = connected, Yellow = needs attention, Red = disconnected.
+
+### Offers & Pricing
+Create promotional discounts. Pricing tiers: Standard (public with discount badges), Corporate 1/2/3 (negotiated business rates), Travel Agent 1/2/3 (commission rates). Corporate/Agent tiers show clean pricing without badges.
+
+### Websites
+Deploy GAS-hosted websites. Get subdomain (yourname.sites.gas.travel) or use custom domain. Includes booking integration, SEO optimization.
+
+### Blog
+AI-powered content creation. Click "Get Ideas" → select category (Attractions/Events) → choose topic → generate 5 ideas → click "Create Post" on any idea → AI writes full article with SEO meta tags and FAQ schema.
+
+### Attractions
+Add local points of interest. Click "Suggest Places" → select category (Museums, Restaurants, Parks, etc.) → AI finds real local places → click "Add This Place" → AI fills details → publish to website.
+
+## Troubleshooting
+
+### Can't connect to Beds24
+- Check API key copied correctly (no spaces)
+- Ensure API access enabled in Beds24
+- Regenerate key if expired
+
+### Properties not showing
+- Check Connection is green/connected
+- Click Resync on the connection
+- Verify property active in Beds24
+
+### Website changes not appearing
+- Clear browser cache (Ctrl+Shift+R)
+- Wait 30 seconds for sync
+- Try incognito mode
+
+### Blog/Attractions not on website
+- Check items are Published
+- Verify property ID matches
+- Check WordPress plugin active
+
+### Booking button not working
+- Verify connection active
+- Check rooms have Beds24 room IDs
+- Test booking in Beds24 directly
+
+## Quick Facts
+- GAS is FREE for inventory management
+- Channel Manager required (handles actual bookings)
+- Beds24 fully supported, more CMs coming
+- Websites optional paid feature
+- Blog & Attractions are AI-powered
+- Support: hello@gas.travel
+`;
+
+        // Build messages array
+        const messages = [];
+        
+        // Add conversation history if provided
+        if (history && Array.isArray(history)) {
+            history.forEach(msg => {
+                messages.push({
+                    role: msg.role === 'assistant' ? 'assistant' : 'user',
+                    content: msg.content
+                });
+            });
+        }
+        
+        // Add current message
+        messages.push({ role: 'user', content: message });
+        
+        const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 1000,
+            system: `You are a helpful support assistant for GAS (Global Accommodation System). You help property owners use the platform.
+
+KNOWLEDGE BASE:
+${knowledgeBase}
+
+CURRENT CONTEXT:
+- User is viewing: ${context || 'Dashboard'} section
+- Platform: GAS Admin Dashboard
+
+GUIDELINES:
+- Be friendly, concise, and helpful
+- Use the knowledge base to answer questions accurately
+- If you don't know something, say so and suggest contacting hello@gas.travel
+- Keep responses brief (2-3 paragraphs max)
+- Use bullet points for steps
+- Offer follow-up suggestions when helpful
+- Don't use markdown formatting like ** or ## - just plain text`,
+            messages: messages
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
+        });
+        
+        const responseText = claudeResponse.data.content[0].text;
+        
+        // Log unanswered if response indicates uncertainty
+        if (responseText.toLowerCase().includes("i don't know") || 
+            responseText.toLowerCase().includes("not sure") ||
+            responseText.toLowerCase().includes("contact support")) {
+            try {
+                await pool.query(`
+                    INSERT INTO kb_unanswered (question, context, status)
+                    VALUES ($1, $2, 'new')
+                `, [message, context || 'general']);
+            } catch (e) {
+                // Table might not exist, ignore
+            }
+        }
+        
+        res.json({ success: true, response: responseText });
+        
+    } catch (error) {
+        console.error('AI Chat error:', error.response?.data || error.message);
+        res.json({ success: false, error: 'Failed to get AI response' });
+    }
+});
+
 // =====================================================
 // BILLING & SUBSCRIPTION SYSTEM
 // =====================================================
