@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+ <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -24423,6 +24423,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     closeModal('addOfferModal');
                     loadOffers();
+                    loadOffersPricingGrid();
                     alert('✅ Offer saved successfully!');
                 } else {
                     alert('Error: ' + data.error);
