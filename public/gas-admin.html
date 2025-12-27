@@ -10085,7 +10085,7 @@ Local honey and preserves"></textarea>
                 <div id="blog-wizard-preview" style="display: none; background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border: 1px solid #86efac; border-radius: 12px; padding: 1rem;">
                     <h4 style="margin: 0 0 0.5rem; color: #166534;">✨ What You'll Get:</h4>
                     <ul style="margin: 0; padding-left: 1.25rem; font-size: 0.875rem; color: #15803d;">
-                        <li>7-10 blog post title ideas</li>
+                        <li>5 blog post title ideas</li>
                         <li>Location-specific recommendations</li>
                         <li>Click any idea to generate full article</li>
                         <li>Meta tags + FAQ Schema included</li>
@@ -10095,8 +10095,8 @@ Local honey and preserves"></textarea>
                 <!-- Loading State -->
                 <div id="blog-wizard-loading" style="display: none; text-align: center; padding: 2rem;">
                     <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
-                    <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Generating Ideas...</div>
-                    <div style="color: #6b7280;">AI is analyzing your property location</div>
+                    <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Thinking, please wait...</div>
+                    <div style="color: #6b7280;">AI is finding great blog topics for your property</div>
                     <div style="margin-top: 1rem; width: 200px; height: 4px; background: #e5e7eb; border-radius: 2px; margin-left: auto; margin-right: auto; overflow: hidden;">
                         <div style="width: 30%; height: 100%; background: linear-gradient(90deg, #8b5cf6, #7c3aed); border-radius: 2px; animation: loading-bar 1.5s infinite;"></div>
                     </div>
@@ -10186,8 +10186,8 @@ Local honey and preserves"></textarea>
                 <!-- Loading State -->
                 <div id="attraction-wizard-loading" style="display: none; text-align: center; padding: 2rem;">
                     <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
-                    <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Finding Places...</div>
-                    <div style="color: #6b7280;">AI is searching for local attractions</div>
+                    <div style="font-size: 1.25rem; font-weight: 600; margin-bottom: 0.5rem;">Thinking, please wait...</div>
+                    <div style="color: #6b7280;">AI is finding local attractions nearby</div>
                     <div style="margin-top: 1rem; width: 200px; height: 4px; background: #e5e7eb; border-radius: 2px; margin-left: auto; margin-right: auto; overflow: hidden;">
                         <div style="width: 30%; height: 100%; background: linear-gradient(90deg, #f59e0b, #d97706); border-radius: 2px; animation: loading-bar 1.5s infinite;"></div>
                     </div>
@@ -29682,12 +29682,27 @@ Local honey and preserves"></textarea>
                 return;
             }
             
+            // Category display mapping
+            const catLabels = {
+                'attractions_museums': '🏛️ Museums & History',
+                'attractions_parks': '🌳 Parks & Gardens',
+                'attractions_beaches': '🏖️ Beaches',
+                'attractions_landmarks': '🏰 Landmarks',
+                'attractions_nature': '🌲 Nature',
+                'events_festivals': '🎉 Festivals',
+                'events_seasonal': '🎄 Seasonal',
+                'events_sports': '⚽ Sports Events',
+                'events_holidays': '🎊 Events & Holidays'
+            };
+            
             container.innerHTML = `
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
-                    ${filtered.map(idea => `
+                    ${filtered.map(idea => {
+                        const catLabel = catLabels[idea.category] || (idea.category ? idea.category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ') : '📝 Blog');
+                        return `
                         <div class="card" style="padding: 1.25rem; border-left: 4px solid #8b5cf6;">
                             <span style="background: #ede9fe; color: #7c3aed; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">
-                                ${idea.category || '📝 Blog'}
+                                ${catLabel}
                             </span>
                             <h4 style="margin: 0.75rem 0 0.5rem; font-size: 1rem; line-height: 1.4;">${escapeHtml(idea.title)}</h4>
                             ${idea.description ? `<p style="color: var(--text-secondary); font-size: 0.875rem; margin: 0 0 0.75rem; line-height: 1.4;">${escapeHtml(idea.description.substring(0, 100))}${idea.description.length > 100 ? '...' : ''}</p>` : ''}
@@ -29701,7 +29716,7 @@ Local honey and preserves"></textarea>
                                 </button>
                             </div>
                         </div>
-                    `).join('')}
+                    `}).join('')}
                 </div>
             `;
         }
@@ -29963,23 +29978,14 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Show loading state in wizard instead of closing
+            // Show loading state in wizard
             const wizardFooter = document.getElementById('blog-wizard-footer');
             const wizardLoading = document.getElementById('blog-wizard-loading');
+            const wizardPreview = document.getElementById('blog-wizard-preview');
+            document.querySelectorAll('#blog-ideas-wizard .form-group').forEach(g => g.style.display = 'none');
             if (wizardFooter) wizardFooter.style.display = 'none';
-            if (wizardLoading) {
-                wizardLoading.innerHTML = `
-                    <div style="text-align: center; padding: 2rem;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
-                        <h3 style="margin: 0 0 0.5rem;">Generating Blog Posts...</h3>
-                        <p id="blog-gen-status" style="color: #6b7280;">Finding great topics for your property...</p>
-                        <div style="margin-top: 1rem; width: 200px; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 1rem auto;">
-                            <div id="blog-gen-progress" style="width: 10%; height: 100%; background: linear-gradient(90deg, #8b5cf6, #7c3aed); border-radius: 2px; transition: width 0.3s;"></div>
-                        </div>
-                    </div>
-                `;
-                wizardLoading.style.display = 'block';
-            }
+            if (wizardPreview) wizardPreview.style.display = 'none';
+            if (wizardLoading) wizardLoading.style.display = 'block';
             
             try {
                 const response = await fetch('/api/admin/content-ideas/generate', {
@@ -29997,48 +30003,12 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success && data.ideas?.length > 0) {
-                    const statusEl = document.getElementById('blog-gen-status');
-                    const progressEl = document.getElementById('blog-gen-progress');
-                    
-                    let created = 0;
-                    let skipped = 0;
-                    
-                    // Generate each blog post
-                    for (let i = 0; i < data.ideas.length; i++) {
-                        const idea = data.ideas[i];
-                        const progress = Math.round(((i + 1) / data.ideas.length) * 100);
-                        
-                        if (statusEl) statusEl.textContent = `Creating ${i + 1}/${data.ideas.length}: "${idea.title.substring(0, 35)}..."`;
-                        if (progressEl) progressEl.style.width = `${progress}%`;
-                        
-                        try {
-                            // Check for duplicate before creating
-                            const slug = idea.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '');
-                            const checkResponse = await fetch(`/api/admin/blog?slug=${encodeURIComponent(slug)}&property_id=${propertyId}`, { headers: authHeaders() });
-                            const checkData = await checkResponse.json();
-                            
-                            if (checkData.success && checkData.posts?.some(p => p.slug === slug)) {
-                                skipped++;
-                                continue; // Skip duplicate
-                            }
-                            
-                            await generateBlogFromIdeaSilent(idea.id, idea.title, propertyId);
-                            created++;
-                        } catch (err) {
-                            console.error('Blog creation error:', err);
-                        }
-                        
-                        // Small delay between generations
-                        if (i < data.ideas.length - 1) {
-                            await new Promise(r => setTimeout(r, 500));
-                        }
-                    }
-                    
+                    // Just close wizard and refresh Ideas tab - ideas are saved to DB by the API
                     closeBlogIdeasWizard();
+                    showNotification(`✅ Generated ${data.ideas.length} blog ideas!`, 'success');
                     
-                    let message = `🎉 Created ${created} blog posts as drafts!`;
-                    if (skipped > 0) message += ` (${skipped} skipped - already exist)`;
-                    showNotification(message, 'success');
+                    // Switch to Ideas tab to show the new ideas
+                    switchBlogTab('ideas');
                     loadBlogByTab();
                 } else {
                     closeBlogIdeasWizard();
@@ -30148,11 +30118,11 @@ Local honey and preserves"></textarea>
             const idea = blogIdeas.find(i => i.id === ideaId);
             if (!idea) return;
             
-            // Generate blog immediately
-            await generateBlogFromIdea(ideaId, idea.title, idea.property_id);
+            // Generate blog with the category from the idea
+            await generateBlogFromIdea(ideaId, idea.title, idea.property_id, idea.category);
         }
         
-        async function generateBlogFromIdea(ideaId, title, propertyId) {
+        async function generateBlogFromIdea(ideaId, title, propertyId, category) {
             // Open AI blog modal but skip to loading/generation immediately
             await openAiBlogModal(title, propertyId);
             
@@ -30160,10 +30130,22 @@ Local honey and preserves"></textarea>
             const propertyIdEl = document.getElementById('ai-blog-property-id');
             if (propertyIdEl) {
                 propertyIdEl.dataset.contentIdeaId = ideaId;
+                // Store category from idea
+                propertyIdEl.dataset.ideaCategory = category || '';
             }
             
             // Set the keyword
             document.getElementById('ai-blog-keyword').value = title;
+            
+            // Set the category from the idea (convert from slug format to display format)
+            if (category) {
+                const categoryField = document.getElementById('ai-blog-category');
+                if (categoryField) {
+                    // Convert "events_holidays" to "Events & Holidays"
+                    const displayCategory = category.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' & ');
+                    categoryField.value = displayCategory;
+                }
+            }
             
             // Trigger generation immediately
             generateAiBlog();
@@ -30546,23 +30528,12 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Show loading state in wizard instead of closing
+            // Show loading state in wizard
             const wizardFooter = document.getElementById('attraction-wizard-footer');
             const wizardLoading = document.getElementById('attraction-wizard-loading');
+            document.querySelectorAll('#attraction-ideas-wizard .form-group').forEach(g => g.style.display = 'none');
             if (wizardFooter) wizardFooter.style.display = 'none';
-            if (wizardLoading) {
-                wizardLoading.innerHTML = `
-                    <div style="text-align: center; padding: 2rem;">
-                        <div style="font-size: 3rem; margin-bottom: 1rem;">🤖</div>
-                        <h3 style="margin: 0 0 0.5rem;">Finding Local Places...</h3>
-                        <p id="attraction-gen-status" style="color: #6b7280;">Searching for great attractions nearby...</p>
-                        <div style="margin-top: 1rem; width: 200px; height: 4px; background: #e5e7eb; border-radius: 2px; margin: 1rem auto;">
-                            <div id="attraction-gen-progress" style="width: 10%; height: 100%; background: linear-gradient(90deg, #f59e0b, #d97706); border-radius: 2px; transition: width 0.3s;"></div>
-                        </div>
-                    </div>
-                `;
-                wizardLoading.style.display = 'block';
-            }
+            if (wizardLoading) wizardLoading.style.display = 'block';
             
             try {
                 const response = await fetch('/api/admin/content-ideas/generate', {
@@ -30580,50 +30551,12 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success && data.ideas?.length > 0) {
-                    const statusEl = document.getElementById('attraction-gen-status');
-                    const progressEl = document.getElementById('attraction-gen-progress');
-                    
-                    let created = 0;
-                    let skipped = 0;
-                    
-                    // Generate each attraction
-                    for (let i = 0; i < data.ideas.length; i++) {
-                        const idea = data.ideas[i];
-                        const progress = Math.round(((i + 1) / data.ideas.length) * 100);
-                        
-                        if (statusEl) statusEl.textContent = `Creating ${i + 1}/${data.ideas.length}: "${idea.title.substring(0, 35)}..."`;
-                        if (progressEl) progressEl.style.width = `${progress}%`;
-                        
-                        try {
-                            // Check for duplicate by name before creating
-                            const checkResponse = await fetch(`/api/admin/attractions?property_id=${propertyId}`, { headers: authHeaders() });
-                            const checkData = await checkResponse.json();
-                            
-                            if (checkData.success && checkData.attractions?.some(a => 
-                                a.name.toLowerCase() === idea.title.toLowerCase() ||
-                                a.slug === idea.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '')
-                            )) {
-                                skipped++;
-                                continue; // Skip duplicate
-                            }
-                            
-                            await createAttractionFromIdeaSilent(idea, propertyId);
-                            created++;
-                        } catch (err) {
-                            console.error('Attraction creation error:', err);
-                        }
-                        
-                        // Small delay between generations
-                        if (i < data.ideas.length - 1) {
-                            await new Promise(r => setTimeout(r, 500));
-                        }
-                    }
-                    
+                    // Just close wizard and refresh Ideas tab - ideas are saved to DB by the API
                     closeAttractionIdeasWizard();
+                    showNotification(`✅ Found ${data.ideas.length} places!`, 'success');
                     
-                    let message = `🎉 Created ${created} attractions!`;
-                    if (skipped > 0) message += ` (${skipped} skipped - already exist)`;
-                    showNotification(message, 'success');
+                    // Switch to Ideas tab to show the new ideas
+                    switchAttractionTab('ideas');
                     loadAttractionsByTab();
                 } else {
                     closeAttractionIdeasWizard();
