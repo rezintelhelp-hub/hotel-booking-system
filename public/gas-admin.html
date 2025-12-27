@@ -11036,13 +11036,29 @@ Local honey and preserves"></textarea>
                         <p style="font-size: 0.85rem; color: #78716c; margin-bottom: 0.75rem;">
                             Assign this offer to a pricing tier. Websites can be configured to show only specific tiers.
                         </p>
-                        <select id="offer-pricing-tier" class="form-input" style="padding: 0.6rem; border-radius: 8px; max-width: 300px;">
+                        <select id="offer-pricing-tier" class="form-input" style="padding: 0.6rem; border-radius: 8px; max-width: 300px;" onchange="togglePricePerNightField()">
                             <option value="standard">Standard (default)</option>
-                            <option value="corporate">Corporate</option>
-                            <option value="wholesale">Wholesale</option>
-                            <option value="agent">Travel Agent</option>
-                            <option value="vip">VIP</option>
+                            <option value="corporate_1">Corporate 1</option>
+                            <option value="corporate_2">Corporate 2</option>
+                            <option value="corporate_3">Corporate 3</option>
+                            <option value="agent_1">Travel Agent 1</option>
+                            <option value="agent_2">Travel Agent 2</option>
+                            <option value="agent_3">Travel Agent 3</option>
                         </select>
+                    </div>
+                    
+                    <!-- Price Per Night (for non-standard tiers) -->
+                    <div id="price-per-night-section" style="display: none; background: #fef3c7; padding: 1rem; border-radius: 8px; border: 1px solid #f59e0b;">
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: 600; color: #92400e; margin-bottom: 0.5rem;">
+                            🏷️ Fixed Price Per Night
+                        </label>
+                        <p style="font-size: 0.85rem; color: #92400e; margin-bottom: 0.75rem;">
+                            For Corporate/Agent tiers, set a fixed price per night (overrides standard pricing).
+                        </p>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" id="offer-price-per-night" class="form-input" style="padding: 0.6rem; border-radius: 8px; max-width: 150px;" placeholder="e.g. 85" step="0.01" min="0">
+                            <span style="color: #78716c;">per night</span>
+                        </div>
                     </div>
                     
                     <!-- Active Toggle -->
@@ -20441,10 +20457,12 @@ Local honey and preserves"></textarea>
                         <select onchange="updateSitePricingTier(${site.id}, this.value)" 
                                 style="font-size: 0.7rem; padding: 0.25rem 0.5rem; border-radius: 4px; border: 1px solid #fcd34d; background: #fefce8; cursor: pointer; margin-top: 0.5rem;">
                             <option value="standard" ${pricingTier === 'standard' ? 'selected' : ''}>💵 Standard</option>
-                            <option value="corporate" ${pricingTier === 'corporate' ? 'selected' : ''}>🏢 Corporate</option>
-                            <option value="wholesale" ${pricingTier === 'wholesale' ? 'selected' : ''}>📦 Wholesale</option>
-                            <option value="agent" ${pricingTier === 'agent' ? 'selected' : ''}>✈️ Agent</option>
-                            <option value="vip" ${pricingTier === 'vip' ? 'selected' : ''}>⭐ VIP</option>
+                            <option value="corporate_1" ${pricingTier === 'corporate_1' ? 'selected' : ''}>🏢 Corporate 1</option>
+                            <option value="corporate_2" ${pricingTier === 'corporate_2' ? 'selected' : ''}>🏢 Corporate 2</option>
+                            <option value="corporate_3" ${pricingTier === 'corporate_3' ? 'selected' : ''}>🏢 Corporate 3</option>
+                            <option value="agent_1" ${pricingTier === 'agent_1' ? 'selected' : ''}>✈️ Travel Agent 1</option>
+                            <option value="agent_2" ${pricingTier === 'agent_2' ? 'selected' : ''}>✈️ Travel Agent 2</option>
+                            <option value="agent_3" ${pricingTier === 'agent_3' ? 'selected' : ''}>✈️ Travel Agent 3</option>
                         </select>
                     `;
                     
@@ -24031,12 +24049,29 @@ Local honey and preserves"></textarea>
             loadOffersPricingGrid();
         }
         
+        function togglePricePerNightField() {
+            const tier = document.getElementById('offer-pricing-tier').value;
+            const section = document.getElementById('price-per-night-section');
+            const discountSection = document.getElementById('offer-discount-value')?.parentElement;
+            
+            if (tier !== 'standard') {
+                section.style.display = 'block';
+                // Hide discount fields for non-standard tiers
+                if (discountSection) discountSection.style.opacity = '0.5';
+            } else {
+                section.style.display = 'none';
+                if (discountSection) discountSection.style.opacity = '1';
+            }
+        }
+        
         function openAddOfferModal() {
             document.getElementById('offer-form').reset();
             document.getElementById('offer-id').value = '';
             document.getElementById('offer-modal-title').innerHTML = '🏷️ Create New Offer';
             document.getElementById('offer-active').checked = true;
             document.getElementById('offer-pricing-tier').value = 'standard';
+            document.getElementById('offer-price-per-night').value = '';
+            togglePricePerNightField();
             updateOfferToggleVisual(document.getElementById('offer-active'));
             
             // Reset all check-in/check-out day checkboxes to checked
@@ -24241,6 +24276,8 @@ Local honey and preserves"></textarea>
                     document.getElementById('offer-priority').value = offer.priority || 0;
                     document.getElementById('offer-active').checked = offer.active;
                     document.getElementById('offer-pricing-tier').value = offer.pricing_tier || 'standard';
+                    document.getElementById('offer-price-per-night').value = offer.price_per_night || '';
+                    togglePricePerNightField();
                     updateOfferToggleVisual(document.getElementById('offer-active'));
                     
                     // Set check-in day checkboxes
@@ -24330,6 +24367,7 @@ Local honey and preserves"></textarea>
                 description: document.getElementById('offer-description').value,
                 discount_type: document.getElementById('offer-discount-type').value,
                 discount_value: parseFloat(document.getElementById('offer-discount-value').value),
+                price_per_night: parseFloat(document.getElementById('offer-price-per-night').value) || null,
                 property_ids: selectedPropertyIds,
                 room_ids: selectedRoomIds,
                 // Keep legacy single property_id/room_id for backward compatibility
