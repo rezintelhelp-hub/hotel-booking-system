@@ -8807,82 +8807,93 @@ app.post('/api/ai-chat', async (req, res) => {
             return res.json({ success: false, error: 'Message required' });
         }
         
-        // Knowledge base content
+        // Knowledge base content - focused on dashboard users (already connected)
         const knowledgeBase = `
-# GAS Knowledge Base - AI Support Context
+# GAS Dashboard Help
 
-## What is GAS?
-GAS (Global Accommodation System) is a FREE accommodation inventory management system for hotels, B&Bs, hostels, vacation rentals, and self-catering properties. Property owners upload their units for FREE. The ONE requirement: must connect via a Channel Manager (Beds24, Smoobu, Hostaway, etc.). GAS is NOT a booking engine - bookings flow through the property's Channel Manager. Optional paid services include: GAS-hosted websites, travel agent distribution, premium features.
+## You're Already Set Up!
+Since you're in the dashboard, your Channel Manager is connected and properties are imported. Here's what you can do now:
 
-## Getting Started
-1. Create account (property name, type, location, channel manager, email)
-2. Connect Channel Manager (Beds24 supported now, others coming)
-3. Properties auto-import from channel manager
-4. Optionally deploy a GAS website
+## Creating Blog Content
+The Blog section lets you create SEO-optimized content for your property website:
+1. Go to Blog in the menu
+2. Click "🤖 Get Ideas" button
+3. Choose a category: Attractions & Places OR Events & What's On
+4. Select a specific topic (Parks, Museums, Festivals, etc.)
+5. Click "Generate Ideas" - AI creates 5 topic suggestions
+6. Review ideas in the Ideas tab
+7. Click "✨ Create Post" on any idea you like
+8. AI writes the full article with title, content, meta tags, and FAQ schema
+9. Review, edit if needed, then Publish or Save as Draft
 
-## Connecting Beds24
-1. Go to Connections in GAS Admin
-2. Click + Add Connection, select Beds24
-3. Enter API Key (from Beds24 > Settings > Account Access > API)
-4. Enter Prop Key (property-specific)
-5. Click Connect - properties import automatically
+Blog categories include: Events & Holidays, Events & Festivals, Attractions & Museums, Attractions & Parks, Attractions & Nature, and more.
 
-## Main Sections
+## Adding Local Attractions
+Help guests discover your area with the Attractions feature:
+1. Go to Attractions in the menu
+2. Click "🤖 Suggest Places" button
+3. Select a category: Museums, Restaurants, Parks, Beaches, Nightlife, Shopping, etc.
+4. AI finds real local places near your property
+5. Review suggestions in the Ideas tab
+6. Click "Add This Place" - AI fills in details (address, description, website)
+7. Edit if needed, then Publish
 
-### Dashboard
-Overview with quick stats and recent activity.
+Attraction categories: 🏛️ Museums & Galleries, 🏰 Historic Sites, 🌳 Parks & Gardens, 🏖️ Beaches, 🎭 Entertainment, 🛍️ Shopping, 🍽️ Restaurants, ☕ Cafes, 🌃 Nightlife, ⚽ Sports, 🌲 Nature, 👨‍👩‍👧 Family Fun
 
-### Properties
-View/edit imported properties. Shows name, type, location, currency, connection status.
+## Pricing & Offers
 
-### Connections
-Manage Channel Manager integrations. Green = connected, Yellow = needs attention, Red = disconnected.
+### Creating Offers
+1. Go to Offers & Pricing
+2. Click "+ Add Offer"
+3. Set: name, discount %, dates, which rooms
+4. Save - shows on your website with "Save X%" badge
 
-### Offers & Pricing
-Create promotional discounts. Pricing tiers: Standard (public with discount badges), Corporate 1/2/3 (negotiated business rates), Travel Agent 1/2/3 (commission rates). Corporate/Agent tiers show clean pricing without badges.
+### Pricing Tiers
+- Standard: Public rates with discount badges
+- Corporate 1/2/3: Negotiated business rates (no badges, clean pricing)
+- Travel Agent 1/2/3: Commission-based rates for resellers
 
-### Websites
-Deploy GAS-hosted websites. Get subdomain (yourname.sites.gas.travel) or use custom domain. Includes booking integration, SEO optimization.
+To change a website's pricing tier: Websites → Deployed Sites → Edit → Pricing Tier dropdown
 
-### Blog
-AI-powered content creation. Click "Get Ideas" → select category (Attractions/Events) → choose topic → generate 5 ideas → click "Create Post" on any idea → AI writes full article with SEO meta tags and FAQ schema.
+## Managing Websites
+- View your sites: Websites → Deployed Sites
+- Each property can have its own site at yourname.sites.gas.travel
+- Custom domains supported
+- Edit content, colors, settings from GAS Admin
 
-### Attractions
-Add local points of interest. Click "Suggest Places" → select category (Museums, Restaurants, Parks, etc.) → AI finds real local places → click "Add This Place" → AI fills details → publish to website.
+## Properties
+- View all your imported properties
+- Edit property details, currency, description
+- See which Channel Manager each is connected to
+- Properties sync automatically from your CM
 
 ## Troubleshooting
 
-### Can't connect to Beds24
-- Check API key copied correctly (no spaces)
-- Ensure API access enabled in Beds24
-- Regenerate key if expired
-
-### Properties not showing
-- Check Connection is green/connected
-- Click Resync on the connection
-- Verify property active in Beds24
-
-### Website changes not appearing
+### Website not showing updates?
 - Clear browser cache (Ctrl+Shift+R)
 - Wait 30 seconds for sync
 - Try incognito mode
 
-### Blog/Attractions not on website
-- Check items are Published
-- Verify property ID matches
-- Check WordPress plugin active
+### Blog/Attractions not appearing on site?
+- Make sure items are set to "Published"
+- Check property ID matches
+- Refresh the website
 
-### Booking button not working
-- Verify connection active
-- Check rooms have Beds24 room IDs
-- Test booking in Beds24 directly
+### Prices look wrong?
+- Check your Channel Manager has correct rates
+- Click Resync on your Connection
+- Verify pricing tier setting on the website
 
-## Quick Facts
-- GAS is FREE for inventory management
-- Channel Manager required (handles actual bookings)
-- Beds24 fully supported, more CMs coming
-- Websites optional paid feature
-- Blog & Attractions are AI-powered
+### Need to change currency?
+- Go to Properties
+- Find the property
+- Use the Currency dropdown to change
+
+## Quick Tips
+- Use Blog for SEO and guest engagement
+- Attractions help guests plan their stay
+- Corporate pricing removes discount badges for business clients
+- All content is AI-generated but you can edit everything
 - Support: hello@gas.travel
 `;
 
