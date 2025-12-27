@@ -25302,9 +25302,11 @@ app.post('/api/public/calculate-price', async (req, res) => {
     let discount = 0;
     let offerApplied = null;
     let useFixedPricePerNight = null;
+    let isNonStandardTier = false;
     
     // Get the pricing_tier from the request (passed from the site's configured tier)
     const requestedPricingTier = req.body.pricing_tier || 'standard';
+    isNonStandardTier = requestedPricingTier !== 'standard';
     
     const offers = await pool.query(`
       SELECT * FROM offers
@@ -25322,21 +25324,49 @@ app.post('/api/public/calculate-price', async (req, res) => {
     if (offers.rows[0]) {
       const offer = offers.rows[0];
       
-      // For non-standard tiers with price_per_night, use fixed pricing
-      if (requestedPricingTier !== 'standard' && offer.price_per_night) {
-        useFixedPricePerNight = parseFloat(offer.price_per_night);
-        // Recalculate accommodation total with fixed price
-        accommodationTotal = useFixedPricePerNight * nights;
-        occupancyAdjustmentTotal = 0; // No occupancy adjustments for fixed pricing
-        discount = 0; // No discount - the price IS the price
-        offerApplied = { 
-          name: offer.name, 
-          discount_type: 'fixed_price', 
-          price_per_night: useFixedPricePerNight,
-          pricing_tier: offer.pricing_tier
-        };
+      // For non-standard tiers (corporate/agent), the adjusted price IS the price
+      if (isNonStandardTier) {
+        if (offer.price_per_night) {
+          // Fixed price per night (negotiated rate)
+          useFixedPricePerNight = parseFloat(offer.price_per_night);
+          accommodationTotal = useFixedPricePerNight * nights;
+          occupancyAdjustmentTotal = 0;
+          discount = 0;
+          offerApplied = { 
+            name: offer.name, 
+            discount_type: 'fixed_price', 
+            price_per_night: useFixedPricePerNight,
+            pricing_tier: offer.pricing_tier,
+            hide_discount_badge: true
+          };
+        } else if (offer.discount_type === 'percentage') {
+          // Percentage adjustment (can be + or -)
+          // For corporate: negative discount_value = markup, positive = discount
+          const adjustmentPercent = parseFloat(offer.discount_value) || 0;
+          const adjustment = accommodationTotal * (adjustmentPercent / 100);
+          // Apply adjustment directly to accommodation total (not as separate discount)
+          accommodationTotal = accommodationTotal - adjustment;
+          discount = 0; // No visible discount - this IS the corporate price
+          offerApplied = { 
+            name: offer.name, 
+            discount_type: 'tier_adjustment',
+            adjustment_percent: adjustmentPercent,
+            pricing_tier: offer.pricing_tier,
+            hide_discount_badge: true
+          };
+        } else {
+          // Fixed amount adjustment
+          accommodationTotal = accommodationTotal - parseFloat(offer.discount_value || 0);
+          discount = 0;
+          offerApplied = { 
+            name: offer.name, 
+            discount_type: 'tier_adjustment',
+            pricing_tier: offer.pricing_tier,
+            hide_discount_badge: true
+          };
+        }
       } else {
-        // Standard tier or no price_per_night - use percentage/fixed discount
+        // Standard tier - use percentage/fixed discount with visible badge
         if (offer.discount_type === 'percentage') {
           discount = accommodationTotal * (offer.discount_value / 100);
         } else {
