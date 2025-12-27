@@ -8209,6 +8209,8 @@ app.get('/api/setup-database', async (req, res) => {
     // Fix discount_value to allow NULL or default to 0
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value SET DEFAULT 0`);
     await pool.query(`ALTER TABLE offers ALTER COLUMN discount_value DROP NOT NULL`);
+    // Add price_per_night for fixed-price corporate/agent offers
+    await pool.query(`ALTER TABLE offers ADD COLUMN IF NOT EXISTS price_per_night DECIMAL(10,2)`);
     
     // Create vouchers table
     await pool.query(`
@@ -17933,18 +17935,18 @@ app.post('/api/admin/offers', async (req, res) => {
       result = await pool.query(`
         INSERT INTO offers (
           name, description, property_id, room_id, property_ids, room_ids,
-          discount_type, discount_value, applies_to,
+          discount_type, discount_value, price_per_night, applies_to,
           min_nights, max_nights, min_guests, max_guests,
           min_advance_days, max_advance_days,
           valid_from, valid_until, valid_days_of_week,
           allowed_checkin_days, allowed_checkout_days,
           stackable, priority, active, pricing_tier
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25)
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
         property_ids || null, room_ids || null,
-        discount_type || 'percentage', discount_value || 0, applies_to || 'standard_price',
+        discount_type || 'percentage', discount_value || 0, price_per_night || null, applies_to || 'standard_price',
         min_nights || 1, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
@@ -17987,7 +17989,7 @@ app.put('/api/admin/offers/:id', async (req, res) => {
     const {
       name, description, property_id, room_id,
       property_ids, room_ids,
-      discount_type, discount_value, applies_to,
+      discount_type, discount_value, price_per_night, applies_to,
       min_nights, max_nights, min_guests, max_guests,
       min_advance_days, max_advance_days,
       valid_from, valid_until, valid_days_of_week,
@@ -18008,32 +18010,33 @@ app.put('/api/admin/offers/:id', async (req, res) => {
           property_ids = $5,
           room_ids = $6,
           discount_type = COALESCE($7, discount_type), 
-          discount_value = COALESCE($8, discount_value), 
-          applies_to = COALESCE($9, applies_to),
-          min_nights = COALESCE($10, min_nights), 
-          max_nights = $11, 
-          min_guests = $12, 
-          max_guests = $13,
-          min_advance_days = $14, 
-          max_advance_days = $15,
-          valid_from = $16, 
-          valid_until = $17, 
-          valid_days_of_week = $18,
-          allowed_checkin_days = COALESCE($19, allowed_checkin_days), 
-          allowed_checkout_days = COALESCE($20, allowed_checkout_days),
-          stackable = COALESCE($21, stackable), 
-          priority = COALESCE($22, priority), 
-          active = COALESCE($23, active),
-          available_website = COALESCE($24, available_website),
-          available_agents = COALESCE($25, available_agents),
-          pricing_tier = COALESCE($26, pricing_tier),
+          discount_value = COALESCE($8, discount_value),
+          price_per_night = $9,
+          applies_to = COALESCE($10, applies_to),
+          min_nights = COALESCE($11, min_nights), 
+          max_nights = $12, 
+          min_guests = $13, 
+          max_guests = $14,
+          min_advance_days = $15, 
+          max_advance_days = $16,
+          valid_from = $17, 
+          valid_until = $18, 
+          valid_days_of_week = $19,
+          allowed_checkin_days = COALESCE($20, allowed_checkin_days), 
+          allowed_checkout_days = COALESCE($21, allowed_checkout_days),
+          stackable = COALESCE($22, stackable), 
+          priority = COALESCE($23, priority), 
+          active = COALESCE($24, active),
+          available_website = COALESCE($25, available_website),
+          available_agents = COALESCE($26, available_agents),
+          pricing_tier = COALESCE($27, pricing_tier),
           updated_at = NOW()
-        WHERE id = $27
+        WHERE id = $28
         RETURNING *
       `, [
         name, description, property_id || null, room_id || null,
         property_ids || null, room_ids || null,
-        discount_type, discount_value, applies_to,
+        discount_type, discount_value, price_per_night || null, applies_to,
         min_nights, max_nights || null, min_guests || null, max_guests || null,
         min_advance_days || null, max_advance_days || null,
         valid_from || null, valid_until || null, valid_days_of_week || null,
@@ -25295,9 +25298,13 @@ app.post('/api/public/calculate-price', async (req, res) => {
       }
     }
     
-    // Check for applicable offers - filter by property_id
+    // Check for applicable offers - filter by property_id and pricing_tier
     let discount = 0;
     let offerApplied = null;
+    let useFixedPricePerNight = null;
+    
+    // Get the pricing_tier from the request (passed from the site's configured tier)
+    const requestedPricingTier = req.body.pricing_tier || 'standard';
     
     const offers = await pool.query(`
       SELECT * FROM offers
@@ -25307,18 +25314,36 @@ app.post('/api/public/calculate-price', async (req, res) => {
         AND (min_nights IS NULL OR min_nights <= $2)
         AND (valid_from IS NULL OR valid_from <= $3)
         AND (valid_until IS NULL OR valid_until >= $4)
+        AND (pricing_tier IS NULL OR pricing_tier = $5)
       ORDER BY priority DESC, discount_value DESC
       LIMIT 1
-    `, [unit_id, nights, check_in, check_out]);
+    `, [unit_id, nights, check_in, check_out, requestedPricingTier]);
     
     if (offers.rows[0]) {
       const offer = offers.rows[0];
-      if (offer.discount_type === 'percentage') {
-        discount = accommodationTotal * (offer.discount_value / 100);
+      
+      // For non-standard tiers with price_per_night, use fixed pricing
+      if (requestedPricingTier !== 'standard' && offer.price_per_night) {
+        useFixedPricePerNight = parseFloat(offer.price_per_night);
+        // Recalculate accommodation total with fixed price
+        accommodationTotal = useFixedPricePerNight * nights;
+        occupancyAdjustmentTotal = 0; // No occupancy adjustments for fixed pricing
+        discount = 0; // No discount - the price IS the price
+        offerApplied = { 
+          name: offer.name, 
+          discount_type: 'fixed_price', 
+          price_per_night: useFixedPricePerNight,
+          pricing_tier: offer.pricing_tier
+        };
       } else {
-        discount = parseFloat(offer.discount_value);
+        // Standard tier or no price_per_night - use percentage/fixed discount
+        if (offer.discount_type === 'percentage') {
+          discount = accommodationTotal * (offer.discount_value / 100);
+        } else {
+          discount = parseFloat(offer.discount_value);
+        }
+        offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value };
       }
-      offerApplied = { name: offer.name, discount_type: offer.discount_type, discount_value: offer.discount_value };
     }
     
     // Check voucher
@@ -29659,7 +29684,7 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         const { clientId } = req.params;
         
         // Get all data in parallel
-        const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult, websiteSettingsResult] = await Promise.all([
+        const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult, websiteSettingsResult, deployedSiteResult] = await Promise.all([
             pool.query(`SELECT * FROM client_pages WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_contact_info WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_branding WHERE client_id = $1`, [clientId]),
@@ -29671,8 +29696,12 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 JOIN properties p ON r.property_id = p.id 
                 WHERE p.client_id = $1
             `, [clientId]),
-            pool.query(`SELECT section, settings FROM website_settings WHERE account_id = $1`, [clientId])
+            pool.query(`SELECT section, settings FROM website_settings WHERE account_id = $1`, [clientId]),
+            pool.query(`SELECT pricing_tier FROM deployed_sites WHERE account_id = $1 LIMIT 1`, [clientId])
         ]);
+        
+        // Get pricing_tier from deployed_sites
+        const pricingTier = deployedSiteResult.rows[0]?.pricing_tier || 'standard';
         
         // Check if blog posts exist
         const blogCountResult = await pool.query(`
@@ -29916,7 +29945,11 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     blog_count: parseInt(blogCountResult.rows[0].count),
                     attractions_count: parseInt(attractionsCountResult.rows[0].count),
                     property_count: properties.length,
-                    room_count: rooms.length
+                    room_count: rooms.length,
+                    pricing_tier: pricingTier,
+                    is_corporate: pricingTier.startsWith('corporate'),
+                    is_agent: pricingTier.startsWith('agent'),
+                    hide_discount_badges: pricingTier !== 'standard'
                 },
                 
                 // SEO settings (from website_settings.seo, branding, or contact)
