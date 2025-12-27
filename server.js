@@ -2329,15 +2329,71 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         
         console.log('link-to-gas: Creating property with full data');
         
+        // Country to currency mapping
+        const countryCurrencyMap = {
+          'GB': 'GBP', 'UK': 'GBP', 'United Kingdom': 'GBP', 'England': 'GBP', 'Scotland': 'GBP', 'Wales': 'GBP',
+          'US': 'USD', 'USA': 'USD', 'United States': 'USD',
+          'FR': 'EUR', 'France': 'EUR', 'DE': 'EUR', 'Germany': 'EUR', 'IT': 'EUR', 'Italy': 'EUR', 
+          'ES': 'EUR', 'Spain': 'EUR', 'PT': 'EUR', 'Portugal': 'EUR', 'NL': 'EUR', 'Netherlands': 'EUR',
+          'BE': 'EUR', 'Belgium': 'EUR', 'AT': 'EUR', 'Austria': 'EUR', 'IE': 'EUR', 'Ireland': 'EUR',
+          'GR': 'EUR', 'Greece': 'EUR', 'FI': 'EUR', 'Finland': 'EUR',
+          'CH': 'CHF', 'Switzerland': 'CHF',
+          'AU': 'AUD', 'Australia': 'AUD',
+          'NZ': 'NZD', 'New Zealand': 'NZD',
+          'CA': 'CAD', 'Canada': 'CAD',
+          'JP': 'JPY', 'Japan': 'JPY',
+          'TH': 'THB', 'Thailand': 'THB',
+          'MX': 'MXN', 'Mexico': 'MXN',
+          'ZA': 'ZAR', 'South Africa': 'ZAR',
+          'AE': 'AED', 'UAE': 'AED', 'United Arab Emirates': 'AED',
+          'IN': 'INR', 'India': 'INR',
+          'SG': 'SGD', 'Singapore': 'SGD',
+          'HK': 'HKD', 'Hong Kong': 'HKD',
+          'MY': 'MYR', 'Malaysia': 'MYR',
+          'ID': 'IDR', 'Indonesia': 'IDR',
+          'PH': 'PHP', 'Philippines': 'PHP',
+          'VN': 'VND', 'Vietnam': 'VND',
+          'KR': 'KRW', 'South Korea': 'KRW',
+          'TW': 'TWD', 'Taiwan': 'TWD',
+          'BR': 'BRL', 'Brazil': 'BRL',
+          'AR': 'ARS', 'Argentina': 'ARS',
+          'CL': 'CLP', 'Chile': 'CLP',
+          'CO': 'COP', 'Colombia': 'COP',
+          'PE': 'PEN', 'Peru': 'PEN',
+          'SE': 'SEK', 'Sweden': 'SEK',
+          'NO': 'NOK', 'Norway': 'NOK',
+          'DK': 'DKK', 'Denmark': 'DKK',
+          'PL': 'PLN', 'Poland': 'PLN',
+          'CZ': 'CZK', 'Czech Republic': 'CZK', 'Czechia': 'CZK',
+          'HU': 'HUF', 'Hungary': 'HUF',
+          'RO': 'RON', 'Romania': 'RON',
+          'BG': 'BGN', 'Bulgaria': 'BGN',
+          'HR': 'HRK', 'Croatia': 'HRK',
+          'RU': 'RUB', 'Russia': 'RUB',
+          'TR': 'TRY', 'Turkey': 'TRY', 'Türkiye': 'TRY',
+          'IL': 'ILS', 'Israel': 'ILS',
+          'EG': 'EGP', 'Egypt': 'EGP',
+          'MA': 'MAD', 'Morocco': 'MAD',
+          'KE': 'KES', 'Kenya': 'KES',
+          'NG': 'NGN', 'Nigeria': 'NGN'
+        };
+        
+        // Get currency: first from Beds24/sync, then from country, then default to GBP
+        const propCountry = rawData.country || '';
+        let propCurrency = prop.currency || rawData.currency;
+        if (!propCurrency) {
+          propCurrency = countryCurrencyMap[propCountry] || countryCurrencyMap[propCountry.toUpperCase()] || 'GBP';
+        }
+        
         // INSERT with basic fields only (avoid JSONB columns)
         const propResult = await pool.query(`
           INSERT INTO properties (
             account_id, user_id, ${adapterColumn}, name, 
-            address, city, state, country, postal_code,
+            address, city, state, country, postal_code, currency,
             property_type, check_in_time, check_out_time,
             contact_email, contact_phone, website, latitude, longitude,
             cm_source, status, created_at
-          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, 'active', NOW())
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'active', NOW())
           RETURNING id
         `, [
           accountId,
@@ -2348,6 +2404,7 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
           rawData.state || rawData.region || '',
           rawData.country || '',
           rawData.postcode || rawData.postalCode || '',
+          propCurrency,
           rawData.propertyType || 'vacation_rental',
           rawData.checkInStart || rawData.checkInTime || '15:00',
           rawData.checkOutEnd || rawData.checkOutTime || '11:00',
@@ -13526,7 +13583,7 @@ app.put('/api/db/properties/:id', async (req, res) => {
     const { id } = req.params;
     const { 
       name, description, address, city, country, property_type, status,
-      district, state, zip_code, latitude, longitude, account_id
+      district, state, zip_code, latitude, longitude, account_id, currency
     } = req.body;
 
     // If only account_id provided, do simple update
@@ -13551,11 +13608,12 @@ app.put('/api/db/properties/:id', async (req, res) => {
         latitude = COALESCE($9, latitude),
         longitude = COALESCE($10, longitude),
         account_id = COALESCE($11, account_id),
+        currency = COALESCE($12, currency),
         updated_at = NOW()
-      WHERE id = $12
+      WHERE id = $13
       RETURNING *`,
       [name, description, address, city, country, property_type, status,
-       state, latitude, longitude, account_id, id]
+       state, latitude, longitude, account_id, currency, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
