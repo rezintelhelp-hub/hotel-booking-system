@@ -1179,6 +1179,24 @@
                 wizardData.imageCount = totalImages;
                 wizardData.roomCount = totalRooms || wizardData.roomCount;
                 
+                // Trigger immediate sync for pricing and availability
+                document.getElementById('setup-status').textContent = 'Syncing pricing and availability...';
+                try {
+                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ syncType: 'full' })
+                    });
+                    
+                    // Also trigger tiered sync for this connection's rooms
+                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync-prices`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                } catch (syncError) {
+                    console.log('Initial sync triggered, will complete in background:', syncError);
+                }
+                
                 currentStep++;
                 showStep(currentStep);
                 populateWebhookStep();
