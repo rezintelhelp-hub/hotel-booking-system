@@ -35587,6 +35587,12 @@ Local honey and preserves"></textarea>
                 // Update current view
                 aiChatCurrentView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
                 
+                // Update header to show current section
+                const headerInfo = document.querySelector('.ai-chat-header-info span');
+                if (headerInfo) {
+                    headerInfo.textContent = `Helping with: ${aiChatCurrentView}`;
+                }
+                
                 // Welcome message if first time
                 if (aiChatMessages.length === 0) {
                     addAIChatMessage('assistant', `Hi! 👋 I'm your GAS assistant. I can see you're in the ${aiChatCurrentView} section. How can I help you today?`);
@@ -35607,11 +35613,17 @@ Local honey and preserves"></textarea>
         // Called when user navigates to update chat context
         function updateAIChatContext() {
             const newView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
-            if (newView !== aiChatCurrentView && aiChatOpen) {
+            if (newView !== aiChatCurrentView) {
                 aiChatCurrentView = newView;
-                updateAIChatQuickButtons();
+                if (aiChatOpen) {
+                    updateAIChatQuickButtons();
+                    // Update header to show current section
+                    const headerInfo = document.querySelector('.ai-chat-header-info span');
+                    if (headerInfo) {
+                        headerInfo.textContent = `Helping with: ${aiChatCurrentView}`;
+                    }
+                }
             }
-            aiChatCurrentView = newView;
         }
         
         // Update quick buttons based on current section
