@@ -11991,7 +11991,7 @@ app.put('/api/deployed-sites/:id/pricing-tier', async (req, res) => {
     const { pricing_tier } = req.body;
     
     // Validate pricing tier
-    const validTiers = ['standard', 'corporate', 'wholesale', 'agent', 'vip'];
+    const validTiers = ['standard', 'corporate_1', 'corporate_2', 'corporate_3', 'agent_1', 'agent_2', 'agent_3'];
     if (!validTiers.includes(pricing_tier)) {
       return res.json({ success: false, error: `Invalid pricing tier. Must be one of: ${validTiers.join(', ')}` });
     }
