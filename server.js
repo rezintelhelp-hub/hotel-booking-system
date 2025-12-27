@@ -30146,8 +30146,10 @@ app.get('/api/public/client/:clientId/blog', async (req, res) => {
         }
         
         if (category) {
-            query += ` AND bp.category = $${paramIndex}`;
-            params.push(category);
+            // Case-insensitive matching and handle slug-style categories
+            const categoryPattern = category.replace(/-/g, '[- &]*');
+            query += ` AND LOWER(bp.category) ~* $${paramIndex}`;
+            params.push(categoryPattern.toLowerCase());
             paramIndex++;
         }
         
@@ -30207,8 +30209,11 @@ app.get('/api/public/client/:clientId/attractions', async (req, res) => {
         let paramIndex = 2;
         
         if (category) {
-            query += ` AND category = $${paramIndex}`;
-            params.push(category);
+            // Case-insensitive matching and handle slug-style categories
+            // e.g., "nightlife" matches "Nightlife", "nightlife-bars" matches "Nightlife & Bars"
+            const categoryPattern = category.replace(/-/g, '[- &]*');
+            query += ` AND LOWER(category) ~* $${paramIndex}`;
+            params.push(categoryPattern.toLowerCase());
             paramIndex++;
         }
         
