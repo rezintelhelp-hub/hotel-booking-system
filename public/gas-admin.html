@@ -14684,6 +14684,11 @@ Local honey and preserves"></textarea>
             
             // Show the view
             showView(viewName);
+            
+            // Update AI chat context if open
+            if (typeof updateAIChatContext === 'function') {
+                updateAIChatContext();
+            }
         }
 
         function showView(viewName) {
@@ -35567,6 +35572,7 @@ Local honey and preserves"></textarea>
         let aiChatOpen = false;
         let aiChatMessages = [];
         let aiChatLoading = false;
+        let aiChatCurrentView = 'Dashboard';
 
         function toggleAIChat() {
             aiChatOpen = !aiChatOpen;
@@ -35578,11 +35584,16 @@ Local honey and preserves"></textarea>
                 chatButton.innerHTML = '✕';
                 chatButton.style.background = 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)';
                 
+                // Update current view
+                aiChatCurrentView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
+                
                 // Welcome message if first time
                 if (aiChatMessages.length === 0) {
-                    const currentView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
-                    addAIChatMessage('assistant', `Hi! 👋 I'm your GAS assistant. I can see you're in the ${currentView} section. How can I help you today?`);
+                    addAIChatMessage('assistant', `Hi! 👋 I'm your GAS assistant. I can see you're in the ${aiChatCurrentView} section. How can I help you today?`);
                 }
+                
+                // Update quick buttons based on section
+                updateAIChatQuickButtons();
                 
                 // Focus input
                 setTimeout(() => document.getElementById('ai-chat-input')?.focus(), 100);
@@ -35591,6 +35602,77 @@ Local honey and preserves"></textarea>
                 chatButton.innerHTML = '💬';
                 chatButton.style.background = 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)';
             }
+        }
+        
+        // Called when user navigates to update chat context
+        function updateAIChatContext() {
+            const newView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
+            if (newView !== aiChatCurrentView && aiChatOpen) {
+                aiChatCurrentView = newView;
+                updateAIChatQuickButtons();
+            }
+            aiChatCurrentView = newView;
+        }
+        
+        // Update quick buttons based on current section
+        function updateAIChatQuickButtons() {
+            const buttonsContainer = document.getElementById('ai-chat-quick-buttons');
+            if (!buttonsContainer) return;
+            
+            const sectionButtons = {
+                'Blog': [
+                    { text: 'Create blog post', question: 'How do I create a blog post?' },
+                    { text: 'Blog categories', question: 'What blog categories are there?' },
+                    { text: 'Publish post', question: 'How do I publish a blog post?' }
+                ],
+                'Attractions': [
+                    { text: 'Add attraction', question: 'How do I add an attraction?' },
+                    { text: 'Categories', question: 'What attraction categories are available?' },
+                    { text: 'Publish', question: 'How do I publish an attraction?' }
+                ],
+                'Offers': [
+                    { text: 'Create offer', question: 'How do I create a discount offer?' },
+                    { text: 'Pricing tiers', question: 'How do pricing tiers work?' },
+                    { text: 'Corporate rates', question: 'How do corporate rates work?' }
+                ],
+                'Properties': [
+                    { text: 'Edit property', question: 'How do I edit property details?' },
+                    { text: 'Change currency', question: 'How do I change the currency?' },
+                    { text: 'Sync issues', question: 'My property data seems outdated' }
+                ],
+                'Deployed Sites': [
+                    { text: 'Edit website', question: 'How do I edit my website?' },
+                    { text: 'Custom domain', question: 'How do I use my own domain?' },
+                    { text: 'Not updating', question: 'My website changes are not showing' }
+                ],
+                'Connections': [
+                    { text: 'Resync data', question: 'How do I resync my data?' },
+                    { text: 'Connection issues', question: 'My connection is showing an error' },
+                    { text: 'How sync works', question: 'How does channel manager sync work?' }
+                ]
+            };
+            
+            // Find matching section
+            let buttons = null;
+            for (const [section, btns] of Object.entries(sectionButtons)) {
+                if (aiChatCurrentView.includes(section)) {
+                    buttons = btns;
+                    break;
+                }
+            }
+            
+            // Default buttons
+            if (!buttons) {
+                buttons = [
+                    { text: 'Create blog', question: 'How do I create a blog post?' },
+                    { text: 'Add attractions', question: 'How do I add attractions?' },
+                    { text: 'Pricing help', question: 'How do pricing tiers work?' }
+                ];
+            }
+            
+            buttonsContainer.innerHTML = buttons.map(btn => 
+                `<button onclick="askQuickQuestion('${btn.question}')">${btn.text}</button>`
+            ).join('');
         }
 
         function addAIChatMessage(role, content) {
@@ -35636,8 +35718,8 @@ Local honey and preserves"></textarea>
             renderAIChatMessages();
             
             try {
-                // Get current context
-                const currentView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
+                // Use tracked current view (updates on navigation)
+                const currentView = aiChatCurrentView || document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
                 
                 // Build conversation history (exclude the message we just added)
                 const historyForAPI = aiChatMessages.slice(0, -1).map(msg => ({
