@@ -32864,13 +32864,18 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Get connection
+    // Get connection with access token
     const connResult = await pool.query('SELECT * FROM gas_sync_connections WHERE id = $1', [id]);
     if (connResult.rows.length === 0) {
       return res.status(404).json({ success: false, error: 'Connection not found' });
     }
     
     const conn = connResult.rows[0];
+    const accessToken = conn.access_token;
+    
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No access token for connection' });
+    }
     
     // Get all rooms for this connection that have beds24_room_id set
     const roomsResult = await pool.query(`
@@ -32887,9 +32892,6 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
       return res.json({ success: true, message: 'No rooms with beds24_room_id found', rooms: 0 });
     }
     
-    // Get adapter for V2 price sync
-    const adapter = await syncManager.getAdapterForConnection(id);
-    
     let daysUpdated = 0;
     const today = new Date();
     const endDate = new Date(today);
@@ -32899,24 +32901,51 @@ app.post('/api/gas-sync/connections/:id/sync-prices', async (req, res) => {
       try {
         console.log(`sync-prices: Syncing ${room.name} (beds24_room_id: ${room.beds24_room_id})`);
         
-        // Use V2 calendar API for prices
-        const priceResult = await adapter.getRoomPrices(room.beds24_room_id, today, endDate);
+        // Use V2 calendar API directly
+        const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+          headers: { 'token': accessToken },
+          params: {
+            roomId: parseInt(room.beds24_room_id),
+            startDate: today.toISOString().split('T')[0],
+            endDate: endDate.toISOString().split('T')[0],
+            includeNumAvail: true,
+            includePrices: true,
+            includeMinStay: true
+          }
+        });
         
-        if (priceResult.success && priceResult.data && priceResult.data.length > 0) {
-          for (const day of priceResult.data) {
+        const calendarData = calResponse.data.data?.[0]?.calendar || [];
+        
+        for (const entry of calendarData) {
+          const fromDate = new Date(entry.from);
+          const toDate = new Date(entry.to);
+          
+          for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+            const dateStr = d.toISOString().split('T')[0];
+            const numAvail = entry.numAvail || 0;
+            const price = entry.price1 || null;
+            const minStay = entry.minStay || 1;
+            
             await pool.query(`
-              INSERT INTO room_availability (room_id, date, price, min_stay, available, source, updated_at)
-              VALUES ($1, $2, $3, $4, $5, 'beds24_v2', NOW())
-              ON CONFLICT (room_id, date) DO UPDATE SET
-                price = EXCLUDED.price,
-                min_stay = COALESCE(EXCLUDED.min_stay, room_availability.min_stay),
-                available = EXCLUDED.available,
-                source = 'beds24_v2',
+              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'beds24', NOW())
+              ON CONFLICT (room_id, date) 
+              DO UPDATE SET 
+                cm_price = COALESCE($3, room_availability.cm_price),
+                is_available = $4,
+                is_blocked = $5,
+                min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                cm_min_stay = $6,
+                source = 'beds24',
                 updated_at = NOW()
-            `, [room.id, day.date, day.price, day.minStay || 1, day.available !== false]);
+            `, [room.id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+            
             daysUpdated++;
           }
         }
+        
+        console.log(`sync-prices: Synced ${room.name} - calendar entries: ${calendarData.length}`);
+        
       } catch (roomError) {
         console.log(`sync-prices: Error syncing ${room.name}:`, roomError.message);
       }
