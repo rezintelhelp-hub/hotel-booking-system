@@ -13667,6 +13667,12 @@ Local honey and preserves"></textarea>
         // =====================================================
         let currentAccount = null;
         
+        // AI Chat global variables (declared early for navClick access)
+        var aiChatOpen = false;
+        var aiChatMessages = [];
+        var aiChatLoading = false;
+        var aiChatCurrentView = 'Dashboard';
+        
         // Country name to ISO code mapping for backward compatibility
         const countryNameToCode = {
             'united kingdom': 'GB', 'uk': 'GB', 'great britain': 'GB', 'england': 'GB',
@@ -35568,11 +35574,7 @@ Local honey and preserves"></textarea>
         // =====================================================
         // AI SUPPORT CHAT WIDGET
         // =====================================================
-        
-        let aiChatOpen = false;
-        let aiChatMessages = [];
-        let aiChatLoading = false;
-        let aiChatCurrentView = 'Dashboard';
+        // Variables declared at top of script for early access
 
         function toggleAIChat() {
             aiChatOpen = !aiChatOpen;
@@ -35612,6 +35614,8 @@ Local honey and preserves"></textarea>
         
         // Called when user navigates to update chat context
         function updateAIChatContext() {
+            if (typeof aiChatOpen === 'undefined') return; // Not initialized yet
+            
             const newView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
             if (newView !== aiChatCurrentView) {
                 aiChatCurrentView = newView;
