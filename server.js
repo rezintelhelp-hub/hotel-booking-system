@@ -8932,13 +8932,14 @@ GUIDELINES:
             let unansweredId = null;
             try {
                 const result = await pool.query(`
-                    INSERT INTO kb_unanswered (question, context, status)
+                    INSERT INTO kb_unanswered (question, user_context, status)
                     VALUES ($1, $2, 'new')
                     RETURNING id
                 `, [message, context || 'general']);
                 unansweredId = result.rows[0]?.id;
+                console.log('Logged unanswered question ID:', unansweredId);
             } catch (e) {
-                // Table might not exist, ignore
+                console.error('Error logging unanswered question:', e.message);
             }
             
             // Send Slack notification
