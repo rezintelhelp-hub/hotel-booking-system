@@ -35564,84 +35564,6 @@ Local honey and preserves"></textarea>
         // AI SUPPORT CHAT WIDGET
         // =====================================================
         
-        const GAS_KNOWLEDGE_BASE = `
-# GAS Knowledge Base - AI Support Context
-
-## What is GAS?
-GAS (Global Accommodation System) is a FREE accommodation inventory management system for hotels, B&Bs, hostels, vacation rentals, and self-catering properties. Property owners upload their units for FREE. The ONE requirement: must connect via a Channel Manager (Beds24, Smoobu, Hostaway, etc.). GAS is NOT a booking engine - bookings flow through the property's Channel Manager. Optional paid services include: GAS-hosted websites, travel agent distribution, premium features.
-
-## Getting Started
-1. Create account (property name, type, location, channel manager, email)
-2. Connect Channel Manager (Beds24 supported now, others coming)
-3. Properties auto-import from channel manager
-4. Optionally deploy a GAS website
-
-## Connecting Beds24
-1. Go to Connections in GAS Admin
-2. Click + Add Connection, select Beds24
-3. Enter API Key (from Beds24 > Settings > Account Access > API)
-4. Enter Prop Key (property-specific)
-5. Click Connect - properties import automatically
-
-## Main Sections
-
-### Dashboard
-Overview with quick stats and recent activity.
-
-### Properties
-View/edit imported properties. Shows name, type, location, currency, connection status.
-
-### Connections
-Manage Channel Manager integrations. Green = connected, Yellow = needs attention, Red = disconnected.
-
-### Offers & Pricing
-Create promotional discounts. Pricing tiers: Standard (public with discount badges), Corporate 1/2/3 (negotiated business rates), Travel Agent 1/2/3 (commission rates). Corporate/Agent tiers show clean pricing without badges.
-
-### Websites
-Deploy GAS-hosted websites. Get subdomain (yourname.sites.gas.travel) or use custom domain. Includes booking integration, SEO optimization.
-
-### Blog
-AI-powered content creation. Click "Get Ideas" → select category (Attractions/Events) → choose topic → generate 5 ideas → click "Create Post" on any idea → AI writes full article with SEO meta tags and FAQ schema.
-
-### Attractions
-Add local points of interest. Click "Suggest Places" → select category (Museums, Restaurants, Parks, etc.) → AI finds real local places → click "Add This Place" → AI fills details → publish to website.
-
-## Troubleshooting
-
-### Can't connect to Beds24
-- Check API key copied correctly (no spaces)
-- Ensure API access enabled in Beds24
-- Regenerate key if expired
-
-### Properties not showing
-- Check Connection is green/connected
-- Click Resync on the connection
-- Verify property active in Beds24
-
-### Website changes not appearing
-- Clear browser cache (Ctrl+Shift+R)
-- Wait 30 seconds for sync
-- Try incognito mode
-
-### Blog/Attractions not on website
-- Check items are Published
-- Verify property ID matches
-- Check WordPress plugin active
-
-### Booking button not working
-- Verify connection active
-- Check rooms have Beds24 room IDs
-- Test booking in Beds24 directly
-
-## Quick Facts
-- GAS is FREE for inventory management
-- Channel Manager required (handles actual bookings)
-- Beds24 fully supported, more CMs coming
-- Websites optional paid feature
-- Blog & Attractions are AI-powered
-- Support: hello@gas.travel
-`;
-
         let aiChatOpen = false;
         let aiChatMessages = [];
         let aiChatLoading = false;
@@ -35717,66 +35639,30 @@ Add local points of interest. Click "Suggest Places" → select category (Museum
                 // Get current context
                 const currentView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
                 
-                // Build conversation history for Claude
-                const conversationHistory = aiChatMessages.map(msg => ({
-                    role: msg.role === 'assistant' ? 'assistant' : 'user',
+                // Build conversation history (exclude the message we just added)
+                const historyForAPI = aiChatMessages.slice(0, -1).map(msg => ({
+                    role: msg.role,
                     content: msg.content
                 }));
                 
-                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                // Use server proxy
+                const response = await fetch('/api/ai-chat', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': '', // Will use server proxy
-                        'anthropic-version': '2023-06-01'
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        model: 'claude-sonnet-4-20250514',
-                        max_tokens: 1000,
-                        system: `You are a helpful support assistant for GAS (Global Accommodation System). You help property owners use the platform.
-
-KNOWLEDGE BASE:
-${GAS_KNOWLEDGE_BASE}
-
-CURRENT CONTEXT:
-- User is viewing: ${currentView} section
-- Platform: GAS Admin Dashboard
-
-GUIDELINES:
-- Be friendly, concise, and helpful
-- Use the knowledge base to answer questions accurately
-- If you don't know something, say so and suggest contacting hello@gas.travel
-- Keep responses brief (2-3 paragraphs max)
-- Use bullet points for steps
-- Offer follow-up suggestions when helpful`,
-                        messages: conversationHistory
+                        message,
+                        context: currentView,
+                        history: historyForAPI.slice(-10) // Last 10 messages
                     })
                 });
                 
-                if (!response.ok) {
-                    // Fallback to server-side proxy
-                    const proxyResponse = await fetch('/api/ai-chat', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            message,
-                            context: currentView,
-                            history: conversationHistory.slice(-10) // Last 10 messages
-                        })
-                    });
-                    
-                    const proxyData = await proxyResponse.json();
-                    if (proxyData.success) {
-                        aiChatLoading = false;
-                        addAIChatMessage('assistant', proxyData.response);
-                    } else {
-                        throw new Error(proxyData.error || 'Failed to get response');
-                    }
+                const data = await response.json();
+                aiChatLoading = false;
+                
+                if (data.success) {
+                    addAIChatMessage('assistant', data.response);
                 } else {
-                    const data = await response.json();
-                    aiChatLoading = false;
-                    const assistantMessage = data.content[0].text;
-                    addAIChatMessage('assistant', assistantMessage);
+                    throw new Error(data.error || 'Failed to get response');
                 }
             } catch (error) {
                 console.error('AI Chat error:', error);
