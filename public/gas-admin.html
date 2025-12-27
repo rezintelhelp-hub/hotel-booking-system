@@ -24313,9 +24313,16 @@ Local honey and preserves"></textarea>
             // Get account_id - use selectedAccountId if set, otherwise try to get from first selected property
             let offerAccountId = selectedAccountId;
             if (!offerAccountId && selectedPropertyIds && selectedPropertyIds.length > 0) {
-                // Try to get account_id from the first selected property
-                const prop = allProperties.find(p => p.id === selectedPropertyIds[0]);
-                if (prop) offerAccountId = prop.account_id;
+                // Fetch account_id from the first selected property
+                try {
+                    const propResponse = await fetch(`/api/db/properties?id=${selectedPropertyIds[0]}`);
+                    const propData = await propResponse.json();
+                    if (propData.success && propData.data && propData.data.length > 0) {
+                        offerAccountId = propData.data[0].account_id;
+                    }
+                } catch (e) {
+                    console.log('Could not fetch property account_id:', e);
+                }
             }
             
             const offerData = {
