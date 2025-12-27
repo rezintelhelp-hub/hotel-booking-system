@@ -9010,7 +9010,13 @@ GUIDELINES:
 // SLACK EVENTS API - Receive replies to add to KB
 // =====================================================
 
+// Test endpoint
+app.get('/api/slack/events', (req, res) => {
+    res.json({ ok: true, message: 'Slack events endpoint is working. POST requests accepted.' });
+});
+
 app.post('/api/slack/events', async (req, res) => {
+    console.log('Slack event received:', JSON.stringify(req.body).substring(0, 500));
     try {
         const { type, challenge, event } = req.body;
         
