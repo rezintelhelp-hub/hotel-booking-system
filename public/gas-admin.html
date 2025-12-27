@@ -1,4 +1,4 @@
- <!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -9400,9 +9400,9 @@ Local honey and preserves"></textarea>
     <!-- GasSync Connection Details Modal -->
     <div id="connectionDetailsModal" class="modal">
         <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
-            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
+            <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
-                <button class="close-btn" onclick="closeModal('connectionDetailsModal')" style="color: white;">&times;</button>
+                <button onclick="closeModal('connectionDetailsModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
             </div>
             <div class="modal-body" style="padding: 0;">
                 <div class="gas-sync-tabs">
@@ -34626,7 +34626,7 @@ Local honey and preserves"></textarea>
                             <div class="connection-actions">
                                 <button class="btn btn-secondary btn-sm" onclick="triggerSync(${conn.id})">🔄 Sync</button>
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionDetails(${conn.id})">⚙️ Details</button>
-                                <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})">🗑️</button>
+                                <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})" style="color: white;">🗑️ Delete</button>
                             </div>
                         </div>
                     `).join('');
