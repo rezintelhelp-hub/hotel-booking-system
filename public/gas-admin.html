@@ -30696,8 +30696,14 @@ Local honey and preserves"></textarea>
             const btn = document.querySelector('[onclick="aiGenerateAttractionDetails()"]');
             if (!btn) return;
             const originalText = btn.innerHTML;
-            btn.innerHTML = '⏳ Generating...';
+            btn.innerHTML = '⏳ Generating, please wait...';
             btn.disabled = true;
+            
+            // Disable form inputs while generating
+            const form = document.getElementById('attraction-form');
+            const inputs = form.querySelectorAll('input, textarea, select, button');
+            inputs.forEach(i => i.disabled = true);
+            btn.disabled = true; // Re-disable the button
             
             try {
                 const response = await fetch('/api/admin/attractions/ai-generate', {
@@ -30760,6 +30766,10 @@ Local honey and preserves"></textarea>
             } finally {
                 btn.innerHTML = originalText;
                 btn.disabled = false;
+                // Re-enable form inputs
+                const form = document.getElementById('attraction-form');
+                const inputs = form.querySelectorAll('input, textarea, select, button');
+                inputs.forEach(i => i.disabled = false);
             }
         }
         
