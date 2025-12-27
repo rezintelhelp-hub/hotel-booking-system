@@ -9006,6 +9006,91 @@ GUIDELINES:
 });
 
 // =====================================================
+// SLACK EVENTS API - Receive replies to add to KB
+// =====================================================
+
+app.post('/api/slack/events', async (req, res) => {
+    try {
+        const { type, challenge, event } = req.body;
+        
+        // Slack URL verification challenge
+        if (type === 'url_verification') {
+            return res.json({ challenge });
+        }
+        
+        // Handle message events
+        if (type === 'event_callback' && event) {
+            // Ignore bot messages (prevent loops)
+            if (event.bot_id || event.subtype === 'bot_message') {
+                return res.json({ ok: true });
+            }
+            
+            // Check if it's a reply in a thread (has thread_ts)
+            if (event.type === 'message' && event.thread_ts && event.text) {
+                const answer = event.text;
+                
+                // Get the parent message to find the question
+                // For now, we'll just add the answer with a generic title
+                // The question ID should be in the parent message
+                
+                try {
+                    // Extract question ID from thread if mentioned (format: #123)
+                    const idMatch = answer.match(/#(\d+)/);
+                    let questionId = idMatch ? idMatch[1] : null;
+                    let question = 'Question from Slack';
+                    let cleanAnswer = answer.replace(/#\d+\s*/, '').trim(); // Remove #ID from answer
+                    
+                    // If we have a question ID, get the original question
+                    if (questionId) {
+                        const questionResult = await pool.query(
+                            'SELECT question FROM kb_unanswered WHERE id = $1',
+                            [questionId]
+                        );
+                        if (questionResult.rows.length > 0) {
+                            question = questionResult.rows[0].question;
+                        }
+                    }
+                    
+                    // Create KB article
+                    const title = question.length > 100 ? question.substring(0, 100) + '...' : question;
+                    const slug = title.toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '-')
+                        .replace(/(^-|-$)/g, '')
+                        .substring(0, 80) + '-' + Date.now();
+                    
+                    await pool.query(`
+                        INSERT INTO kb_articles (title, slug, content, summary, status)
+                        VALUES ($1, $2, $3, $4, 'published')
+                    `, [title, slug, cleanAnswer, cleanAnswer.substring(0, 200)]);
+                    
+                    // Mark unanswered as resolved
+                    if (questionId) {
+                        await pool.query(
+                            'UPDATE kb_unanswered SET status = $1 WHERE id = $2',
+                            ['resolved', questionId]
+                        );
+                    }
+                    
+                    // Send confirmation back to Slack
+                    if (process.env.SLACK_WEBHOOK_URL) {
+                        await axios.post(process.env.SLACK_WEBHOOK_URL, {
+                            text: `✅ Added to Knowledge Base!\n\n*Q:* ${question}\n*A:* ${cleanAnswer.substring(0, 200)}${cleanAnswer.length > 200 ? '...' : ''}\n\n_Gus will now know this answer!_`
+                        });
+                    }
+                } catch (dbError) {
+                    console.error('Error adding to KB from Slack:', dbError);
+                }
+            }
+        }
+        
+        res.json({ ok: true });
+    } catch (error) {
+        console.error('Slack events error:', error);
+        res.json({ ok: true }); // Always return ok to Slack
+    }
+});
+
+// =====================================================
 // BILLING & SUBSCRIPTION SYSTEM
 // =====================================================
 
