@@ -13522,16 +13522,18 @@ Local honey and preserves"></textarea>
                             <label class="form-label">Category *</label>
                             <select class="form-input" id="attraction-category" required>
                                 <option value="">Select category...</option>
-                                <option value="Museums & Galleries">🏛️ Museums & Galleries</option>
-                                <option value="Historic Sites">🏰 Historic Sites</option>
-                                <option value="Parks & Gardens">🌳 Parks & Gardens</option>
-                                <option value="Beaches">🏖️ Beaches</option>
-                                <option value="Entertainment">🎭 Entertainment</option>
-                                <option value="Shopping">🛍️ Shopping</option>
-                                <option value="Food & Drink">🍽️ Food & Drink</option>
-                                <option value="Sports & Activities">⚽ Sports & Activities</option>
-                                <option value="Nightlife">🌃 Nightlife</option>
-                                <option value="Family Fun">👨‍👩‍👧 Family Fun</option>
+                                <option value="museums">🏛️ Museums & Galleries</option>
+                                <option value="landmarks">🏰 Historic Sites & Landmarks</option>
+                                <option value="parks">🌳 Parks & Gardens</option>
+                                <option value="beaches">🏖️ Beaches</option>
+                                <option value="entertainment">🎭 Entertainment</option>
+                                <option value="shopping">🛍️ Shopping</option>
+                                <option value="restaurants">🍽️ Restaurants & Dining</option>
+                                <option value="cafes">☕ Cafes & Coffee</option>
+                                <option value="nightlife">🌃 Nightlife & Bars</option>
+                                <option value="sports">⚽ Sports & Activities</option>
+                                <option value="nature">🌲 Nature & Outdoors</option>
+                                <option value="family">👨‍👩‍👧 Family Fun</option>
                             </select>
                         </div>
                         <div class="form-group">
@@ -29961,12 +29963,11 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Show loading
-            document.getElementById('blog-wizard-footer').style.display = 'none';
-            document.getElementById('blog-wizard-loading').style.display = 'block';
-            document.getElementById('blog-wizard-subcategory-section').style.display = 'none';
-            document.getElementById('blog-wizard-preview').style.display = 'none';
-            document.querySelectorAll('#blog-ideas-wizard .form-group').forEach(g => g.style.display = 'none');
+            // Close the wizard immediately
+            closeBlogIdeasWizard();
+            
+            // Show generating toast
+            showNotification('🤖 Generating blog ideas...', 'info');
             
             try {
                 const response = await fetch('/api/admin/content-ideas/generate', {
@@ -29976,40 +29977,67 @@ Local honey and preserves"></textarea>
                         property_id: propertyId,
                         content_type: 'blog',
                         category: `${selectedBlogCategory}_${selectedBlogSubcategory}`,
-                        count: 10,
+                        count: 5,
                         client_id: getClientId()
                     })
                 });
                 
                 const data = await response.json();
                 
-                document.getElementById('blog-wizard-loading').style.display = 'none';
-                
                 if (data.success && data.ideas?.length > 0) {
-                    // Show results
-                    const listContainer = document.getElementById('blog-wizard-ideas-list');
-                    listContainer.innerHTML = data.ideas.map((idea, idx) => `
-                        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s;" 
-                             onclick="selectBlogIdeaFromWizard(${idea.id}, '${escapeHtml(idea.title).replace(/'/g, "\\'")}', ${propertyId})"
-                             onmouseover="this.style.borderColor='#8b5cf6'; this.style.background='#faf5ff';"
-                             onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
-                            <span style="font-weight: 600; color: #8b5cf6;">${idx + 1}.</span>
-                            <span style="flex: 1;">${escapeHtml(idea.title)}</span>
-                            <span style="color: #8b5cf6;">✨</span>
-                        </div>
-                    `).join('');
+                    showNotification(`✅ Generated ${data.ideas.length} blog ideas! Now creating posts...`, 'success');
                     
-                    document.getElementById('blog-wizard-results').style.display = 'block';
+                    // Generate each blog post as a toast notification sequence
+                    for (let i = 0; i < data.ideas.length; i++) {
+                        const idea = data.ideas[i];
+                        showNotification(`📝 Creating blog ${i + 1}/${data.ideas.length}: "${idea.title.substring(0, 40)}..."`, 'info');
+                        
+                        try {
+                            await generateBlogFromIdeaSilent(idea.id, idea.title, propertyId);
+                            showNotification(`✅ Created: "${idea.title.substring(0, 50)}..."`, 'success');
+                        } catch (err) {
+                            showNotification(`❌ Failed: "${idea.title.substring(0, 30)}..."`, 'error');
+                        }
+                        
+                        // Small delay between generations
+                        if (i < data.ideas.length - 1) {
+                            await new Promise(r => setTimeout(r, 1000));
+                        }
+                    }
+                    
+                    showNotification(`🎉 All ${data.ideas.length} blog posts created as drafts!`, 'success');
+                    loadBlogByTab();
                 } else {
                     showNotification(data.error || 'Failed to generate ideas', 'error');
-                    resetBlogWizard();
                 }
             } catch (error) {
                 console.error('Generate blog ideas error:', error);
                 showNotification('Error generating ideas', 'error');
-                document.getElementById('blog-wizard-loading').style.display = 'none';
-                resetBlogWizard();
             }
+        }
+        
+        // Silent version that doesn't open modal
+        async function generateBlogFromIdeaSilent(ideaId, title, propertyId) {
+            const clientId = getClientId();
+            
+            const response = await fetch('/api/admin/blog/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({
+                    keyword: title,
+                    property_id: propertyId,
+                    client_id: clientId,
+                    content_idea_id: ideaId
+                })
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Generation failed');
+            }
+            
+            return data;
         }
         
         function resetBlogWizard() {
@@ -30413,10 +30441,11 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            // Show loading
-            document.getElementById('attraction-wizard-footer').style.display = 'none';
-            document.getElementById('attraction-wizard-loading').style.display = 'block';
-            document.querySelectorAll('#attraction-ideas-wizard .form-group').forEach(g => g.style.display = 'none');
+            // Close the wizard immediately
+            closeAttractionIdeasWizard();
+            
+            // Show generating toast
+            showNotification('🤖 Finding local places...', 'info');
             
             try {
                 const response = await fetch('/api/admin/content-ideas/generate', {
@@ -30426,48 +30455,103 @@ Local honey and preserves"></textarea>
                         property_id: propertyId,
                         content_type: 'attraction',
                         category: selectedAttractionCategory,
-                        count: 10,
+                        count: 5,
                         client_id: getClientId()
                     })
                 });
                 
                 const data = await response.json();
                 
-                document.getElementById('attraction-wizard-loading').style.display = 'none';
-                
                 if (data.success && data.ideas?.length > 0) {
-                    // Store generated ideas in the attractionIdeas array so they can be found later
-                    attractionIdeas = [...attractionIdeas, ...data.ideas];
+                    showNotification(`✅ Found ${data.ideas.length} places! Now creating attractions...`, 'success');
                     
-                    const listContainer = document.getElementById('attraction-wizard-ideas-list');
-                    listContainer.innerHTML = data.ideas.map((idea, idx) => `
-                        <div style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: white; border: 1px solid #e5e7eb; border-radius: 8px; margin-bottom: 0.5rem; cursor: pointer; transition: all 0.2s;"
-                             onclick="selectAttractionFromWizard(${idea.id})"
-                             onmouseover="this.style.borderColor='#f59e0b'; this.style.background='#fffbeb';"
-                             onmouseout="this.style.borderColor='#e5e7eb'; this.style.background='white';">
-                            <span style="font-weight: 600; color: #f59e0b;">${idx + 1}.</span>
-                            <div style="flex: 1;">
-                                <div style="font-weight: 500;">${escapeHtml(idea.title)}</div>
-                                ${idea.description ? `<div style="font-size: 0.8rem; color: #6b7280;">${escapeHtml(idea.description.substring(0, 60))}...</div>` : ''}
-                            </div>
-                            <span style="color: #f59e0b;">✨</span>
-                        </div>
-                    `).join('');
+                    // Generate each attraction as a toast notification sequence
+                    for (let i = 0; i < data.ideas.length; i++) {
+                        const idea = data.ideas[i];
+                        showNotification(`🎯 Creating ${i + 1}/${data.ideas.length}: "${idea.title.substring(0, 40)}..."`, 'info');
+                        
+                        try {
+                            await createAttractionFromIdeaSilent(idea, propertyId);
+                            showNotification(`✅ Created: "${idea.title.substring(0, 50)}..."`, 'success');
+                        } catch (err) {
+                            showNotification(`❌ Failed: "${idea.title.substring(0, 30)}..."`, 'error');
+                        }
+                        
+                        // Small delay between generations
+                        if (i < data.ideas.length - 1) {
+                            await new Promise(r => setTimeout(r, 1000));
+                        }
+                    }
                     
-                    document.getElementById('attraction-wizard-results').style.display = 'block';
-                    
-                    // Refresh the Ideas tab in background so it's ready when wizard closes
+                    showNotification(`🎉 All ${data.ideas.length} attractions created!`, 'success');
                     loadAttractionsByTab();
                 } else {
-                    showNotification(data.error || 'Failed to generate suggestions', 'error');
-                    resetAttractionWizard();
+                    showNotification(data.error || 'Failed to find places', 'error');
                 }
             } catch (error) {
                 console.error('Generate attraction ideas error:', error);
                 showNotification('Error generating suggestions', 'error');
-                document.getElementById('attraction-wizard-loading').style.display = 'none';
-                resetAttractionWizard();
             }
+        }
+        
+        // Silent version that creates attraction without opening modal
+        async function createAttractionFromIdeaSilent(idea, propertyId) {
+            const clientId = getClientId();
+            
+            // First generate AI details
+            const aiResponse = await fetch('/api/admin/attractions/ai-generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify({
+                    name: idea.title,
+                    short_description: idea.description || '',
+                    property_id: propertyId,
+                    category: selectedAttractionCategory
+                })
+            });
+            
+            const aiData = await aiResponse.json();
+            
+            // Create the attraction
+            const attractionData = {
+                name: idea.title,
+                slug: idea.title.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, ''),
+                property_id: propertyId,
+                client_id: clientId,
+                category: selectedAttractionCategory,
+                short_description: idea.description || '',
+                description: aiData.success ? aiData.description : (idea.description || ''),
+                address: aiData.success ? aiData.address : '',
+                website_url: aiData.success ? aiData.website_url : '',
+                google_maps_url: aiData.success ? aiData.google_maps_url : '',
+                price_range: aiData.success ? aiData.price_range : '',
+                distance_text: aiData.success ? aiData.distance_text : '',
+                duration: aiData.success ? aiData.duration : '',
+                is_published: false,
+                content_idea_id: idea.id
+            };
+            
+            const response = await fetch('/api/admin/attractions', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                body: JSON.stringify(attractionData)
+            });
+            
+            const data = await response.json();
+            
+            if (!data.success) {
+                throw new Error(data.error || 'Creation failed');
+            }
+            
+            // Mark idea as used
+            try {
+                await fetch(`/api/admin/content-ideas/${idea.id}/use`, {
+                    method: 'PUT',
+                    headers: authHeaders()
+                });
+            } catch (e) {}
+            
+            return data;
         }
         
         function resetAttractionWizard() {
