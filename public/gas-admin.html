@@ -14692,8 +14692,12 @@ Local honey and preserves"></textarea>
             showView(viewName);
             
             // Update AI chat context if open
+            console.log('navClick: checking updateAIChatContext, aiChatOpen=', aiChatOpen);
             if (typeof updateAIChatContext === 'function') {
+                console.log('navClick: calling updateAIChatContext');
                 updateAIChatContext();
+            } else {
+                console.log('navClick: updateAIChatContext not defined yet');
             }
         }
 
@@ -35614,12 +35618,20 @@ Local honey and preserves"></textarea>
         
         // Called when user navigates to update chat context
         function updateAIChatContext() {
-            if (typeof aiChatOpen === 'undefined') return; // Not initialized yet
+            console.log('updateAIChatContext called, aiChatOpen=', aiChatOpen);
+            if (typeof aiChatOpen === 'undefined') {
+                console.log('aiChatOpen undefined, returning');
+                return;
+            }
             
             const newView = document.querySelector('.nav-item.active')?.textContent?.trim() || 'Dashboard';
+            console.log('updateAIChatContext: newView=', newView, 'currentView=', aiChatCurrentView);
+            
             if (newView !== aiChatCurrentView) {
                 aiChatCurrentView = newView;
+                console.log('View changed, aiChatOpen=', aiChatOpen);
                 if (aiChatOpen) {
+                    console.log('Updating quick buttons');
                     updateAIChatQuickButtons();
                     // Update header to show current section
                     const headerInfo = document.querySelector('.ai-chat-header-info span');
