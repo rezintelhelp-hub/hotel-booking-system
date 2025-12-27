@@ -18441,9 +18441,11 @@ Local honey and preserves"></textarea>
                             <table>
                                 <thead>
                                     <tr>
+                                        <th>ID</th>
                                         <th>Property Name</th>
                                         <th>Type</th>
                                         <th>Location</th>
+                                        <th>Currency</th>
                                         <th>Account</th>
                                         <th>Status</th>
                                         <th>Actions</th>
@@ -18454,9 +18456,28 @@ Local honey and preserves"></textarea>
                                         const currentAccount = allAccounts.find(a => a.id === prop.account_id);
                                         return `
                                         <tr>
+                                            <td><code style="background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.85rem;">${prop.id}</code></td>
                                             <td><strong>${prop.name || 'Unnamed Property'}</strong></td>
                                             <td>${prop.property_type || 'N/A'}</td>
                                             <td>${prop.city || 'N/A'}, ${prop.country || 'N/A'}</td>
+                                            <td>
+                                                <select onchange="updatePropertyCurrency(${prop.id}, this.value)" style="padding: 0.25rem; border-radius: 4px; border: 1px solid #e5e7eb; font-size: 0.85rem;">
+                                                    <option value="GBP" ${prop.currency === 'GBP' ? 'selected' : ''}>£ GBP</option>
+                                                    <option value="USD" ${prop.currency === 'USD' ? 'selected' : ''}>$ USD</option>
+                                                    <option value="EUR" ${prop.currency === 'EUR' ? 'selected' : ''}>€ EUR</option>
+                                                    <option value="AUD" ${prop.currency === 'AUD' ? 'selected' : ''}>$ AUD</option>
+                                                    <option value="CAD" ${prop.currency === 'CAD' ? 'selected' : ''}>$ CAD</option>
+                                                    <option value="CHF" ${prop.currency === 'CHF' ? 'selected' : ''}>CHF</option>
+                                                    <option value="NZD" ${prop.currency === 'NZD' ? 'selected' : ''}>$ NZD</option>
+                                                    <option value="THB" ${prop.currency === 'THB' ? 'selected' : ''}>฿ THB</option>
+                                                    <option value="JPY" ${prop.currency === 'JPY' ? 'selected' : ''}>¥ JPY</option>
+                                                    <option value="ZAR" ${prop.currency === 'ZAR' ? 'selected' : ''}>R ZAR</option>
+                                                    <option value="AED" ${prop.currency === 'AED' ? 'selected' : ''}>د.إ AED</option>
+                                                    <option value="SGD" ${prop.currency === 'SGD' ? 'selected' : ''}>$ SGD</option>
+                                                    <option value="MYR" ${prop.currency === 'MYR' ? 'selected' : ''}>RM MYR</option>
+                                                    <option value="INR" ${prop.currency === 'INR' ? 'selected' : ''}>₹ INR</option>
+                                                </select>
+                                            </td>
                                             <td>
                                                 ${currentAccount ? `<span style="color: #10b981; font-weight: 500;">${currentAccount.name}</span>` : '<span style="color: #94a3b8;">-- None --</span>'}
                                             </td>
@@ -27665,6 +27686,24 @@ Local honey and preserves"></textarea>
         // Property map instance
         let propertyMap = null;
         let propertyMarker = null;
+
+        async function updatePropertyCurrency(propertyId, currency) {
+            try {
+                const response = await fetch(`/api/db/properties/${propertyId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ currency })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Currency updated to ' + currency, 'success');
+                } else {
+                    showNotification('Failed to update currency: ' + data.error, 'error');
+                }
+            } catch (error) {
+                showNotification('Error updating currency: ' + error.message, 'error');
+            }
+        }
 
         async function editProperty(id) {
             try {
