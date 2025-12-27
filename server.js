@@ -28823,19 +28823,27 @@ app.get('/api/admin/seo/sites', async (req, res) => {
             site.url !== 'https://sites.gas.travel'
         );
         
-        // If account_id provided, filter to only sites belonging to that account
-        if (account_id && account_id !== 'null') {
-            const accountSites = await pool.query(
+        // Get all active deployed sites from database
+        const activeSitesQuery = account_id && account_id !== 'null'
+            ? await pool.query(
                 'SELECT site_url FROM deployed_sites WHERE account_id = $1 AND status != $2',
                 [account_id, 'deleted']
-            );
-            const accountUrls = accountSites.rows.map(r => r.site_url);
-            
-            // Filter to only sites that belong to this account
-            sites = sites.filter(site => 
-                accountUrls.some(url => site.url.includes(url.replace(/\/$/, '')) || url.includes(site.url.replace(/\/$/, '')))
-            );
-        }
+              )
+            : await pool.query(
+                'SELECT site_url FROM deployed_sites WHERE status != $1',
+                ['deleted']
+              );
+        
+        const activeUrls = activeSitesQuery.rows.map(r => r.site_url?.replace(/\/$/, ''));
+        
+        // Only show sites that exist in deployed_sites (not deleted)
+        sites = sites.filter(site => {
+            const siteUrlClean = site.url.replace(/\/$/, '').replace('https://', '').replace('http://', '');
+            return activeUrls.some(url => {
+                const urlClean = url?.replace('https://', '').replace('http://', '');
+                return urlClean && (siteUrlClean.includes(urlClean) || urlClean.includes(siteUrlClean));
+            });
+        });
         
         res.json({ success: true, sites });
     } catch (error) {
