@@ -35622,29 +35622,33 @@ Local honey and preserves"></textarea>
         function updateAIChatContext() {
             if (typeof aiChatOpen === 'undefined') return;
             
-            // Get clean view name (remove emoji, trim whitespace)
+            // Get clean view name
             const activeNav = document.querySelector('.nav-item.active');
             let newView = 'Dashboard';
             if (activeNav) {
-                // Get just the text from the span, not the icon
                 const textSpan = activeNav.querySelector('span:not(.nav-icon)');
-                if (textSpan) {
-                    newView = textSpan.textContent.trim();
-                } else {
-                    newView = activeNav.textContent.replace(/[\u{1F300}-\u{1F9FF}]/gu, '').trim();
-                }
+                newView = textSpan ? textSpan.textContent.trim() : 'Dashboard';
             }
             
-            if (newView !== aiChatCurrentView) {
+            // Only update if view actually changed AND chat is open
+            if (newView !== aiChatCurrentView && aiChatOpen) {
+                const oldView = aiChatCurrentView;
                 aiChatCurrentView = newView;
-                if (aiChatOpen) {
-                    updateAIChatQuickButtons();
-                    // Update header to show current section
-                    const headerInfo = document.querySelector('.ai-chat-header-info span');
-                    if (headerInfo) {
-                        headerInfo.textContent = `Helping with: ${aiChatCurrentView}`;
-                    }
+                
+                // Add a message acknowledging the navigation
+                addAIChatMessage('assistant', `I see you've moved to ${aiChatCurrentView}. How can I help you here?`);
+                
+                // Update quick buttons
+                updateAIChatQuickButtons();
+                
+                // Update header
+                const headerInfo = document.querySelector('.ai-chat-header-info span');
+                if (headerInfo) {
+                    headerInfo.textContent = `Helping with: ${aiChatCurrentView}`;
                 }
+            } else if (newView !== aiChatCurrentView) {
+                // Chat not open, just update the tracked view
+                aiChatCurrentView = newView;
             }
         }
         
