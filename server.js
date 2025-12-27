@@ -12066,16 +12066,13 @@ app.put('/api/deployed-sites/:id/pricing-tier', async (req, res) => {
     const site = result.rows[0];
     console.log(`Deployed site ${id} pricing tier updated to: ${pricing_tier}`);
     
-    // Push pricing_tier to WordPress
+    // Push pricing_tier to WordPress via gas-api.php
     try {
-      const wpSettings = await pool.query('SELECT api_key FROM wordpress_settings LIMIT 1');
-      const apiKey = wpSettings.rows[0]?.api_key;
-      
-      if (apiKey && site.site_url) {
+      if (site.site_url) {
         const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${apiKey}`,
+            'X-API-Key': VPS_DEPLOY_API_KEY,
             'Content-Type': 'application/json'
           },
           body: JSON.stringify({
