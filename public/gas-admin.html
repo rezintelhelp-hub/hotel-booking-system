@@ -35803,6 +35803,60 @@ Local honey and preserves"></textarea>
             document.getElementById('ai-chat-input').value = question;
             sendAIChatMessage();
         }
+        
+        // Draggable chat widget
+        (function() {
+            let isDragging = false;
+            let dragOffsetX = 0;
+            let dragOffsetY = 0;
+            
+            document.addEventListener('DOMContentLoaded', function() {
+                const widget = document.getElementById('ai-chat-widget');
+                const header = document.querySelector('.ai-chat-header');
+                
+                if (!header || !widget) return;
+                
+                header.addEventListener('mousedown', function(e) {
+                    // Don't drag if clicking on close button area
+                    if (e.target.closest('button')) return;
+                    
+                    isDragging = true;
+                    widget.classList.add('dragging');
+                    
+                    const rect = widget.getBoundingClientRect();
+                    dragOffsetX = e.clientX - rect.left;
+                    dragOffsetY = e.clientY - rect.top;
+                    
+                    e.preventDefault();
+                });
+                
+                document.addEventListener('mousemove', function(e) {
+                    if (!isDragging) return;
+                    
+                    let newX = e.clientX - dragOffsetX;
+                    let newY = e.clientY - dragOffsetY;
+                    
+                    // Keep within viewport
+                    const maxX = window.innerWidth - widget.offsetWidth;
+                    const maxY = window.innerHeight - widget.offsetHeight;
+                    
+                    newX = Math.max(0, Math.min(newX, maxX));
+                    newY = Math.max(0, Math.min(newY, maxY));
+                    
+                    widget.style.left = newX + 'px';
+                    widget.style.top = newY + 'px';
+                    widget.style.right = 'auto';
+                    widget.style.bottom = 'auto';
+                });
+                
+                document.addEventListener('mouseup', function() {
+                    if (isDragging) {
+                        isDragging = false;
+                        widget.classList.remove('dragging');
+                    }
+                });
+            });
+        })();
     </script>
 
     <!-- AI Chat Widget Styles -->
@@ -35848,6 +35902,11 @@ Local honey and preserves"></textarea>
             border: 1px solid #e5e7eb;
         }
         
+        #ai-chat-widget.dragging {
+            user-select: none;
+            opacity: 0.9;
+        }
+        
         .ai-chat-header {
             background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
             color: white;
@@ -35855,6 +35914,7 @@ Local honey and preserves"></textarea>
             display: flex;
             align-items: center;
             gap: 0.75rem;
+            cursor: move;
         }
         
         .ai-chat-header-avatar {
