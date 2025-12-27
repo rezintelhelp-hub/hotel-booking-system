@@ -1,0 +1,162 @@
+{
+  "version": "1.0",
+  "description": "Defines when to offer AI support in GAS Admin",
+  
+  "menuTriggers": {
+    "dashboard": {
+      "section": "Dashboard",
+      "welcomeMessage": "Welcome to your GAS dashboard! This is your command center. Would you like a quick tour of what you can do here?",
+      "topics": ["overview", "getting-started", "quick-stats"]
+    },
+    "properties": {
+      "section": "Properties",
+      "welcomeMessage": "This is where you manage your properties. I can help you understand property settings, import from your channel manager, or troubleshoot any issues.",
+      "topics": ["property-setup", "room-management", "property-sync"]
+    },
+    "connections": {
+      "section": "Connections",
+      "welcomeMessage": "Connections link GAS to your booking system. Need help setting up Beds24 or another channel manager?",
+      "topics": ["beds24-setup", "api-keys", "sync-issues", "supported-cms"]
+    },
+    "offers": {
+      "section": "Offers & Pricing",
+      "welcomeMessage": "Create special offers and manage pricing tiers here. I can explain how corporate pricing works or help you set up a promotion.",
+      "topics": ["create-offer", "pricing-tiers", "corporate-rates", "agent-rates"]
+    },
+    "websites": {
+      "section": "Websites",
+      "welcomeMessage": "Manage your GAS-powered websites here. Need help deploying a site or customizing your pages?",
+      "topics": ["deploy-site", "custom-domain", "website-settings", "page-content"]
+    },
+    "blog": {
+      "section": "Blog",
+      "welcomeMessage": "Create AI-powered blog content for your property. Want me to explain how the blog ideas system works?",
+      "topics": ["generate-ideas", "create-post", "publish-post", "blog-categories"]
+    },
+    "attractions": {
+      "section": "Attractions",
+      "welcomeMessage": "Add local attractions to help guests explore your area. I can help you find and add places of interest.",
+      "topics": ["suggest-places", "add-attraction", "attraction-categories", "publish-attraction"]
+    },
+    "settings": {
+      "section": "Settings",
+      "welcomeMessage": "Configure your account and system settings here. What would you like to adjust?",
+      "topics": ["account-settings", "user-management", "billing", "api-access"]
+    }
+  },
+  
+  "actionTriggers": {
+    "first-visit": {
+      "condition": "user.isNew === true",
+      "message": "Welcome to GAS! I'm here to help you get started. Would you like me to guide you through the setup process?",
+      "suggestedActions": ["Connect channel manager", "Import properties", "View quick tour"]
+    },
+    "no-connections": {
+      "condition": "connections.length === 0",
+      "message": "I notice you haven't connected a channel manager yet. This is required to sync your properties and accept bookings. Would you like help setting this up?",
+      "suggestedActions": ["Set up Beds24", "Learn about connections"]
+    },
+    "no-properties": {
+      "condition": "properties.length === 0 && connections.length > 0",
+      "message": "Your channel manager is connected but no properties have been imported yet. Would you like me to help you import your properties?",
+      "suggestedActions": ["Import properties", "Troubleshoot sync"]
+    },
+    "no-website": {
+      "condition": "properties.length > 0 && websites.length === 0",
+      "message": "You have properties but no website yet. Would you like to create a beautiful booking website for your property?",
+      "suggestedActions": ["Deploy website", "Learn about websites"]
+    },
+    "connection-error": {
+      "condition": "connection.status === 'error'",
+      "message": "I see there's an issue with your channel manager connection. Let me help you troubleshoot this.",
+      "suggestedActions": ["Check API key", "Resync connection", "View error details"]
+    },
+    "empty-blog": {
+      "condition": "currentView === 'blog' && blogPosts.length === 0",
+      "message": "Your blog is empty! Blog posts help with SEO and guest engagement. Want me to help you generate some content ideas?",
+      "suggestedActions": ["Generate blog ideas", "Learn about blogging"]
+    },
+    "empty-attractions": {
+      "condition": "currentView === 'attractions' && attractions.length === 0",
+      "message": "No attractions yet! Adding local points of interest helps guests plan their stay. Shall I suggest some places near your property?",
+      "suggestedActions": ["Suggest local places", "Add manually"]
+    }
+  },
+  
+  "errorTriggers": {
+    "api-error": {
+      "pattern": "API.*error|fetch.*failed|network.*error",
+      "message": "It looks like there was a connection issue. This is usually temporary. Would you like to try again or should I help troubleshoot?",
+      "suggestedActions": ["Retry", "Check status", "Report issue"]
+    },
+    "auth-error": {
+      "pattern": "unauthorized|invalid.*key|authentication.*failed",
+      "message": "There seems to be an authentication issue. Your API key may need to be updated. Would you like help with this?",
+      "suggestedActions": ["Update API key", "Reconnect"]
+    },
+    "sync-error": {
+      "pattern": "sync.*failed|import.*error|property.*not.*found",
+      "message": "The sync with your channel manager encountered an issue. Let me help you resolve this.",
+      "suggestedActions": ["Check connection", "Resync", "View details"]
+    },
+    "save-error": {
+      "pattern": "save.*failed|update.*error|could.*not.*save",
+      "message": "There was a problem saving your changes. This might be a temporary issue. Want to try again?",
+      "suggestedActions": ["Retry save", "Check data", "Report issue"]
+    }
+  },
+  
+  "idlePrompts": {
+    "enabled": true,
+    "delaySeconds": 60,
+    "messages": [
+      "Need any help? I'm here if you have questions!",
+      "Stuck on something? I can help guide you through it.",
+      "Feel free to ask me anything about GAS!"
+    ]
+  },
+  
+  "quickHelp": {
+    "dashboard": [
+      "What can I do from the dashboard?",
+      "How do I check my booking stats?",
+      "Show me my recent activity"
+    ],
+    "connections": [
+      "How do I connect Beds24?",
+      "Where do I find my API key?",
+      "Why is my sync failing?",
+      "What channel managers do you support?"
+    ],
+    "properties": [
+      "How do I add a new property?",
+      "Can I edit property details?",
+      "Why aren't my rooms showing?",
+      "How do I change the currency?"
+    ],
+    "offers": [
+      "How do I create a discount offer?",
+      "What are pricing tiers?",
+      "How does corporate pricing work?",
+      "Can I set seasonal rates?"
+    ],
+    "websites": [
+      "How do I get a website?",
+      "Can I use my own domain?",
+      "How do I customize my site?",
+      "Why isn't my site showing changes?"
+    ],
+    "blog": [
+      "How do I create a blog post?",
+      "What are blog ideas?",
+      "How does AI content work?",
+      "Can I edit generated posts?"
+    ],
+    "attractions": [
+      "How do I add attractions?",
+      "What categories are available?",
+      "Can AI suggest places?",
+      "How do I publish an attraction?"
+    ]
+  }
+}

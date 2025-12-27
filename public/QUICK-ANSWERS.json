@@ -1,0 +1,198 @@
+{
+  "version": "1.0",
+  "description": "Quick answers for common GAS questions - enables fast AI responses",
+  
+  "faqs": [
+    {
+      "id": "what-is-gas",
+      "questions": [
+        "What is GAS?",
+        "What does GAS do?",
+        "Tell me about GAS",
+        "What is this system?"
+      ],
+      "answer": "GAS (Global Accommodation System) is a FREE accommodation inventory management system. You upload your property details, connect your channel manager (like Beds24), and GAS handles the rest - syncing availability, powering your website, and managing your content. The key thing: bookings always flow through YOUR channel manager, so you stay in control.",
+      "followUp": ["How do I get started?", "What's a channel manager?", "Is it really free?"]
+    },
+    {
+      "id": "is-it-free",
+      "questions": [
+        "Is GAS free?",
+        "How much does it cost?",
+        "What's the pricing?",
+        "Do I have to pay?"
+      ],
+      "answer": "The core GAS system is completely FREE - you can upload unlimited properties and units at no cost. The only requirement is connecting via a channel manager. Optional paid services include: GAS-hosted websites, custom domains, travel agent distribution, and premium features. But the inventory management itself? Always free.",
+      "followUp": ["What are the paid options?", "How do I connect my channel manager?"]
+    },
+    {
+      "id": "channel-manager-required",
+      "questions": [
+        "Why do I need a channel manager?",
+        "What's a channel manager?",
+        "Do I have to have a channel manager?",
+        "Can I use GAS without a channel manager?"
+      ],
+      "answer": "A channel manager is the software that handles your actual bookings and distributes your inventory to sites like Booking.com and Airbnb. GAS requires one because we're an inventory MANAGEMENT system, not a booking engine. Your channel manager (Beds24, Smoobu, etc.) processes payments and manages reservations - GAS syncs with it to display your availability and power your website.",
+      "followUp": ["Which channel managers do you support?", "How do I connect Beds24?"]
+    },
+    {
+      "id": "supported-cms",
+      "questions": [
+        "Which channel managers do you support?",
+        "What CMs work with GAS?",
+        "Do you support Beds24?",
+        "Can I use Smoobu?"
+      ],
+      "answer": "Currently we have full integration with Beds24. We're also integrated with Calry, which connects to 40+ channel managers. Direct integrations for Hostaway and Smoobu are coming soon. If you use a different system, let us know - we're always adding new integrations!",
+      "followUp": ["How do I connect Beds24?", "What is Calry?"]
+    },
+    {
+      "id": "connect-beds24",
+      "questions": [
+        "How do I connect Beds24?",
+        "Set up Beds24",
+        "Beds24 integration",
+        "Link my Beds24 account"
+      ],
+      "answer": "To connect Beds24: 1) Go to Connections in GAS Admin, 2) Click '+ Add Connection' and select Beds24, 3) Enter your API Key (from Beds24 > Settings > Account Access > API), 4) Enter your Prop Key for the property, 5) Click Connect. GAS will verify and import your properties automatically.",
+      "followUp": ["Where do I find my API key?", "What's a Prop Key?", "My connection isn't working"]
+    },
+    {
+      "id": "find-api-key",
+      "questions": [
+        "Where's my Beds24 API key?",
+        "How do I find my API key?",
+        "Where is the API key in Beds24?",
+        "Get Beds24 credentials"
+      ],
+      "answer": "In Beds24: 1) Log into your account, 2) Go to Settings > Account Access > API, 3) Your API Key is shown there (or click Generate if you don't have one yet). The Prop Key is property-specific - find it under Settings > Properties for each individual property.",
+      "followUp": ["How do I connect Beds24?", "My API key isn't working"]
+    },
+    {
+      "id": "create-website",
+      "questions": [
+        "How do I get a website?",
+        "Create a website",
+        "Deploy my site",
+        "I want a booking website"
+      ],
+      "answer": "To create a website: 1) Go to Websites > Deployed Sites, 2) Click '+ Deploy New Site', 3) Select your property and choose a template, 4) Your site will be live within minutes at yourproperty.sites.gas.travel. You can then customize colors, content, and optionally connect your own domain.",
+      "followUp": ["Can I use my own domain?", "How do I customize my site?"]
+    },
+    {
+      "id": "custom-domain",
+      "questions": [
+        "Can I use my own domain?",
+        "Custom domain",
+        "Connect my domain",
+        "Use my website address"
+      ],
+      "answer": "Yes! All tiers support custom domains. After deploying your site, go to Websites > Deployed Sites, select your site, and click 'Custom Domain'. You'll need to update your DNS settings to point to GAS - we'll provide the exact records to add. The process usually takes 24-48 hours to fully propagate.",
+      "followUp": ["How do I deploy a site first?", "What DNS settings do I need?"]
+    },
+    {
+      "id": "create-blog-post",
+      "questions": [
+        "How do I create a blog post?",
+        "Add blog content",
+        "Write a blog",
+        "Generate blog ideas"
+      ],
+      "answer": "The easiest way: 1) Go to Blog in the menu, 2) Click '🤖 Get Ideas', 3) Select a category (Attractions or Events), 4) Choose a specific topic, 5) Click Generate Ideas. AI will suggest 5 relevant topics. Click 'Create Post' on any idea and AI will write the full article. Review it, then save as draft or publish!",
+      "followUp": ["What categories are there?", "Can I edit the AI content?"]
+    },
+    {
+      "id": "add-attractions",
+      "questions": [
+        "How do I add attractions?",
+        "Add local places",
+        "Suggest attractions",
+        "Things to do near my property"
+      ],
+      "answer": "To add attractions: 1) Go to Attractions in the menu, 2) Click '🤖 Suggest Places', 3) Choose a category (Museums, Restaurants, Parks, etc.), 4) AI will find real places near your property. Click 'Add This Place' on any suggestion - AI will fill in details like address, website, and description. Review and publish!",
+      "followUp": ["What categories are available?", "Can I add places manually?"]
+    },
+    {
+      "id": "pricing-tiers",
+      "questions": [
+        "What are pricing tiers?",
+        "Corporate pricing",
+        "Agent rates",
+        "Different prices for different guests"
+      ],
+      "answer": "GAS supports multiple pricing tiers: STANDARD (public rates with optional discount badges), CORPORATE (negotiated business rates - can be % adjustment or fixed), and TRAVEL AGENT (rates for resellers). Corporate and Agent tiers show clean pricing without discount badges - it's just 'their price'. Set the tier in Website settings to control what visitors see.",
+      "followUp": ["How do I set up corporate rates?", "How do I create an offer?"]
+    },
+    {
+      "id": "create-offer",
+      "questions": [
+        "How do I create a discount?",
+        "Add special offer",
+        "Create promotion",
+        "Set up a deal"
+      ],
+      "answer": "To create an offer: 1) Go to Offers & Pricing, 2) Click '+ Add Offer', 3) Enter offer name (e.g., 'Early Bird 15%'), 4) Set discount percentage or fixed amount, 5) Choose date range, 6) Select which rooms it applies to, 7) Save. The offer will show on your website with a 'Save X%' badge.",
+      "followUp": ["Can I limit offers to certain dates?", "How do offers show on the website?"]
+    },
+    {
+      "id": "sync-not-working",
+      "questions": [
+        "Sync isn't working",
+        "Properties not importing",
+        "Data not updating",
+        "Channel manager not syncing"
+      ],
+      "answer": "If sync isn't working: 1) Check your Connection status in Connections - is it green? 2) Click 'Resync' to force a refresh, 3) Verify your API key is still valid in Beds24, 4) Make sure the property is active in your channel manager, 5) Check for any error messages. If issues persist, the API key may have expired - try regenerating it in Beds24.",
+      "followUp": ["How do I check my connection?", "Where do I get a new API key?"]
+    },
+    {
+      "id": "website-not-updating",
+      "questions": [
+        "Website not showing changes",
+        "Updates not appearing",
+        "Site looks old",
+        "Changes not live"
+      ],
+      "answer": "If changes aren't showing: 1) Clear your browser cache (Ctrl+Shift+R), 2) Wait 30 seconds - syncing can take a moment, 3) Check GAS Admin shows your changes saved, 4) Try a different browser or incognito mode. WordPress caching can also cause delays - changes usually appear within 1-2 minutes.",
+      "followUp": ["How do I clear my cache?", "Is there a way to force refresh?"]
+    },
+    {
+      "id": "booking-not-working",
+      "questions": [
+        "Booking button not working",
+        "Can't make reservations",
+        "Checkout not loading",
+        "Book now broken"
+      ],
+      "answer": "If bookings aren't working: 1) Check your channel manager connection is active, 2) Verify rooms have valid Beds24 room IDs, 3) Test booking directly in Beds24 to ensure it's working there, 4) Check the browser console for errors (F12 > Console). The booking ultimately happens via your channel manager, so ensure that's functioning first.",
+      "followUp": ["How do I check my connection?", "Where do I see room IDs?"]
+    }
+  ],
+  
+  "greetings": {
+    "morning": ["Good morning! How can I help you today?", "Morning! What would you like to work on?"],
+    "afternoon": ["Good afternoon! How can I assist you?", "Hi there! What can I help with?"],
+    "evening": ["Good evening! How can I help?", "Evening! What would you like to do?"],
+    "default": ["Hello! How can I help you today?", "Hi! What can I help you with?"]
+  },
+  
+  "fallbackResponses": [
+    "I'm not sure about that specific question, but I can help you with most GAS features. Could you rephrase or ask about something specific like connections, properties, websites, or blog posts?",
+    "Hmm, I don't have a quick answer for that. Would you like me to connect you with our support team at hello@gas.travel?",
+    "I want to make sure I help you correctly. Could you tell me more about what you're trying to do?"
+  ],
+  
+  "handoffTriggers": [
+    "speak to a human",
+    "talk to support",
+    "real person",
+    "contact support",
+    "email support",
+    "billing question",
+    "cancel my account",
+    "refund"
+  ],
+  
+  "handoffResponse": "I'll connect you with our team. You can reach us at hello@gas.travel or I can note your question and have someone follow up. Which would you prefer?"
+}
