@@ -29635,7 +29635,19 @@ app.post('/api/admin/attractions', async (req, res) => {
             }
         }
         
-        const finalSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        // Generate unique slug
+        let baseSlug = slug || name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
+        let finalSlug = baseSlug;
+        let counter = 1;
+        
+        // Check if slug exists and add number suffix if needed
+        while (true) {
+            const existing = await pool.query('SELECT id FROM attractions WHERE slug = $1', [finalSlug]);
+            if (existing.rows.length === 0) break;
+            counter++;
+            finalSlug = `${baseSlug}-${counter}`;
+            if (counter > 100) break; // Safety limit
+        }
         
         const result = await pool.query(`
             INSERT INTO attractions (
