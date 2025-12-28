@@ -19052,6 +19052,32 @@ Local honey and preserves"></textarea>
                 }
             });
             
+            // Collect bathroom configuration
+            const bathrooms = [];
+            document.querySelectorAll('.bathroom-row').forEach(row => {
+                const type = row.querySelector('.bathroom-type-select')?.value;
+                const qty = row.querySelector('.bathroom-qty')?.value || 1;
+                if (type) {
+                    bathrooms.push({ type, quantity: parseInt(qty) });
+                }
+            });
+            
+            // Collect bathroom features
+            const bathroom_features = {
+                shower: document.getElementById('bath-shower')?.checked || false,
+                bathtub: document.getElementById('bath-bathtub')?.checked || false,
+                rainfall: document.getElementById('bath-rainfall')?.checked || false,
+                walkin: document.getElementById('bath-walkin')?.checked || false,
+                jacuzzi: document.getElementById('bath-jacuzzi')?.checked || false,
+                bidet: document.getElementById('bath-bidet')?.checked || false,
+                heated_floor: document.getElementById('bath-heated-floor')?.checked || false,
+                double_vanity: document.getElementById('bath-double-vanity')?.checked || false,
+                hairdryer: document.getElementById('bath-hairdryer')?.checked || false,
+                toiletries: document.getElementById('bath-toiletries')?.checked || false,
+                towels: document.getElementById('bath-towels')?.checked || false,
+                robes: document.getElementById('bath-robes')?.checked || false
+            };
+            
             // Collect terms & policies
             const terms = {
                 checkin_from: document.getElementById('terms-checkin-from')?.value,
@@ -19106,7 +19132,7 @@ Local honey and preserves"></textarea>
                 const response = await fetch(`/api/admin/properties/${propertyId}/terms`, {
                     method: 'PUT',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ terms, beds })
+                    body: JSON.stringify({ terms, beds, bathrooms, bathroom_features })
                 });
                 
                 const result = await response.json();
@@ -19132,6 +19158,7 @@ Local honey and preserves"></textarea>
                 if (result.success && result.data) {
                     const terms = result.data.terms || {};
                     const beds = result.data.beds || [];
+                    const bathrooms = result.data.bathrooms || [];
                     
                     // Populate check-in/out (using database column names)
                     if (terms.checkin_from) document.getElementById('terms-checkin-from').value = terms.checkin_from;
@@ -19227,6 +19254,47 @@ Local honey and preserves"></textarea>
                             container.appendChild(row);
                         });
                     }
+                    
+                    // Bathrooms (using bathroom_type from database)
+                    if (bathrooms.length > 0) {
+                        const container = document.getElementById('bathroom-configuration');
+                        container.innerHTML = '';
+                        bathrooms.forEach((bathroom, index) => {
+                            const bathroomType = bathroom.bathroom_type || bathroom.type;
+                            const row = document.createElement('div');
+                            row.className = 'bathroom-row';
+                            row.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;';
+                            row.innerHTML = `
+                                <select class="form-input bathroom-type-select">
+                                    <option value="">Select bathroom type...</option>
+                                    <option value="full-ensuite" ${bathroomType === 'full-ensuite' ? 'selected' : ''}>Full Ensuite (Private, in room)</option>
+                                    <option value="half-ensuite" ${bathroomType === 'half-ensuite' ? 'selected' : ''}>Half Bath Ensuite (Toilet & Sink only)</option>
+                                    <option value="full-adjacent" ${bathroomType === 'full-adjacent' ? 'selected' : ''}>Full Adjacent (Private, outside room)</option>
+                                    <option value="full-shared" ${bathroomType === 'full-shared' ? 'selected' : ''}>Full Shared Bathroom</option>
+                                    <option value="half-shared" ${bathroomType === 'half-shared' ? 'selected' : ''}>Half Shared (Toilet & Sink only)</option>
+                                    <option value="outdoor-shower" ${bathroomType === 'outdoor-shower' ? 'selected' : ''}>Outdoor Shower</option>
+                                </select>
+                                <input type="number" class="form-input bathroom-qty" min="1" max="10" value="${bathroom.quantity || 1}" style="width: 80px;">
+                                <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);">✕</button>
+                            `;
+                            container.appendChild(row);
+                        });
+                    }
+                    
+                    // Bathroom features (from JSONB in property_terms)
+                    const bathFeatures = terms.bathroom_features || {};
+                    if (document.getElementById('bath-shower')) document.getElementById('bath-shower').checked = bathFeatures.shower || false;
+                    if (document.getElementById('bath-bathtub')) document.getElementById('bath-bathtub').checked = bathFeatures.bathtub || false;
+                    if (document.getElementById('bath-rainfall')) document.getElementById('bath-rainfall').checked = bathFeatures.rainfall || false;
+                    if (document.getElementById('bath-walkin')) document.getElementById('bath-walkin').checked = bathFeatures.walkin || false;
+                    if (document.getElementById('bath-jacuzzi')) document.getElementById('bath-jacuzzi').checked = bathFeatures.jacuzzi || false;
+                    if (document.getElementById('bath-bidet')) document.getElementById('bath-bidet').checked = bathFeatures.bidet || false;
+                    if (document.getElementById('bath-heated-floor')) document.getElementById('bath-heated-floor').checked = bathFeatures.heated_floor || false;
+                    if (document.getElementById('bath-double-vanity')) document.getElementById('bath-double-vanity').checked = bathFeatures.double_vanity || false;
+                    if (document.getElementById('bath-hairdryer')) document.getElementById('bath-hairdryer').checked = bathFeatures.hairdryer || false;
+                    if (document.getElementById('bath-toiletries')) document.getElementById('bath-toiletries').checked = bathFeatures.toiletries || false;
+                    if (document.getElementById('bath-towels')) document.getElementById('bath-towels').checked = bathFeatures.towels || false;
+                    if (document.getElementById('bath-robes')) document.getElementById('bath-robes').checked = bathFeatures.robes || false;
                 }
             } catch (error) {
                 console.error('Error loading property terms:', error);
