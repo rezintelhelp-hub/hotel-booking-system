@@ -25483,6 +25483,95 @@ app.get('/api/public/rooms/:roomId/occupancy-settings', async (req, res) => {
   }
 });
 
+// Get property terms and policies (PUBLIC API - for WordPress plugin)
+app.get('/api/public/property/:propertyId/terms', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    // Get terms from property_terms table
+    const termsResult = await pool.query(
+      'SELECT * FROM property_terms WHERE property_id = $1',
+      [propertyId]
+    );
+    
+    // Get property-level info (house rules, cancellation policy from properties table)
+    const propertyResult = await pool.query(
+      `SELECT 
+        house_rules, 
+        cancellation_policy, 
+        check_in_instructions, 
+        check_out_instructions,
+        check_in_time,
+        check_out_time
+      FROM properties WHERE id = $1`,
+      [propertyId]
+    );
+    
+    const terms = termsResult.rows[0] || {};
+    const property = propertyResult.rows[0] || {};
+    
+    // Build formatted response for WordPress
+    const response = {
+      check_in: {
+        from: terms.checkin_from || property.check_in_time || '15:00',
+        until: terms.checkin_until || '22:00',
+        self_checkin: terms.self_checkin || false,
+        is_24hr: terms.checkin_24hr || false,
+        instructions: property.check_in_instructions || null
+      },
+      check_out: {
+        by: terms.checkout_by || property.check_out_time || '11:00',
+        late_fee: terms.late_checkout_fee || null,
+        instructions: property.check_out_instructions || null
+      },
+      smoking: {
+        policy: terms.smoking_policy || 'no',
+        fine: terms.smoking_fine || null
+      },
+      pets: {
+        policy: terms.pet_policy || 'no',
+        deposit: terms.pet_deposit || null,
+        fee_per_night: terms.pet_fee_per_night || null,
+        dogs_allowed: terms.dogs_allowed || false,
+        cats_allowed: terms.cats_allowed || false,
+        small_pets_only: terms.small_pets_only || false,
+        max_pets: terms.max_pets || 0
+      },
+      children: {
+        policy: terms.children_policy || 'all',
+        cots_available: terms.cots_available || false,
+        highchairs_available: terms.highchairs_available || false,
+        cot_fee: terms.cot_fee_per_night || null
+      },
+      events: {
+        policy: terms.events_policy || 'no'
+      },
+      accessibility: {
+        wheelchair: terms.wheelchair_accessible || false,
+        step_free: terms.step_free_access || false,
+        accessible_bathroom: terms.accessible_bathroom || false,
+        grab_rails: terms.grab_rails || false,
+        roll_in_shower: terms.roll_in_shower || false,
+        elevator: terms.elevator_access || false,
+        ground_floor: terms.ground_floor_available || false
+      },
+      house_rules: {
+        quiet_hours_from: terms.quiet_hours_from || null,
+        quiet_hours_until: terms.quiet_hours_until || null,
+        no_outside_guests: terms.no_outside_guests || false,
+        id_required: terms.id_required || false,
+        additional_rules: terms.additional_rules || property.house_rules || null
+      },
+      cancellation_policy: property.cancellation_policy || null
+    };
+    
+    res.json({ success: true, data: response });
+  } catch (error) {
+    console.error('Public property terms error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get availability calendar (public)
 app.get('/api/public/availability/:unitId', async (req, res) => {
   try {
