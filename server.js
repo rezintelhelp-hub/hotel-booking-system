@@ -13926,11 +13926,13 @@ app.put('/api/db/properties/:id', async (req, res) => {
         longitude = COALESCE($10, longitude),
         account_id = COALESCE($11, account_id),
         currency = COALESCE($12, currency),
+        district = COALESCE($13, district),
+        zip_code = COALESCE($14, zip_code),
         updated_at = NOW()
-      WHERE id = $13
+      WHERE id = $15
       RETURNING *`,
       [name, description, address, city, country, property_type, status,
-       state, latitude, longitude, account_id, currency, id]
+       state, latitude, longitude, account_id, currency, district, zip_code, id]
     );
 
     res.json({ success: true, data: result.rows[0] });
