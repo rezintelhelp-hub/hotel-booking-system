@@ -20596,12 +20596,12 @@ app.put('/api/admin/units/:id', async (req, res) => {
       id
     ]);
     
-    // Update display_name separately if provided
-    if (display_name && display_name.trim()) {
+    // Update display_name separately if provided (save as plain text)
+    if (display_name !== undefined) {
       try {
         await pool.query(
           `UPDATE bookable_units SET display_name = $1 WHERE id = $2`,
-          [JSON.stringify({ en: display_name.trim() }), id]
+          [display_name && display_name.trim() ? display_name.trim() : null, id]
         );
       } catch (e) {
         console.log('display_name update skipped:', e.message);
