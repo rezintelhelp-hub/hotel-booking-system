@@ -25382,7 +25382,7 @@ app.get('/api/public/property/:propertyId', async (req, res) => {
     const { propertyId } = req.params;
     
     const property = await pool.query(`
-      SELECT id, name, property_type, description, city, country, currency, timezone
+      SELECT id, name, property_type, description, short_description, city, country, currency, timezone
       FROM properties WHERE id = $1
     `, [propertyId]);
     
@@ -25391,7 +25391,7 @@ app.get('/api/public/property/:propertyId', async (req, res) => {
     }
     
     const units = await pool.query(`
-      SELECT id, name, unit_type, max_guests, description, base_price
+      SELECT id, name, unit_type, max_guests, description, short_description, base_price
       FROM bookable_units WHERE property_id = $1 AND status = 'active'
       ORDER BY name
     `, [propertyId]);
