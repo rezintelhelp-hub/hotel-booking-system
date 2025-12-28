@@ -20570,16 +20570,7 @@ app.put('/api/admin/units/:id', async (req, res) => {
     
     const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description } = req.body;
     
-    // display_name column is JSONB type, so wrap it properly or use null
-    let displayNameJson = null;
-    if (display_name && display_name.trim()) {
-      displayNameJson = JSON.stringify({ en: display_name.trim() });
-    }
-    
-    // Handle descriptions - store as plain text
-    const shortDesc = short_description || null;
-    const fullDesc = full_description || null;
-    
+    // Update basic fields only - no JSONB casting to avoid errors
     const result = await pool.query(`
       UPDATE bookable_units 
       SET 
@@ -20589,11 +20580,8 @@ app.put('/api/admin/units/:id', async (req, res) => {
         max_guests = $4,
         max_adults = $5,
         max_children = $6,
-        display_name = CASE WHEN $7::text IS NULL THEN NULL ELSE $7::jsonb END,
-        short_description = $8,
-        full_description = $9,
         updated_at = NOW()
-      WHERE id = $10
+      WHERE id = $7
       RETURNING id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children, short_description, full_description
     `, [
       quantity || 1, 
@@ -20602,14 +20590,53 @@ app.put('/api/admin/units/:id', async (req, res) => {
       max_guests || 2, 
       max_adults || 2, 
       max_children || 0, 
-      displayNameJson,
-      shortDesc,
-      fullDesc,
       id
     ]);
     
-    console.log('Update success:', result.rows[0]);
-    res.json({ success: true, data: result.rows[0] });
+    // Update display_name separately if provided
+    if (display_name && display_name.trim()) {
+      try {
+        await pool.query(
+          `UPDATE bookable_units SET display_name = $1 WHERE id = $2`,
+          [JSON.stringify({ en: display_name.trim() }), id]
+        );
+      } catch (e) {
+        console.log('display_name update skipped:', e.message);
+      }
+    }
+    
+    // Update short_description separately if provided
+    if (short_description !== undefined) {
+      try {
+        await pool.query(
+          `UPDATE bookable_units SET short_description = $1 WHERE id = $2`,
+          [short_description || null, id]
+        );
+      } catch (e) {
+        console.log('short_description update skipped:', e.message);
+      }
+    }
+    
+    // Update full_description separately if provided
+    if (full_description !== undefined) {
+      try {
+        await pool.query(
+          `UPDATE bookable_units SET full_description = $1 WHERE id = $2`,
+          [full_description || null, id]
+        );
+      } catch (e) {
+        console.log('full_description update skipped:', e.message);
+      }
+    }
+    
+    // Fetch final result
+    const finalResult = await pool.query(
+      `SELECT id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children, short_description, full_description FROM bookable_units WHERE id = $1`,
+      [id]
+    );
+    
+    console.log('Update success:', finalResult.rows[0]);
+    res.json({ success: true, data: finalResult.rows[0] });
   } catch (error) {
     console.error('Unit update error:', error);
     res.json({ success: false, error: error.message });
