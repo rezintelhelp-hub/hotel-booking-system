@@ -379,18 +379,20 @@
     },
     {
       "id": "sup-001",
-      "title": "Knowledge Base - User Context",
-      "description": "Capture user email/account ID with unanswered questions for direct reply",
+      "title": "Knowledge Base - User Identification",
+      "description": "Capture user details with unanswered questions so we can respond directly",
       "priority": "high",
       "category": "support",
       "status": "todo",
       "subtasks": [
-        "Add account_id to unanswered questions",
-        "Capture user email if available",
-        "Reply to user from GAS Admin",
-        "Email notification to user when answered"
+        "If logged in: auto-capture account_id, email, name from currentAccount",
+        "If not logged in: prompt for email before submitting question",
+        "Store contact details with each unanswered question",
+        "Show user contact info in Unanswered queue",
+        "Reply button sends email to user with answer",
+        "Slack notification includes who asked (name/email)"
       ],
-      "notes": "Allows direct response to users who asked questions"
+      "notes": "No more 'contact hello@gas.travel' - we contact THEM"
     },
     {
       "id": "sup-002",
