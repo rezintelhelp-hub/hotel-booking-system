@@ -927,6 +927,27 @@ async function runMigrations() {
       console.log('ℹ️  vendor_permissions table:', vendorPermError.message);
     }
     
+    // Ensure vendors table has all columns (for existing tables)
+    try {
+      await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS website VARCHAR(255)`);
+      await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS contact_name VARCHAR(255)`);
+      await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS login_email VARCHAR(255)`);
+      await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS login_password_hash VARCHAR(255)`);
+      await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS login_token VARCHAR(255)`);
+      await pool.query(`ALTER TABLE vendors ADD COLUMN IF NOT EXISTS token_expires_at TIMESTAMP`);
+      console.log('✅ vendors columns ensured');
+    } catch (vendorColError) {
+      console.log('ℹ️  vendors columns:', vendorColError.message);
+    }
+    
+    // Ensure property_features has room_id column
+    try {
+      await pool.query(`ALTER TABLE property_features ADD COLUMN IF NOT EXISTS room_id INTEGER`);
+      console.log('✅ property_features.room_id ensured');
+    } catch (featRoomError) {
+      console.log('ℹ️  property_features.room_id:', featRoomError.message);
+    }
+    
     // Add vendor_id to upsells table
     try {
       await pool.query(`ALTER TABLE upsells ADD COLUMN IF NOT EXISTS is_external BOOLEAN DEFAULT false`);
@@ -20545,10 +20566,13 @@ app.put('/api/admin/units/:id', async (req, res) => {
     
     const { quantity, status, room_type, max_guests, max_adults, max_children, display_name, short_description, full_description } = req.body;
     
-    // display_name column is JSON type, so wrap it
-    const displayNameJson = display_name ? JSON.stringify({ en: display_name }) : null;
+    // display_name column is JSONB type, so wrap it properly or use null
+    let displayNameJson = null;
+    if (display_name && display_name.trim()) {
+      displayNameJson = JSON.stringify({ en: display_name.trim() });
+    }
     
-    // Handle descriptions - store as plain text to avoid JSONB issues
+    // Handle descriptions - store as plain text
     const shortDesc = short_description || null;
     const fullDesc = full_description || null;
     
@@ -20561,7 +20585,7 @@ app.put('/api/admin/units/:id', async (req, res) => {
         max_guests = $4,
         max_adults = $5,
         max_children = $6,
-        display_name = $7,
+        display_name = $7::jsonb,
         short_description = $8,
         full_description = $9,
         updated_at = NOW()
