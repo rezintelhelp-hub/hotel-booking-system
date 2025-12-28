@@ -12456,7 +12456,7 @@ Local honey and preserves"></textarea>
                         </div>
                         <div class="form-group" style="grid-column: 1 / -1;">
                             <label class="form-label">Country</label>
-                            <select class="form-input" id="edit-property-country">
+                            <select class="form-input" id="edit-property-country" onchange="autoSetCurrencyFromCountry()">
                                 <option value="">Select country...</option>
                                 <option value="GB">🇬🇧 United Kingdom</option>
                                 <option value="US">🇺🇸 United States</option>
@@ -12485,6 +12485,27 @@ Local honey and preserves"></textarea>
                                 <option value="NO">🇳🇴 Norway</option>
                                 <option value="DK">🇩🇰 Denmark</option>
                                 <option value="FI">🇫🇮 Finland</option>
+                                <option value="ID">🇮🇩 Indonesia</option>
+                                <option value="MY">🇲🇾 Malaysia</option>
+                                <option value="SG">🇸🇬 Singapore</option>
+                                <option value="PH">🇵🇭 Philippines</option>
+                                <option value="VN">🇻🇳 Vietnam</option>
+                                <option value="IN">🇮🇳 India</option>
+                                <option value="ZA">🇿🇦 South Africa</option>
+                                <option value="MX">🇲🇽 Mexico</option>
+                                <option value="BR">🇧🇷 Brazil</option>
+                                <option value="AR">🇦🇷 Argentina</option>
+                                <option value="CO">🇨🇴 Colombia</option>
+                                <option value="TR">🇹🇷 Turkey</option>
+                                <option value="EG">🇪🇬 Egypt</option>
+                                <option value="MA">🇲🇦 Morocco</option>
+                                <option value="KE">🇰🇪 Kenya</option>
+                                <option value="MU">🇲🇺 Mauritius</option>
+                                <option value="MV">🇲🇻 Maldives</option>
+                                <option value="LK">🇱🇰 Sri Lanka</option>
+                                <option value="CN">🇨🇳 China</option>
+                                <option value="KR">🇰🇷 South Korea</option>
+                                <option value="TW">🇹🇼 Taiwan</option>
                             </select>
                         </div>
                     </div>
@@ -18489,6 +18510,13 @@ Local honey and preserves"></textarea>
                                                     <option value="SGD" ${prop.currency === 'SGD' ? 'selected' : ''}>$ SGD</option>
                                                     <option value="MYR" ${prop.currency === 'MYR' ? 'selected' : ''}>RM MYR</option>
                                                     <option value="INR" ${prop.currency === 'INR' ? 'selected' : ''}>₹ INR</option>
+                                                    <option value="IDR" ${prop.currency === 'IDR' ? 'selected' : ''}>Rp IDR</option>
+                                                    <option value="PHP" ${prop.currency === 'PHP' ? 'selected' : ''}>₱ PHP</option>
+                                                    <option value="VND" ${prop.currency === 'VND' ? 'selected' : ''}>₫ VND</option>
+                                                    <option value="CNY" ${prop.currency === 'CNY' ? 'selected' : ''}>¥ CNY</option>
+                                                    <option value="KRW" ${prop.currency === 'KRW' ? 'selected' : ''}>₩ KRW</option>
+                                                    <option value="MXN" ${prop.currency === 'MXN' ? 'selected' : ''}>$ MXN</option>
+                                                    <option value="BRL" ${prop.currency === 'BRL' ? 'selected' : ''}>R$ BRL</option>
                                                 </select>
                                             </td>
                                             <td>
@@ -27701,6 +27729,31 @@ Local honey and preserves"></textarea>
         let propertyMap = null;
         let propertyMarker = null;
 
+        // Country to currency mapping
+        const countryCurrencyMap = {
+            'GB': 'GBP', 'US': 'USD', 'CH': 'CHF', 'DE': 'EUR', 'FR': 'EUR', 
+            'IT': 'EUR', 'ES': 'EUR', 'NL': 'EUR', 'AT': 'EUR', 'PT': 'EUR', 
+            'BE': 'EUR', 'IE': 'EUR', 'AU': 'AUD', 'NZ': 'NZD', 'CA': 'CAD', 
+            'AE': 'AED', 'JP': 'JPY', 'TH': 'THB', 'GR': 'EUR', 'HR': 'EUR', 
+            'CZ': 'CZK', 'PL': 'PLN', 'HU': 'HUF', 'SE': 'SEK', 'NO': 'NOK', 
+            'DK': 'DKK', 'FI': 'EUR', 'ID': 'IDR', 'MY': 'MYR', 'SG': 'SGD', 
+            'PH': 'PHP', 'VN': 'VND', 'IN': 'INR', 'ZA': 'ZAR', 'MX': 'MXN', 
+            'BR': 'BRL', 'AR': 'ARS', 'CO': 'COP', 'TR': 'TRY', 'EG': 'EGP', 
+            'MA': 'MAD', 'KE': 'KES', 'MU': 'MUR', 'MV': 'MVR', 'LK': 'LKR', 
+            'CN': 'CNY', 'KR': 'KRW', 'TW': 'TWD'
+        };
+
+        function autoSetCurrencyFromCountry() {
+            const countryCode = document.getElementById('edit-property-country').value;
+            const propertyId = document.getElementById('edit-property-id').value;
+            
+            if (countryCode && propertyId && countryCurrencyMap[countryCode]) {
+                const currency = countryCurrencyMap[countryCode];
+                // Auto-update the currency in database
+                updatePropertyCurrency(propertyId, currency);
+            }
+        }
+
         async function updatePropertyCurrency(propertyId, currency) {
             try {
                 const response = await fetch(`/api/db/properties/${propertyId}`, {
@@ -35777,6 +35830,14 @@ Local honey and preserves"></textarea>
                     content: msg.content
                 }));
                 
+                // Get user details if logged in
+                const userDetails = currentAccount ? {
+                    account_id: currentAccount.id,
+                    email: currentAccount.email,
+                    name: currentAccount.name || currentAccount.company_name,
+                    role: currentAccount.role
+                } : null;
+                
                 // Use server proxy
                 const response = await fetch('/api/ai-chat', {
                     method: 'POST',
@@ -35784,7 +35845,8 @@ Local honey and preserves"></textarea>
                     body: JSON.stringify({
                         message,
                         context: currentView,
-                        history: historyForAPI.slice(-10) // Last 10 messages
+                        history: historyForAPI.slice(-10), // Last 10 messages
+                        user: userDetails
                     })
                 });
                 
