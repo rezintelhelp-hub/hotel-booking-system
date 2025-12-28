@@ -28172,9 +28172,9 @@ Local honey and preserves"></textarea>
                 const result = await response.json();
                 if (result.success) {
                     if (type === 'short') {
-                        document.getElementById('edit-room-short-desc').value = result.content;
+                        document.getElementById('edit-room-short-description').value = result.content;
                     } else {
-                        document.getElementById('edit-room-full-desc').value = result.content;
+                        document.getElementById('edit-room-full-description').value = result.content;
                     }
                 } else {
                     alert('Error: ' + result.error);
