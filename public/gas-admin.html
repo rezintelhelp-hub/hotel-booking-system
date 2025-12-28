@@ -10341,13 +10341,30 @@ Local honey and preserves"></textarea>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Professional booking-ready theme</div>
                             </div>
                         </label>
-                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                        <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; margin-bottom: 0.75rem;">
                             <input type="checkbox" id="deploy-use-plugin" checked style="width: 18px; height: 18px;">
                             <div>
                                 <div style="font-weight: 500;">Install GAS Booking Plugin</div>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Calendar, availability & booking system</div>
                             </div>
                         </label>
+                        <div style="border-top: 1px solid var(--border); margin-top: 0.75rem; padding-top: 0.75rem;">
+                            <div style="font-size: 0.85rem; font-weight: 500; color: var(--text-secondary); margin-bottom: 0.5rem;">📄 Additional Pages</div>
+                            <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer; margin-bottom: 0.5rem;">
+                                <input type="checkbox" id="deploy-enable-blog" style="width: 18px; height: 18px;">
+                                <div>
+                                    <div style="font-weight: 500;">Enable Blog</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Add blog page with GAS Blog plugin</div>
+                                </div>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.75rem; cursor: pointer;">
+                                <input type="checkbox" id="deploy-enable-attractions" style="width: 18px; height: 18px;">
+                                <div>
+                                    <div style="font-weight: 500;">Enable Things To Do</div>
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Add attractions page with GAS Attractions plugin</div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                     <small style="color: var(--text-secondary); margin-top: 0.5rem; display: block;">Uncheck to use your own theme/plugin instead</small>
                 </div>
@@ -20931,6 +20948,8 @@ Local honey and preserves"></textarea>
             // Get template options
             const useTheme = document.getElementById('deploy-use-theme').checked;
             const usePlugin = document.getElementById('deploy-use-plugin').checked;
+            const enableBlog = document.getElementById('deploy-enable-blog').checked;
+            const enableAttractions = document.getElementById('deploy-enable-attractions').checked;
             const selectedTemplate = document.querySelector('input[name="deploy-template"]:checked')?.value || 'developer-light';
             
             try {
@@ -20947,7 +20966,9 @@ Local honey and preserves"></textarea>
                         account_id: selectedAccountId,
                         use_theme: useTheme,
                         use_plugin: usePlugin,
-                        template: selectedTemplate
+                        template: selectedTemplate,
+                        enable_blog: enableBlog,
+                        enable_attractions: enableAttractions
                     })
                 });
                 
