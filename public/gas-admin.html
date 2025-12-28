@@ -20981,10 +20981,17 @@ Local honey and preserves"></textarea>
                     document.getElementById('deploy-result-content').innerHTML = resultHtml;
                     document.getElementById('deploy-submit-btn').textContent = '✅ Done';
                     document.getElementById('deploy-submit-btn').disabled = false;
-                    document.getElementById('deploy-submit-btn').onclick = function() { closeModal('deployModal'); };
+                    document.getElementById('deploy-submit-btn').onclick = function() { 
+                        closeModal('deployModal'); 
+                        // Navigate to Deployed Sites view to see the new site
+                        const deployedSitesNav = document.querySelector('[data-view="deployed-sites"]');
+                        if (deployedSitesNav) {
+                            navClick(deployedSitesNav, 'deployed-sites');
+                        }
+                    };
                     
                     showNotification('Site deployed successfully!', 'success');
-                    loadDeployedSites();
+                    loadDeployedSites(); // Refresh the list
                 } else {
                     document.getElementById('deploy-submit-btn').disabled = false;
                     showNotification(data.error || 'Deployment failed', 'error');
