@@ -1002,6 +1002,34 @@ async function runMigrations() {
       console.log('ℹ️  vendor_service_requests table:', vendorRequestError.message);
     }
     
+    // Property bathrooms table (like property_beds but for bathrooms)
+    try {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS property_bathrooms (
+          id SERIAL PRIMARY KEY,
+          property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+          room_id INTEGER REFERENCES bookable_units(id) ON DELETE CASCADE,
+          bathroom_type VARCHAR(50) NOT NULL,
+          quantity INTEGER DEFAULT 1,
+          display_order INTEGER DEFAULT 0,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_property_bathrooms_property ON property_bathrooms(property_id)`);
+      await pool.query(`CREATE INDEX IF NOT EXISTS idx_property_bathrooms_room ON property_bathrooms(room_id)`);
+      console.log('✅ property_bathrooms table ensured');
+    } catch (bathroomsTableError) {
+      console.log('ℹ️  property_bathrooms table:', bathroomsTableError.message);
+    }
+    
+    // Add bathroom_features JSONB column to property_terms
+    try {
+      await pool.query(`ALTER TABLE property_terms ADD COLUMN IF NOT EXISTS bathroom_features JSONB`);
+      console.log('✅ property_terms.bathroom_features column ensured');
+    } catch (bathroomFeaturesError) {
+      console.log('ℹ️  property_terms.bathroom_features:', bathroomFeaturesError.message);
+    }
+    
   } catch (error) {
     console.error('Migration runner error:', error.message);
   }
@@ -11836,7 +11864,9 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'trust-2': 'trust_2',
       'trust-3': 'trust_3',
       // Search
-      'search-btn-bg': 'search_btn_bg'
+      'search-btn-bg': 'search_btn_bg',
+      // Favicon
+      'favicon-image-url': 'site_icon'
     };
     
     // Transform settings keys
@@ -23289,11 +23319,18 @@ app.get('/api/admin/properties/:id/terms', async (req, res) => {
       [propertyId]
     );
     
+    // Get bathrooms
+    const bathroomsResult = await pool.query(
+      'SELECT bathroom_type, quantity FROM property_bathrooms WHERE property_id = $1 AND room_id IS NULL ORDER BY display_order',
+      [propertyId]
+    );
+    
     res.json({
       success: true,
       data: {
         terms: termsResult.rows[0] || null,
-        beds: bedsResult.rows || []
+        beds: bedsResult.rows || [],
+        bathrooms: bathroomsResult.rows || []
       }
     });
   } catch (error) {
@@ -23307,7 +23344,7 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
   const client = await pool.connect();
   try {
     const propertyId = req.params.id;
-    const { terms, beds } = req.body;
+    const { terms, beds, bathrooms, bathroom_features } = req.body;
     
     await client.query('BEGIN');
     
@@ -23325,8 +23362,8 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         wheelchair_accessible, step_free_access, accessible_bathroom,
         grab_rails, roll_in_shower, elevator_access, ground_floor_available,
         quiet_hours_from, quiet_hours_until, no_outside_guests, id_required,
-        additional_rules
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33)
+        additional_rules, bathroom_features
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32, $33, $34)
       ON CONFLICT (property_id) DO UPDATE SET
         checkin_from = EXCLUDED.checkin_from,
         checkin_until = EXCLUDED.checkin_until,
@@ -23360,6 +23397,7 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
         no_outside_guests = EXCLUDED.no_outside_guests,
         id_required = EXCLUDED.id_required,
         additional_rules = EXCLUDED.additional_rules,
+        bathroom_features = EXCLUDED.bathroom_features,
         updated_at = CURRENT_TIMESTAMP
     `, [
       propertyId,
@@ -23394,7 +23432,8 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
       terms.quiet_hours_until || '08:00',
       terms.no_outside_guests || false,
       terms.id_required || false,
-      terms.additional_rules || null
+      terms.additional_rules || null,
+      bathroom_features ? JSON.stringify(bathroom_features) : null
     ]);
     
     // Update beds - delete existing property-level beds and insert new
@@ -23407,6 +23446,21 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
           await client.query(
             'INSERT INTO property_beds (property_id, bed_type, quantity, display_order) VALUES ($1, $2, $3, $4)',
             [propertyId, bed.type, bed.quantity || 1, i]
+          );
+        }
+      }
+    }
+    
+    // Update bathrooms - delete existing property-level bathrooms and insert new
+    if (bathrooms && Array.isArray(bathrooms)) {
+      await client.query('DELETE FROM property_bathrooms WHERE property_id = $1 AND room_id IS NULL', [propertyId]);
+      
+      for (let i = 0; i < bathrooms.length; i++) {
+        const bathroom = bathrooms[i];
+        if (bathroom.type) {
+          await client.query(
+            'INSERT INTO property_bathrooms (property_id, bathroom_type, quantity, display_order) VALUES ($1, $2, $3, $4)',
+            [propertyId, bathroom.type, bathroom.quantity || 1, i]
           );
         }
       }
