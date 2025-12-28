@@ -11915,7 +11915,7 @@ app.get('/api/deploy/sites', async (req, res) => {
 // Deploy a new site (room-level selection)
 app.post('/api/deploy/create', async (req, res) => {
   try {
-    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin, template } = req.body;
+    const { site_name, slug, admin_email, account_id, room_ids, rooms, property_ids, use_theme, use_plugin, template, enable_blog, enable_attractions } = req.body;
     
     // Validate required fields
     if (!site_name || !slug || !admin_email) {
@@ -11989,7 +11989,9 @@ app.post('/api/deploy/create', async (req, res) => {
         use_theme: use_theme !== false,
         use_plugin: use_plugin !== false,
         theme: wpTheme,
-        template: selectedTemplate
+        template: selectedTemplate,
+        enable_blog: enable_blog === true,
+        enable_attractions: enable_attractions === true
       })
     });
     
