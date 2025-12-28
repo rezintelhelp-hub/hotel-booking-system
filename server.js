@@ -11815,10 +11815,10 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'overlay-color': 'overlay_color',
       'overlay': 'opacity',
       'height': 'height',
-      'badge-text': 'badge',
-      'badge-link': 'badge_link',
+      'button-text': 'badge',
+      'button-link': 'badge_link',
       'badge-bg': 'badge_bg',
-      'badge-text-color': 'badge_text',
+      'badge-text': 'badge_text',
       'badge-border': 'badge_border',
       // Header section - these get developer_header_ prefix from WP
       'logo-image-url': 'logo_image',
@@ -11830,6 +11830,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'sticky': 'sticky',
       'cta-text': 'cta_text',
       'cta-bg': 'cta_bg',
+      'cta-text-color': 'cta_text_color',
       // Trust badges
       'trust-1': 'trust_1',
       'trust-2': 'trust_2',
