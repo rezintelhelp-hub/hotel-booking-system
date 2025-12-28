@@ -1,5 +1,5 @@
 {
-  "updated": "2025-12-22",
+  "updated": "2025-12-28",
   "categories": [
     {
       "id": "critical",
@@ -54,6 +54,12 @@
       "name": "Operations & Infrastructure",
       "icon": "⚙️",
       "description": "Docs, support, monitoring"
+    },
+    {
+      "id": "support",
+      "name": "Support & Knowledge Base",
+      "icon": "🧳",
+      "description": "Gus AI assistant, KB, help system"
     }
   ],
   "tasks": [
@@ -68,11 +74,11 @@
         "Agent registration/approval flow",
         "Agent dashboard with bookings",
         "Commission rates per property",
-        "Agent-specific pricing tiers",
+        "Agent-specific pricing tiers (already built)",
         "Booking attribution tracking",
         "Commission reporting"
       ],
-      "notes": "Major revenue channel - agents bring bookings"
+      "notes": "Major revenue channel - agents bring bookings. Pricing tiers done Dec 27."
     },
     {
       "id": "rev-002",
@@ -105,6 +111,25 @@
       "status": "todo"
     },
     {
+      "id": "rev-005",
+      "title": "Usage-Based Pricing Model",
+      "description": "Free signup and room uploads, paid features based on usage/volume",
+      "priority": "high",
+      "category": "revenue",
+      "status": "todo",
+      "subtasks": [
+        "Define free tier (signup, add rooms/properties, basic CM connect)",
+        "Paid features: websites, blog, attractions, SEO tools, templates",
+        "Usage metrics: bookings processed, websites deployed, API calls",
+        "Volume tiers: small (1-5 properties), medium (6-20), large (21+)",
+        "Per-booking fee option vs monthly subscription",
+        "Metering/tracking system for usage",
+        "Billing dashboard showing usage vs limits",
+        "Upgrade prompts when hitting limits"
+      ],
+      "notes": "Freemium model - get them in free, monetize on value-add features and scale"
+    },
+    {
       "id": "partner-001",
       "title": "Elevate Integration Testing",
       "description": "Work with Elevate to test Partner API end-to-end",
@@ -126,6 +151,21 @@
         "Retry logic for failed deliveries",
         "Webhook logs in admin"
       ]
+    },
+    {
+      "id": "partner-003",
+      "title": "Beds24 Wizard - Large Groups Support",
+      "description": "Allow users to add V1 and V2 API keys first, then add property keys/webhooks later",
+      "priority": "high",
+      "category": "partners",
+      "status": "todo",
+      "subtasks": [
+        "Simplified initial setup with just API keys",
+        "Property key addition wizard (post-signup)",
+        "Webhook configuration wizard",
+        "Bulk property import from API keys"
+      ],
+      "notes": "Current wizard works for individuals but not large hotel groups with many properties"
     },
     {
       "id": "crit-001",
@@ -181,6 +221,34 @@
       "priority": "medium",
       "category": "website-builder",
       "status": "todo"
+    },
+    {
+      "id": "wb-004",
+      "title": "Social Media Integration",
+      "description": "Connect social media accounts, auto-post content, display feeds on websites",
+      "priority": "medium",
+      "category": "website-builder",
+      "status": "todo",
+      "subtasks": [
+        "Facebook/Instagram connect",
+        "Auto-post new blog posts",
+        "Social feed widget for sites",
+        "Share buttons on content"
+      ]
+    },
+    {
+      "id": "wb-005",
+      "title": "GoDaddy Integration",
+      "description": "Domain and email service integration with GoDaddy",
+      "priority": "medium",
+      "category": "website-builder",
+      "status": "todo",
+      "subtasks": [
+        "Custom domain setup wizard",
+        "DNS configuration automation",
+        "Email service provisioning",
+        "SSL certificate management"
+      ]
     },
     {
       "id": "pay-001",
@@ -294,17 +362,44 @@
     },
     {
       "id": "app-005",
-      "title": "iCal/Google Cal Lite CM",
+      "title": "iCal/Google Cal Wizards",
       "description": "Simple channel manager via calendar feeds for hosts without Beds24",
-      "priority": "medium",
+      "priority": "high",
       "category": "apps",
       "status": "todo",
       "subtasks": [
-        "Import iCal from Airbnb, VRBO, Booking.com",
+        "iCal import wizard (Airbnb, VRBO, Booking.com)",
+        "Google Calendar connect wizard",
         "Export GAS availability as iCal",
         "Auto-refresh every 15 mins",
-        "Conflict detection"
-      ]
+        "Conflict detection",
+        "Two-way sync option"
+      ],
+      "notes": "Key for onboarding hosts without full channel manager"
+    },
+    {
+      "id": "sup-001",
+      "title": "Knowledge Base - User Context",
+      "description": "Capture user email/account ID with unanswered questions for direct reply",
+      "priority": "high",
+      "category": "support",
+      "status": "todo",
+      "subtasks": [
+        "Add account_id to unanswered questions",
+        "Capture user email if available",
+        "Reply to user from GAS Admin",
+        "Email notification to user when answered"
+      ],
+      "notes": "Allows direct response to users who asked questions"
+    },
+    {
+      "id": "sup-002",
+      "title": "Slack Reply → KB Integration",
+      "description": "Reply in Slack thread auto-adds to Knowledge Base",
+      "priority": "medium",
+      "category": "support",
+      "status": "in-progress",
+      "notes": "Endpoint built, needs Slack app reinstall to workspace"
     },
     {
       "id": "ops-001",
@@ -349,6 +444,79 @@
     }
   ],
   "completed": [
+    {
+      "id": "done-050",
+      "title": "Gus AI Support Chat Widget",
+      "description": "AI-powered support chat with Gus mascot, draggable widget, context-aware navigation, knowledge base integration",
+      "category": "support",
+      "completed": "2025-12-28",
+      "details": "Custom suitcase mascot, updates quick buttons per section, acknowledges navigation changes"
+    },
+    {
+      "id": "done-049",
+      "title": "Knowledge Base System",
+      "description": "Database-driven KB with articles, categories, unanswered questions queue, search",
+      "category": "support",
+      "completed": "2025-12-28",
+      "details": "Articles imported, AI searches KB for answers, logs unanswered to database"
+    },
+    {
+      "id": "done-048",
+      "title": "Slack Notifications for Gus",
+      "description": "When Gus can't answer, sends formatted notification to Slack with question details",
+      "category": "support",
+      "completed": "2025-12-28",
+      "details": "Shows question, section, ID, link to GAS Admin"
+    },
+    {
+      "id": "done-047",
+      "title": "SEO Analytics - Filter Deleted Sites",
+      "description": "Fixed dropdown to only show sites that exist in deployed_sites (not deleted)",
+      "category": "ui",
+      "completed": "2025-12-28"
+    },
+    {
+      "id": "done-046",
+      "title": "Le Macassar Site Deployed",
+      "description": "New property site with auto GA4/Search Console registration working",
+      "category": "website-builder",
+      "completed": "2025-12-28"
+    },
+    {
+      "id": "done-045",
+      "title": "Corporate Pricing - Hide Discount Badges",
+      "description": "Corporate and Agent tiers show clean pricing without Save X% badges",
+      "category": "revenue",
+      "completed": "2025-12-27"
+    },
+    {
+      "id": "done-044",
+      "title": "WordPress Pricing Tier Sync",
+      "description": "Pricing tier changes in GAS Admin push to WordPress sites via gas-api.php",
+      "category": "partners",
+      "completed": "2025-12-27"
+    },
+    {
+      "id": "done-043",
+      "title": "Currency Auto-Detection",
+      "description": "Properties imported from Beds24 auto-detect currency from country",
+      "category": "partners",
+      "completed": "2025-12-27"
+    },
+    {
+      "id": "done-042",
+      "title": "Property ID & Currency Columns",
+      "description": "Added ID column (code badge) and editable Currency dropdown to Properties table",
+      "category": "ui",
+      "completed": "2025-12-27"
+    },
+    {
+      "id": "done-041",
+      "title": "Blog & Attractions Wizard Fixes",
+      "description": "Fixed wizard to create IDEAS first, category persistence, duplicate prevention",
+      "category": "apps",
+      "completed": "2025-12-27"
+    },
     {
       "id": "done-040",
       "title": "Partner API System",
