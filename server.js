@@ -11935,7 +11935,7 @@ app.post('/api/deploy/create', async (req, res) => {
     
     // Determine theme based on template
     const selectedTemplate = template || 'developer-light';
-    const wpTheme = selectedTemplate === 'developer-dark' ? 'gas-theme-developer-dark' : 'gas-theme-developer';
+    const wpTheme = selectedTemplate === 'developer-dark' ? 'gas-theme-developer-dark' : 'gas-theme-developer-light';
     
     // Get unique property IDs from selected rooms
     const uniquePropertyIds = property_ids || [...new Set(rooms.map(r => r.property_id))];
