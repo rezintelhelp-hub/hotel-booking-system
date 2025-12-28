@@ -11848,7 +11848,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
     const response = await fetch('https://sites.gas.travel/gas-api.php', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'X-API-Key': 'gas-deploy-2024-secure-key',
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
@@ -31425,25 +31425,21 @@ app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
       }
     });
     
-    // Get WordPress API settings
-    const wpSettings = await pool.query('SELECT api_key FROM instawp_settings LIMIT 1');
-    const apiKey = wpSettings.rows[0]?.api_key;
-    
-    if (!apiKey) {
-      return res.json({ success: false, error: 'WordPress API not configured' });
-    }
+    // Get WordPress API settings - use deploy key directly
+    const deployKey = 'gas-deploy-2024-secure-key';
     
     // Push to WordPress
     const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${apiKey}`,
+        'X-API-Key': deployKey,
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        action: 'sync_theme_mods',
+        action: 'update_settings',
         site_url: website.site_url,
-        theme_mods: allSettings
+        section: sections ? sections[0] : 'hero',
+        settings: allSettings
       })
     });
     
