@@ -20626,36 +20626,39 @@ app.put('/api/admin/units/:id', async (req, res) => {
       id
     ]);
     
-    // Update display_name separately if provided (save as plain text)
+    // Update display_name separately if provided (save as JSON for JSONB column)
     if (display_name !== undefined) {
       try {
+        const jsonValue = display_name && display_name.trim() ? JSON.stringify({ en: display_name.trim() }) : null;
         await pool.query(
           `UPDATE bookable_units SET display_name = $1 WHERE id = $2`,
-          [display_name && display_name.trim() ? display_name.trim() : null, id]
+          [jsonValue, id]
         );
       } catch (e) {
         console.log('display_name update skipped:', e.message);
       }
     }
     
-    // Update short_description separately if provided
+    // Update short_description separately if provided (save as JSON for JSONB column)
     if (short_description !== undefined) {
       try {
+        const jsonValue = short_description ? JSON.stringify({ en: short_description }) : null;
         await pool.query(
           `UPDATE bookable_units SET short_description = $1 WHERE id = $2`,
-          [short_description || null, id]
+          [jsonValue, id]
         );
       } catch (e) {
         console.log('short_description update skipped:', e.message);
       }
     }
     
-    // Update full_description separately if provided
+    // Update full_description separately if provided (save as JSON for JSONB column)
     if (full_description !== undefined) {
       try {
+        const jsonValue = full_description ? JSON.stringify({ en: full_description }) : null;
         await pool.query(
           `UPDATE bookable_units SET full_description = $1 WHERE id = $2`,
-          [full_description || null, id]
+          [jsonValue, id]
         );
       } catch (e) {
         console.log('full_description update skipped:', e.message);
