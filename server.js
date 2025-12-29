@@ -30593,17 +30593,17 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                         surface: branding.surface_color || '#f8fafc'
                     },
                     header: {
-                        bg_color: branding.header_bg_color || '#ffffff',
-                        text_color: branding.header_text_color || '#1e293b',
-                        sticky: branding.header_sticky !== false,
-                        transparent_home: branding.header_transparent_home || false
+                        bg_color: websiteSettings.header?.['bg-color'] || branding.header_bg_color || '#ffffff',
+                        text_color: websiteSettings.header?.['text-color'] || branding.header_text_color || '#1e293b',
+                        sticky: websiteSettings.header?.sticky !== undefined ? websiteSettings.header.sticky : (branding.header_sticky !== false),
+                        transparent_home: websiteSettings.header?.transparent !== undefined ? websiteSettings.header.transparent : (branding.header_transparent_home || false)
                     },
                     footer: {
-                        bg_color: branding.footer_bg_color || '#0f172a',
-                        text_color: branding.footer_text_color || '#ffffff',
+                        bg_color: websiteSettings.footer?.bg || branding.footer_bg_color || '#0f172a',
+                        text_color: websiteSettings.footer?.text || branding.footer_text_color || '#ffffff',
                         link_color: branding.footer_link_color || '#94a3b8',
                         link_hover_color: branding.footer_link_hover_color || '#ffffff',
-                        copyright: branding.copyright_text || `© ${new Date().getFullYear()} ${contact.business_name || 'All rights reserved'}`
+                        copyright: websiteSettings.footer?.copyright || branding.copyright_text || `© ${new Date().getFullYear()} ${contact.business_name || 'All rights reserved'}`
                     },
                     buttons: {
                         primary_bg: branding.button_primary_bg || branding.primary_color || '#2563eb',
