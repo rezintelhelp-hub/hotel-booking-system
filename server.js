@@ -29704,6 +29704,103 @@ app.get('/api/admin/content-ideas', async (req, res) => {
     }
 });
 
+// Generate FAQ schemas with AI
+app.post('/api/admin/generate-faqs', async (req, res) => {
+    try {
+        const { page_type, business_name, account_id } = req.body;
+        
+        if (!page_type) {
+            return res.json({ success: false, error: 'Page type required' });
+        }
+        
+        // Get business context if account_id provided
+        let businessContext = business_name || 'a vacation rental property';
+        
+        if (account_id) {
+            const accountResult = await pool.query(
+                'SELECT business_name, city, country FROM accounts WHERE id = $1',
+                [account_id]
+            );
+            if (accountResult.rows[0]) {
+                const acc = accountResult.rows[0];
+                businessContext = acc.business_name || business_name || 'our property';
+                if (acc.city) businessContext += ` in ${acc.city}`;
+                if (acc.country) businessContext += `, ${acc.country}`;
+            }
+        }
+        
+        const pageContexts = {
+            'homepage': `the homepage of ${businessContext}, a vacation rental website`,
+            'accommodation/rooms': `the rooms and accommodation page of ${businessContext}`,
+            'about us': `the about us page of ${businessContext}`,
+            'photo gallery': `the photo gallery page of ${businessContext}`,
+            'blog': `the blog page of ${businessContext}`,
+            'local attractions and things to do': `the local attractions and things to do page near ${businessContext}`,
+            'restaurant and dining': `the restaurant and dining options at or near ${businessContext}`,
+            'contact information': `the contact page of ${businessContext}`,
+            'terms and conditions': `the terms and conditions page for booking at ${businessContext}`,
+            'privacy policy': `the privacy policy page of ${businessContext}`
+        };
+        
+        const context = pageContexts[page_type] || `the ${page_type} page of ${businessContext}`;
+        
+        const prompt = `Generate 5 frequently asked questions (FAQs) for ${context}.
+
+These FAQs will be used as structured data (FAQ schema) for SEO purposes.
+
+Requirements:
+- Questions should be what real guests/visitors would ask
+- Answers should be helpful, concise (2-3 sentences max), and professional
+- Focus on practical information guests need
+- Avoid generic filler content
+
+Return ONLY a valid JSON array with this exact structure, no other text:
+[
+  {"question": "Question here?", "answer": "Answer here."},
+  {"question": "Question here?", "answer": "Answer here."}
+]`;
+
+        const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 2000,
+            messages: [{ role: 'user', content: prompt }]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
+        });
+        
+        const responseText = claudeResponse.data.content[0].text;
+        
+        // Extract JSON from response
+        let faqs;
+        try {
+            // Try to parse directly
+            faqs = JSON.parse(responseText);
+        } catch (e) {
+            // Try to extract JSON from response
+            const jsonMatch = responseText.match(/\[[\s\S]*\]/);
+            if (jsonMatch) {
+                faqs = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('Could not parse FAQ response');
+            }
+        }
+        
+        if (!Array.isArray(faqs)) {
+            throw new Error('Invalid FAQ format');
+        }
+        
+        res.json({ success: true, faqs });
+        
+    } catch (error) {
+        console.error('Error generating FAQs:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Generate content ideas with AI
 app.post('/api/admin/content-ideas/generate', async (req, res) => {
     try {
@@ -30485,6 +30582,14 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         // Add/merge terms page from website_settings
         const termsSettings = websiteSettings['page-terms'] || {};
         if (Object.keys(termsSettings).length > 0 || !pagesObject['terms']) {
+            // Parse FAQs if stored as JSON string
+            let termsFaqs = [];
+            try {
+                if (termsSettings.faqs) {
+                    termsFaqs = typeof termsSettings.faqs === 'string' ? JSON.parse(termsSettings.faqs) : termsSettings.faqs;
+                }
+            } catch (e) { console.error('Error parsing terms FAQs:', e); }
+            
             pagesObject['terms'] = {
                 ...(pagesObject['terms'] || {}),
                 page_type: 'terms',
@@ -30493,6 +30598,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 meta_title: termsSettings['meta-title'] || pagesObject['terms']?.meta_title || '',
                 meta_description: termsSettings['meta-description'] || pagesObject['terms']?.meta_description || '',
                 updated_date: termsSettings.updated || null,
+                faq_enabled: termsSettings['faq-enabled'] !== false,
+                faqs: termsFaqs,
                 sections: {
                     booking: {
                         enabled: termsSettings['booking-enabled'] !== false,
@@ -30540,6 +30647,14 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         // Add/merge privacy page from website_settings
         const privacySettings = websiteSettings['page-privacy'] || {};
         if (Object.keys(privacySettings).length > 0 || !pagesObject['privacy']) {
+            // Parse FAQs if stored as JSON string
+            let privacyFaqs = [];
+            try {
+                if (privacySettings.faqs) {
+                    privacyFaqs = typeof privacySettings.faqs === 'string' ? JSON.parse(privacySettings.faqs) : privacySettings.faqs;
+                }
+            } catch (e) { console.error('Error parsing privacy FAQs:', e); }
+            
             pagesObject['privacy'] = {
                 ...(pagesObject['privacy'] || {}),
                 page_type: 'privacy',
@@ -30549,6 +30664,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 meta_description: privacySettings['meta-description'] || pagesObject['privacy']?.meta_description || '',
                 updated_date: privacySettings.updated || null,
                 effective_date: privacySettings.effective || null,
+                faq_enabled: privacySettings['faq-enabled'] !== false,
+                faqs: privacyFaqs,
                 sections: {
                     intro: {
                         enabled: privacySettings['intro-enabled'] !== false,
