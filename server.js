@@ -11868,7 +11868,8 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'trust-2': 'trust_2',
       'trust-3': 'trust_3',
       // Search
-      'search-btn-bg': 'search_btn_bg',
+      'search-btn-bg': 'developer_search_btn_bg',
+      'search-btn-text': 'developer_search_btn_text',
       'search-max-guests': 'search_max_guests',
       // Favicon
       'favicon-image-url': 'site_icon'
