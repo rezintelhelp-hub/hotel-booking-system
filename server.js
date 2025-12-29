@@ -30494,17 +30494,45 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 meta_description: termsSettings['meta-description'] || pagesObject['terms']?.meta_description || '',
                 updated_date: termsSettings.updated || null,
                 sections: {
-                    booking: termsSettings.booking || '',
-                    cancellation: termsSettings.cancellation || '',
-                    cancel_period: termsSettings['cancel-period'] || '48',
-                    cancel_fee: termsSettings['cancel-fee'] || 'first-night',
-                    checkin_time: termsSettings['checkin-time'] || '',
-                    checkout_time: termsSettings['checkout-time'] || '',
-                    checkin_details: termsSettings['checkin-details'] || '',
-                    house_rules: termsSettings['house-rules'] || '',
-                    payment: termsSettings.payment || '',
-                    liability: termsSettings.liability || '',
-                    additional: termsSettings.additional || ''
+                    booking: {
+                        enabled: termsSettings['booking-enabled'] !== false,
+                        title: termsSettings['booking-title'] || 'Booking & Reservations',
+                        content: termsSettings.booking || ''
+                    },
+                    cancellation: {
+                        enabled: termsSettings['cancellation-enabled'] !== false,
+                        title: termsSettings['cancellation-title'] || 'Cancellation Policy',
+                        content: termsSettings.cancellation || '',
+                        cancel_period: termsSettings['cancel-period'] || '48',
+                        cancel_fee: termsSettings['cancel-fee'] || 'first-night'
+                    },
+                    checkin: {
+                        enabled: termsSettings['checkin-enabled'] !== false,
+                        title: termsSettings['checkin-title'] || 'Check-in & Check-out',
+                        checkin_time: termsSettings['checkin-time'] || '',
+                        checkout_time: termsSettings['checkout-time'] || '',
+                        details: termsSettings['checkin-details'] || ''
+                    },
+                    house_rules: {
+                        enabled: termsSettings['house-rules-enabled'] !== false,
+                        title: termsSettings['house-rules-title'] || 'House Rules',
+                        content: termsSettings['house-rules'] || ''
+                    },
+                    payment: {
+                        enabled: termsSettings['payment-enabled'] !== false,
+                        title: termsSettings['payment-title'] || 'Payment Terms',
+                        content: termsSettings.payment || ''
+                    },
+                    liability: {
+                        enabled: termsSettings['liability-enabled'] !== false,
+                        title: termsSettings['liability-title'] || 'Liability & Damages',
+                        content: termsSettings.liability || ''
+                    },
+                    additional: {
+                        enabled: termsSettings['additional-enabled'] !== false,
+                        title: termsSettings['additional-title'] || 'Additional Terms',
+                        content: termsSettings.additional || ''
+                    }
                 }
             };
         }
@@ -30522,15 +30550,47 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 updated_date: privacySettings.updated || null,
                 effective_date: privacySettings.effective || null,
                 sections: {
-                    intro: privacySettings.intro || '',
-                    collection: privacySettings.collection || '',
-                    how_collect: privacySettings['how-collect'] || '',
-                    usage: privacySettings.usage || '',
-                    sharing: privacySettings.sharing || '',
-                    cookies: privacySettings.cookies || '',
-                    rights: privacySettings.rights || '',
-                    retention: privacySettings.retention || '',
-                    contact: privacySettings.contact || ''
+                    intro: {
+                        enabled: privacySettings['intro-enabled'] !== false,
+                        title: privacySettings['intro-title'] || 'Introduction',
+                        content: privacySettings.intro || ''
+                    },
+                    collection: {
+                        enabled: privacySettings['collection-enabled'] !== false,
+                        title: privacySettings['collection-title'] || 'Information We Collect',
+                        content: privacySettings.collection || '',
+                        how_collect: privacySettings['how-collect'] || ''
+                    },
+                    usage: {
+                        enabled: privacySettings['usage-enabled'] !== false,
+                        title: privacySettings['usage-title'] || 'How We Use Your Information',
+                        content: privacySettings.usage || ''
+                    },
+                    sharing: {
+                        enabled: privacySettings['sharing-enabled'] !== false,
+                        title: privacySettings['sharing-title'] || 'Information Sharing',
+                        content: privacySettings.sharing || ''
+                    },
+                    cookies: {
+                        enabled: privacySettings['cookies-enabled'] !== false,
+                        title: privacySettings['cookies-title'] || 'Cookies',
+                        content: privacySettings.cookies || ''
+                    },
+                    rights: {
+                        enabled: privacySettings['rights-enabled'] !== false,
+                        title: privacySettings['rights-title'] || 'Your Rights',
+                        content: privacySettings.rights || ''
+                    },
+                    retention: {
+                        enabled: privacySettings['retention-enabled'] !== false,
+                        title: privacySettings['retention-title'] || 'Data Retention',
+                        content: privacySettings.retention || ''
+                    },
+                    contact: {
+                        enabled: privacySettings['contact-enabled'] !== false,
+                        title: privacySettings['contact-title'] || 'Contact Us',
+                        content: privacySettings.contact || ''
+                    }
                 }
             };
         }
