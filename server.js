@@ -9385,6 +9385,7 @@ app.get('/api/setup-website-builder', async (req, res) => {
           required: true,
           order: 4,
           fields: {
+            developer_featured_enabled: { type: 'toggle', label: 'Enable Section', default: true },
             developer_featured_mode: { type: 'select', label: 'Display Mode', options: ['all', 'featured', 'selected'], default: 'all' },
             developer_featured_count: { type: 'number', label: 'Number to Show', default: 3 },
             developer_featured_title: { type: 'text', label: 'Section Title', default: 'Featured Properties' },
@@ -9398,6 +9399,7 @@ app.get('/api/setup-website-builder', async (req, res) => {
           required: false,
           order: 5,
           fields: {
+            developer_about_enabled: { type: 'toggle', label: 'Enable Section', default: true },
             developer_about_image: { type: 'image', label: 'Image' },
             developer_about_title: { type: 'text', label: 'Title', default: 'Experience Luxury & Comfort' },
             developer_about_text: { type: 'textarea', label: 'Description' },
@@ -31978,7 +31980,10 @@ app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
       // Trust badges
       'trust-1': 'developer_hero_trust_1',
       'trust-2': 'developer_hero_trust_2',
-      'trust-3': 'developer_hero_trust_3'
+      'trust-3': 'developer_hero_trust_3',
+      // Search button
+      'search-btn-bg': 'developer_search_btn_bg',
+      'search-btn-text': 'developer_search_btn_text'
     };
     
     websiteResult.rows.forEach(row => {
