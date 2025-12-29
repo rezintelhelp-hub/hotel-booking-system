@@ -11852,7 +11852,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'logo-image-url': 'logo_image',
       'logo-text': 'logo_text',
       'site-name': 'logo_text',
-      'bg-color': 'bg',
+      'bg-color': 'bg_color',
       'text-color': 'text_color',
       'transparent': 'transparent',
       'sticky': 'sticky',
