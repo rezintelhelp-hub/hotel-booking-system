@@ -29704,6 +29704,82 @@ app.get('/api/admin/content-ideas', async (req, res) => {
     }
 });
 
+// Generate SEO Meta Title & Description with AI
+app.post('/api/admin/generate-seo-meta', async (req, res) => {
+    try {
+        const { page_type, business_name, account_id } = req.body;
+        
+        if (!page_type) {
+            return res.json({ success: false, error: 'Page type required' });
+        }
+        
+        // Get business context if account_id provided
+        let businessContext = business_name || 'a vacation rental property';
+        let location = '';
+        
+        if (account_id) {
+            const accountResult = await pool.query(
+                'SELECT business_name, city, country FROM accounts WHERE id = $1',
+                [account_id]
+            );
+            if (accountResult.rows[0]) {
+                const acc = accountResult.rows[0];
+                businessContext = acc.business_name || business_name || 'our property';
+                if (acc.city) location = acc.city;
+                if (acc.country) location += (location ? ', ' : '') + acc.country;
+            }
+        }
+        
+        const prompt = `Generate an SEO-optimized meta title and meta description for the ${page_type} page of "${businessContext}"${location ? ` located in ${location}` : ''}.
+
+Requirements:
+- Meta Title: Exactly 50-60 characters, include the business name, be compelling
+- Meta Description: Exactly 150-160 characters, include a call-to-action, be engaging
+
+This is for a vacation rental / holiday accommodation website.
+
+Return ONLY valid JSON with this exact structure, no other text:
+{"meta_title": "Your title here", "meta_description": "Your description here"}`;
+
+        const claudeResponse = await axios.post('https://api.anthropic.com/v1/messages', {
+            model: 'claude-sonnet-4-20250514',
+            max_tokens: 500,
+            messages: [{ role: 'user', content: prompt }]
+        }, {
+            headers: {
+                'Content-Type': 'application/json',
+                'x-api-key': process.env.ANTHROPIC_API_KEY,
+                'anthropic-version': '2023-06-01'
+            }
+        });
+        
+        const responseText = claudeResponse.data.content[0].text;
+        
+        // Extract JSON from response
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (e) {
+            const jsonMatch = responseText.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                result = JSON.parse(jsonMatch[0]);
+            } else {
+                throw new Error('Could not parse response');
+            }
+        }
+        
+        res.json({ 
+            success: true, 
+            meta_title: result.meta_title,
+            meta_description: result.meta_description
+        });
+        
+    } catch (error) {
+        console.error('Error generating SEO meta:', error);
+        res.json({ success: false, error: error.message });
+    }
+});
+
 // Generate FAQ schemas with AI
 app.post('/api/admin/generate-faqs', async (req, res) => {
     try {
