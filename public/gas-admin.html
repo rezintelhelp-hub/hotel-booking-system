@@ -5146,8 +5146,28 @@
                                 <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
                                     <input type="checkbox" id="wb-reviews-enabled"> Enable Reviews Section
                                 </label>
-                                <small class="form-hint">When enabled, shows reviews from TripAdvisor, Booking.com, and Google</small>
+                                <small class="form-hint">Display a reviews section on your homepage</small>
                             </div>
+                            
+                            <div class="form-group" style="margin-top: 1rem;">
+                                <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
+                                    <input type="checkbox" id="wb-reviews-use-app" onchange="toggleReviewsAppFields()"> Use Reviews App (Repuso)
+                                </label>
+                                <small class="form-hint">Connect to TripAdvisor, Booking.com, Google reviews automatically</small>
+                            </div>
+                            
+                            <!-- Reviews App Fields (shown when Use App is checked) -->
+                            <div id="wb-reviews-app-fields" style="display: none; margin-top: 1rem; padding: 1rem; background: #f0fdf4; border-radius: 8px; border: 1px solid #bbf7d0;">
+                                <div class="form-group" style="margin-bottom: 1rem;">
+                                    <label class="form-label">Reviews App Code</label>
+                                    <input type="text" class="form-input" id="wb-reviews-app-code" placeholder="e.g. 48621" style="max-width: 200px;">
+                                    <small class="form-hint">Your unique Repuso widget ID</small>
+                                </div>
+                                <p style="font-size: 0.85rem; color: #166534; margin: 0;">
+                                    🔗 Don't have an account? <a href="https://repuso.com" target="_blank" style="color: #15803d; font-weight: 500;">Sign up for Repuso</a> to aggregate reviews from multiple platforms.
+                                </p>
+                            </div>
+                            
                             <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                                 <div class="form-group">
                                     <label class="form-label">Section Title</label>
@@ -5183,10 +5203,11 @@
                         </div>
                     </div>
 
-                    <div class="card" style="margin-top: 1rem;">
-                        <div class="card-header"><h3>Manual Reviews (Optional)</h3></div>
+                    <!-- Manual Reviews (shown when Use App is NOT checked) -->
+                    <div class="card" style="margin-top: 1rem;" id="wb-reviews-manual-section">
+                        <div class="card-header"><h3>Manual Reviews</h3></div>
                         <div class="card-body">
-                            <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.9rem;">Add up to 3 reviews manually. These display when the Reviews App widget is not connected.</p>
+                            <p style="color: #64748b; margin-bottom: 1rem; font-size: 0.9rem;">Add up to 3 reviews manually. These display when the Reviews App is not connected.</p>
                             
                             <!-- Review 1 -->
                             <div style="background: #f8fafc; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
@@ -13957,6 +13978,20 @@ Local honey and preserves"></textarea>
             }
         }
         
+        // Toggle Reviews App fields visibility
+        function toggleReviewsAppFields() {
+            const useApp = document.getElementById('wb-reviews-use-app')?.checked;
+            const appFields = document.getElementById('wb-reviews-app-fields');
+            const manualSection = document.getElementById('wb-reviews-manual-section');
+            
+            if (appFields) {
+                appFields.style.display = useApp ? 'block' : 'none';
+            }
+            if (manualSection) {
+                manualSection.style.display = useApp ? 'none' : 'block';
+            }
+        }
+        
         // Helper to add auth header to fetch requests
         function authHeaders() {
             const token = localStorage.getItem('gas_token');
@@ -14985,6 +15020,11 @@ Local honey and preserves"></textarea>
                         }
                         // Preview the video
                         previewHeroVideo(data.settings['video-url']);
+                    }
+                    
+                    // Handle reviews app toggle
+                    if (section === 'reviews') {
+                        toggleReviewsAppFields();
                     }
                 } else {
                     console.log(`No saved ${section} settings, using template defaults`);
