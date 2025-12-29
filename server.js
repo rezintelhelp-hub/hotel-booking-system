@@ -23349,9 +23349,15 @@ app.get('/api/admin/properties/:id/terms', async (req, res) => {
   try {
     const propertyId = req.params.id;
     
-    // Get terms
+    // Get terms from property_terms table
     const termsResult = await pool.query(
       'SELECT * FROM property_terms WHERE property_id = $1',
+      [propertyId]
+    );
+    
+    // Get cancellation_policy from properties table
+    const propertyResult = await pool.query(
+      'SELECT cancellation_policy FROM properties WHERE id = $1',
       [propertyId]
     );
     
@@ -23367,10 +23373,16 @@ app.get('/api/admin/properties/:id/terms', async (req, res) => {
       [propertyId]
     );
     
+    // Merge terms with cancellation_policy
+    const terms = termsResult.rows[0] || {};
+    if (propertyResult.rows[0]?.cancellation_policy) {
+      terms.cancellation_policy = propertyResult.rows[0].cancellation_policy;
+    }
+    
     res.json({
       success: true,
       data: {
-        terms: termsResult.rows[0] || null,
+        terms: terms,
         beds: bedsResult.rows || [],
         bathrooms: bathroomsResult.rows || []
       }
@@ -23506,6 +23518,14 @@ app.put('/api/admin/properties/:id/terms', async (req, res) => {
           );
         }
       }
+    }
+    
+    // Update cancellation_policy on properties table
+    if (terms.cancellation_policy !== undefined) {
+      await client.query(
+        'UPDATE properties SET cancellation_policy = $1 WHERE id = $2',
+        [terms.cancellation_policy || null, propertyId]
+      );
     }
     
     await client.query('COMMIT');
