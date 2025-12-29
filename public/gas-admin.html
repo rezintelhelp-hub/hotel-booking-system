@@ -2641,6 +2641,19 @@
                                 </div>
                             </div>
                         </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>📋 Cancellation Policy</h3>
+                            </div>
+                            <div class="card-body">
+                                <div class="form-group">
+                                    <label class="form-label">Cancellation Policy</label>
+                                    <textarea class="form-input" id="terms-cancellation-policy" rows="4" placeholder="e.g., Free cancellation up to 48 hours before check-in. Cancellations within 48 hours will be charged for the first night. No-shows will be charged the full booking amount."></textarea>
+                                    <p style="color: var(--text-secondary); font-size: 0.85rem; margin-top: 0.5rem;">This will be displayed on the room page under the Terms tab.</p>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -19129,7 +19142,7 @@ Local honey and preserves"></textarea>
                 id_required: document.getElementById('terms-id-required')?.checked,
                 additional_rules: document.getElementById('terms-additional-rules')?.value,
                 
-                bathroom_type: document.querySelector('input[name="bathroom-type"]:checked')?.value
+                cancellation_policy: document.getElementById('terms-cancellation-policy')?.value || null
             };
             
             // Also save room amenities if a room is selected
@@ -19244,12 +19257,7 @@ Local honey and preserves"></textarea>
                     if (terms.no_outside_guests) document.getElementById('terms-no-outside-guests').checked = true;
                     if (terms.id_required) document.getElementById('terms-id-required').checked = true;
                     if (terms.additional_rules) document.getElementById('terms-additional-rules').value = terms.additional_rules;
-                    
-                    // Bathroom type (stored separately, not in property_terms)
-                    if (terms.bathroom_type) {
-                        const radio = document.querySelector(`input[name="bathroom-type"][value="${terms.bathroom_type}"]`);
-                        if (radio) radio.checked = true;
-                    }
+                    if (terms.cancellation_policy) document.getElementById('terms-cancellation-policy').value = terms.cancellation_policy;
                     
                     // Beds (using bed_type from database)
                     if (beds.length > 0) {
