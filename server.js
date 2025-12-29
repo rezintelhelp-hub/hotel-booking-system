@@ -1,3 +1,4 @@
+// Force rebuild - Dec 29 2025
 // GAS - Guest Accommodation System Server
 // Multi-tenant SaaS for property management
 require('dotenv').config();
