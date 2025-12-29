@@ -4834,6 +4834,13 @@
                                 </div>
                             </div>
                             <div class="form-group">
+                                <label class="form-label">Menu Active Underline Color</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-header-underline-color-picker" value="#2563eb" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-underline-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-header-underline-color" value="#2563eb" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-header-underline-color-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
                                 <label class="form-label">Logo/Site Title Color</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-header-logo-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-header-logo-color').value = this.value">
