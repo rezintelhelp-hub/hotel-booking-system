@@ -2251,6 +2251,25 @@
                     <div id="amenities-tab-rooms" class="amenity-tab-panel">
                         <div class="card">
                             <div class="card-header">
+                                <h3>🏠 Property Overview</h3>
+                            </div>
+                            <div class="card-body">
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Set the number of bedrooms and bathrooms (displayed on property cards)</p>
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; max-width: 400px;">
+                                    <div class="form-group">
+                                        <label class="form-label">🛏️ Bedrooms</label>
+                                        <input type="number" class="form-input" id="unit-num-bedrooms" min="0" max="20" value="1" style="width: 100%;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">🚿 Bathrooms</label>
+                                        <input type="number" class="form-input" id="unit-num-bathrooms" min="0" max="20" value="1" step="0.5" style="width: 100%;">
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
                                 <h3>🛏️ Bed Configuration</h3>
                             </div>
                             <div class="card-body">
@@ -2288,30 +2307,6 @@
                     <!-- Bathrooms Tab -->
                     <div id="amenities-tab-bathrooms" class="amenity-tab-panel" style="display: none;">
                         <div class="card">
-                            <div class="card-header">
-                                <h3>🚿 Bathroom Type</h3>
-                            </div>
-                            <div class="card-body">
-                                <div class="form-group">
-                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
-                                            <input type="radio" name="bathroom-type" value="ensuite" style="width: 18px; height: 18px;">
-                                            <span><strong>Ensuite (Private)</strong> - Bathroom inside the room</span>
-                                        </label>
-                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
-                                            <input type="radio" name="bathroom-type" value="adjacent" style="width: 18px; height: 18px;">
-                                            <span><strong>Adjacent (Private)</strong> - Private bathroom outside room</span>
-                                        </label>
-                                        <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 6px; cursor: pointer;">
-                                            <input type="radio" name="bathroom-type" value="shared" style="width: 18px; height: 18px;">
-                                            <span><strong>Shared</strong> - Shared with other guests</span>
-                                        </label>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="card" style="margin-top: 1rem;">
                             <div class="card-header">
                                 <h3>🚿 Bathroom Amenities</h3>
                             </div>
@@ -18958,6 +18953,20 @@ Local honey and preserves"></textarea>
                     if (bathroomList) bathroomList.innerHTML = emptyMsg;
                     if (featuresList) featuresList.innerHTML = emptyMsg;
                 }
+                
+                // Load unit data for num_bedrooms and num_bathrooms
+                try {
+                    const unitResp = await fetch(`/api/admin/units/${roomId}`);
+                    const unitData = await unitResp.json();
+                    if (unitData.success && unitData.data) {
+                        const numBedroomsInput = document.getElementById('unit-num-bedrooms');
+                        const numBathroomsInput = document.getElementById('unit-num-bathrooms');
+                        if (numBedroomsInput) numBedroomsInput.value = unitData.data.num_bedrooms || 1;
+                        if (numBathroomsInput) numBathroomsInput.value = unitData.data.num_bathrooms || 1;
+                    }
+                } catch (e) {
+                    console.log('Error loading unit data:', e);
+                }
             } catch (error) {
                 console.error('Error loading amenities:', error);
                 const errorMsg = '<p style="color: var(--error); text-align: center; padding: 1rem;">Error loading amenities</p>';
@@ -19126,6 +19135,19 @@ Local honey and preserves"></textarea>
             // Also save room amenities if a room is selected
             if (roomId) {
                 await saveRoomAmenities();
+                
+                // Save num_bedrooms and num_bathrooms to the unit
+                const numBedrooms = document.getElementById('unit-num-bedrooms')?.value || 1;
+                const numBathrooms = document.getElementById('unit-num-bathrooms')?.value || 1;
+                try {
+                    await fetch(`/api/admin/units/${roomId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ num_bedrooms: parseInt(numBedrooms), num_bathrooms: parseFloat(numBathrooms) })
+                    });
+                } catch (e) {
+                    console.log('Error saving bedrooms/bathrooms:', e);
+                }
             }
             
             // Save property-level terms
