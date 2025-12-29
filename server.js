@@ -30380,6 +30380,13 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         const { clientId } = req.params;
         
         // Get all data in parallel
+        // First get the deployed_site_id for this account
+        const deployedSiteIdResult = await pool.query(
+            `SELECT id FROM deployed_sites WHERE account_id = $1 LIMIT 1`,
+            [clientId]
+        );
+        const deployedSiteId = deployedSiteIdResult.rows[0]?.id;
+        
         const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult, websiteSettingsResult, deployedSiteResult] = await Promise.all([
             pool.query(`SELECT * FROM client_pages WHERE client_id = $1`, [clientId]),
             pool.query(`SELECT * FROM client_contact_info WHERE client_id = $1`, [clientId]),
@@ -30392,7 +30399,15 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                 JOIN properties p ON r.property_id = p.id 
                 WHERE p.client_id = $1
             `, [clientId]),
-            pool.query(`SELECT section, settings FROM website_settings WHERE account_id = $1`, [clientId]),
+            // Check deployed_site_id first, then fall back to account_id
+            pool.query(`
+                SELECT section, settings FROM website_settings 
+                WHERE deployed_site_id = $1
+                UNION ALL
+                SELECT section, settings FROM website_settings 
+                WHERE account_id = $2 AND deployed_site_id IS NULL
+                AND section NOT IN (SELECT section FROM website_settings WHERE deployed_site_id = $1)
+            `, [deployedSiteId, clientId]),
             pool.query(`SELECT pricing_tier FROM deployed_sites WHERE account_id = $1 LIMIT 1`, [clientId])
         ]);
         
