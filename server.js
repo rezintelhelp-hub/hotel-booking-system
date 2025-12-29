@@ -661,6 +661,8 @@ async function runMigrations() {
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS child_charge DECIMAL(10,2) DEFAULT 0`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS children_allowed BOOLEAN DEFAULT true`);
       await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS is_hidden BOOLEAN DEFAULT false`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bedrooms INTEGER DEFAULT 1`);
+      await pool.query(`ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS num_bathrooms DECIMAL(3,1) DEFAULT 1`);
       console.log('✅ Occupancy pricing columns ensured on bookable_units');
     } catch (occError) {
       console.log('ℹ️  Occupancy columns:', occError.message);
@@ -20678,9 +20680,33 @@ app.put('/api/admin/units/:id', async (req, res) => {
       }
     }
     
+    // Update num_bedrooms if provided
+    if (req.body.num_bedrooms !== undefined) {
+      try {
+        await pool.query(
+          `UPDATE bookable_units SET num_bedrooms = $1 WHERE id = $2`,
+          [req.body.num_bedrooms || 1, id]
+        );
+      } catch (e) {
+        console.log('num_bedrooms update skipped:', e.message);
+      }
+    }
+    
+    // Update num_bathrooms if provided
+    if (req.body.num_bathrooms !== undefined) {
+      try {
+        await pool.query(
+          `UPDATE bookable_units SET num_bathrooms = $1 WHERE id = $2`,
+          [req.body.num_bathrooms || 1, id]
+        );
+      } catch (e) {
+        console.log('num_bathrooms update skipped:', e.message);
+      }
+    }
+    
     // Fetch final result
     const finalResult = await pool.query(
-      `SELECT id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children, short_description, full_description FROM bookable_units WHERE id = $1`,
+      `SELECT id, name, display_name, quantity, status, unit_type, max_guests, max_adults, max_children, short_description, full_description, num_bedrooms, num_bathrooms FROM bookable_units WHERE id = $1`,
       [id]
     );
     
