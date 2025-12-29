@@ -30553,42 +30553,51 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     intro: {
                         enabled: privacySettings['intro-enabled'] !== false,
                         title: privacySettings['intro-title'] || 'Introduction',
+                        sub_heading: privacySettings['intro-sub'] || '',
                         content: privacySettings.intro || ''
                     },
                     collection: {
                         enabled: privacySettings['collection-enabled'] !== false,
                         title: privacySettings['collection-title'] || 'Information We Collect',
+                        sub_heading_1: privacySettings['collection-sub1'] || 'What Data We Collect',
                         content: privacySettings.collection || '',
+                        sub_heading_2: privacySettings['how-collect-sub'] || 'How We Collect Data',
                         how_collect: privacySettings['how-collect'] || ''
                     },
                     usage: {
                         enabled: privacySettings['usage-enabled'] !== false,
                         title: privacySettings['usage-title'] || 'How We Use Your Information',
+                        sub_heading: privacySettings['usage-sub'] || '',
                         content: privacySettings.usage || ''
                     },
                     sharing: {
                         enabled: privacySettings['sharing-enabled'] !== false,
                         title: privacySettings['sharing-title'] || 'Information Sharing',
+                        sub_heading: privacySettings['sharing-sub'] || '',
                         content: privacySettings.sharing || ''
                     },
                     cookies: {
                         enabled: privacySettings['cookies-enabled'] !== false,
                         title: privacySettings['cookies-title'] || 'Cookies',
+                        sub_heading: privacySettings['cookies-sub'] || '',
                         content: privacySettings.cookies || ''
                     },
                     rights: {
                         enabled: privacySettings['rights-enabled'] !== false,
                         title: privacySettings['rights-title'] || 'Your Rights',
+                        sub_heading: privacySettings['rights-sub'] || '',
                         content: privacySettings.rights || ''
                     },
                     retention: {
                         enabled: privacySettings['retention-enabled'] !== false,
                         title: privacySettings['retention-title'] || 'Data Retention',
+                        sub_heading: privacySettings['retention-sub'] || '',
                         content: privacySettings.retention || ''
                     },
                     contact: {
                         enabled: privacySettings['contact-enabled'] !== false,
                         title: privacySettings['contact-title'] || 'Contact Us',
+                        sub_heading: privacySettings['contact-sub'] || '',
                         content: privacySettings.contact || ''
                     }
                 }
