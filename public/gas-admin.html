@@ -8437,20 +8437,40 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Booking Terms</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Booking Terms</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-terms-booking-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Booking & Reservations</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-terms-booking-title" value="Booking & Reservations" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-terms-booking" rows="5" placeholder="Describe how bookings are made, confirmation process, deposit requirements..."></textarea>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Cancellation Policy</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Cancellation Policy</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-terms-cancellation-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Cancellation Terms</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-terms-cancellation-title" value="Cancellation Policy" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-terms-cancellation" rows="6" placeholder="e.g., Free cancellation up to 48 hours before check-in. Cancellations within 48 hours will be charged for the first night..."></textarea>
                         </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
@@ -8479,8 +8499,18 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Check-in / Check-out</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Check-in / Check-out</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-terms-checkin-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-terms-checkin-title" value="Check-in & Check-out" placeholder="Section heading...">
+                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Check-in Time</label>
@@ -8492,17 +8522,27 @@ Local honey and preserves"></textarea>
                             </div>
                         </div>
                         <div class="form-group">
-                            <label class="form-label">Additional Check-in/out Terms</label>
+                            <label class="form-label">Additional Details</label>
                             <textarea class="form-textarea" id="wb-page-terms-checkin-details" rows="3" placeholder="Early check-in or late check-out subject to availability..."></textarea>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>House Rules</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>House Rules</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-terms-house-rules-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Property Rules</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-terms-house-rules-title" value="House Rules" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-terms-house-rules" rows="6" placeholder="List your house rules:
 • No smoking
 • No pets (or pet policy)
@@ -8514,30 +8554,60 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Payment Terms</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Payment Terms</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-terms-payment-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Payment Methods & Terms</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-terms-payment-title" value="Payment Terms" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-terms-payment" rows="4" placeholder="Accepted payment methods, deposit requirements, when payment is taken..."></textarea>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Liability & Damages</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Liability & Damages</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-terms-liability-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Liability Terms</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-terms-liability-title" value="Liability & Damages" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-terms-liability" rows="4" placeholder="Guest responsibility for damages, security deposit terms, liability limitations..."></textarea>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Additional Terms</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Additional Terms</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-terms-additional-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Other Terms & Conditions</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-terms-additional-title" value="Additional Terms" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-terms-additional" rows="5" placeholder="Any other terms not covered above..."></textarea>
                         </div>
                     </div>
@@ -8577,18 +8647,38 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Introduction</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Introduction</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-privacy-intro-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Privacy Policy Introduction</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-intro-title" value="Introduction" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-privacy-intro" rows="4" placeholder="We respect your privacy and are committed to protecting your personal data. This privacy policy explains how we collect, use, and safeguard your information when you visit our website or make a booking."></textarea>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Data Collection</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Data Collection</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-privacy-collection-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
+                        <div class="form-group">
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-collection-title" value="Information We Collect" placeholder="Section heading...">
+                        </div>
                         <div class="form-group">
                             <label class="form-label">What Data We Collect</label>
                             <textarea class="form-textarea" id="wb-page-privacy-collection" rows="5" placeholder="Types of personal data collected:
@@ -8609,10 +8699,20 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Data Usage</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Data Usage</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-privacy-usage-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">How We Use Your Data</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-usage-title" value="How We Use Your Information" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-privacy-usage" rows="5" placeholder="We use your data to:
 • Process and manage bookings
 • Send booking confirmations and updates
@@ -8624,10 +8724,20 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Data Sharing</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Data Sharing</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-privacy-sharing-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Who We Share Data With</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-sharing-title" value="Information Sharing" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-privacy-sharing" rows="4" placeholder="We may share your data with:
 • Payment processors
 • Booking platforms (Booking.com, Airbnb, etc.)
@@ -8638,10 +8748,20 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Cookies</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Cookies</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-privacy-cookies-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Cookie Policy</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-cookies-title" value="Cookies" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-privacy-cookies" rows="4" placeholder="Our website uses cookies to improve your experience. We use:
 • Essential cookies (required for site functionality)
 • Analytics cookies (to understand usage)
@@ -8651,10 +8771,20 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Your Rights</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Your Rights</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-privacy-rights-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Data Subject Rights (GDPR)</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-rights-title" value="Your Rights" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-privacy-rights" rows="5" placeholder="Under data protection law, you have rights including:
 • Right to access your personal data
 • Right to rectification
@@ -8667,20 +8797,40 @@ Local honey and preserves"></textarea>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Data Retention</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Data Retention</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-privacy-retention-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">How Long We Keep Data</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-retention-title" value="Data Retention" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-privacy-retention" rows="3" placeholder="We retain your personal data for as long as necessary to fulfill the purposes we collected it for, including legal, accounting, or reporting requirements."></textarea>
                         </div>
                     </div>
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Contact Information</h3></div>
+                    <div class="card-header" style="display: flex; justify-content: space-between; align-items: center;">
+                        <h3>Contact Information</h3>
+                        <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <input type="checkbox" id="wb-page-privacy-contact-enabled" checked>
+                            Show Section
+                        </label>
+                    </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label class="form-label">Data Controller Contact</label>
+                            <label class="form-label">Section Title</label>
+                            <input type="text" class="form-input" id="wb-page-privacy-contact-title" value="Contact Us" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
                             <textarea class="form-textarea" id="wb-page-privacy-contact" rows="3" placeholder="For privacy-related enquiries, contact:
 [Your Business Name]
 [Email address]
