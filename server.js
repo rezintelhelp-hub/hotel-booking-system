@@ -11857,6 +11857,7 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'site-name': 'logo_text',
       'bg-color': 'bg_color',
       'text-color': 'text_color',
+      'underline-color': 'underline_color',
       'transparent': 'transparent',
       'sticky': 'sticky',
       'cta-text': 'cta_text',
