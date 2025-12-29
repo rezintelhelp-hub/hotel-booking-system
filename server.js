@@ -11910,6 +11910,19 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
   }
 }
 
+// Debug endpoint to check raw website_settings
+app.get('/api/debug/settings/:siteId/:section', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT * FROM website_settings WHERE deployed_site_id = $1 AND section = $2',
+      [req.params.siteId, req.params.section]
+    );
+    res.json({ rows: result.rows, count: result.rows.length });
+  } catch (error) {
+    res.json({ error: error.message });
+  }
+});
+
 // Check VPS status
 app.get('/api/deploy/status', async (req, res) => {
   try {
