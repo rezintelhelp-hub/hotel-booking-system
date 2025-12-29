@@ -15310,7 +15310,7 @@ Local honey and preserves"></textarea>
                 // Determine which container to update - editor panel (visible) or original view
                 const editorPanelMap = {
                     'header': 'editor-header-content',
-                    'hero': 'editor-hero-content',
+                    'hero': 'editor-homepage-hero',
                     'intro': 'editor-intro-content',
                     'featured': 'editor-featured-content',
                     'about': 'editor-about-content',
@@ -15319,12 +15319,13 @@ Local honey and preserves"></textarea>
                     'footer': 'editor-footer-content',
                     'styles': 'editor-styles-content',
                     'seo': 'editor-seo-content',
-                    'page-about': 'editor-page-about-content',
-                    'page-gallery': 'editor-page-gallery-content',
-                    'page-blog': 'editor-page-blog-content',
-                    'page-attractions': 'editor-page-attractions-content',
-                    'page-dining': 'editor-page-dining-content',
-                    'page-contact': 'editor-page-contact-content',
+                    'page-rooms': 'editor-subpage-page-rooms',
+                    'page-about': 'editor-subpage-page-about',
+                    'page-gallery': 'editor-subpage-page-gallery',
+                    'page-blog': 'editor-subpage-page-blog',
+                    'page-attractions': 'editor-subpage-page-attractions',
+                    'page-dining': 'editor-subpage-page-dining',
+                    'page-contact': 'editor-subpage-page-contact',
                     'page-terms': 'editor-footer-footer-terms',
                     'page-privacy': 'editor-footer-footer-privacy'
                 };
@@ -15511,7 +15512,7 @@ Local honey and preserves"></textarea>
                 </div>
                 <div class="form-group" style="margin-bottom: 0;">
                     <label class="form-label" style="font-size: 0.85rem;">Answer</label>
-                    <textarea class="form-textarea faq-answer" rows="3" placeholder="Provide a helpful, concise answer...">${escapeHtml(answer)}</textarea>
+                    <textarea class="form-textarea faq-answer" rows="3" style="resize: none;" placeholder="Provide a helpful, concise answer...">${escapeHtml(answer)}</textarea>
                 </div>
             `;
             list.appendChild(item);
@@ -15637,7 +15638,7 @@ Local honey and preserves"></textarea>
                 
                 const editorPanelMap = {
                     'header': 'editor-header-content',
-                    'hero': 'editor-hero-content',
+                    'hero': 'editor-homepage-hero',
                     'intro': 'editor-intro-content',
                     'featured': 'editor-featured-content',
                     'about': 'editor-about-content',
@@ -15646,12 +15647,13 @@ Local honey and preserves"></textarea>
                     'footer': 'editor-footer-content',
                     'styles': 'editor-styles-content',
                     'seo': 'editor-seo-content',
-                    'page-about': 'editor-page-about-content',
-                    'page-gallery': 'editor-page-gallery-content',
-                    'page-blog': 'editor-page-blog-content',
-                    'page-attractions': 'editor-page-attractions-content',
-                    'page-dining': 'editor-page-dining-content',
-                    'page-contact': 'editor-page-contact-content',
+                    'page-rooms': 'editor-subpage-page-rooms',
+                    'page-about': 'editor-subpage-page-about',
+                    'page-gallery': 'editor-subpage-page-gallery',
+                    'page-blog': 'editor-subpage-page-blog',
+                    'page-attractions': 'editor-subpage-page-attractions',
+                    'page-dining': 'editor-subpage-page-dining',
+                    'page-contact': 'editor-subpage-page-contact',
                     'page-terms': 'editor-footer-footer-terms',
                     'page-privacy': 'editor-footer-footer-privacy'
                 };
