@@ -30482,6 +30482,59 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
             };
         }
         
+        // Add/merge terms page from website_settings
+        const termsSettings = websiteSettings['page-terms'] || {};
+        if (Object.keys(termsSettings).length > 0 || !pagesObject['terms']) {
+            pagesObject['terms'] = {
+                ...(pagesObject['terms'] || {}),
+                page_type: 'terms',
+                slug: '/terms/',
+                title: termsSettings.title || pagesObject['terms']?.title || 'Terms & Conditions',
+                meta_title: termsSettings['meta-title'] || pagesObject['terms']?.meta_title || '',
+                meta_description: termsSettings['meta-description'] || pagesObject['terms']?.meta_description || '',
+                updated_date: termsSettings.updated || null,
+                sections: {
+                    booking: termsSettings.booking || '',
+                    cancellation: termsSettings.cancellation || '',
+                    cancel_period: termsSettings['cancel-period'] || '48',
+                    cancel_fee: termsSettings['cancel-fee'] || 'first-night',
+                    checkin_time: termsSettings['checkin-time'] || '',
+                    checkout_time: termsSettings['checkout-time'] || '',
+                    checkin_details: termsSettings['checkin-details'] || '',
+                    house_rules: termsSettings['house-rules'] || '',
+                    payment: termsSettings.payment || '',
+                    liability: termsSettings.liability || '',
+                    additional: termsSettings.additional || ''
+                }
+            };
+        }
+        
+        // Add/merge privacy page from website_settings
+        const privacySettings = websiteSettings['page-privacy'] || {};
+        if (Object.keys(privacySettings).length > 0 || !pagesObject['privacy']) {
+            pagesObject['privacy'] = {
+                ...(pagesObject['privacy'] || {}),
+                page_type: 'privacy',
+                slug: '/privacy/',
+                title: privacySettings.title || pagesObject['privacy']?.title || 'Privacy Policy',
+                meta_title: privacySettings['meta-title'] || pagesObject['privacy']?.meta_title || '',
+                meta_description: privacySettings['meta-description'] || pagesObject['privacy']?.meta_description || '',
+                updated_date: privacySettings.updated || null,
+                effective_date: privacySettings.effective || null,
+                sections: {
+                    intro: privacySettings.intro || '',
+                    collection: privacySettings.collection || '',
+                    how_collect: privacySettings['how-collect'] || '',
+                    usage: privacySettings.usage || '',
+                    sharing: privacySettings.sharing || '',
+                    cookies: privacySettings.cookies || '',
+                    rights: privacySettings.rights || '',
+                    retention: privacySettings.retention || '',
+                    contact: privacySettings.contact || ''
+                }
+            };
+        }
+        
         // Auto-generate footer links from website_settings or from what exists
         const footerQuickLinks = [];
         const footerLegalLinks = [];
