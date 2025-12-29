@@ -30546,8 +30546,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     id: contact.id,
                     business_name: contact.business_name,
                     tagline: contact.tagline,
-                    email: contact.email,
-                    phone: contact.phone,
+                    email: websiteSettings.footer?.email || contact.email,
+                    phone: websiteSettings.footer?.phone || contact.phone,
                     phone_secondary: contact.phone_secondary,
                     whatsapp: contact.whatsapp,
                     address_line1: contact.address_line1,
@@ -30556,7 +30556,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     state_province: contact.state_province,
                     postal_code: contact.postal_code,
                     country: contact.country,
-                    address_formatted: [contact.address_line1, contact.address_line2, contact.city, contact.state_province, contact.postal_code, contact.country].filter(Boolean).join(', '),
+                    address: websiteSettings.footer?.address || null,
+                    address_formatted: websiteSettings.footer?.address || [contact.address_line1, contact.address_line2, contact.city, contact.state_province, contact.postal_code, contact.country].filter(Boolean).join(', '),
                     latitude: contact.latitude,
                     longitude: contact.longitude,
                     google_maps_url: contact.google_maps_url,
@@ -30564,14 +30565,14 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                     timezone: contact.timezone,
                     currency: contact.currency,
                     social: {
-                        facebook: contact.facebook_url,
-                        instagram: contact.instagram_url,
-                        twitter: contact.twitter_url,
-                        linkedin: contact.linkedin_url,
-                        youtube: contact.youtube_url,
-                        tiktok: contact.tiktok_url,
-                        pinterest: contact.pinterest_url,
-                        tripadvisor: contact.tripadvisor_url
+                        facebook: websiteSettings.footer?.['social-facebook'] || contact.facebook_url,
+                        instagram: websiteSettings.footer?.['social-instagram'] || contact.instagram_url,
+                        twitter: websiteSettings.footer?.['social-twitter'] || contact.twitter_url,
+                        linkedin: websiteSettings.footer?.['social-linkedin'] || contact.linkedin_url,
+                        youtube: websiteSettings.footer?.['social-youtube'] || contact.youtube_url,
+                        tiktok: websiteSettings.footer?.['social-tiktok'] || contact.tiktok_url,
+                        pinterest: websiteSettings.footer?.['social-pinterest'] || contact.pinterest_url,
+                        tripadvisor: websiteSettings.footer?.['social-tripadvisor'] || contact.tripadvisor_url
                     }
                 },
                 
@@ -30603,7 +30604,8 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
                         text_color: websiteSettings.footer?.text || branding.footer_text_color || '#ffffff',
                         link_color: branding.footer_link_color || '#94a3b8',
                         link_hover_color: branding.footer_link_hover_color || '#ffffff',
-                        copyright: websiteSettings.footer?.copyright || branding.copyright_text || `© ${new Date().getFullYear()} ${contact.business_name || 'All rights reserved'}`
+                        copyright: websiteSettings.footer?.copyright || branding.copyright_text || `© ${new Date().getFullYear()} ${contact.business_name || 'All rights reserved'}`,
+                        layout: websiteSettings.footer?.layout || 'default'
                     },
                     buttons: {
                         primary_bg: branding.button_primary_bg || branding.primary_color || '#2563eb',
