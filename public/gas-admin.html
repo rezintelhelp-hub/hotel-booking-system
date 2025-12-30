@@ -1491,6 +1491,16 @@
                 </div>
 
                 <div class="nav-section">
+                    <div class="nav-label" onclick="toggleNavSection(this)">Channel Manager</div>
+                    <div class="nav-section-items">
+                    <a class="nav-item" data-view="gas-sync-connections" href="#" onclick="navClick(this, 'gas-sync-connections'); return false;">
+                        <span class="nav-icon">🔗</span>
+                        <span>Connections</span>
+                    </a>
+                    </div>
+                </div>
+
+                <div class="nav-section">
                     <div class="nav-label" onclick="toggleNavSection(this)">Property Management</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="properties" href="#" onclick="navClick(this, 'properties'); return false;">
@@ -1631,15 +1641,11 @@
                 </div>
 
                 <div class="nav-section master-only" style="display: none;">
-                    <div class="nav-label" onclick="toggleNavSection(this)">Channel Managers</div>
+                    <div class="nav-label" onclick="toggleNavSection(this)">Channel Managers (Admin)</div>
                     <div class="nav-section-items">
                     <a class="nav-item" data-view="gas-sync-dashboard" href="#" onclick="navClick(this, 'gas-sync-dashboard'); return false;">
                         <span class="nav-icon">📊</span>
                         <span>Sync Dashboard</span>
-                    </a>
-                    <a class="nav-item" data-view="gas-sync-connections" href="#" onclick="navClick(this, 'gas-sync-connections'); return false;">
-                        <span class="nav-icon">🔗</span>
-                        <span>Connections</span>
                     </a>
                     <a class="nav-item" data-view="gas-sync-properties" href="#" onclick="navClick(this, 'gas-sync-properties'); return false;">
                         <span class="nav-icon">🏠</span>
@@ -1649,7 +1655,7 @@
                         <span class="nav-icon">📋</span>
                         <span>Sync Logs</span>
                     </a>
-                    <a class="nav-item" href="/sync-review" target="_blank">
+                    <a class="nav-item" data-view="sync-review" href="#" onclick="navClick(this, 'sync-review'); return false;">
                         <span class="nav-icon">🔄</span>
                         <span>Sync Review</span>
                     </a>
@@ -15348,6 +15354,7 @@ Local honey and preserves"></textarea>
             if (viewName === 'gas-sync-connections') loadGasSyncConnections();
             if (viewName === 'gas-sync-properties') { loadGasSyncConnections().then(() => loadSyncedProperties()); }
             if (viewName === 'gas-sync-logs') { loadGasSyncConnections().then(() => loadSyncLogs()); }
+            if (viewName === 'sync-review') { window.location.href = '/sync-review'; return; }
             
             // New sidebar views
             if (viewName === 'app-blog') loadBlogByTab();
