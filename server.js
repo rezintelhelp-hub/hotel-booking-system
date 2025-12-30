@@ -33424,7 +33424,7 @@ app.get('/api/gas-sync/connections', async (req, res) => {
     if (accountId) {
       // Filter by specific account
       result = await pool.query(`
-        SELECT c.id, c.account_id, c.adapter_code, c.status, 
+        SELECT c.id, c.account_id, c.adapter_code, c.status, c.credentials,
                c.external_account_id, c.external_account_name,
                COALESCE(c.external_account_name, (SELECT name FROM gas_sync_properties WHERE connection_id = c.id ORDER BY id LIMIT 1), 'Unnamed') as connection_name,
                c.sync_enabled, c.sync_interval_minutes,
@@ -33445,7 +33445,7 @@ app.get('/api/gas-sync/connections', async (req, res) => {
     } else {
       // No filter - return all connections (for master admin)
       result = await pool.query(`
-        SELECT c.id, c.account_id, c.adapter_code, c.status, 
+        SELECT c.id, c.account_id, c.adapter_code, c.status, c.credentials,
                c.external_account_id, c.external_account_name,
                COALESCE(c.external_account_name, (SELECT name FROM gas_sync_properties WHERE connection_id = c.id ORDER BY id LIMIT 1), 'Unnamed') as connection_name,
                c.sync_enabled, c.sync_interval_minutes,
@@ -33464,7 +33464,22 @@ app.get('/api/gas-sync/connections', async (req, res) => {
       `);
     }
     
-    res.json({ success: true, connections: result.rows });
+    // Mask sensitive credentials but show last 5 chars of V1 API key
+    const connections = result.rows.map(conn => {
+      let v1KeyMasked = null;
+      if (conn.credentials) {
+        const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
+        if (creds.v1ApiKey && creds.v1ApiKey.length > 5) {
+          v1KeyMasked = '••••••••' + creds.v1ApiKey.slice(-5);
+        } else if (creds.v1ApiKey) {
+          v1KeyMasked = '•••••';
+        }
+      }
+      delete conn.credentials; // Don't send full credentials
+      return { ...conn, v1_key_masked: v1KeyMasked };
+    });
+    
+    res.json({ success: true, connections });
   } catch (error) {
     console.error('Error fetching connections:', error);
     // Return empty array instead of error - table might not exist yet
