@@ -35975,9 +35975,32 @@ Local honey and preserves"></textarea>
                 
                 if (data.success && data.properties.length > 0) {
                     container.innerHTML = `
-                        ${isBeds24 ? `<div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
-                            <strong>🔑 Property Keys:</strong> Add the Beds24 property key for each property to enable full pricing and availability sync.
-                        </div>` : ''}
+                        ${isBeds24 ? `
+                        <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 16px; margin-bottom: 15px;">
+                            <h4 style="margin: 0 0 12px 0; color: #166534;">📋 Beds24 Setup Instructions</h4>
+                            <p style="margin: 0 0 12px 0; font-size: 0.9rem; color: #15803d;">For each property in Beds24, go to <strong>Settings → Channel Manager → API</strong> and configure:</p>
+                            
+                            <div style="background: white; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+                                <strong style="color: #1e293b;">1. Booking Webhook</strong>
+                                <table style="width: 100%; margin-top: 8px; font-size: 0.85rem;">
+                                    <tr><td style="color: #64748b; width: 120px;">Webhook Version:</td><td><code>2 - no personal data</code></td></tr>
+                                    <tr><td style="color: #64748b;">URL:</td><td><code>https://admin.gas.travel/api/webhooks/beds24?propertyId=<span style="color: #dc2626;">{PROPERTY_ID}</span></code> <button onclick="copyWebhookUrl()" class="btn btn-sm" style="padding: 2px 8px; font-size: 0.75rem; margin-left: 5px;">📋</button></td></tr>
+                                    <tr><td style="color: #64748b;">Additional Data:</td><td><code>CVC and Token</code></td></tr>
+                                </table>
+                            </div>
+                            
+                            <div style="background: white; border-radius: 6px; padding: 12px;">
+                                <strong style="color: #1e293b;">2. API Access (V1 Only)</strong>
+                                <table style="width: 100%; margin-top: 8px; font-size: 0.85rem;">
+                                    <tr><td style="color: #64748b; width: 120px;">propKey:</td><td>Create a random key in Beds24 → Copy to the Prop Key field below</td></tr>
+                                </table>
+                            </div>
+                            
+                            <div style="margin-top: 12px; display: flex; gap: 10px;">
+                                <button onclick="testWebhook()" class="btn btn-sm" style="background: #22c55e; color: white;">🧪 Test Webhook</button>
+                            </div>
+                        </div>
+                        ` : ''}
                         <table class="data-table"><thead><tr>
                             <th>Status</th>
                             <th>Property</th>
@@ -36031,6 +36054,30 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 container.innerHTML = '<p style="color: #ef4444;">Error loading properties</p>';
+            }
+        }
+        
+        function copyWebhookUrl() {
+            navigator.clipboard.writeText('https://admin.gas.travel/api/webhooks/beds24?propertyId=');
+            showNotification('Webhook URL copied - add the property ID at the end', 'success');
+        }
+        
+        async function testWebhook() {
+            try {
+                showNotification('Testing webhook...', 'info');
+                const response = await fetch('/api/webhooks/beds24', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ test: true, source: 'gas-admin', timestamp: new Date().toISOString() })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Webhook endpoint is working!', 'success');
+                } else {
+                    showNotification('Webhook test failed', 'error');
+                }
+            } catch (error) {
+                showNotification('Webhook test failed: ' + error.message, 'error');
             }
         }
         
