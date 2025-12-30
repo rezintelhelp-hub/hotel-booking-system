@@ -22152,6 +22152,7 @@ Local honey and preserves"></textarea>
                     modal.remove();
                 } else {
                     modal.classList.remove('active');
+                    modal.style.display = 'none';
                     // Don't set display:none - let CSS handle visibility via .active class
                 }
             }
@@ -36156,7 +36157,6 @@ Local honey and preserves"></textarea>
             
             // Check if Beds24 for V1 API key field
             const isBeds24 = conn.adapter_code === 'beds24';
-            const credentials = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials || '{}') : (conn.credentials || {});
             
             container.innerHTML = `
                 <div class="form-group" style="margin-bottom: 15px;">
@@ -36165,7 +36165,7 @@ Local honey and preserves"></textarea>
                         Enable automatic sync
                     </label>
                 </div>
-                <div class="form-group" style="margin-bottom: 15px;">
+                <div class="form-group" style="margin-bottom: 20px;">
                     <label style="display: block; margin-bottom: 5px;">Sync Interval</label>
                     <select id="settingSyncInterval" class="form-control">
                         <option value="5" ${conn.sync_interval_minutes == 5 ? 'selected' : ''}>Every 5 minutes</option>
@@ -36174,24 +36174,49 @@ Local honey and preserves"></textarea>
                         <option value="60" ${conn.sync_interval_minutes == 60 ? 'selected' : ''}>Every hour</option>
                     </select>
                 </div>
-                <div class="form-group" style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 5px;">Account Name</label>
-                    <input type="text" id="settingAccountName" class="form-control" value="${conn.external_account_name || ''}" placeholder="Display name">
-                </div>
                 ${isBeds24 ? `
                 <hr style="margin: 20px 0;">
-                <h4 style="margin-bottom: 15px;">🔑 Beds24 API Keys</h4>
+                <h4 style="margin-bottom: 15px;">🔑 Beds24 V1 API Key</h4>
+                <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px;">The V1 API key enables pricing sync. Enter or update it below:</p>
                 <div class="form-group" style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px;">V1 API Key <span style="color: #6b7280; font-weight: normal;">(for pricing sync)</span></label>
-                    <input type="text" id="settingV1ApiKey" class="form-control" value="${credentials.v1ApiKey || ''}" placeholder="Enter V1 API key for full pricing sync">
-                    <small style="color: #6b7280; display: block; margin-top: 5px;">💡 Without V1 key, only basic property info syncs. Add it to enable pricing.</small>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="settingV1ApiKey" class="form-control" placeholder="Paste V1 API key here" style="flex: 1;">
+                        <button class="btn btn-primary" onclick="saveV1ApiKey()">Save Key</button>
+                    </div>
+                    <small style="color: #6b7280; display: block; margin-top: 8px;">💡 Find this in Beds24: Settings → Account → Account Access</small>
                 </div>
                 ` : ''}
+                <hr style="margin: 20px 0;">
                 <button class="btn btn-primary" onclick="saveConnectionSettings()">Save Settings</button>
                 <hr style="margin: 30px 0;">
                 <h4 style="color: #ef4444;">Danger Zone</h4>
                 <button class="btn btn-danger" onclick="deleteConnection(${conn.id}); closeModal('connectionDetailsModal');">🗑️ Delete Connection</button>
             `;
+        }
+        
+        async function saveV1ApiKey() {
+            const v1Key = document.getElementById('settingV1ApiKey').value.trim();
+            if (!v1Key) {
+                showNotification('Please enter a V1 API key', 'error');
+                return;
+            }
+            try {
+                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/set-v1-api-key`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ v1ApiKey: v1Key })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('V1 API key saved!', 'success');
+                    document.getElementById('settingV1ApiKey').value = '';
+                    document.getElementById('settingV1ApiKey').placeholder = '••••••••• (saved)';
+                } else {
+                    showNotification(data.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to save V1 API key', 'error');
+            }
         }
 
         async function saveConnectionSettings() {
@@ -36201,21 +36226,10 @@ Local honey and preserves"></textarea>
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({
                         sync_enabled: document.getElementById('settingSyncEnabled').checked,
-                        sync_interval_minutes: parseInt(document.getElementById('settingSyncInterval').value),
-                        external_account_name: document.getElementById('settingAccountName').value
+                        sync_interval_minutes: parseInt(document.getElementById('settingSyncInterval').value)
                     })
                 });
                 const data = await response.json();
-                
-                // Save V1 API key separately if field exists (Beds24)
-                const v1KeyField = document.getElementById('settingV1ApiKey');
-                if (v1KeyField && v1KeyField.value.trim()) {
-                    await fetch(`/api/gas-sync/connections/${selectedConnectionId}/set-v1-api-key`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                        body: JSON.stringify({ v1ApiKey: v1KeyField.value.trim() })
-                    });
-                }
                 
                 if (data.success) {
                     showNotification('Settings saved', 'success');
