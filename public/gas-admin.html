@@ -9862,7 +9862,7 @@ Local honey and preserves"></textarea>
     </div>
 
     <!-- GasSync Connection Details Modal -->
-    <div id="connectionDetailsModal" class="modal">
+    <div id="connectionDetailsModal" class="modal" onclick="if(event.target === this) closeModal('connectionDetailsModal')">
         <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
