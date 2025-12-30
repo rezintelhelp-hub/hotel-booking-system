@@ -1,74 +1,122 @@
 {
-  "updated": "2025-12-28",
+  "updated": "2025-12-30",
+  "plan_summary": "Migrating 100 legacy clients is priority. Build migration essentials first, then new revenue channels, then polish.",
   "categories": [
     {
-      "id": "critical",
-      "name": "CRITICAL - Client Sites Must Work",
-      "icon": "🔥",
-      "description": "Blocking issues - client sites need to work 100%"
+      "id": "phase1",
+      "name": "PHASE 1: Migration Essentials",
+      "icon": "🚀",
+      "description": "Critical for migrating 100 existing clients"
     },
     {
-      "id": "revenue",
-      "name": "Revenue & Monetization",
+      "id": "phase2",
+      "name": "PHASE 2: Revenue Channels",
       "icon": "💰",
-      "description": "Features that generate income"
+      "description": "New customer acquisition and monetisation"
     },
     {
-      "id": "billing",
-      "name": "Billing & Payments",
-      "icon": "💳",
-      "description": "Airwallex, Stripe, deposits, GAS subscriptions"
+      "id": "phase3",
+      "name": "PHASE 3: Polish",
+      "icon": "✨",
+      "description": "Onboarding UX and refinements"
     },
     {
-      "id": "booking-flow",
-      "name": "Booking Flow",
-      "icon": "📅",
-      "description": "End-to-end booking, deposits, CM sync"
-    },
-    {
-      "id": "partners",
-      "name": "Partners & Integrations",
-      "icon": "🤝",
-      "description": "Elevate, Travel Agents, Channel Managers"
-    },
-    {
-      "id": "website-builder",
-      "name": "Website Builder",
-      "icon": "🌐",
-      "description": "Templates, languages, auto-deploy"
-    },
-    {
-      "id": "ui",
-      "name": "UI/UX Improvements",
-      "icon": "🎨",
-      "description": "GAS Admin interface improvements"
-    },
-    {
-      "id": "apps",
-      "name": "Apps (Reviews, Blog, Attractions)",
-      "icon": "📱",
-      "description": "Build out the GAS apps functionality"
-    },
-    {
-      "id": "operations",
-      "name": "Operations & Infrastructure",
-      "icon": "⚙️",
-      "description": "Docs, support, monitoring"
-    },
-    {
-      "id": "support",
-      "name": "Support & Knowledge Base",
-      "icon": "🧳",
-      "description": "Gus AI assistant, KB, help system"
+      "id": "fixes",
+      "name": "Bug Fixes",
+      "icon": "🔧",
+      "description": "Outstanding issues to resolve"
     }
   ],
   "tasks": [
     {
-      "id": "rev-001",
-      "title": "Travel Agent Portal",
-      "description": "Agents login, browse properties, make bookings with commission tracking",
+      "id": "p1-001",
+      "title": "Beds24 Wizard - Large Property Support",
+      "description": "Allow users to connect with V2 key only, add V1 key and property codes later",
       "priority": "critical",
-      "category": "revenue",
+      "category": "phase1",
+      "status": "next",
+      "subtasks": [
+        "V2 API key only at initial signup",
+        "Pull properties list from V2",
+        "Add V1 API key later (account level setting)",
+        "Add property codes per property (not all at once)",
+        "Webhook installation wizard per property",
+        "Refresh button to pull/sync data",
+        "Per-property connection status (traffic light)"
+      ],
+      "notes": "Current wizard asks for everything upfront - overwhelming for users with 20+ properties"
+    },
+    {
+      "id": "p1-002",
+      "title": "Payment Systems by Region",
+      "description": "Support multiple payment providers for different regions",
+      "priority": "critical",
+      "category": "phase1",
+      "status": "todo",
+      "subtasks": [
+        "Stripe (existing - UK/US/EU)",
+        "Airwallex integration (Asia/Pacific)",
+        "Region detection or selection",
+        "Payment provider selection per account"
+      ],
+      "notes": "Migrating clients from different regions need their local payment systems"
+    },
+    {
+      "id": "p1-003",
+      "title": "Language Module",
+      "description": "Multi-language support for websites and content",
+      "priority": "high",
+      "category": "phase1",
+      "status": "todo",
+      "subtasks": [
+        "Language selector in website builder",
+        "Multi-language content fields for all pages",
+        "Language switcher on deployed sites",
+        "Auto-translation option (AI)",
+        "RTL support for Arabic etc"
+      ],
+      "notes": "Essential for European clients migrating from legacy system"
+    },
+    {
+      "id": "p2-001",
+      "title": "iCal Import Interface",
+      "description": "Import availability from any CM via iCal feeds",
+      "priority": "high",
+      "category": "phase2",
+      "status": "todo",
+      "subtasks": [
+        "iCal URL import per room",
+        "Google Calendar connection",
+        "Airbnb iCal support",
+        "VRBO iCal support",
+        "Sync frequency settings",
+        "Two-way sync where possible"
+      ],
+      "notes": "Opens door to Airbnb hosts - huge market"
+    },
+    {
+      "id": "p2-002",
+      "title": "Channel Manager Database",
+      "description": "Database of CMs with integration status and request voting",
+      "priority": "medium",
+      "category": "phase2",
+      "status": "todo",
+      "subtasks": [
+        "channel_managers table (name, logo, status, api_docs_url)",
+        "cm_requests table (votes per CM)",
+        "Search/browse CM list in connection wizard",
+        "Vote for CM integration button",
+        "Email template to send to CM requesting connection",
+        "Show vote count per CM"
+      ],
+      "notes": "If we hit stubborn CMs with hundreds of requests, they will connect"
+    },
+    {
+      "id": "p2-003",
+      "title": "Travel Agent Portal",
+      "description": "Agents login, browse properties, make bookings with commission",
+      "priority": "high",
+      "category": "phase2",
       "status": "todo",
       "subtasks": [
         "Agent registration/approval flow",
@@ -76,616 +124,145 @@
         "Commission rates per property",
         "Agent-specific pricing tiers (already built)",
         "Booking attribution tracking",
-        "Commission reporting"
+        "Commission reporting and payouts"
       ],
-      "notes": "Major revenue channel - agents bring bookings. Pricing tiers done Dec 27."
+      "notes": "Major revenue channel - agents bring bookings"
     },
     {
-      "id": "rev-002",
-      "title": "Monetize Templates",
-      "description": "Premium website templates for purchase/subscription",
-      "priority": "high",
-      "category": "revenue",
-      "status": "todo",
-      "subtasks": [
-        "Template marketplace UI",
-        "Payment via Airwallex",
-        "Template preview system",
-        "One-time or subscription options"
-      ]
-    },
-    {
-      "id": "rev-003",
-      "title": "Monetize Apps/Plugins",
-      "description": "Charge for premium apps - CRM, Social Campaigns, Analytics",
-      "priority": "high",
-      "category": "revenue",
-      "status": "todo"
-    },
-    {
-      "id": "rev-004",
-      "title": "GAS Subscription Plans",
-      "description": "Tiered pricing - Free, Pro, Enterprise with feature gates",
+      "id": "p2-004",
+      "title": "More Templates & Style Presets",
+      "description": "Additional website templates and style variations",
       "priority": "medium",
-      "category": "revenue",
-      "status": "todo"
-    },
-    {
-      "id": "rev-005",
-      "title": "Usage-Based Pricing Model",
-      "description": "Free signup and room uploads, paid features based on usage/volume",
-      "priority": "high",
-      "category": "revenue",
+      "category": "phase2",
       "status": "todo",
       "subtasks": [
-        "Define free tier (signup, add rooms/properties, basic CM connect)",
-        "Paid features: websites, blog, attractions, SEO tools, templates",
-        "Usage metrics: bookings processed, websites deployed, API calls",
-        "Volume tiers: small (1-5 properties), medium (6-20), large (21+)",
-        "Per-booking fee option vs monthly subscription",
-        "Metering/tracking system for usage",
-        "Billing dashboard showing usage vs limits",
-        "Upgrade prompts when hitting limits"
-      ],
-      "notes": "Freemium model - get them in free, monetize on value-add features and scale"
-    },
-    {
-      "id": "partner-001",
-      "title": "Elevate Integration Testing",
-      "description": "Work with Elevate to test Partner API end-to-end",
-      "priority": "critical",
-      "category": "partners",
-      "status": "in-progress",
-      "notes": "API built, developer portal live - waiting for them to test"
-    },
-    {
-      "id": "partner-002",
-      "title": "Partner Webhooks",
-      "description": "Notify partners of bookings, cancellations, status changes",
-      "priority": "high",
-      "category": "partners",
-      "status": "todo",
-      "subtasks": [
-        "Webhook registration endpoint",
-        "Event queue system",
-        "Retry logic for failed deliveries",
-        "Webhook logs in admin"
-      ]
-    },
-    {
-      "id": "partner-003",
-      "title": "Beds24 Wizard - Large Groups Support",
-      "description": "Allow users to add V1 and V2 API keys first, then add property keys/webhooks later",
-      "priority": "high",
-      "category": "partners",
-      "status": "todo",
-      "subtasks": [
-        "Simplified initial setup with just API keys",
-        "Property key addition wizard (post-signup)",
-        "Webhook configuration wizard",
-        "Bulk property import from API keys"
-      ],
-      "notes": "Current wizard works for individuals but not large hotel groups with many properties"
-    },
-    {
-      "id": "crit-001",
-      "title": "Booking → CM Sync",
-      "description": "When booking made on WP site, push to Beds24/Smoobu to block availability",
-      "priority": "critical",
-      "category": "critical",
-      "status": "todo",
-      "notes": "Bookings work but don't sync to CM yet"
-    },
-    {
-      "id": "crit-002",
-      "title": "Two-Way CM Sync",
-      "description": "Push changes FROM GAS back TO channel managers",
-      "priority": "high",
-      "category": "critical",
-      "status": "todo"
-    },
-    {
-      "id": "wb-001",
-      "title": "Multiple Website Templates",
-      "description": "More template options beyond developer-light/dark",
-      "priority": "high",
-      "category": "website-builder",
-      "status": "todo",
-      "subtasks": [
+        "Style presets (Bold, Elegant, Modern, Boutique)",
         "Boutique Hotel template",
         "Vacation Rental template",
         "B&B/Guesthouse template",
-        "Luxury/Premium template",
-        "Template preview in admin"
-      ]
-    },
-    {
-      "id": "wb-002",
-      "title": "Multi-Language Support",
-      "description": "Translate website content and booking flow",
-      "priority": "high",
-      "category": "website-builder",
-      "status": "todo",
-      "subtasks": [
-        "Language selector in website builder",
-        "Translation fields for all content",
-        "Auto-translation option (AI)",
-        "Language switcher on deployed sites"
+        "Template preview in admin",
+        "Template marketplace"
       ],
-      "notes": "Key for European expansion"
+      "notes": "Sellable add-ons, visible value"
     },
     {
-      "id": "wb-003",
-      "title": "Embeddable Booking Widget",
-      "description": "JS widget clients can embed on existing websites",
+      "id": "p3-001",
+      "title": "Onboarding UI - Traffic Light System",
+      "description": "Guided setup with progress tracking and nag system",
       "priority": "medium",
-      "category": "website-builder",
-      "status": "todo"
-    },
-    {
-      "id": "wb-004",
-      "title": "Social Media Integration",
-      "description": "Connect social media accounts, auto-post content, display feeds on websites",
-      "priority": "medium",
-      "category": "website-builder",
+      "category": "phase3",
       "status": "todo",
       "subtasks": [
-        "Facebook/Instagram connect",
-        "Auto-post new blog posts",
-        "Social feed widget for sites",
-        "Share buttons on content"
-      ]
-    },
-    {
-      "id": "wb-005",
-      "title": "GoDaddy Integration",
-      "description": "Domain and email service integration with GoDaddy",
-      "priority": "medium",
-      "category": "website-builder",
-      "status": "todo",
-      "subtasks": [
-        "Custom domain setup wizard",
-        "DNS configuration automation",
-        "Email service provisioning",
-        "SSL certificate management"
-      ]
-    },
-    {
-      "id": "pay-001",
-      "title": "Balance Collection - Auto-charge",
-      "description": "Auto-charge remaining balance X days before arrival using saved card",
-      "priority": "urgent",
-      "category": "billing",
-      "status": "todo",
-      "subtasks": [
-        "Save card to Stripe Customer",
-        "Scheduled job to check balance due dates",
-        "Auto-charge with saved payment method",
-        "Send receipt email after charge",
-        "Handle failed payments"
-      ]
-    },
-    {
-      "id": "pay-002",
-      "title": "Email Integration (SendGrid/Mailgun)",
-      "description": "Send payment receipts, balance reminders, booking confirmations",
-      "priority": "high",
-      "category": "billing",
-      "status": "todo",
-      "subtasks": [
-        "Deposit receipt email",
-        "Balance reminder email",
-        "Balance charged email",
-        "Booking confirmation email",
-        "Pre-arrival email",
-        "Post-stay review request"
-      ]
-    },
-    {
-      "id": "pay-003",
-      "title": "Additional Payment Gateways",
-      "description": "PayPal, Worldpay for UK clients",
-      "priority": "medium",
-      "category": "billing",
-      "status": "todo"
-    },
-    {
-      "id": "pay-004",
-      "title": "Airwallex for GAS Products",
-      "description": "Connect Airwallex to charge for GAS subscriptions",
-      "priority": "medium",
-      "category": "billing",
-      "status": "todo"
-    },
-    {
-      "id": "book-001",
-      "title": "Real-time Availability Check",
-      "description": "At booking confirmation, verify availability with CM API before accepting",
-      "priority": "high",
-      "category": "booking-flow",
-      "status": "todo",
-      "notes": "Safety net to prevent double bookings"
-    },
-    {
-      "id": "book-002",
-      "title": "Guest Portal",
-      "description": "Self-service portal for guests to manage their booking",
-      "priority": "medium",
-      "category": "booking-flow",
-      "status": "todo",
-      "subtasks": [
-        "View booking details",
-        "Online check-in form",
-        "Add upsells/extras",
-        "Request changes",
-        "Download invoice"
-      ]
-    },
-    {
-      "id": "app-001",
-      "title": "Reviews Integration",
-      "description": "Pull reviews from Google/TripAdvisor, display on sites",
-      "priority": "medium",
-      "category": "apps",
-      "status": "todo"
-    },
-    {
-      "id": "app-002",
-      "title": "Analytics Dashboard",
-      "description": "Bookings, revenue, occupancy trends visualization",
-      "priority": "medium",
-      "category": "apps",
-      "status": "todo"
-    },
-    {
-      "id": "app-003",
-      "title": "CRM Email Marketing App",
-      "description": "Guest email marketing with campaigns, automation",
-      "priority": "medium",
-      "category": "apps",
-      "status": "todo",
-      "subtasks": [
-        "CSV email import",
-        "GDPR consent tracking",
-        "Email template builder",
-        "Pre-arrival sequences",
-        "Post-stay review requests"
-      ]
-    },
-    {
-      "id": "app-004",
-      "title": "Social Media Smart Campaigns",
-      "description": "AI-driven social marketing for dead periods",
-      "priority": "low",
-      "category": "apps",
-      "status": "todo"
-    },
-    {
-      "id": "app-005",
-      "title": "iCal/Google Cal Wizards",
-      "description": "Simple channel manager via calendar feeds for hosts without Beds24",
-      "priority": "high",
-      "category": "apps",
-      "status": "todo",
-      "subtasks": [
-        "iCal import wizard (Airbnb, VRBO, Booking.com)",
-        "Google Calendar connect wizard",
-        "Export GAS availability as iCal",
-        "Auto-refresh every 15 mins",
-        "Conflict detection",
-        "Two-way sync option"
+        "Welcome screen for new users",
+        "Setup checklist with traffic lights",
+        "Progress bar",
+        "Nag banners until complete",
+        "Preview popup showing room page",
+        "Per-property status tracking",
+        "All green = ready for travel agents"
       ],
-      "notes": "Key for onboarding hosts without full channel manager"
+      "notes": "Mockup created - makes everything usable"
     },
     {
-      "id": "sup-001",
-      "title": "Knowledge Base - User Identification",
-      "description": "Capture user details with unanswered questions so we can respond directly",
-      "priority": "high",
-      "category": "support",
+      "id": "p3-002",
+      "title": "Page Builder for About/Gallery/Dining",
+      "description": "Simple drag-and-drop section builder",
+      "priority": "medium",
+      "category": "phase3",
       "status": "todo",
       "subtasks": [
-        "If logged in: auto-capture account_id, email, name from currentAccount",
-        "If not logged in: prompt for email before submitting question",
-        "Store contact details with each unanswered question",
-        "Show user contact info in Unanswered queue",
-        "Reply button sends email to user with answer",
-        "Slack notification includes who asked (name/email)"
+        "Text block section",
+        "Image section",
+        "Two-column layout",
+        "CTA button section",
+        "Drag to reorder",
+        "Add/remove sections"
       ],
-      "notes": "No more 'contact hello@gas.travel' - we contact THEM"
+      "notes": "Keep simple - vertical stack, no complex nesting"
     },
     {
-      "id": "sup-002",
-      "title": "Slack Reply → KB Integration",
-      "description": "Reply in Slack thread auto-adds to Knowledge Base",
-      "priority": "medium",
-      "category": "support",
-      "status": "in-progress",
-      "notes": "Endpoint built, needs Slack app reinstall to workspace"
-    },
-    {
-      "id": "ops-001",
-      "title": "Documentation Site",
-      "description": "Proper docs for clients, developers, and API reference",
-      "priority": "medium",
-      "category": "operations",
-      "status": "todo"
-    },
-    {
-      "id": "ops-002",
-      "title": "Support Ticketing",
-      "description": "In-app support system for clients",
+      "id": "p3-003",
+      "title": "DNS & Custom Domains",
+      "description": "Custom domain connection and email setup",
       "priority": "low",
-      "category": "operations",
-      "status": "todo"
-    },
-    {
-      "id": "ops-003",
-      "title": "Status Page",
-      "description": "Uptime monitoring and status page",
-      "priority": "low",
-      "category": "operations",
-      "status": "todo"
-    },
-    {
-      "id": "ops-004",
-      "title": "Secure Credentials Vault",
-      "description": "Secure area for all key links, logins, API keys",
-      "priority": "medium",
-      "category": "operations",
+      "category": "phase3",
       "status": "todo",
-      "notes": "Steve requested this for managing credentials"
+      "subtasks": [
+        "DNS management in GAS Admin",
+        "Custom domain connection flow",
+        "SSL certificate provisioning",
+        "Email hosting/forwarding"
+      ]
     },
     {
-      "id": "ui-001",
-      "title": "Wire Up Affiliate Program",
-      "description": "Affiliate tables exist but not connected - enable referral tracking",
+      "id": "fix-001",
+      "title": "Search Button Color Fix",
+      "description": "Homepage hero search button doesn't change color from GAS Admin",
       "priority": "medium",
-      "category": "ui",
-      "status": "todo"
+      "category": "fixes",
+      "status": "todo",
+      "notes": "Workaround: Use WP Customiser directly"
+    },
+    {
+      "id": "fix-002",
+      "title": "Blog/Attractions Plan Unlock",
+      "description": "Unlock Blog and Attractions pages based on subscription plan",
+      "priority": "high",
+      "category": "fixes",
+      "status": "done",
+      "completed": "2025-12-30",
+      "notes": "Shows upgrade prompt if feature not in plan"
     }
   ],
   "completed": [
     {
+      "id": "done-055",
+      "title": "FAQ Schema with AI Generation",
+      "description": "Added FAQ Schema sections to all pages with AI-powered FAQ generation via Claude API",
+      "category": "website-builder",
+      "completed": "2025-12-30"
+    },
+    {
+      "id": "done-054",
+      "title": "SEO Meta AI Generation",
+      "description": "AI-powered meta title and description generation for all pages",
+      "category": "website-builder",
+      "completed": "2025-12-30"
+    },
+    {
+      "id": "done-053",
+      "title": "Enable/Disable Toggles for Featured & About",
+      "description": "Added section enable toggles for Featured Properties and About sections on homepage",
+      "category": "website-builder",
+      "completed": "2025-12-30"
+    },
+    {
+      "id": "done-052",
+      "title": "Menu Active Underline Color",
+      "description": "Added Menu Active Underline Color control to Header settings",
+      "category": "website-builder",
+      "completed": "2025-12-30"
+    },
+    {
+      "id": "done-051",
+      "title": "Textarea Styling Improvements",
+      "description": "All textareas now 100% width, deeper height, no drag resize handles",
+      "category": "ui",
+      "completed": "2025-12-30"
+    },
+    {
       "id": "done-050",
-      "title": "Gus AI Support Chat Widget",
-      "description": "AI-powered support chat with Gus mascot, draggable widget, context-aware navigation, knowledge base integration",
-      "category": "support",
-      "completed": "2025-12-28",
-      "details": "Custom suitcase mascot, updates quick buttons per section, acknowledges navigation changes"
+      "title": "Meta Fields Save Fix",
+      "description": "Fixed meta title/description fields not saving on all pages",
+      "category": "website-builder",
+      "completed": "2025-12-30"
     },
     {
       "id": "done-049",
-      "title": "Knowledge Base System",
-      "description": "Database-driven KB with articles, categories, unanswered questions queue, search",
-      "category": "support",
-      "completed": "2025-12-28",
-      "details": "Articles imported, AI searches KB for answers, logs unanswered to database"
-    },
-    {
-      "id": "done-048",
-      "title": "Slack Notifications for Gus",
-      "description": "When Gus can't answer, sends formatted notification to Slack with question details",
-      "category": "support",
-      "completed": "2025-12-28",
-      "details": "Shows question, section, ID, link to GAS Admin"
-    },
-    {
-      "id": "done-047",
-      "title": "SEO Analytics - Filter Deleted Sites",
-      "description": "Fixed dropdown to only show sites that exist in deployed_sites (not deleted)",
-      "category": "ui",
-      "completed": "2025-12-28"
-    },
-    {
-      "id": "done-046",
-      "title": "Le Macassar Site Deployed",
-      "description": "New property site with auto GA4/Search Console registration working",
+      "title": "Blog/Attractions Plan-Based Unlock",
+      "description": "Blog and Attractions tabs in Website Builder now check plan features",
       "category": "website-builder",
-      "completed": "2025-12-28"
-    },
-    {
-      "id": "done-045",
-      "title": "Corporate Pricing - Hide Discount Badges",
-      "description": "Corporate and Agent tiers show clean pricing without Save X% badges",
-      "category": "revenue",
-      "completed": "2025-12-27"
-    },
-    {
-      "id": "done-044",
-      "title": "WordPress Pricing Tier Sync",
-      "description": "Pricing tier changes in GAS Admin push to WordPress sites via gas-api.php",
-      "category": "partners",
-      "completed": "2025-12-27"
-    },
-    {
-      "id": "done-043",
-      "title": "Currency Auto-Detection",
-      "description": "Properties imported from Beds24 auto-detect currency from country",
-      "category": "partners",
-      "completed": "2025-12-27"
-    },
-    {
-      "id": "done-042",
-      "title": "Property ID & Currency Columns",
-      "description": "Added ID column (code badge) and editable Currency dropdown to Properties table",
-      "category": "ui",
-      "completed": "2025-12-27"
-    },
-    {
-      "id": "done-041",
-      "title": "Blog & Attractions Wizard Fixes",
-      "description": "Fixed wizard to create IDEAS first, category persistence, duplicate prevention",
-      "category": "apps",
-      "completed": "2025-12-27"
-    },
-    {
-      "id": "done-040",
-      "title": "Partner API System",
-      "description": "Full Partner API for GasSync (Calry-compatible) and Website Builder - properties, units, availability, reservations, rates, website sections, deploy",
-      "category": "partners",
-      "completed": "2025-12-22"
-    },
-    {
-      "id": "done-039",
-      "title": "Developer Portal Page",
-      "description": "Public developer signup at /developers with API docs and request form",
-      "category": "partners",
-      "completed": "2025-12-22"
-    },
-    {
-      "id": "done-038",
-      "title": "Pricing Tiers for Offers & Websites",
-      "description": "Standard, Corporate, Wholesale, Agent, VIP pricing tiers - websites filter offers by tier",
-      "category": "revenue",
-      "completed": "2025-12-22"
-    },
-    {
-      "id": "done-037",
-      "title": "Vendor System",
-      "description": "External vendors (taxi, tours), vendor portal, service requests from upsells/vouchers",
-      "category": "apps",
-      "completed": "2025-12-20"
-    },
-    {
-      "id": "done-036",
-      "title": "Website Delete Fix",
-      "description": "Fixed delete button bounce issue, added type-to-confirm safety, proper cleanup of website URLs",
-      "category": "ui",
-      "completed": "2025-12-22"
-    },
-    {
-      "id": "done-035",
-      "title": "Modal Styling Sweep",
-      "description": "Fixed rounded corners and gradient headers on 17+ modals for consistent UI",
-      "category": "ui",
-      "completed": "2025-12-22"
-    },
-    {
-      "id": "done-034",
-      "title": "Room Visibility System",
-      "description": "is_hidden column, toggle buttons, 'Show hidden rooms' checkbox",
-      "category": "ui",
-      "completed": "2025-12-20"
-    },
-    {
-      "id": "done-033",
-      "title": "Room Sync Check Feature",
-      "description": "Compare Beds24 rooms vs GAS, import/archive/rename options",
-      "category": "integrations",
-      "completed": "2025-12-20"
-    },
-    {
-      "id": "done-032",
-      "title": "Blog AI Generator",
-      "description": "AI-powered blog post generation with scheduling and property scoping",
-      "category": "apps",
-      "completed": "2025-12-19"
-    },
-    {
-      "id": "done-031",
-      "title": "V1 Pricing Sync for Belmont",
-      "description": "Hybrid V1/V2 API approach for Fixed Price rooms that return empty from V2",
-      "category": "integrations",
-      "completed": "2025-12-20"
-    },
-    {
-      "id": "done-030",
-      "title": "Voucher Vendor Integration",
-      "description": "Extended vouchers to support external vendors like upsells",
-      "category": "apps",
-      "completed": "2025-12-20"
-    },
-    {
-      "id": "done-020",
-      "title": "Stripe Connect per Account",
-      "description": "Each client account connects their own Stripe - payments go direct to them",
-      "category": "billing",
-      "completed": "2025-12-08"
-    },
-    {
-      "id": "done-021",
-      "title": "Account Management UI",
-      "description": "GAS Admin Accounts view with Stripe Connect/Disconnect buttons, Edit account",
-      "category": "ui",
-      "completed": "2025-12-08"
-    },
-    {
-      "id": "done-022",
-      "title": "Deposit Rules System",
-      "description": "Configure deposit % or fixed amount per property, balance due days",
-      "category": "billing",
-      "completed": "2025-12-08"
-    },
-    {
-      "id": "done-023",
-      "title": "Checkout with Card Payment",
-      "description": "WP checkout accepts card via Stripe, charges deposit, creates booking",
-      "category": "billing",
-      "completed": "2025-12-08"
-    },
-    {
-      "id": "done-024",
-      "title": "Booking Detail View",
-      "description": "Full booking details with payment status, deposit/balance breakdown, action buttons",
-      "category": "ui",
-      "completed": "2025-12-08"
-    },
-    {
-      "id": "done-025",
-      "title": "Payments View - Per Property Stripe Status",
-      "description": "Shows correct Stripe connection based on selected property's account",
-      "category": "ui",
-      "completed": "2025-12-08"
-    },
-    {
-      "id": "done-026",
-      "title": "Bookings All Properties View",
-      "description": "Can view all bookings across properties with Property column, or filter by property",
-      "category": "ui",
-      "completed": "2025-12-08"
-    },
-    {
-      "id": "done-016",
-      "title": "Content Section Removed",
-      "description": "Old Content Management removed - data now lives in Properties, Amenities, WB",
-      "category": "ui",
-      "completed": "2025-12-06"
-    },
-    {
-      "id": "done-017",
-      "title": "Marketing Features - Room Level",
-      "description": "Added room selector to Marketing Features with apply-to-all option",
-      "category": "ui",
-      "completed": "2025-12-06"
-    },
-    {
-      "id": "done-018",
-      "title": "Billing System Schema",
-      "description": "Products, Plans, Add-ons, Subscriptions, Affiliates tables designed",
-      "category": "billing",
-      "completed": "2025-12-06"
-    },
-    {
-      "id": "done-019",
-      "title": "Affiliate Program UI",
-      "description": "Bronze/Silver/Gold tiers, My Referrals dashboard, admin Affiliates view",
-      "category": "billing",
-      "completed": "2025-12-06"
-    },
-    {
-      "id": "done-027",
-      "title": "Account Selector Badge Redesign",
-      "description": "Green account banner improved styling",
-      "category": "ui",
-      "completed": "2025-12-07"
-    },
-    {
-      "id": "done-028",
-      "title": "Tasks Page Redesign",
-      "description": "Tabbed menu navigation - filter by category OR priority",
-      "category": "ui",
-      "completed": "2025-12-07"
+      "completed": "2025-12-30"
     }
   ]
 }
