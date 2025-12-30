@@ -35970,23 +35970,87 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/properties`, { headers: authHeaders() });
                 const data = await response.json();
+                const conn = gasSyncConnections.find(c => c.id === selectedConnectionId);
+                const isBeds24 = conn && conn.adapter_code === 'beds24';
+                
                 if (data.success && data.properties.length > 0) {
-                    container.innerHTML = `<table class="data-table"><thead><tr><th>Property</th><th>Location</th><th>Room Types</th><th>Images</th><th>Linked</th><th>Actions</th></tr></thead><tbody>
-                        ${data.properties.map(p => `<tr>
-                            <td><strong>${p.name}</strong><br><small style="color: #6b7280;">${p.external_id}</small></td>
-                            <td>${p.city || ''}, ${p.country || ''}</td>
-                            <td>${p.room_type_count}</td>
-                            <td>${p.image_count}</td>
-                            <td>${p.gas_property_id ? '✅' : '❌'}</td>
-                            <td>${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
-                                <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})">📷</button></td>
-                        </tr>`).join('')}
+                    container.innerHTML = `
+                        ${isBeds24 ? `<div style="background: #f0f9ff; border: 1px solid #0ea5e9; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
+                            <strong>🔑 Property Keys:</strong> Add the Beds24 property key for each property to enable full pricing and availability sync.
+                        </div>` : ''}
+                        <table class="data-table"><thead><tr>
+                            <th>Status</th>
+                            <th>Property</th>
+                            <th>Location</th>
+                            ${isBeds24 ? '<th>Prop Key</th>' : ''}
+                            <th>Room Types</th>
+                            <th>Images</th>
+                            <th>Linked</th>
+                            <th>Actions</th>
+                        </tr></thead><tbody>
+                        ${data.properties.map(p => {
+                            let statusLight = '🟢';
+                            let statusTitle = 'Fully configured';
+                            if (isBeds24) {
+                                if (!p.prop_key) {
+                                    statusLight = '🔴';
+                                    statusTitle = 'Missing property key';
+                                } else if (!p.gas_property_id) {
+                                    statusLight = '🟡';
+                                    statusTitle = 'Not imported to GAS yet';
+                                }
+                            } else {
+                                if (!p.gas_property_id) {
+                                    statusLight = '🟡';
+                                    statusTitle = 'Not imported to GAS yet';
+                                }
+                            }
+                            return `<tr>
+                                <td title="${statusTitle}" style="font-size: 1.25rem; text-align: center;">${statusLight}</td>
+                                <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.external_id}</small></td>
+                                <td>${p.city || ''}, ${p.country || ''}</td>
+                                ${isBeds24 ? `<td>
+                                    <div style="display: flex; gap: 5px; align-items: center;">
+                                        <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key" 
+                                            style="width: 100px; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;">
+                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 8px;">💾</button>
+                                    </div>
+                                </td>` : ''}
+                                <td>${p.room_type_count}</td>
+                                <td>${p.image_count}</td>
+                                <td>${p.gas_property_id ? '✅' : '❌'}</td>
+                                <td>
+                                    ${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
+                                    <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})">📷</button>
+                                </td>
+                            </tr>`;
+                        }).join('')}
                     </tbody></table>`;
                 } else {
                     container.innerHTML = '<p style="text-align: center; color: var(--text-secondary);">No properties synced yet</p>';
                 }
             } catch (error) {
                 container.innerHTML = '<p style="color: #ef4444;">Error loading properties</p>';
+            }
+        }
+        
+        async function savePropKey(syncPropertyId) {
+            const propKey = document.getElementById(`propKey-${syncPropertyId}`).value.trim();
+            try {
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/set-prop-key`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ propKey: propKey })
+                });
+                const data = await response.json();
+                if (data.success) {
+                    showNotification('Property key saved', 'success');
+                    loadConnectionPropertiesTab();
+                } else {
+                    showNotification(data.error || 'Failed to save', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to save property key', 'error');
             }
         }
 
@@ -36042,6 +36106,11 @@ Local honey and preserves"></textarea>
             const conn = gasSyncConnections.find(c => c.id === selectedConnectionId);
             if (!conn) return;
             const container = document.getElementById('connectionTabSettings');
+            
+            // Check if Beds24 for V1 API key field
+            const isBeds24 = conn.adapter_code === 'beds24';
+            const credentials = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials || '{}') : (conn.credentials || {});
+            
             container.innerHTML = `
                 <div class="form-group" style="margin-bottom: 15px;">
                     <label style="display: flex; align-items: center; gap: 8px;">
@@ -36062,6 +36131,15 @@ Local honey and preserves"></textarea>
                     <label style="display: block; margin-bottom: 5px;">Account Name</label>
                     <input type="text" id="settingAccountName" class="form-control" value="${conn.external_account_name || ''}" placeholder="Display name">
                 </div>
+                ${isBeds24 ? `
+                <hr style="margin: 20px 0;">
+                <h4 style="margin-bottom: 15px;">🔑 Beds24 API Keys</h4>
+                <div class="form-group" style="margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 5px;">V1 API Key <span style="color: #6b7280; font-weight: normal;">(for pricing sync)</span></label>
+                    <input type="text" id="settingV1ApiKey" class="form-control" value="${credentials.v1ApiKey || ''}" placeholder="Enter V1 API key for full pricing sync">
+                    <small style="color: #6b7280; display: block; margin-top: 5px;">💡 Without V1 key, only basic property info syncs. Add it to enable pricing.</small>
+                </div>
+                ` : ''}
                 <button class="btn btn-primary" onclick="saveConnectionSettings()">Save Settings</button>
                 <hr style="margin: 30px 0;">
                 <h4 style="color: #ef4444;">Danger Zone</h4>
@@ -36081,6 +36159,17 @@ Local honey and preserves"></textarea>
                     })
                 });
                 const data = await response.json();
+                
+                // Save V1 API key separately if field exists (Beds24)
+                const v1KeyField = document.getElementById('settingV1ApiKey');
+                if (v1KeyField && v1KeyField.value.trim()) {
+                    await fetch(`/api/gas-sync/connections/${selectedConnectionId}/set-v1-api-key`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                        body: JSON.stringify({ v1ApiKey: v1KeyField.value.trim() })
+                    });
+                }
+                
                 if (data.success) {
                     showNotification('Settings saved', 'success');
                     loadGasSyncConnections();
