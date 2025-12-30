@@ -33469,9 +33469,10 @@ app.get('/api/gas-sync/connections', async (req, res) => {
       let v1KeyMasked = null;
       if (conn.credentials) {
         const creds = typeof conn.credentials === 'string' ? JSON.parse(conn.credentials) : conn.credentials;
-        if (creds.v1ApiKey && creds.v1ApiKey.length > 5) {
-          v1KeyMasked = '••••••••' + creds.v1ApiKey.slice(-5);
-        } else if (creds.v1ApiKey) {
+        const v1Key = creds.v1ApiKey || creds.apiKey;
+        if (v1Key && v1Key.length > 5) {
+          v1KeyMasked = '••••••••' + v1Key.slice(-5);
+        } else if (v1Key) {
           v1KeyMasked = '•••••';
         }
       }
@@ -33663,9 +33664,10 @@ app.get('/api/gas-sync/connections/:id', async (req, res) => {
     let v1KeyMasked = null;
     if (connection.credentials) {
       const creds = typeof connection.credentials === 'string' ? JSON.parse(connection.credentials) : connection.credentials;
-      if (creds.v1ApiKey && creds.v1ApiKey.length > 5) {
-        v1KeyMasked = '••••••••' + creds.v1ApiKey.slice(-5);
-      } else if (creds.v1ApiKey) {
+      const v1Key = creds.v1ApiKey || creds.apiKey;
+      if (v1Key && v1Key.length > 5) {
+        v1KeyMasked = '••••••••' + v1Key.slice(-5);
+      } else if (v1Key) {
         v1KeyMasked = '•••••';
       }
     }
