@@ -34063,7 +34063,7 @@ app.get('/api/gas-sync/connections/:id/properties', async (req, res) => {
     
     const result = await pool.query(`
       SELECT p.id, p.external_id, p.name, p.city, p.country, p.currency,
-             p.is_active, p.synced_at, p.gas_property_id,
+             p.is_active, p.synced_at, p.gas_property_id, p.prop_key,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_type_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
       FROM gas_sync_properties p
