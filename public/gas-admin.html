@@ -35684,7 +35684,12 @@ Local honey and preserves"></textarea>
         // Connections
         async function loadGasSyncConnections() {
             try {
-                const response = await fetch('/api/gas-sync/connections', { headers: authHeaders() });
+                // Filter by account for non-master users
+                let url = '/api/gas-sync/connections';
+                if (selectedAccountId) {
+                    url += `?account_id=${selectedAccountId}`;
+                }
+                const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
                 
                 gasSyncConnections = data.connections || [];
