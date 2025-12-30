@@ -35939,6 +35939,7 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 if (data.success) {
                     const conn = data.connection;
+                    const isBeds24 = conn.adapter_code === 'beds24';
                     container.innerHTML = `
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                             <div>
@@ -35948,13 +35949,28 @@ Local honey and preserves"></textarea>
                                     <tr><td style="padding: 8px 0; color: #6b7280;">Status:</td><td><span class="status-badge status-${conn.status}">${conn.status}</span></td></tr>
                                     <tr><td style="padding: 8px 0; color: #6b7280;">External Account:</td><td>${conn.external_account_name || '-'}</td></tr>
                                     <tr><td style="padding: 8px 0; color: #6b7280;">Last Sync:</td><td>${conn.last_sync_at ? formatTimeAgo(conn.last_sync_at) : 'Never'}</td></tr>
+                                    ${isBeds24 ? `<tr><td style="padding: 8px 0; color: #6b7280;">V1 API Key:</td><td>${conn.v1_key_masked ? `<span style="color: #16a34a;">✓</span> ${conn.v1_key_masked}` : '<span style="color: #dc2626;">✗ Not set</span>'}</td></tr>` : ''}
                                 </tbody></table>
                             </div>
                             <div>
-                                <h4>Quick Actions</h4>
+                                <h4>Sync Actions</h4>
                                 <div style="display: flex; flex-direction: column; gap: 10px;">
-                                    <button class="btn btn-primary" onclick="triggerSync(${conn.id}, 'full')">🔄 Full Sync</button>
-                                    <button class="btn btn-secondary" onclick="triggerSync(${conn.id}, 'incremental')">⚡ Incremental Sync</button>
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <button class="btn btn-primary" onclick="triggerSync(${conn.id}, 'full')" style="flex: 1;">🔄 Full Sync</button>
+                                    </div>
+                                    <small style="color: #6b7280; margin: -5px 0 5px 0;">Syncs all properties, rooms, availability & bookings</small>
+                                    
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <button class="btn btn-secondary" onclick="triggerSync(${conn.id}, 'incremental')" style="flex: 1;">⚡ Incremental Sync</button>
+                                    </div>
+                                    <small style="color: #6b7280; margin: -5px 0 5px 0;">Quick sync of recent changes only</small>
+                                    
+                                    ${isBeds24 ? `
+                                    <div style="display: flex; gap: 10px; align-items: center;">
+                                        <button class="btn" onclick="triggerSync(${conn.id}, 'v1')" style="flex: 1; background: #8b5cf6;"}>📷 V1 Sync</button>
+                                    </div>
+                                    <small style="color: #6b7280; margin: -5px 0 5px 0;">Images & fixed pricing (requires V1 API key)</small>
+                                    ` : ''}
                                 </div>
                                 ${conn.last_error ? `<div style="margin-top: 15px; padding: 12px; background: #fee2e2; border-radius: 8px; color: #dc2626;"><strong>Last Error:</strong><br>${conn.last_error}</div>` : ''}
                             </div>
@@ -36189,10 +36205,10 @@ Local honey and preserves"></textarea>
                 </div>
                 ` : `
                 <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 12px; margin-bottom: 15px;">
-                    <span style="color: #92400e;">⚠️ V1 API Key not set - pricing sync disabled</span>
+                    <span style="color: #92400e;">⚠️ V1 API Key not set</span>
                 </div>
                 `}
-                <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px;">${hasV1Key ? 'Update the V1 API key:' : 'Enter your V1 API key to enable pricing sync:'}</p>
+                <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 12px;">${hasV1Key ? 'Update the V1 API key:' : 'Enter your V1 API key to enable image download and fixed pricing:'}</p>
                 <div class="form-group" style="margin-bottom: 15px;">
                     <div style="display: flex; gap: 10px; align-items: center;">
                         <input type="text" id="settingV1ApiKey" class="form-control" placeholder="Paste V1 API key here" style="flex: 1;">
