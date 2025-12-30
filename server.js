@@ -33658,6 +33658,19 @@ app.get('/api/gas-sync/connections/:id', async (req, res) => {
     }
     
     const connection = result.rows[0];
+    
+    // Add masked V1 key for Beds24
+    let v1KeyMasked = null;
+    if (connection.credentials) {
+      const creds = typeof connection.credentials === 'string' ? JSON.parse(connection.credentials) : connection.credentials;
+      if (creds.v1ApiKey && creds.v1ApiKey.length > 5) {
+        v1KeyMasked = '••••••••' + creds.v1ApiKey.slice(-5);
+      } else if (creds.v1ApiKey) {
+        v1KeyMasked = '•••••';
+      }
+    }
+    connection.v1_key_masked = v1KeyMasked;
+    
     delete connection.credentials;
     delete connection.access_token;
     delete connection.refresh_token;
