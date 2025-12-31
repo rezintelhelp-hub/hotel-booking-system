@@ -2092,6 +2092,9 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
           timeout: 15000
         });
         
+        // Log what Beds24 returned
+        console.log('Beds24 getProperty response:', JSON.stringify(testResponse.data));
+        
         // Check if we got valid property data back
         if (testResponse.data && testResponse.data.propId) {
           // Verify the propId matches
