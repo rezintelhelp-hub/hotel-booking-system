@@ -2412,6 +2412,9 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     }
     
     // Get user_id for this account, or create one if none exists
+    // First ensure account_id column exists on users table
+    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS account_id INTEGER').catch(() => {});
+    
     let userResult = await pool.query('SELECT id FROM users WHERE account_id = $1 LIMIT 1', [accountId]);
     let userId = userResult.rows[0]?.id;
     
@@ -2421,12 +2424,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       const account = accountResult.rows[0];
       
       if (account) {
-        // Create a user for this account
+        // Create a user for this account with a random password hash
+        const bcrypt = require('bcryptjs');
+        const randomPassword = require('crypto').randomBytes(16).toString('hex');
+        const passwordHash = await bcrypt.hash(randomPassword, 10);
+        
         const newUserResult = await pool.query(`
-          INSERT INTO users (account_id, email, name, role, status, created_at)
-          VALUES ($1, $2, $3, 'admin', 'active', NOW())
+          INSERT INTO users (account_id, email, name, password_hash, account_type, created_at)
+          VALUES ($1, $2, $3, $4, 'owner', NOW())
           RETURNING id
-        `, [accountId, account.email || `user${accountId}@gas.travel`, account.name || 'Account Owner']);
+        `, [accountId, account.email || `user${accountId}@gas.travel`, account.name || 'Account Owner', passwordHash]);
         userId = newUserResult.rows[0].id;
         console.log('link-to-gas: Created new user:', userId, 'for account:', accountId);
       } else {
