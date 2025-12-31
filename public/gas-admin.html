@@ -4051,9 +4051,6 @@
                     <button class="editor-tab" data-tab="footer" onclick="switchEditorTab('footer')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         👣 Footer
                     </button>
-                    <button class="editor-tab" data-tab="styles" onclick="switchEditorTab('styles')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
-                        🎨 Styles & Colors
-                    </button>
                     <button class="editor-tab" data-tab="seo" onclick="switchEditorTab('seo')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         🔍 SEO & Analytics
                     </button>
@@ -5306,6 +5303,35 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
+                    <div class="card-header"><h3>Section Styling</h3></div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Colour</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-featured-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-featured-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-featured-bg-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Title Colour</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-featured-title-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-title-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-featured-title-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-featured-title-color-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Subtitle Colour</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-featured-subtitle-color-picker" value="#64748b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-subtitle-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-featured-subtitle-color" value="#64748b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-featured-subtitle-color-picker')">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Content</h3></div>
                     <div class="card-body">
                         <div class="form-group">
@@ -5615,9 +5641,30 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Styling</h3></div>
+                    <div class="card-header"><h3>Section Styling</h3></div>
                     <div class="card-body">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Background Colour</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-about-bg-picker" value="#f8fafc" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-about-bg" value="#f8fafc" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-about-bg-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Title Colour</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-about-title-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-title-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-about-title-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-about-title-color-picker')">
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Text Colour</label>
+                                <div style="display: flex; gap: 8px; align-items: center;">
+                                    <input type="color" id="wb-about-text-color-picker" value="#475569" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-text-color').value = this.value">
+                                    <input type="text" class="form-input" id="wb-about-text-color" value="#475569" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-about-text-color-picker')">
+                                </div>
+                            </div>
                             <div class="form-group">
                                 <label class="form-label">Title Size: <span id="wb-about-title-size-value">36</span>px</label>
                                 <input type="range" id="wb-about-title-size" min="24" max="72" value="36" style="width: 100%;" oninput="document.getElementById('wb-about-title-size-value').textContent = this.value">
