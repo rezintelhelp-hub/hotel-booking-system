@@ -2429,11 +2429,16 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
         const randomPassword = require('crypto').randomBytes(16).toString('hex');
         const passwordHash = await bcrypt.hash(randomPassword, 10);
         
+        // Split name into first and last
+        const nameParts = (account.name || 'Account Owner').split(' ');
+        const firstName = nameParts[0] || 'Account';
+        const lastName = nameParts.slice(1).join(' ') || 'Owner';
+        
         const newUserResult = await pool.query(`
-          INSERT INTO users (account_id, email, name, password_hash, account_type, created_at)
-          VALUES ($1, $2, $3, $4, 'owner', NOW())
+          INSERT INTO users (account_id, email, first_name, last_name, password_hash, user_type, account_status, created_at)
+          VALUES ($1, $2, $3, $4, $5, 'property_owner', 'active', NOW())
           RETURNING id
-        `, [accountId, account.email || `user${accountId}@gas.travel`, account.name || 'Account Owner', passwordHash]);
+        `, [accountId, account.email || `user${accountId}@gas.travel`, firstName, lastName, passwordHash]);
         userId = newUserResult.rows[0].id;
         console.log('link-to-gas: Created new user:', userId, 'for account:', accountId);
       } else {
