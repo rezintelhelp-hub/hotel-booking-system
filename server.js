@@ -11870,9 +11870,11 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'trust-1': 'trust_1',
       'trust-2': 'trust_2',
       'trust-3': 'trust_3',
+      'trust-text-color': 'trust_text_color',
       // Search
       'search-btn-bg': 'search_btn_bg',
       'search-btn-text': 'search_btn_text',
+      'search-label-color': 'search_label_color',
       'search-max-guests': 'search_max_guests',
       // Favicon
       'favicon-image-url': 'site_icon'
@@ -31982,9 +31984,11 @@ app.post('/api/websites/:websiteId/sync-to-wordpress', async (req, res) => {
       'trust-1': 'developer_hero_trust_1',
       'trust-2': 'developer_hero_trust_2',
       'trust-3': 'developer_hero_trust_3',
+      'trust-text-color': 'trust_text_color',
       // Search button
-      'search-btn-bg': 'developer_search_btn_bg',
-      'search-btn-text': 'developer_search_btn_text'
+      'search-btn-bg': 'search_btn_bg',
+      'search-btn-text': 'search_btn_text',
+      'search-label-color': 'search_label_color'
     };
     
     websiteResult.rows.forEach(row => {
