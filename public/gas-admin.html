@@ -36529,10 +36529,10 @@ Local honey and preserves"></textarea>
             const accountId = selectedAccountId || currentAccount.id;
             try {
                 showNotification('Importing property...', 'info');
-                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/import`, {
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/link-to-gas`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ account_id: accountId })
+                    body: JSON.stringify({ accountId: accountId })
                 });
                 const data = await response.json();
                 if (data.success) {
