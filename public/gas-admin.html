@@ -5088,8 +5088,8 @@
                             <div class="form-group">
                                 <label class="form-label">Background</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-hero-badge-bg-picker" value="#c58c8c" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-badge-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-badge-bg" value="#c58c8c" style="width: 100%; font-family: monospace; font-size: 12px;" oninput="syncColorToPicker(this.id, 'wb-hero-badge-bg-picker')">
+                                    <input type="color" id="wb-hero-badge-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer; opacity: 0.3;" onchange="document.getElementById('wb-hero-badge-bg').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-badge-bg" value="rgba(255,255,255,0.15)" style="width: 100%; font-family: monospace; font-size: 12px;">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -5102,8 +5102,8 @@
                             <div class="form-group">
                                 <label class="form-label">Border</label>
                                 <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-hero-badge-border-picker" value="#cccccc" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-badge-border').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-badge-border" value="#cccccc" style="width: 100%; font-family: monospace; font-size: 12px;" oninput="syncColorToPicker(this.id, 'wb-hero-badge-border-picker')">
+                                    <input type="color" id="wb-hero-badge-border-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer; opacity: 0.3;" onchange="document.getElementById('wb-hero-badge-border').value = this.value">
+                                    <input type="text" class="form-input" id="wb-hero-badge-border" value="rgba(255,255,255,0.3)" style="width: 100%; font-family: monospace; font-size: 12px;">
                                 </div>
                             </div>
                         </div>
@@ -15375,7 +15375,7 @@ Local honey and preserves"></textarea>
             try {
                 // Determine which container to update - editor panel (visible) or original view
                 const editorPanelMap = {
-                    'header': 'wb-header',
+                    'header': 'editor-header-content',
                     'hero': 'editor-homepage-hero',
                     'intro': 'editor-intro-content',
                     'featured': 'editor-featured-content',
@@ -15703,7 +15703,7 @@ Local honey and preserves"></textarea>
                 const prefix = `wb-${section}-`;
                 
                 const editorPanelMap = {
-                    'header': 'wb-header',
+                    'header': 'editor-header-content',
                     'hero': 'editor-homepage-hero',
                     'intro': 'editor-intro-content',
                     'featured': 'editor-featured-content',
@@ -15881,13 +15881,13 @@ Local honey and preserves"></textarea>
                         if (hexMatch) {
                             const hexColor = '#' + hexMatch[1];
                             const picker = document.getElementById(`${prefix}${key}-picker`);
-                            // Only apply hex color if there's a corresponding color picker
+                            const textInput = document.getElementById(`${prefix}${key}`);
                             if (picker) {
                                 picker.value = hexColor;
-                                const textInput = document.getElementById(`${prefix}${key}`);
-                                if (textInput) {
-                                    textInput.value = hexColor;
-                                }
+                            }
+                            // Also ensure text input has # prefix
+                            if (textInput && !textInput.value.startsWith('#')) {
+                                textInput.value = hexColor;
                             }
                         }
                     }
