@@ -36129,27 +36129,26 @@ Local honey and preserves"></textarea>
                             <th>Status</th>
                             <th>Property</th>
                             <th>Location</th>
+                            ${isBeds24 ? '<th style="min-width: 420px;">Webhook URL</th>' : ''}
                             ${isBeds24 ? '<th>Prop Key</th>' : ''}
-                            ${isBeds24 ? '<th>Webhook</th>' : ''}
-                            <th>Room Types</th>
-                            <th>Images</th>
-                            <th>Linked</th>
-                            <th>Actions</th>
+                            <th>Rooms</th>
+                            <th>Import</th>
                         </tr></thead><tbody>
                         ${data.properties.map(p => {
                             let statusLight = '🟢';
                             let statusTitle = 'Fully configured';
                             const webhookTested = p.webhook_tested || false;
+                            const propKeyTested = p.prop_key_tested || false;
                             if (isBeds24) {
                                 if (!p.prop_key) {
                                     statusLight = '🔴';
-                                    statusTitle = 'Step 1: Enter property key';
-                                } else if (!webhookTested) {
+                                    statusTitle = 'Enter prop key';
+                                } else if (!webhookTested || !propKeyTested) {
                                     statusLight = '🟠';
-                                    statusTitle = 'Step 2: Test webhook';
+                                    statusTitle = 'Test webhook and prop key';
                                 } else if (!p.gas_property_id) {
                                     statusLight = '🟡';
-                                    statusTitle = 'Step 3: Ready to import';
+                                    statusTitle = 'Ready to import';
                                 }
                             } else {
                                 if (!p.gas_property_id) {
@@ -36157,46 +36156,47 @@ Local honey and preserves"></textarea>
                                     statusTitle = 'Not imported to GAS yet';
                                 }
                             }
-                            const canImport = isBeds24 ? (p.prop_key && webhookTested && !p.gas_property_id) : !p.gas_property_id;
+                            const canImport = isBeds24 ? (p.prop_key && webhookTested && propKeyTested && !p.gas_property_id) : !p.gas_property_id;
                             return `<tr id="prop-row-${p.id}">
                                 <td title="${statusTitle}" style="font-size: 1.25rem; text-align: center;">${statusLight}</td>
                                 <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.external_id}</small></td>
                                 <td>${p.city || ''}, ${p.country || ''}</td>
                                 ${isBeds24 ? `<td>
-                                    <div style="display: flex; gap: 5px; align-items: center;">
+                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                        <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}" 
+                                            style="flex: 1; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem; background: #f8fafc;">
+                                        <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 6px 8px;" title="Copy URL">📋</button>
+                                        <span id="webhook-test-${p.id}">
+                                            ${webhookTested ? 
+                                                '<span style="color: #22c55e; font-weight: bold;">✅</span>' : 
+                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 6px 10px;">🧪 Test</button>`
+                                            }
+                                        </span>
+                                    </div>
+                                </td>` : ''}
+                                ${isBeds24 ? `<td>
+                                    <div style="display: flex; align-items: center; gap: 6px;">
                                         <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key" 
-                                            style="width: 100px; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;"
+                                            style="width: 90px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;"
                                             ${p.gas_property_id ? 'disabled' : ''}>
-                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 8px;" ${p.gas_property_id ? 'disabled' : ''}>💾</button>
+                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 6px 8px;" ${p.gas_property_id ? 'disabled' : ''} title="Save">💾</button>
+                                        <span id="propkey-test-${p.id}">
+                                            ${propKeyTested ? 
+                                                '<span style="color: #22c55e; font-weight: bold;">✅</span>' : 
+                                                (p.prop_key ? 
+                                                    `<button onclick="testPropKeyForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 10px;">🧪 Test</button>` :
+                                                    '<span style="color: #9ca3af;">-</span>'
+                                                )
+                                            }
+                                        </span>
                                     </div>
                                 </td>` : ''}
-                                ${isBeds24 ? `<td style="min-width: 380px;">
-                                    <div id="webhook-status-${p.id}">
-                                        <div style="display: flex; flex-direction: column; gap: 4px;">
-                                            <div style="display: flex; align-items: center; gap: 4px;">
-                                                <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}" 
-                                                    id="webhook-url-${p.id}"
-                                                    style="width: 320px; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem; background: #f8fafc;">
-                                                <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 3px 6px;" title="Copy URL">📋</button>
-                                            </div>
-                                            <div style="display: flex; align-items: center; gap: 4px;">
-                                                ${webhookTested ? 
-                                                    '<span style="color: #22c55e; font-size: 0.85rem;">✅ Tested</span>' : 
-                                                    (p.prop_key ? 
-                                                        `<button onclick="testPropertyWebhook(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 3px 8px; font-size: 0.8rem;">🧪 Test</button>` :
-                                                        '<span style="color: #f59e0b; font-size: 0.75rem;">Save key to test</span>'
-                                                    )
-                                                }
-                                            </div>
-                                        </div>
-                                    </div>
-                                </td>` : ''}
-                                <td>${p.room_type_count}</td>
-                                <td>${p.image_count}</td>
-                                <td>${p.gas_property_id ? '✅' : '❌'}</td>
+                                <td style="text-align: center;">${p.room_type_count}</td>
                                 <td>
-                                    ${!p.gas_property_id ? `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : (isBeds24 ? (p.prop_key ? 'Test First' : 'Need Key') : 'Import')}</button>` : '<span style="color: #22c55e;">✅ Imported</span>'}
-                                    <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})">📷</button>
+                                    ${p.gas_property_id ? 
+                                        '<span style="color: #22c55e;">✅ Imported</span>' : 
+                                        `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : 'Test First'}</button>`
+                                    }
                                 </td>
                             </tr>`;
                         }).join('')}
@@ -36220,20 +36220,50 @@ Local honey and preserves"></textarea>
             showNotification('Webhook URL copied! Paste this into Beds24 webhook settings.', 'success');
         }
         
-        async function testPropertyWebhook(syncPropertyId, externalPropertyId) {
-            const statusDiv = document.getElementById(`webhook-status-${syncPropertyId}`);
+        // Test that the webhook URL is correctly configured in Beds24
+        async function testWebhookForProperty(syncPropertyId, externalPropertyId) {
+            const testSpan = document.getElementById(`webhook-test-${syncPropertyId}`);
+            testSpan.innerHTML = '<span style="color: #f59e0b;">⏳</span>';
+            
+            try {
+                const response = await fetch('/api/gas-sync/test-webhook-url', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ 
+                        syncPropertyId: syncPropertyId,
+                        externalPropertyId: externalPropertyId
+                    })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    testSpan.innerHTML = '<span style="color: #22c55e; font-weight: bold;">✅</span>';
+                    showNotification('Webhook URL test passed!', 'success');
+                    updateImportButton(syncPropertyId);
+                } else {
+                    testSpan.innerHTML = `<button onclick="testWebhookForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
+                    showNotification('Webhook test failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                testSpan.innerHTML = `<button onclick="testWebhookForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
+                showNotification('Webhook test failed: ' + error.message, 'error');
+            }
+        }
+        
+        // Test that the prop key can fetch data from Beds24 V1 API
+        async function testPropKeyForProperty(syncPropertyId, externalPropertyId) {
+            const testSpan = document.getElementById(`propkey-test-${syncPropertyId}`);
             const propKey = document.getElementById(`propKey-${syncPropertyId}`)?.value?.trim();
             
             if (!propKey) {
-                showNotification('Please enter and save the property key first', 'error');
+                showNotification('Please enter and save the prop key first', 'error');
                 return;
             }
             
-            statusDiv.innerHTML = '<span style="color: #f59e0b;">⏳ Testing...</span>';
+            testSpan.innerHTML = '<span style="color: #f59e0b;">⏳</span>';
             
             try {
-                // Test the webhook endpoint with this specific property
-                const response = await fetch('/api/gas-sync/test-property-webhook', {
+                const response = await fetch('/api/gas-sync/test-prop-key', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
                     body: JSON.stringify({ 
@@ -36245,10 +36275,27 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success) {
-                    statusDiv.innerHTML = '<span style="color: #22c55e;">✅ Passed</span>';
-                    showNotification('Webhook test passed! You can now import this property.', 'success');
-                    
-                    // Enable the import button
+                    testSpan.innerHTML = '<span style="color: #22c55e; font-weight: bold;">✅</span>';
+                    showNotification('Prop Key test passed! GAS can fetch data from Beds24.', 'success');
+                    updateImportButton(syncPropertyId);
+                } else {
+                    testSpan.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
+                    showNotification('Prop Key test failed: ' + (data.error || 'Unknown error'), 'error');
+                }
+            } catch (error) {
+                testSpan.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
+                showNotification('Prop Key test failed: ' + error.message, 'error');
+            }
+        }
+        
+        // Check if both tests passed and enable import button
+        async function updateImportButton(syncPropertyId) {
+            // Refresh the row data to check both test statuses
+            try {
+                const response = await fetch(`/api/gas-sync/property/${syncPropertyId}/status`, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.webhook_tested && data.prop_key_tested) {
                     const importBtn = document.getElementById(`import-btn-${syncPropertyId}`);
                     if (importBtn) {
                         importBtn.disabled = false;
@@ -36256,29 +36303,29 @@ Local honey and preserves"></textarea>
                         importBtn.style.cursor = 'pointer';
                         importBtn.textContent = 'Import';
                     }
-                    
                     // Update status light
                     const row = document.getElementById(`prop-row-${syncPropertyId}`);
                     if (row) {
                         const statusCell = row.querySelector('td:first-child');
                         if (statusCell) {
                             statusCell.innerHTML = '🟡';
-                            statusCell.title = 'Step 3: Ready to import';
+                            statusCell.title = 'Ready to import';
                         }
                     }
-                } else {
-                    statusDiv.innerHTML = `<button onclick="testPropertyWebhook(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 4px 8px;">❌ Retry</button>`;
-                    showNotification('Webhook test failed: ' + (data.error || 'Unknown error'), 'error');
                 }
-            } catch (error) {
-                statusDiv.innerHTML = `<button onclick="testPropertyWebhook(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 4px 8px;">❌ Retry</button>`;
-                showNotification('Webhook test failed: ' + error.message, 'error');
+            } catch (e) {
+                console.log('Could not update import button:', e);
             }
+        }
+        
+        async function testPropertyWebhook(syncPropertyId, externalPropertyId) {
+            // Legacy - redirect to new function
+            testPropKeyForProperty(syncPropertyId, externalPropertyId);
         }
         
         async function testWebhook() {
             // Legacy function - kept for backward compatibility
-            showNotification('Please use the per-property Test button in the table', 'info');
+            showNotification('Please use the per-property Test buttons in the table', 'info');
         }
         
         async function savePropKey(syncPropertyId) {
@@ -36298,33 +36345,22 @@ Local honey and preserves"></textarea>
                 });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Property key saved! Now copy the webhook URL to Beds24 and test.', 'success');
+                    showNotification('Property key saved! Now test both webhook and prop key.', 'success');
                     
-                    // Update the webhook status column to show URL and Test button
-                    const webhookStatus = document.getElementById(`webhook-status-${syncPropertyId}`);
-                    if (webhookStatus) {
+                    // Show the test button for prop key
+                    const propKeyTest = document.getElementById(`propkey-test-${syncPropertyId}`);
+                    if (propKeyTest) {
                         const externalId = data.external_id || '';
-                        webhookStatus.innerHTML = `
-                            <div style="display: flex; flex-direction: column; gap: 4px;">
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${externalId}" 
-                                        style="width: 180px; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem; background: #f8fafc;">
-                                    <button onclick="copyWebhookUrlForProperty('${externalId}')" class="btn btn-sm" style="padding: 3px 6px;" title="Copy URL">📋</button>
-                                </div>
-                                <div style="display: flex; align-items: center; gap: 4px;">
-                                    <button onclick="testPropertyWebhook(${syncPropertyId}, '${externalId}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 3px 8px; font-size: 0.8rem;">🧪 Test Webhook</button>
-                                </div>
-                            </div>
-                        `;
+                        propKeyTest.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalId}')" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 10px;">🧪 Test</button>`;
                     }
                     
-                    // Update status light to orange (key entered, need test)
+                    // Update status light to orange
                     const row = document.getElementById(`prop-row-${syncPropertyId}`);
                     if (row) {
                         const statusCell = row.querySelector('td:first-child');
                         if (statusCell) {
                             statusCell.innerHTML = '🟠';
-                            statusCell.title = 'Step 2: Test webhook';
+                            statusCell.title = 'Test webhook and prop key';
                         }
                     }
                 } else {
