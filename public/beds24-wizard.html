@@ -536,16 +536,16 @@
                         <div class="role-card" data-role="agency_admin" onclick="selectRole('agency_admin')">
                             <div class="icon">🌐</div>
                             <h3>Agency</h3>
-                            <p>I manage properties for others</p>
+                            <p>I manage properties for myself/others</p>
                         </div>
                     </div>
                 </div>
             </div>
             
-            <!-- Step 2: V2 Invite Code -->
+            <!-- Step 2: Invite Code -->
             <div class="step" id="step2">
                 <h2>Connect to Beds24</h2>
-                <p class="step-description">Enter your Beds24 V2 API invite code to fetch your properties</p>
+                <p class="step-description">Enter your Beds24 API invite code to fetch your properties</p>
                 
                 <div id="step2-error"></div>
                 
@@ -553,8 +553,8 @@
                     <h4>📍 Where to find your Invite Code</h4>
                     <ol>
                         <li>Log into Beds24</li>
-                        <li>Go to <strong>Settings → Apps & Integrations</strong></li>
-                        <li>Click <strong>API → API V2 Access</strong></li>
+                        <li>Go to <strong>Settings → Marketplace</strong></li>
+                        <li>Click <strong>API</strong></li>
                         <li>In the Scope section, click <strong>"select all"</strong> for Read, Write, and Delete columns</li>
                         <li>In the Property dropdown, select <strong>"All owned by account"</strong></li>
                         <li>Click <strong>"Generate invite code"</strong></li>
@@ -563,7 +563,7 @@
                 </div>
                 
                 <div class="form-group">
-                    <label>V2 Invite Code</label>
+                    <label>Invite Code</label>
                     <input type="text" id="inviteCode" placeholder="Paste your invite code here">
                     <p class="form-hint">This connects us to your Beds24 account securely</p>
                 </div>
@@ -577,7 +577,7 @@
             <!-- Step 3: V1 Credentials (Optional) -->
             <div class="step" id="step3">
                 <h2>Property Setup <span class="optional-badge">Optional</span></h2>
-                <p class="step-description">Add V1 credentials for images and webhooks for real-time bookings</p>
+                <p class="step-description">Additional credentials required for images and direct booking updates</p>
                 
                 <div id="step3-error"></div>
                 
@@ -586,7 +586,7 @@
                 </div>
                 
                 <div class="help-box">
-                    <h4>📍 Where to find V1 API Key</h4>
+                    <h4>📍 Additional API code required for Images</h4>
                     <ol>
                         <li>In Beds24, go to <strong>Settings → Accounts → Account Access</strong></li>
                         <li>Set IP Access to <strong>"Allow any IP"</strong></li>
@@ -597,21 +597,13 @@
                 </div>
                 
                 <div class="form-group">
-                    <label>V1 API Key (for all properties)</label>
+                    <label>Enter API key here</label>
                     <input type="text" id="v1ApiKey" placeholder="Paste your V1 API key here">
-                </div>
-                
-                <hr style="margin: 1.5rem 0; border: none; border-top: 1px solid #e9ecef;">
-                
-                <h3 style="margin-bottom: 1rem; color: #1e3a5f;">Your Properties</h3>
-                
-                <div id="properties-setup-list">
-                    <!-- Property cards will be inserted here -->
                 </div>
                 
                 <div id="setup-loading" class="loading" style="display: none;">
                     <div class="spinner"></div>
-                    <p id="setup-status">Saving credentials and syncing images...</p>
+                    <p id="setup-status">Saving credentials...</p>
                 </div>
             </div>
             
@@ -686,7 +678,7 @@
                     </div>
                     
                     <p style="color: #6c757d; margin-top: 1rem;">
-                        Use GasSync to import and manage your properties
+                        Click "Finish" to go to Connections and set up each property
                     </p>
                 </div>
             </div>
@@ -757,7 +749,7 @@
             document.getElementById('skipBtn').style.display = (step === 3 || step === 4) ? 'inline-block' : 'none';
             
             if (step === 5) {
-                document.getElementById('nextBtn').textContent = 'Go to GasSync →';
+                document.getElementById('nextBtn').textContent = 'Go to Connections →';
             } else {
                 document.getElementById('nextBtn').textContent = 'Next →';
             }
@@ -984,7 +976,7 @@
             const inviteCode = document.getElementById('inviteCode').value.trim();
             
             if (!inviteCode) {
-                showError('step2-error', 'Please enter your V2 Invite Code');
+                showError('step2-error', 'Please enter your Invite Code');
                 return;
             }
             
@@ -1131,75 +1123,10 @@
                     });
                 }
                 
-                // Save propKeys and download images for each property
-                const propertyCards = document.querySelectorAll('.property-setup-card');
-                let totalImages = 0;
-                let totalRooms = 0;
-                
-                for (const card of propertyCards) {
-                    const propertyId = card.dataset.propertyId;
-                    const propKey = card.querySelector('.prop-key-input').value.trim();
-                    
-                    if (propKey) {
-                        // Save propKey
-                        await fetch(`/api/gas-sync/properties/${propertyId}/set-prop-key`, {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ propKey })
-                        });
-                        
-                        // Download images if we have V1 API key
-                        if (v1ApiKey) {
-                            const imgResponse = await fetch(`/api/gas-sync/properties/${propertyId}/download-images`, {
-                                method: 'POST',
-                                headers: { 'Content-Type': 'application/json' }
-                            });
-                            const imgData = await imgResponse.json();
-                            if (imgData.success && imgData.images) {
-                                totalImages += imgData.images.length;
-                            }
-                        }
-                    }
-                    
-                    // Link to GAS - creates actual property and rooms
-                    document.getElementById('setup-status').textContent = `Creating GAS property from ${card.querySelector('h4')?.textContent || 'property'}...`;
-                    const linkResponse = await fetch(`/api/gas-sync/properties/${propertyId}/link-to-gas`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ accountId: wizardData.account.id })
-                    });
-                    const linkData = await linkResponse.json();
-                    console.log('Link to GAS result:', linkData);
-                    
-                    if (linkData.success && linkData.stats) {
-                        totalRooms += linkData.stats.roomsCreated || linkData.stats.roomsUpdated || 0;
-                    }
-                }
-                
-                wizardData.imageCount = totalImages;
-                wizardData.roomCount = totalRooms || wizardData.roomCount;
-                
-                // Trigger immediate sync for pricing and availability
-                document.getElementById('setup-status').textContent = 'Syncing pricing and availability...';
-                try {
-                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ syncType: 'full' })
-                    });
-                    
-                    // Also trigger tiered sync for this connection's rooms
-                    await fetch(`/api/gas-sync/connections/${wizardData.connectionId}/sync-prices`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' }
-                    });
-                } catch (syncError) {
-                    console.log('Initial sync triggered, will complete in background:', syncError);
-                }
-                
-                currentStep++;
+                // Skip to success - property setup (propKeys, webhooks, import) will be done in GAS Connections
+                currentStep = 5;
                 showStep(currentStep);
-                populateWebhookStep();
+                updateFinalCounts();
                 
             } catch (error) {
                 showError('step3-error', `Setup failed: ${error.message}`);
