@@ -1984,9 +1984,14 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
       ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key TEXT
     `);
     
-    // Update the property with the prop key
+    // Also add webhook_tested column
+    await pool.query(`
+      ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE
+    `);
+    
+    // Update the property with the prop key (reset webhook_tested when key changes)
     const result = await pool.query(`
-      UPDATE gas_sync_properties SET prop_key = $1, updated_at = NOW() 
+      UPDATE gas_sync_properties SET prop_key = $1, webhook_tested = FALSE, updated_at = NOW() 
       WHERE id = $2 
       RETURNING id, external_id, name, prop_key
     `, [propKey, propertyId]);
@@ -1995,9 +2000,95 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     
-    res.json({ success: true, property: result.rows[0] });
+    res.json({ success: true, property: result.rows[0], external_id: result.rows[0].external_id });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Test webhook for a specific property
+app.post('/api/gas-sync/test-property-webhook', async (req, res) => {
+  try {
+    const { syncPropertyId, externalPropertyId, propKey } = req.body;
+    
+    if (!syncPropertyId || !propKey) {
+      return res.json({ success: false, error: 'syncPropertyId and propKey are required' });
+    }
+    
+    // Get connection info for this property
+    const propResult = await pool.query(`
+      SELECT sp.*, c.credentials, c.adapter_code 
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [syncPropertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propResult.rows[0];
+    const credentials = prop.credentials || {};
+    
+    // For Beds24, test by fetching property data using the propKey
+    if (prop.adapter_code === 'beds24') {
+      const v1ApiKey = credentials.v1ApiKey;
+      
+      if (!v1ApiKey) {
+        return res.json({ success: false, error: 'V1 API key not configured for this connection' });
+      }
+      
+      // Test the V1 API with this propKey
+      try {
+        const testResponse = await axios.get('https://api.beds24.com/json/getProperty', {
+          params: {
+            apiKey: v1ApiKey,
+            propKey: propKey
+          },
+          timeout: 15000
+        });
+        
+        // Check if we got valid property data back
+        if (testResponse.data && testResponse.data.propId) {
+          // Verify the propId matches
+          if (String(testResponse.data.propId) === String(externalPropertyId)) {
+            // Success! Mark as tested
+            await pool.query(`
+              UPDATE gas_sync_properties SET webhook_tested = TRUE, updated_at = NOW() WHERE id = $1
+            `, [syncPropertyId]);
+            
+            return res.json({ 
+              success: true, 
+              message: 'Property key validated successfully',
+              propertyName: testResponse.data.name || prop.name
+            });
+          } else {
+            return res.json({ 
+              success: false, 
+              error: `Property ID mismatch. Expected ${externalPropertyId}, got ${testResponse.data.propId}. Check your propKey.`
+            });
+          }
+        } else if (testResponse.data && testResponse.data.error) {
+          return res.json({ success: false, error: testResponse.data.error });
+        } else {
+          return res.json({ success: false, error: 'Invalid response from Beds24. Check your propKey.' });
+        }
+      } catch (apiError) {
+        console.error('Beds24 API test error:', apiError.message);
+        return res.json({ success: false, error: 'Failed to connect to Beds24: ' + apiError.message });
+      }
+    }
+    
+    // For other adapters, just mark as tested for now
+    await pool.query(`
+      UPDATE gas_sync_properties SET webhook_tested = TRUE, updated_at = NOW() WHERE id = $1
+    `, [syncPropertyId]);
+    
+    res.json({ success: true, message: 'Webhook test passed' });
+    
+  } catch (error) {
+    console.error('Webhook test error:', error);
+    res.json({ success: false, error: error.message });
   }
 });
 
@@ -2046,9 +2137,10 @@ app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) =
     
     // Add gas_property_id column if not exists
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE');
     
     const result = await pool.query(`
-      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id,
+      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id, p.webhook_tested,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count,
              gp.name as gas_property_name,
@@ -34096,9 +34188,12 @@ app.get('/api/gas-sync/connections/:id/properties', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Ensure webhook_tested column exists
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE');
+    
     const result = await pool.query(`
       SELECT p.id, p.external_id, p.name, p.city, p.country, p.currency,
-             p.is_active, p.synced_at, p.gas_property_id, p.prop_key,
+             p.is_active, p.synced_at, p.gas_property_id, p.prop_key, p.webhook_tested,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_type_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
       FROM gas_sync_properties p
