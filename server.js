@@ -11862,7 +11862,6 @@ async function pushSettingsToWordPress(siteUrl, section, settings) {
       'underline-color': 'underline_color',
       'transparent': 'transparent',
       'sticky': 'sticky',
-      'cta-label': 'cta_text',
       'cta-text': 'cta_text',
       'cta-bg': 'cta_bg',
       'cta-text-color': 'cta_text_color',
