@@ -15793,26 +15793,14 @@ Local honey and preserves"></textarea>
                 const clonedContainerId = clonedPanelMap[section];
                 const clonedContainer = clonedContainerId ? document.getElementById(clonedContainerId) : null;
                 
-                // Use cloned container if it has elements with our prefix
-                if (clonedContainer && clonedContainer.querySelectorAll(`[id^="${prefix}"]`).length > 0) {
-                    editorContainer = clonedContainer;
-                }
+                // Collect from BOTH original and clone, with clone values taking priority
+                // This ensures we get all fields (some may only exist in original)
+                const originalContainer = document.getElementById(`wb-${section}`);
                 
-                // Collect from editor container (visible elements)
-                let elementsToCheck = editorContainer 
-                    ? editorContainer.querySelectorAll(`[id^="${prefix}"]`)
+                // First collect from original
+                let elementsToCheck = originalContainer 
+                    ? originalContainer.querySelectorAll(`[id^="${prefix}"]`)
                     : document.querySelectorAll(`[id^="${prefix}"]`);
-                
-                // Fallback: if no elements found in editor container, search in wb-{section}-content or whole document
-                if (elementsToCheck.length === 0) {
-                    const altContainer = document.getElementById(`wb-${section}-content`);
-                    if (altContainer) {
-                        elementsToCheck = altContainer.querySelectorAll(`[id^="${prefix}"]`);
-                    }
-                    if (elementsToCheck.length === 0) {
-                        elementsToCheck = document.querySelectorAll(`[id^="${prefix}"]`);
-                    }
-                }
                 
                 elementsToCheck.forEach(el => {
                     const key = el.id.replace(prefix, '');
@@ -15827,6 +15815,23 @@ Local honey and preserves"></textarea>
                         settings[key] = el.value;
                     }
                 });
+                
+                // Then override with values from clone (user's edits)
+                if (clonedContainer) {
+                    clonedContainer.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
+                        const key = el.id.replace(prefix, '');
+                        if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
+                            return;
+                        }
+                        if (el.type === 'checkbox') {
+                            settings[key] = el.checked;
+                        } else if (el.type === 'file') {
+                            // Skip file inputs
+                        } else if (el.value !== undefined) {
+                            settings[key] = el.value;
+                        }
+                    });
+                }
                 
                 // Collect FAQs if this section has them
                 const faqSection = section.replace('page-', '');
