@@ -2411,6 +2411,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       return res.status(400).json({ success: false, error: 'accountId is required' });
     }
     
+    // Get user_id for this account
+    const userResult = await pool.query('SELECT id FROM users WHERE account_id = $1 LIMIT 1', [accountId]);
+    const userId = userResult.rows[0]?.id || 1;
+    console.log('link-to-gas: Using userId:', userId, 'for accountId:', accountId);
+    
     console.log('link-to-gas: Property found:', prop.name, 'adapter:', prop.adapter_code);
     
     const rawData = typeof prop.raw_data === 'string' ? JSON.parse(prop.raw_data) : (prop.raw_data || {});
@@ -2636,10 +2641,11 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             property_type, check_in_time, check_out_time,
             contact_email, contact_phone, website, latitude, longitude,
             cm_source, status, created_at
-          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'active', NOW())
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'active', NOW())
           RETURNING id
         `, [
           accountId,
+          userId,
           String(prop.external_id),
           prop.name || 'Unnamed Property',
           rawData.address || '',
