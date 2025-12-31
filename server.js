@@ -2062,13 +2062,24 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
       }
     }
     
+    // Debug: log what we have
+    console.log('test-prop-key debug:', {
+      syncPropertyId,
+      connectionId: prop.connection_id,
+      credentialsType: typeof prop.credentials,
+      credentialsKeys: Object.keys(credentials),
+      hasV1ApiKey: !!credentials.v1ApiKey,
+      hasApiKey: !!credentials.apiKey,
+      credentials: credentials
+    });
+    
     // For Beds24, test by fetching property data using the propKey
     if (prop.adapter_code === 'beds24') {
       // Check for V1 API key under different possible names
       const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
       
       if (!v1ApiKey) {
-        return res.json({ success: false, error: 'V1 API key not configured for this connection. Add it in the connection settings.' });
+        return res.json({ success: false, error: 'V1 API key not configured for this connection. Add it in the connection settings.', debug: { credentialsKeys: Object.keys(credentials) } });
       }
       
       // Test the V1 API with this propKey
