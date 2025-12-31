@@ -2098,10 +2098,13 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
         // Log what Beds24 returned
         console.log('Beds24 getProperty response:', JSON.stringify(testResponse.data));
         
+        // Beds24 V1 returns { getProperty: [ { propId: ..., name: ... } ] }
+        const propertyData = testResponse.data?.getProperty?.[0];
+        
         // Check if we got valid property data back
-        if (testResponse.data && testResponse.data.propId) {
+        if (propertyData && propertyData.propId) {
           // Verify the propId matches
-          if (String(testResponse.data.propId) === String(externalPropertyId)) {
+          if (String(propertyData.propId) === String(externalPropertyId)) {
             // Success! Mark as tested
             await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
             await pool.query(`
@@ -2111,12 +2114,12 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
             return res.json({ 
               success: true, 
               message: 'Prop Key validated successfully',
-              propertyName: testResponse.data.name || prop.name
+              propertyName: propertyData.name || prop.name
             });
           } else {
             return res.json({ 
               success: false, 
-              error: `Property ID mismatch. Expected ${externalPropertyId}, got ${testResponse.data.propId}. Check your propKey.`
+              error: `Property ID mismatch. Expected ${externalPropertyId}, got ${propertyData.propId}. Check your propKey.`
             });
           }
         } else if (testResponse.data && testResponse.data.error) {
