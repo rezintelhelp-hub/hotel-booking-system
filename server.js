@@ -2411,9 +2411,29 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
       return res.status(400).json({ success: false, error: 'accountId is required' });
     }
     
-    // Get user_id for this account
-    const userResult = await pool.query('SELECT id FROM users WHERE account_id = $1 LIMIT 1', [accountId]);
-    const userId = userResult.rows[0]?.id || 1;
+    // Get user_id for this account, or create one if none exists
+    let userResult = await pool.query('SELECT id FROM users WHERE account_id = $1 LIMIT 1', [accountId]);
+    let userId = userResult.rows[0]?.id;
+    
+    if (!userId) {
+      // Get account info to create user
+      const accountResult = await pool.query('SELECT name, email FROM accounts WHERE id = $1', [accountId]);
+      const account = accountResult.rows[0];
+      
+      if (account) {
+        // Create a user for this account
+        const newUserResult = await pool.query(`
+          INSERT INTO users (account_id, email, name, role, status, created_at)
+          VALUES ($1, $2, $3, 'admin', 'active', NOW())
+          RETURNING id
+        `, [accountId, account.email || `user${accountId}@gas.travel`, account.name || 'Account Owner']);
+        userId = newUserResult.rows[0].id;
+        console.log('link-to-gas: Created new user:', userId, 'for account:', accountId);
+      } else {
+        return res.status(400).json({ success: false, error: 'Account not found' });
+      }
+    }
+    
     console.log('link-to-gas: Using userId:', userId, 'for accountId:', accountId);
     
     console.log('link-to-gas: Property found:', prop.name, 'adapter:', prop.adapter_code);
