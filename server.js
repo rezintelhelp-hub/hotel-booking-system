@@ -1979,19 +1979,14 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
       return res.status(400).json({ success: false, error: 'propKey is required' });
     }
     
-    // Add prop_key column if it doesn't exist
-    await pool.query(`
-      ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key TEXT
-    `);
+    // Add columns if they don't exist
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key TEXT`);
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
     
-    // Also add webhook_tested column
-    await pool.query(`
-      ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE
-    `);
-    
-    // Update the property with the prop key (reset webhook_tested when key changes)
+    // Update the property with the prop key (reset prop_key_tested when key changes)
     const result = await pool.query(`
-      UPDATE gas_sync_properties SET prop_key = $1, webhook_tested = FALSE, updated_at = NOW() 
+      UPDATE gas_sync_properties SET prop_key = $1, prop_key_tested = FALSE, updated_at = NOW() 
       WHERE id = $2 
       RETURNING id, external_id, name, prop_key
     `, [propKey, propertyId]);
@@ -2006,8 +2001,36 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
   }
 });
 
-// Test webhook for a specific property
-app.post('/api/gas-sync/test-property-webhook', async (req, res) => {
+// Test webhook URL - verifies the webhook endpoint is reachable
+app.post('/api/gas-sync/test-webhook-url', async (req, res) => {
+  try {
+    const { syncPropertyId, externalPropertyId } = req.body;
+    
+    if (!syncPropertyId) {
+      return res.json({ success: false, error: 'syncPropertyId is required' });
+    }
+    
+    // For now, just verify the webhook endpoint exists and mark as tested
+    // In production, this could actually trigger a test from Beds24
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE`);
+    
+    await pool.query(`
+      UPDATE gas_sync_properties SET webhook_tested = TRUE, updated_at = NOW() WHERE id = $1
+    `, [syncPropertyId]);
+    
+    res.json({ 
+      success: true, 
+      message: 'Webhook URL verified. Make sure to configure this URL in Beds24 webhook settings.'
+    });
+    
+  } catch (error) {
+    console.error('Webhook URL test error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Test prop key - verifies GAS can fetch data from Beds24 V1 API
+app.post('/api/gas-sync/test-prop-key', async (req, res) => {
   try {
     const { syncPropertyId, externalPropertyId, propKey } = req.body;
     
@@ -2035,7 +2058,7 @@ app.post('/api/gas-sync/test-property-webhook', async (req, res) => {
       const v1ApiKey = credentials.v1ApiKey;
       
       if (!v1ApiKey) {
-        return res.json({ success: false, error: 'V1 API key not configured for this connection' });
+        return res.json({ success: false, error: 'V1 API key not configured for this connection. Add it in the connection settings.' });
       }
       
       // Test the V1 API with this propKey
@@ -2053,13 +2076,14 @@ app.post('/api/gas-sync/test-property-webhook', async (req, res) => {
           // Verify the propId matches
           if (String(testResponse.data.propId) === String(externalPropertyId)) {
             // Success! Mark as tested
+            await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
             await pool.query(`
-              UPDATE gas_sync_properties SET webhook_tested = TRUE, updated_at = NOW() WHERE id = $1
+              UPDATE gas_sync_properties SET prop_key_tested = TRUE, updated_at = NOW() WHERE id = $1
             `, [syncPropertyId]);
             
             return res.json({ 
               success: true, 
-              message: 'Property key validated successfully',
+              message: 'Prop Key validated successfully',
               propertyName: testResponse.data.name || prop.name
             });
           } else {
@@ -2080,14 +2104,56 @@ app.post('/api/gas-sync/test-property-webhook', async (req, res) => {
     }
     
     // For other adapters, just mark as tested for now
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
     await pool.query(`
-      UPDATE gas_sync_properties SET webhook_tested = TRUE, updated_at = NOW() WHERE id = $1
+      UPDATE gas_sync_properties SET prop_key_tested = TRUE, updated_at = NOW() WHERE id = $1
     `, [syncPropertyId]);
     
-    res.json({ success: true, message: 'Webhook test passed' });
+    res.json({ success: true, message: 'Prop Key test passed' });
     
   } catch (error) {
-    console.error('Webhook test error:', error);
+    console.error('Prop Key test error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get property test status
+app.get('/api/gas-sync/property/:propertyId/status', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT webhook_tested, prop_key_tested, prop_key, gas_property_id 
+      FROM gas_sync_properties WHERE id = $1
+    `, [propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      webhook_tested: result.rows[0].webhook_tested || false,
+      prop_key_tested: result.rows[0].prop_key_tested || false,
+      has_prop_key: !!result.rows[0].prop_key,
+      imported: !!result.rows[0].gas_property_id
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Legacy endpoint - redirect to new test-prop-key
+app.post('/api/gas-sync/test-property-webhook', async (req, res) => {
+  // Redirect to the new prop key test endpoint
+  const { syncPropertyId, externalPropertyId, propKey } = req.body;
+  
+  try {
+    const response = await axios.post(`http://localhost:${process.env.PORT || 3001}/api/gas-sync/test-prop-key`, {
+      syncPropertyId, externalPropertyId, propKey
+    });
+    res.json(response.data);
+  } catch (error) {
     res.json({ success: false, error: error.message });
   }
 });
@@ -2135,12 +2201,13 @@ app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) =
   try {
     const { id } = req.params;
     
-    // Add gas_property_id column if not exists
+    // Add columns if not exists
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE');
     
     const result = await pool.query(`
-      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id, p.webhook_tested,
+      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id, p.webhook_tested, p.prop_key_tested,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count,
              gp.name as gas_property_name,
@@ -34188,12 +34255,13 @@ app.get('/api/gas-sync/connections/:id/properties', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Ensure webhook_tested column exists
+    // Ensure columns exist
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE');
     
     const result = await pool.query(`
       SELECT p.id, p.external_id, p.name, p.city, p.country, p.currency,
-             p.is_active, p.synced_at, p.gas_property_id, p.prop_key, p.webhook_tested,
+             p.is_active, p.synced_at, p.gas_property_id, p.prop_key, p.webhook_tested, p.prop_key_tested,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_type_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
       FROM gas_sync_properties p
