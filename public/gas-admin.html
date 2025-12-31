@@ -36170,24 +36170,25 @@ Local honey and preserves"></textarea>
                                         <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 8px;" ${p.gas_property_id ? 'disabled' : ''}>💾</button>
                                     </div>
                                 </td>` : ''}
-                                ${isBeds24 ? `<td style="min-width: 280px;">
+                                ${isBeds24 ? `<td style="min-width: 380px;">
                                     <div id="webhook-status-${p.id}">
-                                        ${p.prop_key ? `
-                                            <div style="display: flex; flex-direction: column; gap: 4px;">
-                                                <div style="display: flex; align-items: center; gap: 4px;">
-                                                    <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}" 
-                                                        id="webhook-url-${p.id}"
-                                                        style="width: 180px; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem; background: #f8fafc;">
-                                                    <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 3px 6px;" title="Copy URL">📋</button>
-                                                </div>
-                                                <div style="display: flex; align-items: center; gap: 4px;">
-                                                    ${webhookTested ? 
-                                                        '<span style="color: #22c55e; font-size: 0.85rem;">✅ Tested</span>' : 
-                                                        `<button onclick="testPropertyWebhook(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 3px 8px; font-size: 0.8rem;">🧪 Test Webhook</button>`
-                                                    }
-                                                </div>
+                                        <div style="display: flex; flex-direction: column; gap: 4px;">
+                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}" 
+                                                    id="webhook-url-${p.id}"
+                                                    style="width: 320px; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem; background: #f8fafc;">
+                                                <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 3px 6px;" title="Copy URL">📋</button>
                                             </div>
-                                        ` : '<span style="color: #9ca3af; font-size: 0.85rem;">Enter key first</span>'}
+                                            <div style="display: flex; align-items: center; gap: 4px;">
+                                                ${webhookTested ? 
+                                                    '<span style="color: #22c55e; font-size: 0.85rem;">✅ Tested</span>' : 
+                                                    (p.prop_key ? 
+                                                        `<button onclick="testPropertyWebhook(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 3px 8px; font-size: 0.8rem;">🧪 Test</button>` :
+                                                        '<span style="color: #f59e0b; font-size: 0.75rem;">Save key to test</span>'
+                                                    )
+                                                }
+                                            </div>
+                                        </div>
                                     </div>
                                 </td>` : ''}
                                 <td>${p.room_type_count}</td>
