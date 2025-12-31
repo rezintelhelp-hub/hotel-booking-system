@@ -15779,6 +15779,25 @@ Local honey and preserves"></textarea>
                 const editorContainerId = editorPanelMap[section];
                 let editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
                 
+                // For sections that are cloned into editor panels, prefer collecting from the clone
+                // because that's where the user edits when in Homepage/Content tabs
+                const clonedPanelMap = {
+                    'hero': 'editor-hero-content',
+                    'intro': 'editor-intro-content',
+                    'featured': 'editor-featured-content',
+                    'about': 'editor-about-content',
+                    'reviews': 'editor-reviews-content',
+                    'cta': 'editor-cta-content'
+                };
+                
+                const clonedContainerId = clonedPanelMap[section];
+                const clonedContainer = clonedContainerId ? document.getElementById(clonedContainerId) : null;
+                
+                // Use cloned container if it has elements with our prefix
+                if (clonedContainer && clonedContainer.querySelectorAll(`[id^="${prefix}"]`).length > 0) {
+                    editorContainer = clonedContainer;
+                }
+                
                 // Collect from editor container (visible elements)
                 let elementsToCheck = editorContainer 
                     ? editorContainer.querySelectorAll(`[id^="${prefix}"]`)
