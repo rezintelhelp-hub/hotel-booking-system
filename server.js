@@ -2051,7 +2051,16 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
     }
     
     const prop = propResult.rows[0];
-    const credentials = prop.credentials || {};
+    let credentials = prop.credentials || {};
+    
+    // Parse credentials if it's a string
+    if (typeof credentials === 'string') {
+      try {
+        credentials = JSON.parse(credentials);
+      } catch (e) {
+        credentials = {};
+      }
+    }
     
     // For Beds24, test by fetching property data using the propKey
     if (prop.adapter_code === 'beds24') {
