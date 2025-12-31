@@ -36170,11 +36170,24 @@ Local honey and preserves"></textarea>
                                         <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 8px;" ${p.gas_property_id ? 'disabled' : ''}>💾</button>
                                     </div>
                                 </td>` : ''}
-                                ${isBeds24 ? `<td>
+                                ${isBeds24 ? `<td style="min-width: 280px;">
                                     <div id="webhook-status-${p.id}">
-                                        ${webhookTested ? '<span style="color: #22c55e;">✅ Passed</span>' : 
-                                          (p.prop_key ? `<button onclick="testPropertyWebhook(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 4px 8px;">🧪 Test</button>` : 
-                                          '<span style="color: #9ca3af;">Enter key first</span>')}
+                                        ${p.prop_key ? `
+                                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                                <div style="display: flex; align-items: center; gap: 4px;">
+                                                    <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}" 
+                                                        id="webhook-url-${p.id}"
+                                                        style="width: 180px; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem; background: #f8fafc;">
+                                                    <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 3px 6px;" title="Copy URL">📋</button>
+                                                </div>
+                                                <div style="display: flex; align-items: center; gap: 4px;">
+                                                    ${webhookTested ? 
+                                                        '<span style="color: #22c55e; font-size: 0.85rem;">✅ Tested</span>' : 
+                                                        `<button onclick="testPropertyWebhook(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 3px 8px; font-size: 0.8rem;">🧪 Test Webhook</button>`
+                                                    }
+                                                </div>
+                                            </div>
+                                        ` : '<span style="color: #9ca3af; font-size: 0.85rem;">Enter key first</span>'}
                                     </div>
                                 </td>` : ''}
                                 <td>${p.room_type_count}</td>
@@ -36198,6 +36211,12 @@ Local honey and preserves"></textarea>
         function copyWebhookUrl() {
             navigator.clipboard.writeText('https://admin.gas.travel/api/webhooks/beds24?propertyId=');
             showNotification('Webhook URL copied - add the property ID at the end', 'success');
+        }
+        
+        function copyWebhookUrlForProperty(propertyId) {
+            const url = `https://admin.gas.travel/api/webhooks/beds24?propertyId=${propertyId}`;
+            navigator.clipboard.writeText(url);
+            showNotification('Webhook URL copied! Paste this into Beds24 webhook settings.', 'success');
         }
         
         async function testPropertyWebhook(syncPropertyId, externalPropertyId) {
@@ -36278,13 +36297,24 @@ Local honey and preserves"></textarea>
                 });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Property key saved! Now test the webhook.', 'success');
+                    showNotification('Property key saved! Now copy the webhook URL to Beds24 and test.', 'success');
                     
-                    // Update the webhook status column to show Test button
+                    // Update the webhook status column to show URL and Test button
                     const webhookStatus = document.getElementById(`webhook-status-${syncPropertyId}`);
                     if (webhookStatus) {
                         const externalId = data.external_id || '';
-                        webhookStatus.innerHTML = `<button onclick="testPropertyWebhook(${syncPropertyId}, '${externalId}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 4px 8px;">🧪 Test</button>`;
+                        webhookStatus.innerHTML = `
+                            <div style="display: flex; flex-direction: column; gap: 4px;">
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${externalId}" 
+                                        style="width: 180px; padding: 3px 6px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.75rem; background: #f8fafc;">
+                                    <button onclick="copyWebhookUrlForProperty('${externalId}')" class="btn btn-sm" style="padding: 3px 6px;" title="Copy URL">📋</button>
+                                </div>
+                                <div style="display: flex; align-items: center; gap: 4px;">
+                                    <button onclick="testPropertyWebhook(${syncPropertyId}, '${externalId}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 3px 8px; font-size: 0.8rem;">🧪 Test Webhook</button>
+                                </div>
+                            </div>
+                        `;
                     }
                     
                     // Update status light to orange (key entered, need test)
