@@ -2055,7 +2055,8 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
     
     // For Beds24, test by fetching property data using the propKey
     if (prop.adapter_code === 'beds24') {
-      const v1ApiKey = credentials.v1ApiKey;
+      // Check for V1 API key under different possible names
+      const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
       
       if (!v1ApiKey) {
         return res.json({ success: false, error: 'V1 API key not configured for this connection. Add it in the connection settings.' });
