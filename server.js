@@ -27257,6 +27257,7 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         bu.num_bedrooms,
         bu.num_bathrooms,
         bu.beds24_room_id,
+        bu.cm_room_id,
         p.latitude,
         p.longitude,
         p.id as property_id,
@@ -27306,10 +27307,50 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     const result = await pool.query(query, params);
     
     // Use today's rate if available, otherwise fall back to base_price
-    const rooms = result.rows.map(room => ({
+    let rooms = result.rows.map(room => ({
       ...room,
       price: room.todays_rate || room.base_price || 0
     }));
+    
+    // For rooms without images, try to get from gas_sync_images
+    for (let i = 0; i < rooms.length; i++) {
+      if (!rooms[i].image_url) {
+        try {
+          const externalId = rooms[i].cm_room_id || rooms[i].beds24_room_id;
+          if (externalId) {
+            // Try by external ID first
+            const syncImg = await pool.query(`
+              SELECT original_url FROM gas_sync_images 
+              WHERE room_type_external_id = $1 
+              ORDER BY sort_order LIMIT 1
+            `, [String(externalId)]);
+            
+            if (syncImg.rows.length > 0) {
+              rooms[i].image_url = syncImg.rows[0].original_url;
+            }
+          }
+          
+          // If still no image, try by room name
+          if (!rooms[i].image_url && rooms[i].property_id && rooms[i].name) {
+            const syncByName = await pool.query(`
+              SELECT gsi.original_url
+              FROM gas_sync_images gsi
+              JOIN gas_sync_room_types gsrt ON gsi.room_type_external_id = gsrt.external_id 
+                AND gsi.connection_id = gsrt.connection_id
+              JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+              WHERE gsp.gas_property_id = $1 AND gsrt.name = $2
+              ORDER BY gsi.sort_order LIMIT 1
+            `, [rooms[i].property_id, rooms[i].name]);
+            
+            if (syncByName.rows.length > 0) {
+              rooms[i].image_url = syncByName.rows[0].original_url;
+            }
+          }
+        } catch (imgErr) {
+          console.log('gas_sync_images fallback error for room', rooms[i].id, ':', imgErr.message);
+        }
+      }
+    }
     
     // Get max guests across all rooms
     const maxGuestsResult = await pool.query(`
