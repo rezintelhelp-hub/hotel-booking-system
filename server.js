@@ -2042,11 +2042,15 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
       // Test the V1 API with this propKey
       try {
         console.log('Testing Beds24 V1 API with propKey:', propKey.substring(0, 4) + '...');
-        const testResponse = await axios.get('https://api.beds24.com/json/getProperty', {
-          params: {
+        
+        // V1 API requires POST with JSON body
+        const testResponse = await axios.post('https://api.beds24.com/json/getProperty', {
+          authentication: {
             apiKey: v1ApiKey,
             propKey: propKey
-          },
+          }
+        }, {
+          headers: { 'Content-Type': 'application/json' },
           timeout: 15000
         });
         
