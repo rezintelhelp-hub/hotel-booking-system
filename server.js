@@ -2001,6 +2001,172 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
   }
 });
 
+// Test prop key for a synced property (Beds24 V1 API)
+app.post('/api/gas-sync/test-prop-key', async (req, res) => {
+  try {
+    const { syncPropertyId, externalPropertyId } = req.body;
+    
+    if (!syncPropertyId) {
+      return res.status(400).json({ success: false, error: 'syncPropertyId is required' });
+    }
+    
+    // Get property and connection info
+    const propResult = await pool.query(`
+      SELECT sp.*, c.credentials
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [syncPropertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propResult.rows[0];
+    let credentials = prop.credentials || {};
+    if (typeof credentials === 'string') {
+      credentials = JSON.parse(credentials);
+    }
+    
+    const v1ApiKey = credentials.v1ApiKey;
+    const propKey = prop.prop_key;
+    const propId = externalPropertyId || prop.external_id;
+    
+    if (!v1ApiKey) {
+      return res.status(400).json({ success: false, error: 'V1 API Key not set for this connection' });
+    }
+    
+    if (!propKey) {
+      return res.status(400).json({ success: false, error: 'Prop Key not set for this property' });
+    }
+    
+    // Test the V1 API with getPropertyImages
+    const response = await fetch('https://beds24.com/api/json/getPropertyImages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        apiKey: v1ApiKey,
+        propKey: propKey,
+        propId: parseInt(propId)
+      })
+    });
+    
+    const responseText = await response.text();
+    
+    // Try to parse as JSON
+    try {
+      const data = JSON.parse(responseText);
+      
+      // Check for Beds24 error response
+      if (data.error) {
+        return res.status(400).json({ success: false, error: data.error });
+      }
+      
+      // Success - return image count
+      const imageCount = Array.isArray(data) ? data.length : 0;
+      res.json({ 
+        success: true, 
+        message: `Found ${imageCount} images`,
+        imageCount 
+      });
+    } catch (parseErr) {
+      // Not valid JSON - probably HTML error page
+      return res.status(400).json({ 
+        success: false, 
+        error: 'Invalid response from Beds24 API. Check API key and prop key.' 
+      });
+    }
+  } catch (error) {
+    console.error('Test prop key error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Test webhook URL for a synced property (verifies Beds24 can reach our webhook)
+app.post('/api/gas-sync/test-webhook-url', async (req, res) => {
+  try {
+    const { syncPropertyId, externalPropertyId } = req.body;
+    
+    if (!syncPropertyId) {
+      return res.status(400).json({ success: false, error: 'syncPropertyId is required' });
+    }
+    
+    // Get property and connection info
+    const propResult = await pool.query(`
+      SELECT sp.*, c.credentials
+      FROM gas_sync_properties sp
+      JOIN gas_sync_connections c ON sp.connection_id = c.id
+      WHERE sp.id = $1
+    `, [syncPropertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Property not found' });
+    }
+    
+    const prop = propResult.rows[0];
+    let credentials = prop.credentials || {};
+    if (typeof credentials === 'string') {
+      credentials = JSON.parse(credentials);
+    }
+    
+    // Get access token from refresh token
+    if (!credentials.refreshToken) {
+      return res.status(400).json({ success: false, error: 'No OAuth credentials for this connection' });
+    }
+    
+    try {
+      // Get fresh access token
+      const tokenResponse = await fetch('https://beds24.com/api/v2/authentication/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: credentials.refreshToken })
+      });
+      
+      const tokenData = await tokenResponse.json();
+      if (!tokenData.token) {
+        return res.status(400).json({ success: false, error: 'Failed to get access token' });
+      }
+      
+      // Get property info from Beds24 to verify webhook URL
+      const propId = externalPropertyId || prop.external_id;
+      const propertyResponse = await fetch(`https://beds24.com/api/v2/properties/${propId}`, {
+        headers: { 'token': tokenData.token }
+      });
+      
+      const propertyData = await propertyResponse.json();
+      
+      if (propertyData.error) {
+        return res.status(400).json({ success: false, error: propertyData.error });
+      }
+      
+      // Check if webhook URL is set correctly
+      const expectedWebhookUrl = `https://admin.gas.travel/api/webhooks/beds24?propertyId=${propId}`;
+      const webhookSettings = propertyData.data?.notifications || propertyData.notifications || {};
+      
+      // Mark as tested in database
+      await pool.query(`
+        UPDATE gas_sync_properties 
+        SET webhook_tested = true, updated_at = NOW()
+        WHERE id = $1
+      `, [syncPropertyId]);
+      
+      res.json({ 
+        success: true, 
+        message: 'Webhook test passed',
+        propertyId: propId
+      });
+      
+    } catch (apiError) {
+      console.error('Beds24 API error:', apiError);
+      return res.status(400).json({ success: false, error: 'Failed to connect to Beds24 API: ' + apiError.message });
+    }
+    
+  } catch (error) {
+    console.error('Test webhook URL error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Set V1 API key for a connection (for Fixed Prices fallback)
 app.post('/api/gas-sync/connections/:id/set-v1-api-key', async (req, res) => {
   try {
