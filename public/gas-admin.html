@@ -36119,6 +36119,18 @@ Local honey and preserves"></textarea>
 
         async function loadPropertyCheckTab() {
             const container = document.getElementById('connectionTabPropertyCheck');
+            container.innerHTML = `
+                <div style="text-align: center; padding: 40px;">
+                    <div style="font-size: 3rem; margin-bottom: 15px;">🔍</div>
+                    <h4 style="margin: 0 0 10px 0;">Property Check</h4>
+                    <p style="color: #6b7280; margin-bottom: 20px;">Compare properties in Beds24 with GAS to find new or removed properties.</p>
+                    <button class="btn btn-primary btn-lg" onclick="runPropertyCheck()">🔄 Check Now</button>
+                </div>
+            `;
+        }
+
+        async function runPropertyCheck() {
+            const container = document.getElementById('connectionTabPropertyCheck');
             container.innerHTML = '<p style="text-align: center; padding: 20px;">🔄 Checking for property changes...</p>';
             
             try {
@@ -36198,7 +36210,7 @@ Local honey and preserves"></textarea>
                         ` : ''}
                         
                         <div style="margin-top: 15px; text-align: right;">
-                            <button class="btn btn-secondary" onclick="loadPropertyCheckTab()">🔄 Refresh</button>
+                            <button class="btn btn-secondary" onclick="runPropertyCheck()">🔄 Check Again</button>
                         </div>
                     `;
                 } else {
