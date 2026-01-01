@@ -1,4 +1,4 @@
-// Force rebuild - Dec 29 2025
+// Force rebuild - Jan 1 2026 - Added gas_sync_images fallback to public unit API
 // GAS - Guest Accommodation System Server
 // Multi-tenant SaaS for property management
 require('dotenv').config();
@@ -25871,7 +25871,7 @@ app.get('/api/public/property/:propertyId', async (req, res) => {
     
     const units = await pool.query(`
       SELECT id, name, unit_type, max_guests, description, short_description, base_price
-      FROM bookable_units WHERE property_id = $1 AND status = 'active'
+      FROM bookable_units WHERE property_id = $1 AND status IN ('active', 'available')
       ORDER BY name
     `, [propertyId]);
     
@@ -25912,7 +25912,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
-    // Try room_images first, fallback to bookable_unit_images
+    // Try room_images first, fallback to bookable_unit_images, then gas_sync_images
     let images = await pool.query(`
       SELECT id, image_url as url, alt_text
       FROM room_images WHERE room_id = $1
@@ -25928,6 +25928,63 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       } catch (e) {
         // Table doesn't exist, that's fine
         images = { rows: [] };
+      }
+    }
+    
+    // If still no images, check gas_sync_images (for synced rooms that weren't fully imported)
+    if (images.rows.length === 0) {
+      try {
+        // Get the room's cm_room_id and property_id to find matching sync images
+        const roomLookup = await pool.query(
+          'SELECT cm_room_id, beds24_room_id, property_id, name FROM bookable_units WHERE id = $1',
+          [unitId]
+        );
+        
+        if (roomLookup.rows.length > 0) {
+          const { cm_room_id, beds24_room_id, property_id, name: roomName } = roomLookup.rows[0];
+          const externalId = cm_room_id || beds24_room_id;
+          
+          if (externalId) {
+            // Try to find images by room_type_external_id
+            const syncResult = await pool.query(`
+              SELECT 
+                gsi.id,
+                gsi.original_url as url,
+                gsi.caption as alt_text
+              FROM gas_sync_images gsi
+              WHERE gsi.room_type_external_id = $1
+              ORDER BY gsi.sort_order, gsi.id
+            `, [String(externalId)]);
+            
+            if (syncResult.rows.length > 0) {
+              images = syncResult;
+            }
+          }
+          
+          // If still nothing, try matching by room name through gas_sync_room_types
+          if (images.rows.length === 0 && property_id) {
+            const syncByNameResult = await pool.query(`
+              SELECT 
+                gsi.id,
+                gsi.original_url as url,
+                gsi.caption as alt_text
+              FROM gas_sync_images gsi
+              JOIN gas_sync_room_types gsrt ON gsi.room_type_external_id = gsrt.external_id 
+                AND gsi.connection_id = gsrt.connection_id
+              JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
+              WHERE gsp.gas_property_id = $1 
+                AND gsrt.name = $2
+              ORDER BY gsi.sort_order, gsi.id
+            `, [property_id, roomName]);
+            
+            if (syncByNameResult.rows.length > 0) {
+              images = syncByNameResult;
+            }
+          }
+        }
+      } catch (syncError) {
+        console.log('gas_sync_images fallback error:', syncError.message);
+        // Continue with empty images
       }
     }
     
