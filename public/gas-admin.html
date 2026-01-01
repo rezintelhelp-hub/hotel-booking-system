@@ -4084,8 +4084,9 @@
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('hero', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Hero</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 Homepage SEO</h3></div>
+                            <div id="editor-hero-content"></div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; margin-top: 1.5rem; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; margin-bottom: 0;"><h3 style="margin: 0; font-size: 1rem;">🔍 Homepage SEO</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
                                         <button type="button" class="btn btn-sm" onclick="generateSEOMeta('hero')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
@@ -4100,10 +4101,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                                    <h3>❓ FAQ Schema</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0;">
+                                    <h3 style="margin: 0; font-size: 1rem;">❓ FAQ Schema</h3>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
                                         <input type="checkbox" id="wb-hero-faq-enabled" checked>
                                         Enable FAQ Schema
                                     </label>
@@ -4121,7 +4122,6 @@
                                     <div id="wb-hero-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div id="editor-hero-content"></div>
                         </div>
                         <div id="editor-homepage-intro" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
@@ -4244,8 +4244,8 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; margin-bottom: 0;"><h3 style="margin: 0; font-size: 1rem;">🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
                                         <button type="button" class="btn btn-sm" onclick="generateSEOMeta('rooms')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
@@ -4260,10 +4260,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                                    <h3>❓ FAQ Schema</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0;">
+                                    <h3 style="margin: 0; font-size: 1rem;">❓ FAQ Schema</h3>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
                                         <input type="checkbox" id="wb-page-rooms-faq-enabled" checked>
                                         Enable FAQ Schema
                                     </label>
@@ -4286,8 +4286,9 @@
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                            <div id="editor-page-about-content"></div>
+                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; margin-bottom: 0;"><h3 style="margin: 0; font-size: 1rem;">🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
                                         <button type="button" class="btn btn-sm" onclick="generateSEOMeta('about')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
@@ -4302,10 +4303,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                                    <h3>❓ FAQ Schema</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0;">
+                                    <h3 style="margin: 0; font-size: 1rem;">❓ FAQ Schema</h3>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
                                         <input type="checkbox" id="wb-page-about-faq-enabled" checked>
                                         Enable FAQ Schema
                                     </label>
@@ -4323,14 +4324,14 @@
                                     <div id="wb-page-about-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div id="editor-page-about-content"></div>
                         </div>
                         <div id="editor-subpage-page-gallery" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-gallery', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Gallery Page</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                            <div id="editor-page-gallery-content"></div>
+                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; margin-bottom: 0;"><h3 style="margin: 0; font-size: 1rem;">🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
                                         <button type="button" class="btn btn-sm" onclick="generateSEOMeta('gallery')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
@@ -4345,10 +4346,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                                    <h3>❓ FAQ Schema</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0;">
+                                    <h3 style="margin: 0; font-size: 1rem;">❓ FAQ Schema</h3>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
                                         <input type="checkbox" id="wb-page-gallery-faq-enabled" checked>
                                         Enable FAQ Schema
                                     </label>
@@ -4366,14 +4367,14 @@
                                     <div id="wb-page-gallery-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div id="editor-page-gallery-content"></div>
                         </div>
                         <div id="editor-subpage-page-blog" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-blog', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Blog Page</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                            <div id="editor-page-blog-content"></div>
+                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; margin-bottom: 0;"><h3 style="margin: 0; font-size: 1rem;">🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
                                         <button type="button" class="btn btn-sm" onclick="generateSEOMeta('blog')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
@@ -4388,10 +4389,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                                    <h3>❓ FAQ Schema</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0;">
+                                    <h3 style="margin: 0; font-size: 1rem;">❓ FAQ Schema</h3>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
                                         <input type="checkbox" id="wb-page-blog-faq-enabled" checked>
                                         Enable FAQ Schema
                                     </label>
@@ -4409,14 +4410,14 @@
                                     <div id="wb-page-blog-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div id="editor-page-blog-content"></div>
                         </div>
                         <div id="editor-subpage-page-attractions" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-attractions', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Attractions Page</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                            <div id="editor-page-attractions-content"></div>
+                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; margin-bottom: 0;"><h3 style="margin: 0; font-size: 1rem;">🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
                                         <button type="button" class="btn btn-sm" onclick="generateSEOMeta('attractions')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
@@ -4431,10 +4432,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                                    <h3>❓ FAQ Schema</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0;">
+                                    <h3 style="margin: 0; font-size: 1rem;">❓ FAQ Schema</h3>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
                                         <input type="checkbox" id="wb-page-attractions-faq-enabled" checked>
                                         Enable FAQ Schema
                                     </label>
@@ -4452,14 +4453,14 @@
                                     <div id="wb-page-attractions-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div id="editor-page-attractions-content"></div>
                         </div>
                         <div id="editor-subpage-page-dining" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-dining', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Dining Page</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                            <div id="editor-page-dining-content"></div>
+                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; margin-bottom: 0;"><h3 style="margin: 0; font-size: 1rem;">🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
                                         <button type="button" class="btn btn-sm" onclick="generateSEOMeta('dining')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
@@ -4474,10 +4475,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                                    <h3>❓ FAQ Schema</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0;">
+                                    <h3 style="margin: 0; font-size: 1rem;">❓ FAQ Schema</h3>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
                                         <input type="checkbox" id="wb-page-dining-faq-enabled" checked>
                                         Enable FAQ Schema
                                     </label>
@@ -4495,14 +4496,14 @@
                                     <div id="wb-page-dining-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div id="editor-page-dining-content"></div>
                         </div>
                         <div id="editor-subpage-page-contact" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-contact', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Contact Page</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                            <div id="editor-page-contact-content"></div>
+                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; padding: 0.75rem 1rem; margin-bottom: 0;"><h3 style="margin: 0; font-size: 1rem;">🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
                                         <button type="button" class="btn btn-sm" onclick="generateSEOMeta('contact')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
@@ -4517,10 +4518,10 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
-                                    <h3>❓ FAQ Schema</h3>
-                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; margin-bottom: 0;">
+                                    <h3 style="margin: 0; font-size: 1rem;">❓ FAQ Schema</h3>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.85rem;">
                                         <input type="checkbox" id="wb-page-contact-faq-enabled" checked>
                                         Enable FAQ Schema
                                     </label>
@@ -4538,7 +4539,6 @@
                                     <div id="wb-page-contact-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div id="editor-page-contact-content"></div>
                         </div>
                     </div>
                     
