@@ -15472,6 +15472,17 @@ Local honey and preserves"></textarea>
                         }
                     }
                     
+                    // Handle logo image preview (for header section)
+                    if (data.settings['logo-image-url']) {
+                        const logoPreview = getEl(`wb-${section}-logo-image-preview`);
+                        if (logoPreview) {
+                            logoPreview.style.backgroundImage = `url(${data.settings['logo-image-url']})`;
+                            logoPreview.style.backgroundSize = 'contain';
+                            logoPreview.style.backgroundPosition = 'center';
+                            logoPreview.innerHTML = '';
+                        }
+                    }
+                    
                     // Handle hero video URL - set toggle and preview
                     if (section === 'hero' && data.settings['video-url']) {
                         // Set radio to video
