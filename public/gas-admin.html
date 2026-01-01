@@ -8179,81 +8179,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
+                <!-- Block Editor -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Hero Image</h3></div>
+                    <div class="card-header"><h3>📝 Page Content</h3></div>
                     <div class="card-body" style="padding: 1rem;">
-                        <div id="wb-page-about-hero-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0; background-size: cover; background-position: center;">
-                            <span style="color: #94a3b8;">Click to upload hero image</span>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Build your page by adding content blocks. Drag to reorder.</p>
+                        
+                        <!-- Add Block Buttons -->
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 2px dashed #e2e8f0;">
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'text')" style="background: #3b82f6;">📝 Add Text</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'image')" style="background: #10b981;">🖼️ Add Image</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'video')" style="background: #8b5cf6;">🎬 Add Video</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'gallery')" style="background: #f59e0b;">📸 Add Gallery</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'team')" style="background: #ec4899;">👥 Add Team Member</button>
                         </div>
-                        <input type="file" id="wb-page-about-hero" accept="image/*" onchange="previewSubPageImage('about', 'hero')">
-                        <input type="hidden" id="wb-page-about-hero-url">
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Our Story</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Headline</label>
-                            <input type="text" class="form-input" id="wb-page-about-story-title" placeholder="Our Story">
+                        
+                        <!-- Blocks Container -->
+                        <div id="wb-page-about-blocks" class="content-blocks-container" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- Blocks will be added here dynamically -->
                         </div>
-                        <div class="form-group">
-                            <label class="form-label">Content</label>
-                            <textarea class="form-textarea" id="wb-page-about-story-content" rows="6" placeholder="Share your property's history, vision, and what makes you unique..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Story Image</label>
-                            <div id="wb-page-about-story-image-preview" style="width: 300px; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0; background-size: cover; background-position: center;">
-                                <span style="color: #94a3b8;">Upload image</span>
-                            </div>
-                            <input type="file" id="wb-page-about-story-image" accept="image/*" onchange="previewSubPageImage('about', 'story-image')">
-                            <input type="hidden" id="wb-page-about-story-image-url">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Our Values</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Add up to 4 values that define your property</p>
-                        <div id="wb-page-about-values" style="display: grid; gap: 1rem;">
-                            <div style="display: grid; grid-template-columns: 80px 1fr 2fr; gap: 0.5rem; align-items: start;">
-                                <input type="text" class="form-input" id="wb-page-about-value1-icon" placeholder="🏡" style="text-align: center; font-size: 1.5rem;">
-                                <input type="text" class="form-input" id="wb-page-about-value1-title" placeholder="Value title">
-                                <input type="text" class="form-input" id="wb-page-about-value1-desc" placeholder="Brief description">
-                            </div>
-                            <div style="display: grid; grid-template-columns: 80px 1fr 2fr; gap: 0.5rem; align-items: start;">
-                                <input type="text" class="form-input" id="wb-page-about-value2-icon" placeholder="❤️" style="text-align: center; font-size: 1.5rem;">
-                                <input type="text" class="form-input" id="wb-page-about-value2-title" placeholder="Value title">
-                                <input type="text" class="form-input" id="wb-page-about-value2-desc" placeholder="Brief description">
-                            </div>
-                            <div style="display: grid; grid-template-columns: 80px 1fr 2fr; gap: 0.5rem; align-items: start;">
-                                <input type="text" class="form-input" id="wb-page-about-value3-icon" placeholder="✨" style="text-align: center; font-size: 1.5rem;">
-                                <input type="text" class="form-input" id="wb-page-about-value3-title" placeholder="Value title">
-                                <input type="text" class="form-input" id="wb-page-about-value3-desc" placeholder="Brief description">
-                            </div>
-                            <div style="display: grid; grid-template-columns: 80px 1fr 2fr; gap: 0.5rem; align-items: start;">
-                                <input type="text" class="form-input" id="wb-page-about-value4-icon" placeholder="🌟" style="text-align: center; font-size: 1.5rem;">
-                                <input type="text" class="form-input" id="wb-page-about-value4-title" placeholder="Value title">
-                                <input type="text" class="form-input" id="wb-page-about-value4-desc" placeholder="Brief description">
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Team Section (Optional)</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-page-about-team-enabled"> Show Team Section
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Section Title</label>
-                            <input type="text" class="form-input" id="wb-page-about-team-title" value="Meet Our Team">
-                        </div>
-                        <p style="color: var(--text-secondary); margin: 1rem 0;">Team members can be managed in the full WordPress admin</p>
+                        
+                        <!-- Hidden field to store blocks JSON -->
+                        <input type="hidden" id="wb-page-about-blocks-data" value="[]">
                     </div>
                 </div>
             </div>
@@ -8284,48 +8231,27 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
+                <!-- Block Editor -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Gallery Layout</h3></div>
+                    <div class="card-header"><h3>📝 Page Content</h3></div>
                     <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Display Style</label>
-                            <select class="form-select" id="wb-page-gallery-layout">
-                                <option value="grid">Grid (3 columns)</option>
-                                <option value="masonry">Masonry</option>
-                                <option value="slider">Full-width Slider</option>
-                            </select>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Build your gallery page with content blocks.</p>
+                        
+                        <!-- Add Block Buttons -->
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 2px dashed #e2e8f0;">
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('gallery', 'text')" style="background: #3b82f6;">📝 Add Text</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('gallery', 'image')" style="background: #10b981;">🖼️ Add Image</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('gallery', 'video')" style="background: #8b5cf6;">🎬 Add Video</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('gallery', 'gallery')" style="background: #f59e0b;">📸 Add Gallery Grid</button>
                         </div>
-                        <div class="form-group">
-                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-page-gallery-lightbox" checked> Enable Lightbox
-                            </label>
-                            <small class="form-hint">Click images to view full size</small>
+                        
+                        <!-- Blocks Container -->
+                        <div id="wb-page-gallery-blocks" class="content-blocks-container" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- Blocks will be added here dynamically -->
                         </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Gallery Categories</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-page-gallery-show-filters" checked> Show Category Filters
-                            </label>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Categories (comma separated)</label>
-                            <input type="text" class="form-input" id="wb-page-gallery-categories" value="Rooms, Common Areas, Exterior, Dining">
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem; background: linear-gradient(135deg, #dbeafe, #ede9fe); border: 1px solid #93c5fd;">
-                    <div class="card-body" style="display: flex; align-items: center; gap: 1rem;">
-                        <div style="font-size: 2rem;">💡</div>
-                        <div>
-                            <strong style="color: #1e40af;">Tip: Images sync from your GAS library</strong>
-                            <p style="margin: 0; color: #3730a3; font-size: 0.9rem;">Upload images in the Images section. They'll automatically appear in your gallery organized by property and room.</p>
-                        </div>
+                        
+                        <!-- Hidden field to store blocks JSON -->
+                        <input type="hidden" id="wb-page-gallery-blocks-data" value="[]">
                     </div>
                 </div>
             </div>
@@ -8493,87 +8419,28 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
+                <!-- Block Editor -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Hero Image</h3></div>
+                    <div class="card-header"><h3>📝 Page Content</h3></div>
                     <div class="card-body" style="padding: 1rem;">
-                        <div id="wb-page-dining-hero-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; border: 2px dashed #e2e8f0; background-size: cover; background-position: center;">
-                            <span style="color: #94a3b8;">Click to upload hero image</span>
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Build your dining page with content blocks.</p>
+                        
+                        <!-- Add Block Buttons -->
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 2px dashed #e2e8f0;">
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'text')" style="background: #3b82f6;">📝 Add Text</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'image')" style="background: #10b981;">🖼️ Add Image</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'video')" style="background: #8b5cf6;">🎬 Add Video</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'gallery')" style="background: #f59e0b;">📸 Add Gallery</button>
+                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'menu')" style="background: #ec4899;">🍴 Add Menu Section</button>
                         </div>
-                        <input type="file" id="wb-page-dining-hero" accept="image/*" onchange="previewSubPageImage('dining', 'hero')">
-                        <input type="hidden" id="wb-page-dining-hero-url">
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Overview</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Introduction</label>
-                            <textarea class="form-textarea" id="wb-page-dining-intro" rows="4" placeholder="Describe your dining experience, breakfast service, or restaurant..."></textarea>
+                        
+                        <!-- Blocks Container -->
+                        <div id="wb-page-dining-blocks" class="content-blocks-container" style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- Blocks will be added here dynamically -->
                         </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Breakfast Details</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-page-dining-breakfast-enabled" checked> Show Breakfast Section
-                            </label>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Serving Hours</label>
-                                <input type="text" class="form-input" id="wb-page-dining-breakfast-hours" placeholder="7:00 AM - 10:00 AM">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Style</label>
-                                <select class="form-select" id="wb-page-dining-breakfast-style">
-                                    <option value="full">Full Cooked Breakfast</option>
-                                    <option value="continental">Continental</option>
-                                    <option value="buffet">Buffet</option>
-                                    <option value="menu">À la Carte</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Description</label>
-                            <textarea class="form-textarea" id="wb-page-dining-breakfast-desc" rows="3" placeholder="Describe your breakfast offerings..."></textarea>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Sample Menu Items (one per line)</label>
-                            <textarea class="form-textarea" id="wb-page-dining-breakfast-menu" rows="5" placeholder="Fresh fruit and yogurt
-Eggs any style
-Bacon and sausage
-Fresh pastries
-Local honey and preserves"></textarea>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Restaurant/Dinner (Optional)</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label" style="display: flex; align-items: center; gap: 8px;">
-                                <input type="checkbox" id="wb-page-dining-restaurant-enabled"> Show Restaurant Section
-                            </label>
-                        </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Restaurant Name</label>
-                                <input type="text" class="form-input" id="wb-page-dining-restaurant-name" placeholder="The Garden Restaurant">
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Hours</label>
-                                <input type="text" class="form-input" id="wb-page-dining-restaurant-hours" placeholder="6:00 PM - 10:00 PM">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Description</label>
-                            <textarea class="form-textarea" id="wb-page-dining-restaurant-desc" rows="3" placeholder="Describe your restaurant experience..."></textarea>
-                        </div>
+                        
+                        <!-- Hidden field to store blocks JSON -->
+                        <input type="hidden" id="wb-page-dining-blocks-data" value="[]">
                     </div>
                 </div>
             </div>
@@ -15567,6 +15434,472 @@ Local honey and preserves"></textarea>
                 btn.disabled = false;
             }
         }
+        
+        // ============================================
+        // CONTENT BLOCK EDITOR FUNCTIONS
+        // ============================================
+        
+        let blockCounter = 0;
+        
+        function addContentBlock(page, type) {
+            const container = document.getElementById(`wb-page-${page}-blocks`);
+            if (!container) return;
+            
+            blockCounter++;
+            const blockId = `block-${page}-${blockCounter}`;
+            
+            const block = document.createElement('div');
+            block.className = 'content-block';
+            block.id = blockId;
+            block.dataset.type = type;
+            block.style.cssText = 'border: 1px solid #e2e8f0; border-radius: 8px; background: white; overflow: hidden;';
+            
+            const typeLabels = {
+                'text': '📝 Text Block',
+                'image': '🖼️ Image Block',
+                'video': '🎬 Video Block',
+                'gallery': '📸 Gallery Block',
+                'team': '👥 Team Member',
+                'menu': '🍴 Menu Section'
+            };
+            
+            // Block header with controls
+            let blockHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; padding: 0.75rem 1rem; background: #f8fafc; border-bottom: 1px solid #e2e8f0;">
+                    <span style="font-weight: 600; font-size: 0.9rem; color: #475569;">${typeLabels[type] || type}</span>
+                    <div style="display: flex; gap: 0.5rem;">
+                        <button type="button" onclick="moveBlock('${blockId}', -1)" style="padding: 0.25rem 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer;" title="Move Up">↑</button>
+                        <button type="button" onclick="moveBlock('${blockId}', 1)" style="padding: 0.25rem 0.5rem; border: 1px solid #e2e8f0; border-radius: 4px; background: white; cursor: pointer;" title="Move Down">↓</button>
+                        <button type="button" onclick="deleteBlock('${blockId}')" style="padding: 0.25rem 0.5rem; border: 1px solid #fecaca; border-radius: 4px; background: #fef2f2; color: #dc2626; cursor: pointer;" title="Delete">🗑️</button>
+                    </div>
+                </div>
+                <div style="padding: 1rem;">
+            `;
+            
+            // Block content based on type
+            switch(type) {
+                case 'text':
+                    blockHTML += `
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Heading (optional)</label>
+                            <input type="text" class="form-input block-heading" placeholder="Section heading...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Content</label>
+                            <textarea class="form-textarea block-content" rows="5" placeholder="Enter your text content..."></textarea>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'image':
+                    blockHTML += `
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <div class="block-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; border: 2px dashed #e2e8f0; background-size: cover; background-position: center; cursor: pointer;" onclick="this.nextElementSibling.click()">
+                                <span style="color: #94a3b8;">Click to upload image</span>
+                            </div>
+                            <input type="file" class="block-image-file" accept="image/*" style="display: none;" onchange="previewBlockImage(this, '${blockId}')">
+                            <input type="hidden" class="block-image-url">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Caption (optional)</label>
+                            <input type="text" class="form-input block-caption" placeholder="Image caption...">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Alignment</label>
+                            <select class="form-select block-alignment">
+                                <option value="center">Center</option>
+                                <option value="left">Left</option>
+                                <option value="right">Right</option>
+                                <option value="full">Full Width</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'video':
+                    blockHTML += `
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Video URL</label>
+                            <input type="text" class="form-input block-video-url" placeholder="YouTube or Vimeo URL...">
+                            <small class="form-hint">Paste a YouTube or Vimeo link</small>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Caption (optional)</label>
+                            <input type="text" class="form-input block-caption" placeholder="Video caption...">
+                        </div>
+                    `;
+                    break;
+                    
+                case 'gallery':
+                    blockHTML += `
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Gallery Title (optional)</label>
+                            <input type="text" class="form-input block-heading" placeholder="Gallery section title...">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Images</label>
+                            <div class="block-gallery-grid" style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 0.5rem; margin-bottom: 0.5rem;">
+                            </div>
+                            <button type="button" class="btn btn-sm" onclick="addGalleryImage('${blockId}')" style="background: #64748b;">+ Add Images</button>
+                            <input type="file" class="block-gallery-file" accept="image/*" multiple style="display: none;" onchange="handleGalleryUpload(this, '${blockId}')">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Columns</label>
+                            <select class="form-select block-columns">
+                                <option value="2">2 Columns</option>
+                                <option value="3" selected>3 Columns</option>
+                                <option value="4">4 Columns</option>
+                            </select>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'team':
+                    blockHTML += `
+                        <div style="display: grid; grid-template-columns: 150px 1fr; gap: 1rem;">
+                            <div>
+                                <div class="block-image-preview" style="width: 150px; height: 150px; background: #f1f5f9; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 2px dashed #e2e8f0; background-size: cover; background-position: center; cursor: pointer;" onclick="this.nextElementSibling.click()">
+                                    <span style="color: #94a3b8; font-size: 0.8rem; text-align: center;">Photo</span>
+                                </div>
+                                <input type="file" class="block-image-file" accept="image/*" style="display: none;" onchange="previewBlockImage(this, '${blockId}')">
+                                <input type="hidden" class="block-image-url">
+                            </div>
+                            <div>
+                                <div class="form-group" style="margin-bottom: 0.75rem;">
+                                    <label class="form-label">Name</label>
+                                    <input type="text" class="form-input block-name" placeholder="John Smith">
+                                </div>
+                                <div class="form-group" style="margin-bottom: 0.75rem;">
+                                    <label class="form-label">Role / Title</label>
+                                    <input type="text" class="form-input block-role" placeholder="General Manager">
+                                </div>
+                                <div class="form-group">
+                                    <label class="form-label">Bio (optional)</label>
+                                    <textarea class="form-textarea block-bio" rows="3" placeholder="Brief bio..."></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'menu':
+                    blockHTML += `
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Menu Section Title</label>
+                            <input type="text" class="form-input block-heading" placeholder="e.g., Breakfast, Dinner, Drinks">
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Description</label>
+                            <textarea class="form-textarea block-content" rows="2" placeholder="Brief description of this menu section..."></textarea>
+                        </div>
+                        <div class="form-group" style="margin-bottom: 1rem;">
+                            <label class="form-label">Hours (optional)</label>
+                            <input type="text" class="form-input block-hours" placeholder="e.g., 7:00 AM - 10:00 AM">
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Menu Items (one per line)</label>
+                            <textarea class="form-textarea block-menu-items" rows="6" placeholder="Fresh fruit and yogurt
+Eggs any style
+Bacon and sausage
+Fresh pastries"></textarea>
+                        </div>
+                    `;
+                    break;
+            }
+            
+            blockHTML += '</div>';
+            block.innerHTML = blockHTML;
+            container.appendChild(block);
+            
+            // Update hidden data field
+            updateBlocksData(page);
+        }
+        
+        function moveBlock(blockId, direction) {
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            const container = block.parentElement;
+            const blocks = Array.from(container.children);
+            const index = blocks.indexOf(block);
+            const newIndex = index + direction;
+            
+            if (newIndex < 0 || newIndex >= blocks.length) return;
+            
+            if (direction === -1) {
+                container.insertBefore(block, blocks[newIndex]);
+            } else {
+                container.insertBefore(block, blocks[newIndex].nextSibling);
+            }
+            
+            // Update data
+            const page = blockId.split('-')[1];
+            updateBlocksData(page);
+        }
+        
+        function deleteBlock(blockId) {
+            if (!confirm('Delete this block?')) return;
+            
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            const page = blockId.split('-')[1];
+            block.remove();
+            updateBlocksData(page);
+        }
+        
+        async function previewBlockImage(input, blockId) {
+            const block = document.getElementById(blockId);
+            if (!block || !input.files || !input.files[0]) return;
+            
+            const preview = block.querySelector('.block-image-preview');
+            const urlField = block.querySelector('.block-image-url');
+            const file = input.files[0];
+            
+            // Show preview immediately
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.style.backgroundImage = `url(${e.target.result})`;
+                preview.innerHTML = '<span style="background: rgba(0,0,0,0.5); color: white; padding: 4px 8px; border-radius: 4px; font-size: 0.8rem;">Uploading...</span>';
+            };
+            reader.readAsDataURL(file);
+            
+            // Upload to server
+            let accountId = selectedAccountId;
+            if (!accountId && selectedDeployedSiteId && selectedWebsiteData) {
+                accountId = selectedWebsiteData.account_id;
+            }
+            
+            if (!accountId) {
+                preview.innerHTML = '<span style="color: #dc2626;">No account selected</span>';
+                return;
+            }
+            
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('account_id', accountId);
+            formData.append('section', 'page-content');
+            
+            try {
+                const response = await fetch('/api/admin/website-builder/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.url) {
+                    urlField.value = data.url;
+                    preview.innerHTML = '';
+                    
+                    // Update data
+                    const page = blockId.split('-')[1];
+                    updateBlocksData(page);
+                } else {
+                    preview.innerHTML = '<span style="color: #dc2626;">Upload failed</span>';
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                preview.innerHTML = '<span style="color: #dc2626;">Upload error</span>';
+            }
+        }
+        
+        function addGalleryImage(blockId) {
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            const fileInput = block.querySelector('.block-gallery-file');
+            fileInput.click();
+        }
+        
+        async function handleGalleryUpload(input, blockId) {
+            const block = document.getElementById(blockId);
+            if (!block || !input.files || input.files.length === 0) return;
+            
+            const grid = block.querySelector('.block-gallery-grid');
+            
+            let accountId = selectedAccountId;
+            if (!accountId && selectedDeployedSiteId && selectedWebsiteData) {
+                accountId = selectedWebsiteData.account_id;
+            }
+            
+            if (!accountId) {
+                alert('No account selected');
+                return;
+            }
+            
+            for (const file of input.files) {
+                // Create placeholder
+                const placeholder = document.createElement('div');
+                placeholder.style.cssText = 'width: 100%; padding-top: 100%; background: #f1f5f9; border-radius: 4px; position: relative;';
+                placeholder.innerHTML = '<span style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-size: 0.7rem; color: #94a3b8;">Uploading...</span>';
+                grid.appendChild(placeholder);
+                
+                // Upload
+                const formData = new FormData();
+                formData.append('image', file);
+                formData.append('account_id', accountId);
+                formData.append('section', 'page-gallery');
+                
+                try {
+                    const response = await fetch('/api/admin/website-builder/upload-image', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success && data.url) {
+                        placeholder.style.backgroundImage = `url(${data.url})`;
+                        placeholder.style.backgroundSize = 'cover';
+                        placeholder.style.backgroundPosition = 'center';
+                        placeholder.dataset.url = data.url;
+                        placeholder.innerHTML = `<button type="button" onclick="this.parentElement.remove(); updateBlocksData('${blockId.split('-')[1]}')" style="position: absolute; top: 4px; right: 4px; background: rgba(220,38,38,0.9); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px;">×</button>`;
+                    } else {
+                        placeholder.remove();
+                    }
+                } catch (error) {
+                    console.error('Upload error:', error);
+                    placeholder.remove();
+                }
+            }
+            
+            // Update data
+            const page = blockId.split('-')[1];
+            updateBlocksData(page);
+            
+            // Clear input
+            input.value = '';
+        }
+        
+        function updateBlocksData(page) {
+            const container = document.getElementById(`wb-page-${page}-blocks`);
+            const dataField = document.getElementById(`wb-page-${page}-blocks-data`);
+            if (!container || !dataField) return;
+            
+            const blocks = [];
+            container.querySelectorAll('.content-block').forEach(block => {
+                const type = block.dataset.type;
+                const data = { type };
+                
+                switch(type) {
+                    case 'text':
+                        data.heading = block.querySelector('.block-heading')?.value || '';
+                        data.content = block.querySelector('.block-content')?.value || '';
+                        break;
+                    case 'image':
+                        data.url = block.querySelector('.block-image-url')?.value || '';
+                        data.caption = block.querySelector('.block-caption')?.value || '';
+                        data.alignment = block.querySelector('.block-alignment')?.value || 'center';
+                        break;
+                    case 'video':
+                        data.url = block.querySelector('.block-video-url')?.value || '';
+                        data.caption = block.querySelector('.block-caption')?.value || '';
+                        break;
+                    case 'gallery':
+                        data.heading = block.querySelector('.block-heading')?.value || '';
+                        data.columns = block.querySelector('.block-columns')?.value || '3';
+                        data.images = [];
+                        block.querySelectorAll('.block-gallery-grid > div').forEach(img => {
+                            if (img.dataset.url) data.images.push(img.dataset.url);
+                        });
+                        break;
+                    case 'team':
+                        data.photo = block.querySelector('.block-image-url')?.value || '';
+                        data.name = block.querySelector('.block-name')?.value || '';
+                        data.role = block.querySelector('.block-role')?.value || '';
+                        data.bio = block.querySelector('.block-bio')?.value || '';
+                        break;
+                    case 'menu':
+                        data.heading = block.querySelector('.block-heading')?.value || '';
+                        data.content = block.querySelector('.block-content')?.value || '';
+                        data.hours = block.querySelector('.block-hours')?.value || '';
+                        data.items = block.querySelector('.block-menu-items')?.value || '';
+                        break;
+                }
+                
+                blocks.push(data);
+            });
+            
+            dataField.value = JSON.stringify(blocks);
+        }
+        
+        function loadBlocksFromData(page) {
+            const dataField = document.getElementById(`wb-page-${page}-blocks-data`);
+            const container = document.getElementById(`wb-page-${page}-blocks`);
+            if (!dataField || !container) return;
+            
+            try {
+                const blocks = JSON.parse(dataField.value || '[]');
+                container.innerHTML = '';
+                
+                blocks.forEach(blockData => {
+                    addContentBlock(page, blockData.type);
+                    
+                    // Get the newly added block (last one)
+                    const block = container.lastElementChild;
+                    if (!block) return;
+                    
+                    // Populate fields
+                    switch(blockData.type) {
+                        case 'text':
+                            if (blockData.heading) block.querySelector('.block-heading').value = blockData.heading;
+                            if (blockData.content) block.querySelector('.block-content').value = blockData.content;
+                            break;
+                        case 'image':
+                            if (blockData.url) {
+                                block.querySelector('.block-image-url').value = blockData.url;
+                                block.querySelector('.block-image-preview').style.backgroundImage = `url(${blockData.url})`;
+                                block.querySelector('.block-image-preview').innerHTML = '';
+                            }
+                            if (blockData.caption) block.querySelector('.block-caption').value = blockData.caption;
+                            if (blockData.alignment) block.querySelector('.block-alignment').value = blockData.alignment;
+                            break;
+                        case 'video':
+                            if (blockData.url) block.querySelector('.block-video-url').value = blockData.url;
+                            if (blockData.caption) block.querySelector('.block-caption').value = blockData.caption;
+                            break;
+                        case 'gallery':
+                            if (blockData.heading) block.querySelector('.block-heading').value = blockData.heading;
+                            if (blockData.columns) block.querySelector('.block-columns').value = blockData.columns;
+                            if (blockData.images) {
+                                const grid = block.querySelector('.block-gallery-grid');
+                                blockData.images.forEach(url => {
+                                    const img = document.createElement('div');
+                                    img.style.cssText = 'width: 100%; padding-top: 100%; background-size: cover; background-position: center; border-radius: 4px; position: relative;';
+                                    img.style.backgroundImage = `url(${url})`;
+                                    img.dataset.url = url;
+                                    img.innerHTML = `<button type="button" onclick="this.parentElement.remove(); updateBlocksData('${page}')" style="position: absolute; top: 4px; right: 4px; background: rgba(220,38,38,0.9); color: white; border: none; border-radius: 50%; width: 20px; height: 20px; cursor: pointer; font-size: 12px;">×</button>`;
+                                    grid.appendChild(img);
+                                });
+                            }
+                            break;
+                        case 'team':
+                            if (blockData.photo) {
+                                block.querySelector('.block-image-url').value = blockData.photo;
+                                block.querySelector('.block-image-preview').style.backgroundImage = `url(${blockData.photo})`;
+                                block.querySelector('.block-image-preview').innerHTML = '';
+                            }
+                            if (blockData.name) block.querySelector('.block-name').value = blockData.name;
+                            if (blockData.role) block.querySelector('.block-role').value = blockData.role;
+                            if (blockData.bio) block.querySelector('.block-bio').value = blockData.bio;
+                            break;
+                        case 'menu':
+                            if (blockData.heading) block.querySelector('.block-heading').value = blockData.heading;
+                            if (blockData.content) block.querySelector('.block-content').value = blockData.content;
+                            if (blockData.hours) block.querySelector('.block-hours').value = blockData.hours;
+                            if (blockData.items) block.querySelector('.block-menu-items').value = blockData.items;
+                            break;
+                    }
+                });
+            } catch (e) {
+                console.error('Error loading blocks:', e);
+            }
+        }
+        
+        // ============================================
+        // END CONTENT BLOCK EDITOR FUNCTIONS
+        // ============================================
         
         // FAQ Schema Management Functions
         function addFAQItem(section, question = '', answer = '') {
