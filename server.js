@@ -3999,7 +3999,7 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     
     // Get sync property info
     const propResult = await pool.query(`
-      SELECT sp.*, c.credentials, c.channel_manager
+      SELECT sp.*, c.credentials, c.adapter_code
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.id = $1
@@ -35481,7 +35481,7 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
       SELECT 
         c.id, $1, $2, $3, $4, 'active', NOW()
       FROM gas_sync_connections c 
-      WHERE c.account_id = $5 AND c.channel_manager = 'beds24'
+      WHERE c.account_id = $5 AND c.adapter_code = 'beds24'
       ON CONFLICT (connection_id, external_property_id) 
       DO UPDATE SET gas_property_id = $2, api_key = $4, status = 'active', updated_at = NOW()
     `, [String(propId), gasPropertyId, prop.name, propCode || '', accountId]).catch(e => console.log('Property connection save:', e.message));
