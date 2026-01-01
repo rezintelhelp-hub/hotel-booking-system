@@ -25876,9 +25876,9 @@ app.get('/api/public/property/:propertyId', async (req, res) => {
     `, [propertyId]);
     
     const images = await pool.query(`
-      SELECT id, url, alt_text, is_primary
+      SELECT id, image_url as url, alt_text, is_primary
       FROM property_images WHERE property_id = $1
-      ORDER BY sort_order, is_primary DESC
+      ORDER BY display_order, is_primary DESC
     `, [propertyId]);
     
     res.json({
