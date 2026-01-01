@@ -4224,9 +4224,9 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
   try {
     const { propertyId } = req.params;
     
-    // Get sync property info with connection tokens
+    // Get sync property info
     const propResult = await pool.query(`
-      SELECT sp.*, c.credentials, c.adapter_code, c.access_token, c.refresh_token
+      SELECT sp.*, c.adapter_code, c.id as connection_id
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.id = $1
@@ -4238,48 +4238,21 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     
     const prop = propResult.rows[0];
     
-    // Parse credentials safely
-    let credentials = {};
-    try {
-      credentials = typeof prop.credentials === 'string' ? JSON.parse(prop.credentials) : (prop.credentials || {});
-    } catch (e) {
-      console.log('check-room-changes: Failed to parse credentials:', e.message);
+    // Use the adapter (same as sync uses) - handles token refresh properly
+    const adapter = await syncManager.getAdapterForConnection(prop.connection_id);
+    
+    if (!adapter) {
+      return res.status(400).json({ success: false, error: 'Could not initialize adapter for this connection' });
     }
     
-    // Get refresh token from either credentials JSON or dedicated column
-    const refreshToken = credentials?.refreshToken || prop.refresh_token;
+    // Get rooms from Beds24 using the adapter
+    const roomsResult = await adapter.getRoomTypes(prop.external_id);
     
-    console.log('check-room-changes debug:', {
-      propertyId,
-      hasCredentials: !!prop.credentials,
-      hasRefreshTokenInCreds: !!credentials?.refreshToken,
-      hasRefreshTokenColumn: !!prop.refresh_token,
-      refreshTokenFound: !!refreshToken
-    });
-    
-    if (!refreshToken) {
-      return res.status(400).json({ success: false, error: 'No API credentials for this connection. Please reconnect via the wizard.' });
+    if (!roomsResult.success) {
+      return res.status(400).json({ success: false, error: roomsResult.error || 'Failed to fetch rooms from Beds24' });
     }
     
-    // Get access token
-    let accessToken;
-    try {
-      const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-        refreshToken: refreshToken
-      });
-      accessToken = tokenResponse.data.token;
-    } catch (tokenError) {
-      console.error('check-room-changes: Token refresh failed:', tokenError.message);
-      return res.status(400).json({ success: false, error: 'Failed to refresh API token. Please reconnect via the wizard.' });
-    }
-    
-    // Fetch rooms from Beds24
-    const roomsResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms', {
-      headers: { token: accessToken },
-      params: { propertyId: prop.external_id }
-    });
-    
-    const beds24Rooms = roomsResponse.data.data || [];
+    const beds24Rooms = roomsResult.data || [];
     
     // Get GAS rooms for this property
     const gasRoomsResult = await pool.query(`
@@ -4293,7 +4266,7 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     
     // Build comparison
     const beds24ByExternalId = {};
-    beds24Rooms.forEach(r => { beds24ByExternalId[String(r.id)] = r; });
+    beds24Rooms.forEach(r => { beds24ByExternalId[String(r.externalId)] = r; });
     
     const gasByExternalId = {};
     gasRooms.forEach(r => { gasByExternalId[String(r.external_id)] = r; });
@@ -4305,7 +4278,7 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     
     // Check Beds24 rooms against GAS
     for (const b24Room of beds24Rooms) {
-      const externalId = String(b24Room.id);
+      const externalId = String(b24Room.externalId);
       const gasRoom = gasByExternalId[externalId];
       
       if (gasRoom) {
@@ -4331,8 +4304,8 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
         newRooms.push({
           external_id: externalId,
           name: b24Room.name,
-          max_guests: b24Room.maxPeople || 2,
-          quantity: b24Room.qty || 1
+          max_guests: b24Room.maxGuests || 2,
+          quantity: b24Room.quantity || 1
         });
       }
     }
