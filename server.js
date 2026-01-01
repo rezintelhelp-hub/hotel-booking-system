@@ -4224,9 +4224,9 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
   try {
     const { propertyId } = req.params;
     
-    // Get sync property info
+    // Get sync property info with connection tokens
     const propResult = await pool.query(`
-      SELECT sp.*, c.credentials, c.adapter_code
+      SELECT sp.*, c.credentials, c.adapter_code, c.access_token, c.refresh_token
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.id = $1
@@ -4237,15 +4237,18 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     }
     
     const prop = propResult.rows[0];
-    const credentials = prop.credentials;
+    const credentials = typeof prop.credentials === 'string' ? JSON.parse(prop.credentials) : (prop.credentials || {});
     
-    if (!credentials?.refreshToken) {
-      return res.status(400).json({ success: false, error: 'No API credentials for this connection' });
+    // Get refresh token from either credentials JSON or dedicated column
+    const refreshToken = credentials?.refreshToken || prop.refresh_token;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, error: 'No API credentials for this connection. Please reconnect via the wizard.' });
     }
     
     // Get access token
     const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-      refreshToken: credentials.refreshToken
+      refreshToken: refreshToken
     });
     const accessToken = tokenResponse.data.token;
     
