@@ -1420,7 +1420,26 @@
         #credentialFields label { display: block; margin-bottom: 5px; font-weight: 500; }
         #credentialFields input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
         #credentialFields .help-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
+        
+        /* GrapesJS Editor Styles */
+        .gjs-editor-cont { position: relative !important; }
+        .gjs-cv-canvas { width: 100% !important; height: 600px !important; }
+        .gjs-frame-wrapper { height: 100% !important; }
+        .gjs-pn-panel { position: relative !important; }
+        .gjs-block { min-height: auto !important; }
+        .gjs-blocks-cs { padding: 10px !important; }
+        .grapes-container { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
+        .gjs-one-bg { background-color: #f8fafc !important; }
+        .gjs-two-color { color: #1e293b !important; }
+        .gjs-three-bg { background-color: #7c3aed !important; }
+        .gjs-four-color, .gjs-four-color-h:hover { color: #7c3aed !important; }
     </style>
+    
+    <!-- GrapesJS -->
+    <link href="https://unpkg.com/grapesjs/dist/css/grapes.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/grapesjs"></script>
+    <script src="https://unpkg.com/grapesjs-blocks-basic"></script>
+    <script src="https://unpkg.com/grapesjs-preset-webpage"></script>
 </head>
 <body>
     <div class="dashboard">
@@ -8159,48 +8178,42 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="header-top">
                         <div>
                             <h2>ℹ️ About Us Page</h2>
-                            <p>Tell your story and connect with guests</p>
+                            <p>Visual page builder - drag and drop to create your page</p>
                         </div>
-                        <button class="btn" onclick="saveSubPage('about')">💾 Save & Sync</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="previewGrapesPage('about')" style="background: #64748b;">👁️ Preview</button>
+                            <button class="btn" onclick="saveGrapesPage('about')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
+                        </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-header"><h3>Page Settings</h3></div>
                     <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Page Title</label>
-                            <input type="text" class="form-input" id="wb-page-about-title" value="About Us">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Subtitle / Tagline</label>
-                            <input type="text" class="form-input" id="wb-page-about-subtitle" placeholder="Our story and commitment to hospitality">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Page Title</label>
+                                <input type="text" class="form-input" id="wb-page-about-title" value="About Us">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Subtitle / Tagline</label>
+                                <input type="text" class="form-input" id="wb-page-about-subtitle" placeholder="Our story and commitment to hospitality">
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Block Editor -->
+                <!-- GrapesJS Visual Editor -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>📝 Page Content</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Build your page by adding content blocks. Drag to reorder.</p>
-                        
-                        <!-- Add Block Buttons -->
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 2px dashed #e2e8f0;">
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'text')" style="background: #3b82f6;">📝 Add Text</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'image')" style="background: #10b981;">🖼️ Add Image</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'video')" style="background: #8b5cf6;">🎬 Add Video</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'gallery')" style="background: #f59e0b;">📸 Add Gallery</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('about', 'team')" style="background: #ec4899;">👥 Add Team Member</button>
-                        </div>
-                        
-                        <!-- Blocks Container -->
-                        <div id="wb-page-about-blocks" class="content-blocks-container" style="display: flex; flex-direction: column; gap: 1rem;">
-                            <!-- Blocks will be added here dynamically -->
-                        </div>
-                        
-                        <!-- Hidden field to store blocks JSON -->
-                        <input type="hidden" id="wb-page-about-blocks-data" value="[]">
+                    <div class="card-header">
+                        <h3>📝 Visual Page Builder</h3>
+                        <small style="color: #64748b; font-weight: normal;">Drag blocks from the right panel to build your page</small>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div id="gjs-about" class="grapes-container" style="height: 650px;"></div>
+                        <!-- Hidden field to store HTML -->
+                        <input type="hidden" id="wb-page-about-html" value="">
+                        <input type="hidden" id="wb-page-about-css" value="">
                     </div>
                 </div>
             </div>
@@ -8211,47 +8224,41 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="header-top">
                         <div>
                             <h2>🖼️ Gallery Page</h2>
-                            <p>Showcase your property with beautiful images</p>
+                            <p>Visual page builder - drag and drop to create your gallery</p>
                         </div>
-                        <button class="btn" onclick="saveSubPage('gallery')">💾 Save & Sync</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="previewGrapesPage('gallery')" style="background: #64748b;">👁️ Preview</button>
+                            <button class="btn" onclick="saveGrapesPage('gallery')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
+                        </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-header"><h3>Page Settings</h3></div>
                     <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Page Title</label>
-                            <input type="text" class="form-input" id="wb-page-gallery-title" value="Gallery">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Subtitle</label>
-                            <input type="text" class="form-input" id="wb-page-gallery-subtitle" placeholder="Explore our beautiful spaces">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Page Title</label>
+                                <input type="text" class="form-input" id="wb-page-gallery-title" value="Gallery">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Subtitle</label>
+                                <input type="text" class="form-input" id="wb-page-gallery-subtitle" placeholder="Explore our beautiful spaces">
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Block Editor -->
+                <!-- GrapesJS Visual Editor -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>📝 Page Content</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Build your gallery page with content blocks.</p>
-                        
-                        <!-- Add Block Buttons -->
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 2px dashed #e2e8f0;">
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('gallery', 'text')" style="background: #3b82f6;">📝 Add Text</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('gallery', 'image')" style="background: #10b981;">🖼️ Add Image</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('gallery', 'video')" style="background: #8b5cf6;">🎬 Add Video</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('gallery', 'gallery')" style="background: #f59e0b;">📸 Add Gallery Grid</button>
-                        </div>
-                        
-                        <!-- Blocks Container -->
-                        <div id="wb-page-gallery-blocks" class="content-blocks-container" style="display: flex; flex-direction: column; gap: 1rem;">
-                            <!-- Blocks will be added here dynamically -->
-                        </div>
-                        
-                        <!-- Hidden field to store blocks JSON -->
-                        <input type="hidden" id="wb-page-gallery-blocks-data" value="[]">
+                    <div class="card-header">
+                        <h3>📝 Visual Page Builder</h3>
+                        <small style="color: #64748b; font-weight: normal;">Drag blocks from the right panel to build your gallery page</small>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div id="gjs-gallery" class="grapes-container" style="height: 650px;"></div>
+                        <input type="hidden" id="wb-page-gallery-html" value="">
+                        <input type="hidden" id="wb-page-gallery-css" value="">
                     </div>
                 </div>
             </div>
@@ -8399,48 +8406,41 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="header-top">
                         <div>
                             <h2>🍽️ Dining Page</h2>
-                            <p>Showcase your breakfast, restaurant, or dining options</p>
+                            <p>Visual page builder - showcase your breakfast, restaurant, or dining options</p>
                         </div>
-                        <button class="btn" onclick="saveSubPage('dining')">💾 Save & Sync</button>
+                        <div style="display: flex; gap: 0.5rem;">
+                            <button class="btn" onclick="previewGrapesPage('dining')" style="background: #64748b;">👁️ Preview</button>
+                            <button class="btn" onclick="saveGrapesPage('dining')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
+                        </div>
                     </div>
                 </div>
 
                 <div class="card">
                     <div class="card-header"><h3>Page Settings</h3></div>
                     <div class="card-body" style="padding: 1rem;">
-                        <div class="form-group">
-                            <label class="form-label">Page Title</label>
-                            <input type="text" class="form-input" id="wb-page-dining-title" value="Dining">
-                        </div>
-                        <div class="form-group">
-                            <label class="form-label">Subtitle</label>
-                            <input type="text" class="form-input" id="wb-page-dining-subtitle" placeholder="Experience our culinary offerings">
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Page Title</label>
+                                <input type="text" class="form-input" id="wb-page-dining-title" value="Dining">
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Subtitle</label>
+                                <input type="text" class="form-input" id="wb-page-dining-subtitle" placeholder="Experience our culinary offerings">
+                            </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Block Editor -->
+                <!-- GrapesJS Visual Editor -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>📝 Page Content</h3></div>
-                    <div class="card-body" style="padding: 1rem;">
-                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Build your dining page with content blocks.</p>
-                        
-                        <!-- Add Block Buttons -->
-                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem; padding: 1rem; background: #f8fafc; border-radius: 8px; border: 2px dashed #e2e8f0;">
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'text')" style="background: #3b82f6;">📝 Add Text</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'image')" style="background: #10b981;">🖼️ Add Image</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'video')" style="background: #8b5cf6;">🎬 Add Video</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'gallery')" style="background: #f59e0b;">📸 Add Gallery</button>
-                            <button type="button" class="btn btn-sm" onclick="addContentBlock('dining', 'menu')" style="background: #ec4899;">🍴 Add Menu Section</button>
-                        </div>
-                        
-                        <!-- Blocks Container -->
-                        <div id="wb-page-dining-blocks" class="content-blocks-container" style="display: flex; flex-direction: column; gap: 1rem;">
-                            <!-- Blocks will be added here dynamically -->
-                        </div>
-                        
-                        <!-- Hidden field to store blocks JSON -->
-                        <input type="hidden" id="wb-page-dining-blocks-data" value="[]">
+                    <div class="card-header">
+                        <h3>📝 Visual Page Builder</h3>
+                        <small style="color: #64748b; font-weight: normal;">Drag blocks from the right panel to build your dining page</small>
+                    </div>
+                    <div class="card-body" style="padding: 0;">
+                        <div id="gjs-dining" class="grapes-container" style="height: 650px;"></div>
+                        <input type="hidden" id="wb-page-dining-html" value="">
+                        <input type="hidden" id="wb-page-dining-css" value="">
                     </div>
                 </div>
             </div>
@@ -15899,6 +15899,334 @@ Fresh pastries"></textarea>
         
         // ============================================
         // END CONTENT BLOCK EDITOR FUNCTIONS
+        // ============================================
+        
+        // ============================================
+        // GRAPESJS VISUAL PAGE BUILDER
+        // ============================================
+        
+        let grapesEditors = {};
+        
+        function initGrapesEditor(page) {
+            const containerId = `gjs-${page}`;
+            const container = document.getElementById(containerId);
+            if (!container || grapesEditors[page]) return;
+            
+            // Get account ID for image uploads
+            let accountId = selectedAccountId;
+            if (!accountId && selectedDeployedSiteId && selectedWebsiteData) {
+                accountId = selectedWebsiteData.account_id;
+            }
+            
+            const editor = grapesjs.init({
+                container: `#${containerId}`,
+                height: '100%',
+                width: 'auto',
+                storageManager: false, // We handle saving ourselves
+                plugins: ['gjs-blocks-basic', 'gjs-preset-webpage'],
+                pluginsOpts: {
+                    'gjs-blocks-basic': {
+                        flexGrid: true,
+                    },
+                    'gjs-preset-webpage': {
+                        modalImportTitle: 'Import Template',
+                        modalImportLabel: '<div style="margin-bottom: 10px;">Paste your HTML/CSS here</div>',
+                        modalImportContent: '',
+                    },
+                },
+                canvas: {
+                    styles: [
+                        'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
+                    ],
+                },
+                blockManager: {
+                    appendTo: '#gjs-blocks-' + page,
+                },
+                panels: {
+                    defaults: [
+                        {
+                            id: 'panel-devices',
+                            el: '.panel__devices',
+                            buttons: [{
+                                id: 'device-desktop',
+                                label: '🖥️',
+                                command: 'set-device-desktop',
+                                active: true,
+                                togglable: false,
+                            }, {
+                                id: 'device-tablet',
+                                label: '📱',
+                                command: 'set-device-tablet',
+                                togglable: false,
+                            }, {
+                                id: 'device-mobile',
+                                label: '📱',
+                                command: 'set-device-mobile',
+                                togglable: false,
+                            }],
+                        }
+                    ]
+                },
+                deviceManager: {
+                    devices: [{
+                        name: 'Desktop',
+                        width: '',
+                    }, {
+                        name: 'Tablet',
+                        width: '768px',
+                        widthMedia: '768px',
+                    }, {
+                        name: 'Mobile',
+                        width: '375px',
+                        widthMedia: '375px',
+                    }]
+                },
+                assetManager: {
+                    upload: '/api/admin/website-builder/upload-image',
+                    uploadName: 'image',
+                    params: {
+                        account_id: accountId,
+                        section: 'page-content'
+                    },
+                    headers: authHeaders(),
+                    autoAdd: true,
+                    multiUpload: true,
+                },
+            });
+            
+            // Add custom blocks for hospitality
+            editor.BlockManager.add('section-hero', {
+                label: '🖼️ Hero Section',
+                category: 'Sections',
+                content: `
+                    <section style="background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200') center/cover; min-height: 400px; display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 60px 20px;">
+                        <div>
+                            <h1 style="font-size: 3rem; margin-bottom: 1rem; font-weight: 700;">Welcome to Our Property</h1>
+                            <p style="font-size: 1.25rem; opacity: 0.9; max-width: 600px; margin: 0 auto;">Experience unforgettable moments in our beautiful accommodation</p>
+                        </div>
+                    </section>
+                `,
+            });
+            
+            editor.BlockManager.add('section-text-image', {
+                label: '📄 Text + Image',
+                category: 'Sections',
+                content: `
+                    <section style="padding: 60px 20px;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 40px; max-width: 1200px; margin: 0 auto; align-items: center;">
+                            <div style="flex: 1; min-width: 300px;">
+                                <h2 style="font-size: 2rem; margin-bottom: 1rem; color: #1e293b;">Our Story</h2>
+                                <p style="color: #64748b; line-height: 1.7;">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation.</p>
+                                <p style="color: #64748b; line-height: 1.7; margin-top: 1rem;">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
+                            </div>
+                            <div style="flex: 1; min-width: 300px;">
+                                <img src="https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=600" style="width: 100%; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);" alt="About image">
+                            </div>
+                        </div>
+                    </section>
+                `,
+            });
+            
+            editor.BlockManager.add('section-image-text', {
+                label: '📄 Image + Text',
+                category: 'Sections',
+                content: `
+                    <section style="padding: 60px 20px; background: #f8fafc;">
+                        <div style="display: flex; flex-wrap: wrap; gap: 40px; max-width: 1200px; margin: 0 auto; align-items: center;">
+                            <div style="flex: 1; min-width: 300px;">
+                                <img src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600" style="width: 100%; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);" alt="Feature image">
+                            </div>
+                            <div style="flex: 1; min-width: 300px;">
+                                <h2 style="font-size: 2rem; margin-bottom: 1rem; color: #1e293b;">Our Commitment</h2>
+                                <p style="color: #64748b; line-height: 1.7;">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                                <ul style="color: #64748b; margin-top: 1rem; padding-left: 1.5rem;">
+                                    <li style="margin-bottom: 0.5rem;">Premium quality service</li>
+                                    <li style="margin-bottom: 0.5rem;">Attention to detail</li>
+                                    <li style="margin-bottom: 0.5rem;">Personalized experiences</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </section>
+                `,
+            });
+            
+            editor.BlockManager.add('section-features', {
+                label: '✨ Features Grid',
+                category: 'Sections',
+                content: `
+                    <section style="padding: 60px 20px;">
+                        <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
+                            <h2 style="font-size: 2rem; margin-bottom: 0.5rem; color: #1e293b;">Why Choose Us</h2>
+                            <p style="color: #64748b; margin-bottom: 3rem;">Everything you need for a perfect stay</p>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px;">
+                                <div style="padding: 30px; background: #f8fafc; border-radius: 12px; text-align: center;">
+                                    <div style="font-size: 2.5rem; margin-bottom: 1rem;">🏡</div>
+                                    <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: #1e293b;">Comfort</h3>
+                                    <p style="color: #64748b; font-size: 0.95rem;">Luxurious amenities designed for your relaxation</p>
+                                </div>
+                                <div style="padding: 30px; background: #f8fafc; border-radius: 12px; text-align: center;">
+                                    <div style="font-size: 2.5rem; margin-bottom: 1rem;">📍</div>
+                                    <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: #1e293b;">Location</h3>
+                                    <p style="color: #64748b; font-size: 0.95rem;">Perfectly situated near local attractions</p>
+                                </div>
+                                <div style="padding: 30px; background: #f8fafc; border-radius: 12px; text-align: center;">
+                                    <div style="font-size: 2.5rem; margin-bottom: 1rem;">⭐</div>
+                                    <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: #1e293b;">Service</h3>
+                                    <p style="color: #64748b; font-size: 0.95rem;">Dedicated team at your service 24/7</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                `,
+            });
+            
+            editor.BlockManager.add('section-team', {
+                label: '👥 Team Members',
+                category: 'Sections',
+                content: `
+                    <section style="padding: 60px 20px; background: #f8fafc;">
+                        <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
+                            <h2 style="font-size: 2rem; margin-bottom: 0.5rem; color: #1e293b;">Meet Our Team</h2>
+                            <p style="color: #64748b; margin-bottom: 3rem;">The people who make your stay special</p>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px;">
+                                <div style="text-align: center;">
+                                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop" style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover; margin-bottom: 1rem;">
+                                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem; color: #1e293b;">John Smith</h3>
+                                    <p style="color: #7c3aed; font-size: 0.9rem; margin-bottom: 0.5rem;">General Manager</p>
+                                    <p style="color: #64748b; font-size: 0.85rem;">20 years of hospitality experience</p>
+                                </div>
+                                <div style="text-align: center;">
+                                    <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop" style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover; margin-bottom: 1rem;">
+                                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem; color: #1e293b;">Sarah Johnson</h3>
+                                    <p style="color: #7c3aed; font-size: 0.9rem; margin-bottom: 0.5rem;">Guest Relations</p>
+                                    <p style="color: #64748b; font-size: 0.85rem;">Ensuring memorable experiences</p>
+                                </div>
+                                <div style="text-align: center;">
+                                    <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop" style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover; margin-bottom: 1rem;">
+                                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem; color: #1e293b;">Mike Chen</h3>
+                                    <p style="color: #7c3aed; font-size: 0.9rem; margin-bottom: 0.5rem;">Head Chef</p>
+                                    <p style="color: #64748b; font-size: 0.85rem;">Award-winning culinary expert</p>
+                                </div>
+                            </div>
+                        </div>
+                    </section>
+                `,
+            });
+            
+            editor.BlockManager.add('section-gallery', {
+                label: '📸 Photo Gallery',
+                category: 'Sections',
+                content: `
+                    <section style="padding: 60px 20px;">
+                        <div style="max-width: 1200px; margin: 0 auto;">
+                            <h2 style="font-size: 2rem; margin-bottom: 2rem; color: #1e293b; text-align: center;">Gallery</h2>
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
+                                <img src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                <img src="https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                <img src="https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                <img src="https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                <img src="https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                <img src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                            </div>
+                        </div>
+                    </section>
+                `,
+            });
+            
+            editor.BlockManager.add('section-cta', {
+                label: '📢 Call to Action',
+                category: 'Sections',
+                content: `
+                    <section style="padding: 80px 20px; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); text-align: center; color: white;">
+                        <div style="max-width: 800px; margin: 0 auto;">
+                            <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Ready to Book Your Stay?</h2>
+                            <p style="font-size: 1.2rem; opacity: 0.9; margin-bottom: 2rem;">Experience the perfect getaway. Best rates guaranteed when you book direct.</p>
+                            <a href="/book-now" style="display: inline-block; background: white; color: #7c3aed; padding: 15px 40px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Book Now</a>
+                        </div>
+                    </section>
+                `,
+            });
+            
+            // Load saved content if exists
+            const htmlField = document.getElementById(`wb-page-${page}-html`);
+            const cssField = document.getElementById(`wb-page-${page}-css`);
+            if (htmlField && htmlField.value) {
+                editor.setComponents(htmlField.value);
+            }
+            if (cssField && cssField.value) {
+                editor.setStyle(cssField.value);
+            }
+            
+            // Store reference
+            grapesEditors[page] = editor;
+            
+            console.log(`GrapesJS editor initialized for ${page}`);
+        }
+        
+        function saveGrapesPage(page) {
+            const editor = grapesEditors[page];
+            if (!editor) {
+                showNotification('Editor not initialized', 'error');
+                return;
+            }
+            
+            const html = editor.getHtml();
+            const css = editor.getCss();
+            
+            // Store in hidden fields
+            document.getElementById(`wb-page-${page}-html`).value = html;
+            document.getElementById(`wb-page-${page}-css`).value = css;
+            
+            // Save via API
+            saveWebsiteSection(`page-${page}`);
+        }
+        
+        function previewGrapesPage(page) {
+            const editor = grapesEditors[page];
+            if (!editor) return;
+            
+            const html = editor.getHtml();
+            const css = editor.getCss();
+            
+            const previewWindow = window.open('', '_blank');
+            previewWindow.document.write(`
+                <!DOCTYPE html>
+                <html>
+                <head>
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+                    <style>
+                        * { margin: 0; padding: 0; box-sizing: border-box; }
+                        body { font-family: 'Inter', sans-serif; }
+                        ${css}
+                    </style>
+                </head>
+                <body>${html}</body>
+                </html>
+            `);
+            previewWindow.document.close();
+        }
+        
+        // Initialize GrapesJS when switching to a page that uses it
+        const originalSwitchSubPageTab = typeof switchSubPageTab === 'function' ? switchSubPageTab : null;
+        function switchSubPageTabWithGrapes(tabName) {
+            if (originalSwitchSubPageTab) originalSwitchSubPageTab(tabName);
+            
+            // Initialize GrapesJS for pages that use it
+            setTimeout(() => {
+                if (tabName === 'page-about') initGrapesEditor('about');
+                if (tabName === 'page-gallery') initGrapesEditor('gallery');
+                if (tabName === 'page-dining') initGrapesEditor('dining');
+            }, 100);
+        }
+        
+        // Override the tab switching function
+        if (originalSwitchSubPageTab) {
+            window.switchSubPageTab = switchSubPageTabWithGrapes;
+        }
+        
+        // ============================================
+        // END GRAPESJS VISUAL PAGE BUILDER
         // ============================================
         
         // FAQ Schema Management Functions
