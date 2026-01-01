@@ -9948,7 +9948,6 @@ Local honey and preserves"></textarea>
                     <button class="gas-sync-tab active" onclick="showConnectionTab('overview')">Overview</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('properties')">Properties</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('reservations')">Reservations</button>
-                    <button class="gas-sync-tab" onclick="showConnectionTab('logs')">Logs</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('settings')">Settings</button>
                 </div>
                 
@@ -9956,7 +9955,6 @@ Local honey and preserves"></textarea>
                     <div id="connectionTabOverview" class="gas-sync-tab-content">Loading...</div>
                     <div id="connectionTabProperties" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                     <div id="connectionTabReservations" class="gas-sync-tab-content" style="display:none;">Loading...</div>
-                    <div id="connectionTabLogs" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                     <div id="connectionTabSettings" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                 </div>
             </div>
@@ -36036,7 +36034,7 @@ Local honey and preserves"></textarea>
         async function showConnectionDetails(connectionId) {
             selectedConnectionId = connectionId;
             document.getElementById('connectionDetailsModal').style.display = 'flex';
-            showConnectionTab('overview');
+            showConnectionTab('properties');
         }
 
         async function showConnectionTab(tab) {
