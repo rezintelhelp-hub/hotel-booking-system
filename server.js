@@ -4283,9 +4283,9 @@ app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
       return res.status(400).json({ success: false, error: 'No API credentials for this connection. Please reconnect to Beds24.' });
     }
     
-    // Get access token
-    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-      refreshToken: refreshToken
+    // Get access token using GET with header (like tiered sync)
+    const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+      headers: { 'refreshToken': refreshToken }
     });
     const accessToken = tokenResponse.data.token;
     
