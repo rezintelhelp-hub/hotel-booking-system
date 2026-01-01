@@ -4245,19 +4245,46 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
       return res.status(400).json({ success: false, error: 'Could not initialize adapter for this connection' });
     }
     
-    // Set property-specific propKey for V1 API calls
-    if (prop.prop_key) {
+    let beds24Rooms = [];
+    
+    // Try V2 first (doesn't need propKey)
+    try {
+      const v2Response = await adapter.v2Request('/inventory/rooms', { propertyId: prop.external_id });
+      if (v2Response.success && v2Response.data && v2Response.data.length > 0) {
+        beds24Rooms = v2Response.data.map(r => ({
+          externalId: String(r.id),
+          name: r.name,
+          maxGuests: r.maxPeople || 2,
+          quantity: r.qty || 1
+        }));
+        console.log(`check-room-changes: V2 returned ${beds24Rooms.length} rooms for property ${prop.external_id}`);
+      }
+    } catch (v2Error) {
+      console.log('check-room-changes: V2 failed, trying V1:', v2Error.message);
+    }
+    
+    // Fall back to V1 if V2 didn't return rooms and we have propKey
+    if (beds24Rooms.length === 0 && prop.prop_key) {
       adapter.propKey = prop.prop_key;
+      const roomsResult = await adapter.getRoomTypes(prop.external_id);
+      if (roomsResult.success && roomsResult.data) {
+        beds24Rooms = roomsResult.data;
+        console.log(`check-room-changes: V1 returned ${beds24Rooms.length} rooms for property ${prop.external_id}`);
+      }
     }
     
-    // Get rooms from Beds24 using the adapter
-    const roomsResult = await adapter.getRoomTypes(prop.external_id);
-    
-    if (!roomsResult.success) {
-      return res.status(400).json({ success: false, error: roomsResult.error || 'Failed to fetch rooms from Beds24' });
+    if (beds24Rooms.length === 0) {
+      return res.json({
+        success: true,
+        property: prop.name,
+        summary: { matched: 0, new: 0, removed: 0, nameChanges: 0 },
+        matched: [],
+        newRooms: [],
+        removedRooms: [],
+        nameChanges: [],
+        warning: 'No rooms found in Beds24. Check your connection or add a propKey for detailed room data.'
+      });
     }
-    
-    const beds24Rooms = roomsResult.data || [];
     
     // Get GAS rooms for this property
     const gasRoomsResult = await pool.query(`
