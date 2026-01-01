@@ -3234,6 +3234,155 @@ app.post('/api/gas-sync/connections/:id/fix-room-ids', async (req, res) => {
   }
 });
 
+// Check for new/removed properties in channel manager
+app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get adapter for this connection
+    const adapter = await syncManager.getAdapterForConnection(id);
+    if (!adapter) {
+      return res.status(400).json({ success: false, error: 'Could not initialize adapter' });
+    }
+    
+    // Get properties from channel manager
+    const cmPropertiesResult = await adapter.getProperties();
+    if (!cmPropertiesResult.success) {
+      return res.status(400).json({ success: false, error: cmPropertiesResult.error || 'Failed to fetch properties from channel manager' });
+    }
+    
+    const cmProperties = cmPropertiesResult.data || [];
+    
+    // Get synced properties from our database
+    const syncedResult = await pool.query(`
+      SELECT id, external_id, name, city, country 
+      FROM gas_sync_properties 
+      WHERE connection_id = $1 AND (archived IS NULL OR archived = false)
+    `, [id]);
+    
+    const syncedProperties = syncedResult.rows;
+    
+    // Create lookup maps
+    const cmByExternalId = {};
+    cmProperties.forEach(p => { cmByExternalId[String(p.externalId)] = p; });
+    
+    const syncedByExternalId = {};
+    syncedProperties.forEach(p => { syncedByExternalId[String(p.external_id)] = p; });
+    
+    // Find differences
+    const newProperties = [];
+    const removedProperties = [];
+    let matchedCount = 0;
+    
+    // Check CM properties against synced
+    for (const cmProp of cmProperties) {
+      const externalId = String(cmProp.externalId);
+      if (syncedByExternalId[externalId]) {
+        matchedCount++;
+      } else {
+        newProperties.push({
+          externalId: cmProp.externalId,
+          name: cmProp.name,
+          city: cmProp.city,
+          country: cmProp.country
+        });
+      }
+    }
+    
+    // Check synced properties against CM
+    for (const syncedProp of syncedProperties) {
+      const externalId = String(syncedProp.external_id);
+      if (!cmByExternalId[externalId]) {
+        removedProperties.push({
+          id: syncedProp.id,
+          external_id: syncedProp.external_id,
+          name: syncedProp.name,
+          city: syncedProp.city,
+          country: syncedProp.country
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      matchedCount,
+      newProperties,
+      removedProperties
+    });
+    
+  } catch (error) {
+    console.error('Check properties error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Sync a single new property from channel manager
+app.post('/api/gas-sync/connections/:id/sync-property', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { externalId } = req.body;
+    
+    if (!externalId) {
+      return res.status(400).json({ success: false, error: 'externalId is required' });
+    }
+    
+    // Get adapter
+    const adapter = await syncManager.getAdapterForConnection(id);
+    if (!adapter) {
+      return res.status(400).json({ success: false, error: 'Could not initialize adapter' });
+    }
+    
+    // Get property details from CM
+    const propertiesResult = await adapter.getProperties();
+    if (!propertiesResult.success) {
+      return res.status(400).json({ success: false, error: 'Failed to fetch properties' });
+    }
+    
+    const property = propertiesResult.data.find(p => String(p.externalId) === String(externalId));
+    if (!property) {
+      return res.status(404).json({ success: false, error: 'Property not found in channel manager' });
+    }
+    
+    // Insert into gas_sync_properties
+    const result = await pool.query(`
+      INSERT INTO gas_sync_properties (connection_id, external_id, name, city, country, raw_data, created_at, updated_at)
+      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
+      ON CONFLICT (connection_id, external_id) DO UPDATE SET
+        name = EXCLUDED.name,
+        city = EXCLUDED.city,
+        country = EXCLUDED.country,
+        raw_data = EXCLUDED.raw_data,
+        updated_at = NOW()
+      RETURNING id
+    `, [id, externalId, property.name, property.city, property.country, JSON.stringify(property)]);
+    
+    res.json({ success: true, message: 'Property synced', propertyId: result.rows[0].id });
+    
+  } catch (error) {
+    console.error('Sync property error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// Archive a synced property
+app.post('/api/gas-sync/properties/:id/archive', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE`);
+    
+    await pool.query(`
+      UPDATE gas_sync_properties SET archived = true, updated_at = NOW() WHERE id = $1
+    `, [id]);
+    
+    res.json({ success: true, message: 'Property archived' });
+    
+  } catch (error) {
+    console.error('Archive property error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // Reconnect Beds24 - exchange new invite code for fresh tokens
 app.post('/api/gas-sync/connections/:id/reconnect', async (req, res) => {
   try {
