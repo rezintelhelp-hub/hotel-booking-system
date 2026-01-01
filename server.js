@@ -4276,13 +4276,16 @@ app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
       credentials = JSON.parse(credentials);
     }
     
-    if (!credentials.refreshToken) {
-      return res.status(400).json({ success: false, error: 'No API credentials for this connection' });
+    // Check both credentials.refreshToken and refresh_token column
+    const refreshToken = credentials.refreshToken || conn.refresh_token;
+    
+    if (!refreshToken) {
+      return res.status(400).json({ success: false, error: 'No API credentials for this connection. Please reconnect to Beds24.' });
     }
     
     // Get access token
     const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-      refreshToken: credentials.refreshToken
+      refreshToken: refreshToken
     });
     const accessToken = tokenResponse.data.token;
     
