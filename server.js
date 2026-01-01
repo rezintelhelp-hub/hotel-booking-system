@@ -2029,6 +2029,8 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
       credentials = JSON.parse(credentials);
     }
     
+    console.log('Test prop key - credentials found:', !!credentials, 'v1ApiKey:', !!credentials.v1ApiKey);
+    
     // For Beds24, test by fetching property data using the propKey
     if (prop.adapter_code === 'beds24') {
       const v1ApiKey = credentials.v1ApiKey;
@@ -2039,6 +2041,7 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
       
       // Test the V1 API with this propKey
       try {
+        console.log('Testing Beds24 V1 API with propKey:', propKey.substring(0, 4) + '...');
         const testResponse = await axios.get('https://api.beds24.com/json/getProperty', {
           params: {
             apiKey: v1ApiKey,
@@ -2047,8 +2050,12 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
           timeout: 15000
         });
         
+        console.log('Beds24 V1 API response:', JSON.stringify(testResponse.data).substring(0, 200));
+        
         // Beds24 returns { getProperty: [ { propId, name, ... } ] }
         const propertyData = testResponse.data?.getProperty?.[0] || testResponse.data;
+        
+        console.log('Parsed propertyData:', propertyData ? 'found' : 'null', 'propId:', propertyData?.propId);
         
         // Check if we got valid property data back
         if (propertyData && propertyData.propId) {
@@ -2074,6 +2081,7 @@ app.post('/api/gas-sync/test-prop-key', async (req, res) => {
         } else if (testResponse.data && testResponse.data.error) {
           return res.json({ success: false, error: testResponse.data.error });
         } else {
+          console.log('Invalid response structure:', JSON.stringify(testResponse.data));
           return res.json({ success: false, error: 'Invalid response from Beds24. Check your propKey.' });
         }
       } catch (apiError) {
