@@ -4256,6 +4256,103 @@ app.post('/api/gas-sync/properties/:propertyId/v1-pricing-sync', async (req, res
 // =========================================================
 
 // Check for room changes between Beds24 and GAS
+// Check for new/removed properties in Beds24 compared to GAS
+app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    // Get connection info
+    const connResult = await pool.query(`
+      SELECT * FROM gas_sync_connections WHERE id = $1
+    `, [id]);
+    
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const conn = connResult.rows[0];
+    let credentials = conn.credentials || {};
+    if (typeof credentials === 'string') {
+      credentials = JSON.parse(credentials);
+    }
+    
+    if (!credentials.refreshToken) {
+      return res.status(400).json({ success: false, error: 'No API credentials for this connection' });
+    }
+    
+    // Get access token
+    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+      refreshToken: credentials.refreshToken
+    });
+    const accessToken = tokenResponse.data.token;
+    
+    // Fetch properties from Beds24
+    const propertiesResponse = await axios.get('https://beds24.com/api/v2/properties', {
+      headers: { token: accessToken }
+    });
+    
+    const beds24Properties = propertiesResponse.data.data || [];
+    
+    // Get synced properties for this connection
+    const syncedResult = await pool.query(`
+      SELECT external_id, name, gas_property_id FROM gas_sync_properties WHERE connection_id = $1
+    `, [id]);
+    
+    const syncedByExternalId = {};
+    syncedResult.rows.forEach(p => { syncedByExternalId[String(p.external_id)] = p; });
+    
+    const matched = [];
+    const newProperties = [];
+    
+    // Check Beds24 properties against synced
+    for (const b24Prop of beds24Properties) {
+      const externalId = String(b24Prop.id);
+      const synced = syncedByExternalId[externalId];
+      
+      if (synced) {
+        matched.push({
+          externalId,
+          name: b24Prop.name,
+          gasPropertyId: synced.gas_property_id
+        });
+      } else {
+        newProperties.push({
+          externalId,
+          name: b24Prop.name,
+          city: b24Prop.city,
+          country: b24Prop.country
+        });
+      }
+    }
+    
+    // Check for removed properties (in GAS but not in Beds24)
+    const beds24ByExternalId = {};
+    beds24Properties.forEach(p => { beds24ByExternalId[String(p.id)] = p; });
+    
+    const removedProperties = [];
+    for (const synced of syncedResult.rows) {
+      if (!beds24ByExternalId[String(synced.external_id)]) {
+        removedProperties.push({
+          externalId: synced.external_id,
+          name: synced.name,
+          gasPropertyId: synced.gas_property_id
+        });
+      }
+    }
+    
+    res.json({
+      success: true,
+      matchedCount: matched.length,
+      newProperties,
+      removedProperties
+    });
+    
+  } catch (error) {
+    console.error('Check properties error:', error);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, res) => {
   try {
     const { propertyId } = req.params;
