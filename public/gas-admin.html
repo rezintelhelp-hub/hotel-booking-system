@@ -14799,6 +14799,13 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load data for this section
             loadWebsiteBuilderSection(subTabName);
+            
+            // Initialize GrapesJS for pages that use visual editor
+            setTimeout(() => {
+                if (subTabName === 'page-about') initGrapesEditor('about');
+                if (subTabName === 'page-gallery') initGrapesEditor('gallery');
+                if (subTabName === 'page-dining') initGrapesEditor('dining');
+            }, 200);
         }
         
         // Switch Footer tabs
@@ -16205,24 +16212,6 @@ Fresh pastries"></textarea>
                 </html>
             `);
             previewWindow.document.close();
-        }
-        
-        // Initialize GrapesJS when switching to a page that uses it
-        const originalSwitchSubPageTab = typeof switchSubPageTab === 'function' ? switchSubPageTab : null;
-        function switchSubPageTabWithGrapes(tabName) {
-            if (originalSwitchSubPageTab) originalSwitchSubPageTab(tabName);
-            
-            // Initialize GrapesJS for pages that use it
-            setTimeout(() => {
-                if (tabName === 'page-about') initGrapesEditor('about');
-                if (tabName === 'page-gallery') initGrapesEditor('gallery');
-                if (tabName === 'page-dining') initGrapesEditor('dining');
-            }, 100);
-        }
-        
-        // Override the tab switching function
-        if (originalSwitchSubPageTab) {
-            window.switchSubPageTab = switchSubPageTabWithGrapes;
         }
         
         // ============================================
