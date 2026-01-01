@@ -2136,6 +2136,136 @@ app.post('/api/gas-sync/test-webhook-url', async (req, res) => {
   }
 });
 
+// Copy images from gas_sync_images to room_images for a property
+app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res) => {
+  try {
+    const { syncPropertyId } = req.params;
+    
+    // Get sync property info
+    const propResult = await pool.query(`
+      SELECT sp.*, sp.gas_property_id 
+      FROM gas_sync_properties sp 
+      WHERE sp.id = $1
+    `, [syncPropertyId]);
+    
+    if (propResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Sync property not found' });
+    }
+    
+    const syncProp = propResult.rows[0];
+    const gasPropertyId = syncProp.gas_property_id;
+    
+    if (!gasPropertyId) {
+      return res.json({ success: false, error: 'Property not linked to GAS yet' });
+    }
+    
+    // Get sync room mappings - external_id (Beds24 room ID) -> GAS room ID
+    const roomMappings = await pool.query(`
+      SELECT sr.external_id as beds24_room_id, bu.id as gas_room_id
+      FROM gas_sync_room_types sr
+      JOIN bookable_units bu ON bu.beds24_room_id = CAST(sr.external_id AS INTEGER)
+      WHERE sr.sync_property_id = $1
+    `, [syncPropertyId]);
+    
+    const roomIdMap = {};
+    for (const row of roomMappings.rows) {
+      roomIdMap[row.beds24_room_id] = row.gas_room_id;
+    }
+    
+    console.log('Room ID map:', roomIdMap);
+    
+    // Get images from gas_sync_images
+    const syncImages = await pool.query(`
+      SELECT * FROM gas_sync_images WHERE sync_property_id = $1
+    `, [syncPropertyId]);
+    
+    console.log('Found', syncImages.rows.length, 'sync images');
+    
+    // Ensure room_images table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_images (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER,
+        image_key VARCHAR(500),
+        image_url TEXT,
+        thumbnail_url TEXT,
+        caption TEXT,
+        display_order INTEGER DEFAULT 0,
+        upload_source VARCHAR(50),
+        is_active BOOLEAN DEFAULT true,
+        is_primary BOOLEAN DEFAULT false,
+        alt_text TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    let copied = 0;
+    let skipped = 0;
+    
+    for (const img of syncImages.rows) {
+      // Extract Beds24 room ID from external_id (format: "138605-img-25-309239")
+      const parts = img.external_id?.split('-') || [];
+      const beds24RoomId = parts[parts.length - 1];
+      
+      // Find GAS room ID
+      let gasRoomId = roomIdMap[beds24RoomId];
+      
+      // If no mapping found, try to find by beds24_room_id directly
+      if (!gasRoomId && beds24RoomId) {
+        const directMatch = await pool.query(`
+          SELECT id FROM bookable_units WHERE beds24_room_id = $1
+        `, [parseInt(beds24RoomId)]);
+        if (directMatch.rows.length > 0) {
+          gasRoomId = directMatch.rows[0].id;
+        }
+      }
+      
+      if (!gasRoomId) {
+        console.log('No GAS room found for Beds24 room:', beds24RoomId);
+        skipped++;
+        continue;
+      }
+      
+      // Check if image already exists
+      const existing = await pool.query(`
+        SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2
+      `, [gasRoomId, img.original_url]);
+      
+      if (existing.rows.length > 0) {
+        skipped++;
+        continue;
+      }
+      
+      // Insert image
+      await pool.query(`
+        INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, upload_source, is_active, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, 'gas_sync', true, NOW())
+      `, [
+        gasRoomId,
+        img.external_id,
+        img.original_url,
+        img.thumbnail_url || img.original_url,
+        img.caption || '',
+        img.sort_order || 0
+      ]);
+      copied++;
+    }
+    
+    res.json({
+      success: true,
+      message: `Copied ${copied} images, skipped ${skipped}`,
+      copied,
+      skipped
+    });
+    
+  } catch (error) {
+    console.error('Copy images error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+  }
+});
+
 // Set V1 API key for a connection (for Fixed Prices fallback)
 app.post('/api/gas-sync/connections/:id/set-v1-api-key', async (req, res) => {
   try {
