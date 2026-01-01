@@ -15915,259 +15915,144 @@ Fresh pastries"></textarea>
         let grapesEditors = {};
         
         function initGrapesEditor(page) {
+            console.log('initGrapesEditor called for:', page);
+            
             const containerId = `gjs-${page}`;
             const container = document.getElementById(containerId);
-            if (!container || grapesEditors[page]) return;
             
-            // Get account ID for image uploads
-            let accountId = selectedAccountId;
-            if (!accountId && selectedDeployedSiteId && selectedWebsiteData) {
-                accountId = selectedWebsiteData.account_id;
+            console.log('Container ID:', containerId, 'Found:', !!container);
+            
+            if (!container) {
+                console.error('Container not found:', containerId);
+                return;
             }
             
-            const editor = grapesjs.init({
-                container: `#${containerId}`,
-                height: '100%',
-                width: 'auto',
-                storageManager: false, // We handle saving ourselves
-                plugins: ['gjs-blocks-basic', 'gjs-preset-webpage'],
-                pluginsOpts: {
-                    'gjs-blocks-basic': {
-                        flexGrid: true,
-                    },
-                    'gjs-preset-webpage': {
-                        modalImportTitle: 'Import Template',
-                        modalImportLabel: '<div style="margin-bottom: 10px;">Paste your HTML/CSS here</div>',
-                        modalImportContent: '',
-                    },
-                },
-                canvas: {
-                    styles: [
-                        'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
-                    ],
-                },
-                blockManager: {
-                    appendTo: '#gjs-blocks-' + page,
-                },
-                panels: {
-                    defaults: [
-                        {
-                            id: 'panel-devices',
-                            el: '.panel__devices',
-                            buttons: [{
-                                id: 'device-desktop',
-                                label: '🖥️',
-                                command: 'set-device-desktop',
-                                active: true,
-                                togglable: false,
-                            }, {
-                                id: 'device-tablet',
-                                label: '📱',
-                                command: 'set-device-tablet',
-                                togglable: false,
-                            }, {
-                                id: 'device-mobile',
-                                label: '📱',
-                                command: 'set-device-mobile',
-                                togglable: false,
-                            }],
-                        }
-                    ]
-                },
-                deviceManager: {
-                    devices: [{
-                        name: 'Desktop',
-                        width: '',
-                    }, {
-                        name: 'Tablet',
-                        width: '768px',
-                        widthMedia: '768px',
-                    }, {
-                        name: 'Mobile',
-                        width: '375px',
-                        widthMedia: '375px',
-                    }]
-                },
-                assetManager: {
-                    upload: '/api/admin/website-builder/upload-image',
-                    uploadName: 'image',
-                    params: {
-                        account_id: accountId,
-                        section: 'page-content'
-                    },
-                    headers: authHeaders(),
-                    autoAdd: true,
-                    multiUpload: true,
-                },
-            });
-            
-            // Add custom blocks for hospitality
-            editor.BlockManager.add('section-hero', {
-                label: '🖼️ Hero Section',
-                category: 'Sections',
-                content: `
-                    <section style="background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200') center/cover; min-height: 400px; display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 60px 20px;">
-                        <div>
-                            <h1 style="font-size: 3rem; margin-bottom: 1rem; font-weight: 700;">Welcome to Our Property</h1>
-                            <p style="font-size: 1.25rem; opacity: 0.9; max-width: 600px; margin: 0 auto;">Experience unforgettable moments in our beautiful accommodation</p>
-                        </div>
-                    </section>
-                `,
-            });
-            
-            editor.BlockManager.add('section-text-image', {
-                label: '📄 Text + Image',
-                category: 'Sections',
-                content: `
-                    <section style="padding: 60px 20px;">
-                        <div style="display: flex; flex-wrap: wrap; gap: 40px; max-width: 1200px; margin: 0 auto; align-items: center;">
-                            <div style="flex: 1; min-width: 300px;">
-                                <h2 style="font-size: 2rem; margin-bottom: 1rem; color: #1e293b;">Our Story</h2>
-                                <p style="color: #64748b; line-height: 1.7;">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation.</p>
-                                <p style="color: #64748b; line-height: 1.7; margin-top: 1rem;">Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-                            </div>
-                            <div style="flex: 1; min-width: 300px;">
-                                <img src="https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=600" style="width: 100%; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);" alt="About image">
-                            </div>
-                        </div>
-                    </section>
-                `,
-            });
-            
-            editor.BlockManager.add('section-image-text', {
-                label: '📄 Image + Text',
-                category: 'Sections',
-                content: `
-                    <section style="padding: 60px 20px; background: #f8fafc;">
-                        <div style="display: flex; flex-wrap: wrap; gap: 40px; max-width: 1200px; margin: 0 auto; align-items: center;">
-                            <div style="flex: 1; min-width: 300px;">
-                                <img src="https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?w=600" style="width: 100%; border-radius: 12px; box-shadow: 0 10px 40px rgba(0,0,0,0.1);" alt="Feature image">
-                            </div>
-                            <div style="flex: 1; min-width: 300px;">
-                                <h2 style="font-size: 2rem; margin-bottom: 1rem; color: #1e293b;">Our Commitment</h2>
-                                <p style="color: #64748b; line-height: 1.7;">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-                                <ul style="color: #64748b; margin-top: 1rem; padding-left: 1.5rem;">
-                                    <li style="margin-bottom: 0.5rem;">Premium quality service</li>
-                                    <li style="margin-bottom: 0.5rem;">Attention to detail</li>
-                                    <li style="margin-bottom: 0.5rem;">Personalized experiences</li>
-                                </ul>
-                            </div>
-                        </div>
-                    </section>
-                `,
-            });
-            
-            editor.BlockManager.add('section-features', {
-                label: '✨ Features Grid',
-                category: 'Sections',
-                content: `
-                    <section style="padding: 60px 20px;">
-                        <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
-                            <h2 style="font-size: 2rem; margin-bottom: 0.5rem; color: #1e293b;">Why Choose Us</h2>
-                            <p style="color: #64748b; margin-bottom: 3rem;">Everything you need for a perfect stay</p>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 30px;">
-                                <div style="padding: 30px; background: #f8fafc; border-radius: 12px; text-align: center;">
-                                    <div style="font-size: 2.5rem; margin-bottom: 1rem;">🏡</div>
-                                    <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: #1e293b;">Comfort</h3>
-                                    <p style="color: #64748b; font-size: 0.95rem;">Luxurious amenities designed for your relaxation</p>
-                                </div>
-                                <div style="padding: 30px; background: #f8fafc; border-radius: 12px; text-align: center;">
-                                    <div style="font-size: 2.5rem; margin-bottom: 1rem;">📍</div>
-                                    <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: #1e293b;">Location</h3>
-                                    <p style="color: #64748b; font-size: 0.95rem;">Perfectly situated near local attractions</p>
-                                </div>
-                                <div style="padding: 30px; background: #f8fafc; border-radius: 12px; text-align: center;">
-                                    <div style="font-size: 2.5rem; margin-bottom: 1rem;">⭐</div>
-                                    <h3 style="font-size: 1.25rem; margin-bottom: 0.5rem; color: #1e293b;">Service</h3>
-                                    <p style="color: #64748b; font-size: 0.95rem;">Dedicated team at your service 24/7</p>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                `,
-            });
-            
-            editor.BlockManager.add('section-team', {
-                label: '👥 Team Members',
-                category: 'Sections',
-                content: `
-                    <section style="padding: 60px 20px; background: #f8fafc;">
-                        <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
-                            <h2 style="font-size: 2rem; margin-bottom: 0.5rem; color: #1e293b;">Meet Our Team</h2>
-                            <p style="color: #64748b; margin-bottom: 3rem;">The people who make your stay special</p>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 30px;">
-                                <div style="text-align: center;">
-                                    <img src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=200&h=200&fit=crop" style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover; margin-bottom: 1rem;">
-                                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem; color: #1e293b;">John Smith</h3>
-                                    <p style="color: #7c3aed; font-size: 0.9rem; margin-bottom: 0.5rem;">General Manager</p>
-                                    <p style="color: #64748b; font-size: 0.85rem;">20 years of hospitality experience</p>
-                                </div>
-                                <div style="text-align: center;">
-                                    <img src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=200&h=200&fit=crop" style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover; margin-bottom: 1rem;">
-                                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem; color: #1e293b;">Sarah Johnson</h3>
-                                    <p style="color: #7c3aed; font-size: 0.9rem; margin-bottom: 0.5rem;">Guest Relations</p>
-                                    <p style="color: #64748b; font-size: 0.85rem;">Ensuring memorable experiences</p>
-                                </div>
-                                <div style="text-align: center;">
-                                    <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=200&h=200&fit=crop" style="width: 150px; height: 150px; border-radius: 50%; object-fit: cover; margin-bottom: 1rem;">
-                                    <h3 style="font-size: 1.1rem; margin-bottom: 0.25rem; color: #1e293b;">Mike Chen</h3>
-                                    <p style="color: #7c3aed; font-size: 0.9rem; margin-bottom: 0.5rem;">Head Chef</p>
-                                    <p style="color: #64748b; font-size: 0.85rem;">Award-winning culinary expert</p>
-                                </div>
-                            </div>
-                        </div>
-                    </section>
-                `,
-            });
-            
-            editor.BlockManager.add('section-gallery', {
-                label: '📸 Photo Gallery',
-                category: 'Sections',
-                content: `
-                    <section style="padding: 60px 20px;">
-                        <div style="max-width: 1200px; margin: 0 auto;">
-                            <h2 style="font-size: 2rem; margin-bottom: 2rem; color: #1e293b; text-align: center;">Gallery</h2>
-                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px;">
-                                <img src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                                <img src="https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                                <img src="https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                                <img src="https://images.unsplash.com/photo-1566665797739-1674de7a421a?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                                <img src="https://images.unsplash.com/photo-1560185007-c5ca9d2c014d?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                                <img src="https://images.unsplash.com/photo-1571896349842-33c89424de2d?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                            </div>
-                        </div>
-                    </section>
-                `,
-            });
-            
-            editor.BlockManager.add('section-cta', {
-                label: '📢 Call to Action',
-                category: 'Sections',
-                content: `
-                    <section style="padding: 80px 20px; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); text-align: center; color: white;">
-                        <div style="max-width: 800px; margin: 0 auto;">
-                            <h2 style="font-size: 2.5rem; margin-bottom: 1rem;">Ready to Book Your Stay?</h2>
-                            <p style="font-size: 1.2rem; opacity: 0.9; margin-bottom: 2rem;">Experience the perfect getaway. Best rates guaranteed when you book direct.</p>
-                            <a href="/book-now" style="display: inline-block; background: white; color: #7c3aed; padding: 15px 40px; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 1.1rem;">Book Now</a>
-                        </div>
-                    </section>
-                `,
-            });
-            
-            // Load saved content if exists
-            const htmlField = document.getElementById(`wb-page-${page}-html`);
-            const cssField = document.getElementById(`wb-page-${page}-css`);
-            if (htmlField && htmlField.value) {
-                editor.setComponents(htmlField.value);
-            }
-            if (cssField && cssField.value) {
-                editor.setStyle(cssField.value);
+            if (grapesEditors[page]) {
+                console.log('Editor already exists for:', page);
+                return;
             }
             
-            // Store reference
-            grapesEditors[page] = editor;
+            console.log('Initializing GrapesJS...');
             
-            console.log(`GrapesJS editor initialized for ${page}`);
+            try {
+                const editor = grapesjs.init({
+                    container: `#${containerId}`,
+                    height: '600px',
+                    width: '100%',
+                    storageManager: false,
+                    plugins: ['gjs-blocks-basic'],
+                    pluginsOpts: {
+                        'gjs-blocks-basic': {
+                            flexGrid: true,
+                        },
+                    },
+                    canvas: {
+                        styles: [
+                            'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
+                        ],
+                    },
+                    deviceManager: {
+                        devices: [{
+                            name: 'Desktop',
+                            width: '',
+                        }, {
+                            name: 'Tablet',
+                            width: '768px',
+                            widthMedia: '768px',
+                        }, {
+                            name: 'Mobile',
+                            width: '375px',
+                            widthMedia: '375px',
+                        }]
+                    },
+                });
+                
+                console.log('GrapesJS initialized successfully');
+                
+                // Add custom hospitality blocks
+                editor.BlockManager.add('section-hero', {
+                    label: '🖼️ Hero Section',
+                    category: 'Sections',
+                    content: `
+                        <section style="background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200') center/cover; min-height: 400px; display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 60px 20px;">
+                            <div>
+                                <h1 style="font-size: 3rem; margin-bottom: 1rem; font-weight: 700;">Welcome to Our Property</h1>
+                                <p style="font-size: 1.25rem; opacity: 0.9; max-width: 600px; margin: 0 auto;">Experience unforgettable moments</p>
+                            </div>
+                        </section>
+                    `,
+                });
+                
+                editor.BlockManager.add('section-text-image', {
+                    label: '📄 Text + Image',
+                    category: 'Sections',
+                    content: `
+                        <section style="padding: 60px 20px;">
+                            <div style="display: flex; flex-wrap: wrap; gap: 40px; max-width: 1200px; margin: 0 auto; align-items: center;">
+                                <div style="flex: 1; min-width: 300px;">
+                                    <h2 style="font-size: 2rem; margin-bottom: 1rem; color: #1e293b;">Our Story</h2>
+                                    <p style="color: #64748b; line-height: 1.7;">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
+                                </div>
+                                <div style="flex: 1; min-width: 300px;">
+                                    <img src="https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=600" style="width: 100%; border-radius: 12px;" alt="About image">
+                                </div>
+                            </div>
+                        </section>
+                    `,
+                });
+                
+                editor.BlockManager.add('section-features', {
+                    label: '✨ Features Grid',
+                    category: 'Sections',
+                    content: `
+                        <section style="padding: 60px 20px;">
+                            <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
+                                <h2 style="font-size: 2rem; margin-bottom: 2rem; color: #1e293b;">Why Choose Us</h2>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px;">
+                                    <div style="padding: 30px; background: #f8fafc; border-radius: 12px;">
+                                        <div style="font-size: 2.5rem; margin-bottom: 1rem;">🏡</div>
+                                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">Comfort</h3>
+                                        <p style="color: #64748b;">Luxurious amenities for your relaxation</p>
+                                    </div>
+                                    <div style="padding: 30px; background: #f8fafc; border-radius: 12px;">
+                                        <div style="font-size: 2.5rem; margin-bottom: 1rem;">📍</div>
+                                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">Location</h3>
+                                        <p style="color: #64748b;">Near local attractions</p>
+                                    </div>
+                                    <div style="padding: 30px; background: #f8fafc; border-radius: 12px;">
+                                        <div style="font-size: 2.5rem; margin-bottom: 1rem;">⭐</div>
+                                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">Service</h3>
+                                        <p style="color: #64748b;">24/7 dedicated team</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </section>
+                    `,
+                });
+                
+                editor.BlockManager.add('section-gallery', {
+                    label: '📸 Photo Gallery',
+                    category: 'Sections',
+                    content: `
+                        <section style="padding: 60px 20px;">
+                            <div style="max-width: 1200px; margin: 0 auto;">
+                                <h2 style="font-size: 2rem; margin-bottom: 2rem; color: #1e293b; text-align: center;">Gallery</h2>
+                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
+                                    <img src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                    <img src="https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                    <img src="https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
+                                </div>
+                            </div>
+                        </section>
+                    `,
+                });
+                
+                // Store reference
+                grapesEditors[page] = editor;
+                
+            } catch (error) {
+                console.error('GrapesJS init error:', error);
+            }
         }
         
         function saveGrapesPage(page) {
