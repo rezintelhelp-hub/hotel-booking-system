@@ -1505,7 +1505,14 @@
                         <span class="nav-icon">🏠</span>
                         <span>Synced Properties</span>
                     </a>
-                    <!-- Sync Logs and Sync Review removed - data still logged, Import is approval step -->
+                    <a class="nav-item master-only" style="display: none;" data-view="gas-sync-logs" href="#" onclick="navClick(this, 'gas-sync-logs'); return false;">
+                        <span class="nav-icon">📋</span>
+                        <span>Sync Logs</span>
+                    </a>
+                    <a class="nav-item master-only" style="display: none;" data-view="sync-review" href="#" onclick="navClick(this, 'sync-review'); return false;">
+                        <span class="nav-icon">🔄</span>
+                        <span>Sync Review</span>
+                    </a>
                     </div>
                 </div>
 
@@ -4044,6 +4051,9 @@
                     <button class="editor-tab" data-tab="footer" onclick="switchEditorTab('footer')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         👣 Footer
                     </button>
+                    <button class="editor-tab" data-tab="styles" onclick="switchEditorTab('styles')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
+                        🎨 Styles & Colors
+                    </button>
                     <button class="editor-tab" data-tab="seo" onclick="switchEditorTab('seo')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         🔍 SEO & Analytics
                     </button>
@@ -4074,8 +4084,23 @@
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('hero', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Hero</button>
                             </div>
-                            <div id="editor-hero-content"></div>
-                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 Homepage SEO</h3></div>
+                                <div class="card-body">
+                                    <div style="margin-bottom: 1rem;">
+                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('hero')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
+                                        <input type="text" class="form-input" id="wb-hero-meta-title" placeholder="e.g., The Adelphi Hotel Liverpool | Book Direct for Best Rates">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
+                                        <textarea class="form-input" id="wb-hero-meta-description" rows="3" placeholder="e.g., Book direct at The Adelphi Hotel Liverpool for the best rates. Historic boutique hotel in the heart of Liverpool city centre."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4096,22 +4121,7 @@
                                     <div id="wb-hero-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 Homepage SEO</h3></div>
-                                <div class="card-body">
-                                    <div style="margin-bottom: 1rem;">
-                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('hero')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
-                                        <input type="text" class="form-input" id="wb-hero-meta-title" placeholder="e.g., The Adelphi Hotel Liverpool | Book Direct for Best Rates">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
-                                        <textarea class="form-input" id="wb-hero-meta-description" rows="3" placeholder="e.g., Book direct at The Adelphi Hotel Liverpool for the best rates. Historic boutique hotel in the heart of Liverpool city centre."></textarea>
-                                    </div>
-                                </div>
-                            </div>
+                            <div id="editor-hero-content"></div>
                         </div>
                         <div id="editor-homepage-intro" class="home-subtab-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
@@ -4234,7 +4244,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
@@ -4250,7 +4260,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4276,8 +4286,23 @@
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-about', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save About Page</button>
                             </div>
-                            <div id="editor-page-about-content"></div>
-                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div style="margin-bottom: 1rem;">
+                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('about')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
+                                        <input type="text" class="form-input" id="wb-page-about-meta-title" placeholder="e.g., About Us | The Adelphi Hotel Liverpool">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
+                                        <textarea class="form-input" id="wb-page-about-meta-description" rows="3" placeholder="e.g., Discover the history of The Adelphi Hotel. A Liverpool landmark since 1826."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4298,29 +4323,29 @@
                                     <div id="wb-page-about-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
-                                <div class="card-body">
-                                    <div style="margin-bottom: 1rem;">
-                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('about')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
-                                        <input type="text" class="form-input" id="wb-page-about-meta-title" placeholder="e.g., About Us | The Adelphi Hotel Liverpool">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
-                                        <textarea class="form-input" id="wb-page-about-meta-description" rows="3" placeholder="e.g., Discover the history of The Adelphi Hotel. A Liverpool landmark since 1826."></textarea>
-                                    </div>
-                                </div>
-                            </div>
+                            <div id="editor-page-about-content"></div>
                         </div>
                         <div id="editor-subpage-page-gallery" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-gallery', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Gallery Page</button>
                             </div>
-                            <div id="editor-page-gallery-content"></div>
-                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div style="margin-bottom: 1rem;">
+                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('gallery')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
+                                        <input type="text" class="form-input" id="wb-page-gallery-meta-title" placeholder="e.g., Photo Gallery | The Adelphi Hotel Liverpool">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
+                                        <textarea class="form-input" id="wb-page-gallery-meta-description" rows="3" placeholder="e.g., Browse photos of our beautiful rooms, restaurant and facilities."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4341,29 +4366,29 @@
                                     <div id="wb-page-gallery-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
-                                <div class="card-body">
-                                    <div style="margin-bottom: 1rem;">
-                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('gallery')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
-                                        <input type="text" class="form-input" id="wb-page-gallery-meta-title" placeholder="e.g., Photo Gallery | The Adelphi Hotel Liverpool">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
-                                        <textarea class="form-input" id="wb-page-gallery-meta-description" rows="3" placeholder="e.g., Browse photos of our beautiful rooms, restaurant and facilities."></textarea>
-                                    </div>
-                                </div>
-                            </div>
+                            <div id="editor-page-gallery-content"></div>
                         </div>
                         <div id="editor-subpage-page-blog" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-blog', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Blog Page</button>
                             </div>
-                            <div id="editor-page-blog-content"></div>
-                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div style="margin-bottom: 1rem;">
+                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('blog')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
+                                        <input type="text" class="form-input" id="wb-page-blog-meta-title" placeholder="e.g., Blog | News & Travel Tips | The Adelphi Hotel">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
+                                        <textarea class="form-input" id="wb-page-blog-meta-description" rows="3" placeholder="e.g., Read our latest news, travel tips and local guides for Liverpool."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4384,29 +4409,29 @@
                                     <div id="wb-page-blog-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
-                                <div class="card-body">
-                                    <div style="margin-bottom: 1rem;">
-                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('blog')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
-                                        <input type="text" class="form-input" id="wb-page-blog-meta-title" placeholder="e.g., Blog | News & Travel Tips | The Adelphi Hotel">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
-                                        <textarea class="form-input" id="wb-page-blog-meta-description" rows="3" placeholder="e.g., Read our latest news, travel tips and local guides for Liverpool."></textarea>
-                                    </div>
-                                </div>
-                            </div>
+                            <div id="editor-page-blog-content"></div>
                         </div>
                         <div id="editor-subpage-page-attractions" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-attractions', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Attractions Page</button>
                             </div>
-                            <div id="editor-page-attractions-content"></div>
-                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div style="margin-bottom: 1rem;">
+                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('attractions')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
+                                        <input type="text" class="form-input" id="wb-page-attractions-meta-title" placeholder="e.g., Things To Do in Liverpool | The Adelphi Hotel">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
+                                        <textarea class="form-input" id="wb-page-attractions-meta-description" rows="3" placeholder="e.g., Discover the best attractions, restaurants and activities near The Adelphi Hotel Liverpool."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4427,29 +4452,29 @@
                                     <div id="wb-page-attractions-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
-                                <div class="card-body">
-                                    <div style="margin-bottom: 1rem;">
-                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('attractions')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
-                                        <input type="text" class="form-input" id="wb-page-attractions-meta-title" placeholder="e.g., Things To Do in Liverpool | The Adelphi Hotel">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
-                                        <textarea class="form-input" id="wb-page-attractions-meta-description" rows="3" placeholder="e.g., Discover the best attractions, restaurants and activities near The Adelphi Hotel Liverpool."></textarea>
-                                    </div>
-                                </div>
-                            </div>
+                            <div id="editor-page-attractions-content"></div>
                         </div>
                         <div id="editor-subpage-page-dining" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-dining', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Dining Page</button>
                             </div>
-                            <div id="editor-page-dining-content"></div>
-                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div style="margin-bottom: 1rem;">
+                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('dining')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
+                                        <input type="text" class="form-input" id="wb-page-dining-meta-title" placeholder="e.g., Restaurant & Dining | The Adelphi Hotel Liverpool">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
+                                        <textarea class="form-input" id="wb-page-dining-meta-description" rows="3" placeholder="e.g., Experience fine dining at The Adelphi Hotel restaurant. British cuisine with a modern twist."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4470,29 +4495,29 @@
                                     <div id="wb-page-dining-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
-                                <div class="card-body">
-                                    <div style="margin-bottom: 1rem;">
-                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('dining')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
-                                        <input type="text" class="form-input" id="wb-page-dining-meta-title" placeholder="e.g., Restaurant & Dining | The Adelphi Hotel Liverpool">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
-                                        <textarea class="form-input" id="wb-page-dining-meta-description" rows="3" placeholder="e.g., Experience fine dining at The Adelphi Hotel restaurant. British cuisine with a modern twist."></textarea>
-                                    </div>
-                                </div>
-                            </div>
+                            <div id="editor-page-dining-content"></div>
                         </div>
                         <div id="editor-subpage-page-contact" class="subpage-panel" style="display: none;">
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-contact', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Contact Page</button>
                             </div>
-                            <div id="editor-page-contact-content"></div>
-                            <div class="card" style="margin-top: 1.5rem; margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
+                                <div class="card-body">
+                                    <div style="margin-bottom: 1rem;">
+                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('contact')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
+                                        <input type="text" class="form-input" id="wb-page-contact-meta-title" placeholder="e.g., Contact Us | The Adelphi Hotel Liverpool">
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
+                                        <textarea class="form-input" id="wb-page-contact-meta-description" rows="3" placeholder="e.g., Contact The Adelphi Hotel Liverpool. Located in the city centre. Call us or book online."></textarea>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4513,22 +4538,7 @@
                                     <div id="wb-page-contact-faq-list" class="faq-list"></div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
-                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
-                                <div class="card-body">
-                                    <div style="margin-bottom: 1rem;">
-                                        <button type="button" class="btn btn-sm" onclick="generateSEOMeta('contact')" style="background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);">🤖 Generate Title & Description with AI</button>
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Title <small style="color: #64748b;">(50-60 characters)</small></label>
-                                        <input type="text" class="form-input" id="wb-page-contact-meta-title" placeholder="e.g., Contact Us | The Adelphi Hotel Liverpool">
-                                    </div>
-                                    <div class="form-group">
-                                        <label class="form-label">Meta Description <small style="color: #64748b;">(150-160 characters)</small></label>
-                                        <textarea class="form-input" id="wb-page-contact-meta-description" rows="3" placeholder="e.g., Contact The Adelphi Hotel Liverpool. Located in the city centre. Call us or book online."></textarea>
-                                    </div>
-                                </div>
-                            </div>
+                            <div id="editor-page-contact-content"></div>
                         </div>
                     </div>
                     
@@ -4549,7 +4559,7 @@
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-terms', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Terms</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
@@ -4565,7 +4575,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4592,7 +4602,7 @@
                             <div style="display: flex; justify-content: flex-end; margin-bottom: 1rem;">
                                 <button class="btn" onclick="saveWebsiteSection('page-privacy', this)" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Privacy</button>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #10b981;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;"><h3>🔍 SEO Settings</h3></div>
                                 <div class="card-body">
                                     <div style="margin-bottom: 1rem;">
@@ -4608,7 +4618,7 @@
                                     </div>
                                 </div>
                             </div>
-                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #f59e0b;">
                                 <div class="card-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; display: flex; justify-content: space-between; align-items: center;">
                                     <h3>❓ FAQ Schema</h3>
                                     <label style="display: flex; align-items: center; gap: 0.5rem; font-weight: normal; font-size: 0.9rem;">
@@ -4853,7 +4863,7 @@
                             </div>
                             <div class="form-group">
                                 <label class="form-label">CTA Button Text</label>
-                                <input type="text" class="form-input" id="wb-header-cta-button-text" value="Book Now" placeholder="Book Now">
+                                <input type="text" class="form-input" id="wb-header-cta-text" value="Book Now" placeholder="Book Now">
                             </div>
                             <div class="form-group">
                                 <label class="form-label">CTA Button Text Color</label>
@@ -5118,15 +5128,6 @@
                                 <input type="text" class="form-input" id="wb-hero-trust-3" value="24/7 Support">
                             </div>
                         </div>
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Text Colour</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-hero-trust-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-trust-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-trust-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-trust-text-color-picker')">
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 
@@ -5140,13 +5141,6 @@
                                 <div style="display: flex; gap: 8px; align-items: center;">
                                     <input type="color" id="wb-hero-search-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-bg').value = this.value">
                                     <input type="text" class="form-input" id="wb-hero-search-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-search-bg-picker')">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Label Text Colour</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-hero-search-label-color-picker" value="#374151" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-hero-search-label-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-hero-search-label-color" value="#374151" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-hero-search-label-color-picker')">
                                 </div>
                             </div>
                             <div class="form-group">
@@ -5312,35 +5306,6 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Section Styling</h3></div>
-                    <div class="card-body">
-                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Background Colour</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-featured-bg-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-featured-bg" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-featured-bg-picker')">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Title Colour</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-featured-title-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-title-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-featured-title-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-featured-title-color-picker')">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Subtitle Colour</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-featured-subtitle-color-picker" value="#64748b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-featured-subtitle-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-featured-subtitle-color" value="#64748b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-featured-subtitle-color-picker')">
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Content</h3></div>
                     <div class="card-body">
                         <div class="form-group">
@@ -5383,11 +5348,6 @@
                 <div class="card" style="margin-top: 1rem;">
                     <div class="card-header"><h3>Button</h3></div>
                     <div class="card-body">
-                        <div class="form-group" style="margin-bottom: 1rem;">
-                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
-                                <input type="checkbox" id="wb-featured-btn-enabled" checked> Show "View All" Button
-                            </label>
-                        </div>
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
                             <div class="form-group">
                                 <label class="form-label">Button Text</label>
@@ -5500,20 +5460,6 @@
                                     <div style="display: flex; gap: 8px; align-items: center;">
                                         <input type="color" id="wb-reviews-text-color-picker" value="#ffffff" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-text-color').value = this.value">
                                         <input type="text" class="form-input" id="wb-reviews-text-color" value="#ffffff" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-text-color-picker')">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Review Card Background</label>
-                                    <div style="display: flex; gap: 8px; align-items: center;">
-                                        <input type="color" id="wb-reviews-card-bg-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-card-bg').value = this.value">
-                                        <input type="text" class="form-input" id="wb-reviews-card-bg" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-card-bg-picker')">
-                                    </div>
-                                </div>
-                                <div class="form-group">
-                                    <label class="form-label">Star Color</label>
-                                    <div style="display: flex; gap: 8px; align-items: center;">
-                                        <input type="color" id="wb-reviews-star-color-picker" value="#fbbf24" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-reviews-star-color').value = this.value">
-                                        <input type="text" class="form-input" id="wb-reviews-star-color" value="#fbbf24" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-reviews-star-color-picker')">
                                     </div>
                                 </div>
                             </div>
@@ -5669,30 +5615,9 @@
                 </div>
 
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header"><h3>Section Styling</h3></div>
+                    <div class="card-header"><h3>Styling</h3></div>
                     <div class="card-body">
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
-                            <div class="form-group">
-                                <label class="form-label">Background Colour</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-about-bg-picker" value="#f8fafc" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-bg').value = this.value">
-                                    <input type="text" class="form-input" id="wb-about-bg" value="#f8fafc" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-about-bg-picker')">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Title Colour</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-about-title-color-picker" value="#1e293b" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-title-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-about-title-color" value="#1e293b" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-about-title-color-picker')">
-                                </div>
-                            </div>
-                            <div class="form-group">
-                                <label class="form-label">Text Colour</label>
-                                <div style="display: flex; gap: 8px; align-items: center;">
-                                    <input type="color" id="wb-about-text-color-picker" value="#475569" style="width: 50px; height: 36px; border: none; cursor: pointer;" onchange="document.getElementById('wb-about-text-color').value = this.value">
-                                    <input type="text" class="form-input" id="wb-about-text-color" value="#475569" style="width: 90px; font-family: monospace;" oninput="syncColorToPicker(this.id, 'wb-about-text-color-picker')">
-                                </div>
-                            </div>
                             <div class="form-group">
                                 <label class="form-label">Title Size: <span id="wb-about-title-size-value">36</span>px</label>
                                 <input type="range" id="wb-about-title-size" min="24" max="72" value="36" style="width: 100%;" oninput="document.getElementById('wb-about-title-size-value').textContent = this.value">
@@ -7162,7 +7087,7 @@
                 </div>
 
                 <!-- Partner Key Request -->
-                <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                <div class="card" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b;">
                     <div class="card-header" style="border-bottom: 1px solid #fcd34d;">
                         <h3 class="card-title" style="color: #92400e;">🤝 Request Partner API Access</h3>
                     </div>
@@ -9938,7 +9863,7 @@ Local honey and preserves"></textarea>
 
     <!-- GasSync Connection Details Modal -->
     <div id="connectionDetailsModal" class="modal" onclick="if(event.target === this) closeModal('connectionDetailsModal')">
-        <div class="modal-content" style="max-width: 1200px; width: 95%; border-radius: 16px;">
+        <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem; display: flex; justify-content: space-between; align-items: center;">
                 <h3 id="connectionDetailsTitle" style="margin: 0;">Connection Details</h3>
                 <button onclick="closeModal('connectionDetailsModal')" style="background: rgba(255,255,255,0.2); border: none; color: white; font-size: 1.5rem; cursor: pointer; width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; line-height: 1;">&times;</button>
@@ -9947,16 +9872,16 @@ Local honey and preserves"></textarea>
                 <div class="gas-sync-tabs">
                     <button class="gas-sync-tab active" onclick="showConnectionTab('overview')">Overview</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('properties')">Properties</button>
-                    <button class="gas-sync-tab" onclick="showConnectionTab('propertyCheck')">Property Check</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('reservations')">Reservations</button>
+                    <button class="gas-sync-tab" onclick="showConnectionTab('logs')">Logs</button>
                     <button class="gas-sync-tab" onclick="showConnectionTab('settings')">Settings</button>
                 </div>
                 
                 <div style="padding: 1.5rem;">
                     <div id="connectionTabOverview" class="gas-sync-tab-content">Loading...</div>
                     <div id="connectionTabProperties" class="gas-sync-tab-content" style="display:none;">Loading...</div>
-                    <div id="connectionTabPropertyCheck" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                     <div id="connectionTabReservations" class="gas-sync-tab-content" style="display:none;">Loading...</div>
+                    <div id="connectionTabLogs" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                     <div id="connectionTabSettings" class="gas-sync-tab-content" style="display:none;">Loading...</div>
                 </div>
             </div>
@@ -12725,7 +12650,26 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                     
-                    <!-- Travel Agent Access Section - Hidden until feature complete -->
+                    <!-- Travel Agent Access Section (placeholder for future) -->
+                    <!-- Travel Agent Access Section -->
+                    <div id="account-travel-agent-section">
+                        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #6ee7b7; opacity: 0.7;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                <h4 style="margin: 0; font-size: 0.85rem; color: #047857; font-weight: 600;">🧳 Travel Agent Access</h4>
+                                <span style="background: #d1fae5; color: #047857; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">COMING SOON</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
+                                <div style="flex: 1;">
+                                    <div style="font-size: 0.8rem; color: #065f46; margin-bottom: 0.5rem;">Assign travel agents who can book on behalf of this property</div>
+                                    <select class="form-input" style="padding: 0.4rem; font-size: 0.85rem; width: 100%;" disabled>
+                                        <option value="">Select travel agent...</option>
+                                        <option value="1">Travel Agent 1</option>
+                                        <option value="2">Travel Agent 2</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     
                     <!-- Form Actions -->
                     <div style="display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--border);">
@@ -12932,18 +12876,6 @@ Local honey and preserves"></textarea>
             </div>
             <form id="editPropertyForm" onsubmit="return saveProperty(event)">
                 <input type="hidden" id="edit-property-id">
-                
-                <!-- Master Admin: Account Assignment -->
-                <div id="property-account-section" style="display: none; margin-bottom: 1.5rem;">
-                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">🔧 Admin: Account Assignment</h4>
-                    <div class="form-group">
-                        <label class="form-label">Assign to Account</label>
-                        <select class="form-input" id="edit-property-account-id">
-                            <option value="">Loading accounts...</option>
-                        </select>
-                        <small style="color: var(--text-secondary);">Master admin only - move this property to a different account</small>
-                    </div>
-                </div>
                 
                 <!-- Basic Info Section -->
                 <div style="margin-bottom: 1.5rem;">
@@ -14955,7 +14887,7 @@ Local honey and preserves"></textarea>
                     document.getElementById('editor-panel-subpages').appendChild(upgradePanel);
                 }
                 upgradePanel.innerHTML = `
-                    <div style="text-align: center; padding: 80px 40px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 16px; border: 2px solid #f59e0b; border-radius: 12px; overflow: hidden;">
+                    <div style="text-align: center; padding: 80px 40px; background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-radius: 16px; border: 2px solid #f59e0b;">
                         <div style="font-size: 64px; margin-bottom: 20px;">🔒</div>
                         <h2 style="color: #92400e; margin-bottom: 10px;">Upgrade Required</h2>
                         <p style="color: #a16207; max-width: 400px; margin: 0 auto 20px;">The ${featureLabel} is available on our Professional plan and above.</p>
@@ -15413,16 +15345,7 @@ Local honey and preserves"></textarea>
             
             // GasSync views
             if (viewName === 'gas-sync-dashboard') loadGasSyncDashboard();
-            if (viewName === 'gas-sync-connections') {
-                loadGasSyncConnections().then(() => {
-                    // Check if we should auto-open a connection modal (from wizard redirect)
-                    const openConnectionId = sessionStorage.getItem('openConnectionId');
-                    if (openConnectionId) {
-                        sessionStorage.removeItem('openConnectionId');
-                        showConnectionDetails(parseInt(openConnectionId));
-                    }
-                });
-            }
+            if (viewName === 'gas-sync-connections') loadGasSyncConnections();
             if (viewName === 'gas-sync-properties') { loadGasSyncConnections().then(() => loadSyncedProperties()); }
             if (viewName === 'gas-sync-logs') { loadGasSyncConnections().then(() => loadSyncLogs()); }
             if (viewName === 'sync-review') { window.location.href = '/sync-review'; return; }
@@ -15452,8 +15375,8 @@ Local honey and preserves"></textarea>
             try {
                 // Determine which container to update - editor panel (visible) or original view
                 const editorPanelMap = {
-                    'header': 'wb-header',
-                    'hero': 'wb-hero',
+                    'header': 'editor-header-content',
+                    'hero': 'editor-homepage-hero',
                     'intro': 'editor-intro-content',
                     'featured': 'editor-featured-content',
                     'about': 'editor-about-content',
@@ -15780,8 +15703,8 @@ Local honey and preserves"></textarea>
                 const prefix = `wb-${section}-`;
                 
                 const editorPanelMap = {
-                    'header': 'wb-header',
-                    'hero': 'wb-hero',
+                    'header': 'editor-header-content',
+                    'hero': 'editor-homepage-hero',
                     'intro': 'editor-intro-content',
                     'featured': 'editor-featured-content',
                     'about': 'editor-about-content',
@@ -15804,28 +15727,21 @@ Local honey and preserves"></textarea>
                 const editorContainerId = editorPanelMap[section];
                 let editorContainer = editorContainerId ? document.getElementById(editorContainerId) : null;
                 
-                // For sections that are cloned into editor panels, prefer collecting from the clone
-                // because that's where the user edits when in Homepage/Content tabs
-                const clonedPanelMap = {
-                    'hero': 'editor-hero-content',
-                    'intro': 'editor-intro-content',
-                    'featured': 'editor-featured-content',
-                    'about': 'editor-about-content',
-                    'reviews': 'editor-reviews-content',
-                    'cta': 'editor-cta-content'
-                };
-                
-                const clonedContainerId = clonedPanelMap[section];
-                const clonedContainer = clonedContainerId ? document.getElementById(clonedContainerId) : null;
-                
-                // Collect from BOTH original and clone, with clone values taking priority
-                // This ensures we get all fields (some may only exist in original)
-                const originalContainer = document.getElementById(`wb-${section}`);
-                
-                // First collect from original
-                let elementsToCheck = originalContainer 
-                    ? originalContainer.querySelectorAll(`[id^="${prefix}"]`)
+                // Collect from editor container (visible elements)
+                let elementsToCheck = editorContainer 
+                    ? editorContainer.querySelectorAll(`[id^="${prefix}"]`)
                     : document.querySelectorAll(`[id^="${prefix}"]`);
+                
+                // Fallback: if no elements found in editor container, search in wb-{section}-content or whole document
+                if (elementsToCheck.length === 0) {
+                    const altContainer = document.getElementById(`wb-${section}-content`);
+                    if (altContainer) {
+                        elementsToCheck = altContainer.querySelectorAll(`[id^="${prefix}"]`);
+                    }
+                    if (elementsToCheck.length === 0) {
+                        elementsToCheck = document.querySelectorAll(`[id^="${prefix}"]`);
+                    }
+                }
                 
                 elementsToCheck.forEach(el => {
                     const key = el.id.replace(prefix, '');
@@ -15840,23 +15756,6 @@ Local honey and preserves"></textarea>
                         settings[key] = el.value;
                     }
                 });
-                
-                // Then override with values from clone (user's edits)
-                if (clonedContainer) {
-                    clonedContainer.querySelectorAll(`[id^="${prefix}"]`).forEach(el => {
-                        const key = el.id.replace(prefix, '');
-                        if (key.endsWith('-picker') || key.endsWith('-value') || key.endsWith('-preview')) {
-                            return;
-                        }
-                        if (el.type === 'checkbox') {
-                            settings[key] = el.checked;
-                        } else if (el.type === 'file') {
-                            // Skip file inputs
-                        } else if (el.value !== undefined) {
-                            settings[key] = el.value;
-                        }
-                    });
-                }
                 
                 // Collect FAQs if this section has them
                 const faqSection = section.replace('page-', '');
@@ -16225,8 +16124,14 @@ Local honey and preserves"></textarea>
                 };
                 reader.readAsDataURL(file);
                 
-                // Upload to server
-                const accountId = selectedAccountId;
+                // Upload to server - use deployed site's account or selectedAccountId
+                let accountId = selectedAccountId;
+                
+                // If we're in website editor, get account from the selected website
+                if (!accountId && selectedDeployedSiteId && selectedWebsiteData) {
+                    accountId = selectedWebsiteData.account_id;
+                }
+                
                 if (!accountId) {
                     alert('Please select an account first');
                     return;
@@ -28730,23 +28635,6 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
                     
-                    // Master admin: show account dropdown
-                    const accountSection = document.getElementById('property-account-section');
-                    if (currentAccount && currentAccount.role === 'master_admin') {
-                        accountSection.style.display = 'block';
-                        // Load accounts into dropdown
-                        const accountsRes = await fetch('/api/admin/accounts', { headers: authHeaders() });
-                        const accountsData = await accountsRes.json();
-                        const accountSelect = document.getElementById('edit-property-account-id');
-                        if (accountsData.success && accountsData.accounts) {
-                            accountSelect.innerHTML = accountsData.accounts.map(a => 
-                                `<option value="${a.id}" ${a.id === prop.account_id ? 'selected' : ''}>${a.name} (${a.email || 'no email'})</option>`
-                            ).join('');
-                        }
-                    } else {
-                        accountSection.style.display = 'none';
-                    }
-                    
                     // Reset map state
                     document.getElementById('property-map-preview').style.display = 'none';
                     document.getElementById('toggle-map-btn').textContent = '🗺️ Show Map';
@@ -28777,12 +28665,6 @@ Local honey and preserves"></textarea>
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value
             };
-            
-            // Master admin can change account_id
-            const accountIdSelect = document.getElementById('edit-property-account-id');
-            if (accountIdSelect && accountIdSelect.value && currentAccount && currentAccount.role === 'master_admin') {
-                data.account_id = parseInt(accountIdSelect.value);
-            }
             
             try {
                 const response = await fetch(`/api/db/properties/${id}`, {
@@ -35847,7 +35729,7 @@ Local honey and preserves"></textarea>
                             </div>
                             
                             <div class="connection-actions">
-                                <button class="btn btn-secondary btn-sm" onclick="showConnectionOverview(${conn.id})">🔄 Sync</button>
+                                <button class="btn btn-secondary btn-sm" onclick="triggerSync(${conn.id})">🔄 Sync</button>
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionDetails(${conn.id})">⚙️ Details</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})" style="color: white;">🗑️ Delete</button>
                             </div>
@@ -36042,16 +35924,10 @@ Local honey and preserves"></textarea>
         }
 
         // Connection Details Modal
-        async function showConnectionOverview(connectionId) {
-            selectedConnectionId = connectionId;
-            document.getElementById('connectionDetailsModal').style.display = 'flex';
-            showConnectionTab('overview');
-        }
-
         async function showConnectionDetails(connectionId) {
             selectedConnectionId = connectionId;
             document.getElementById('connectionDetailsModal').style.display = 'flex';
-            showConnectionTab('properties');
+            showConnectionTab('overview');
         }
 
         async function showConnectionTab(tab) {
@@ -36062,8 +35938,8 @@ Local honey and preserves"></textarea>
             
             if (tab === 'overview') await loadConnectionOverview();
             else if (tab === 'properties') await loadConnectionPropertiesTab();
-            else if (tab === 'propertyCheck') await loadPropertyCheckTab();
             else if (tab === 'reservations') await loadConnectionReservationsTab();
+            else if (tab === 'logs') await loadConnectionLogsTab();
             else if (tab === 'settings') loadConnectionSettingsTab();
         }
 
@@ -36117,150 +35993,6 @@ Local honey and preserves"></textarea>
             }
         }
 
-        async function loadPropertyCheckTab() {
-            const container = document.getElementById('connectionTabPropertyCheck');
-            container.innerHTML = `
-                <div style="text-align: center; padding: 40px;">
-                    <div style="font-size: 3rem; margin-bottom: 15px;">🔍</div>
-                    <h4 style="margin: 0 0 10px 0;">Property Check</h4>
-                    <p style="color: #6b7280; margin-bottom: 20px;">Compare properties in Beds24 with GAS to find new or removed properties.</p>
-                    <button class="btn btn-primary btn-lg" onclick="runPropertyCheck()">🔄 Check Now</button>
-                </div>
-            `;
-        }
-
-        async function runPropertyCheck() {
-            const container = document.getElementById('connectionTabPropertyCheck');
-            container.innerHTML = '<p style="text-align: center; padding: 20px;">🔄 Checking for property changes...</p>';
-            
-            try {
-                const response = await fetch(`/api/gas-sync/connections/${selectedConnectionId}/check-properties`, { 
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() }
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    const hasChanges = data.newProperties.length > 0 || data.removedProperties.length > 0;
-                    
-                    container.innerHTML = `
-                        <div style="margin-bottom: 20px;">
-                            <h4 style="margin: 0 0 10px 0;">🔍 Property Check Results</h4>
-                            <p style="color: #6b7280; margin: 0;">Comparing properties in Beds24 with GAS</p>
-                        </div>
-                        
-                        <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px; margin-bottom: 20px;">
-                            <div style="background: #f0fdf4; border-radius: 8px; padding: 15px; text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: #16a34a;">${data.matchedCount}</div>
-                                <div style="color: #15803d; font-size: 0.9rem;">Matched</div>
-                            </div>
-                            <div style="background: ${data.newProperties.length > 0 ? '#dbeafe' : '#f3f4f6'}; border-radius: 8px; padding: 15px; text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: ${data.newProperties.length > 0 ? '#2563eb' : '#6b7280'};">${data.newProperties.length}</div>
-                                <div style="color: ${data.newProperties.length > 0 ? '#1d4ed8' : '#6b7280'}; font-size: 0.9rem;">New in Beds24</div>
-                            </div>
-                            <div style="background: ${data.removedProperties.length > 0 ? '#fee2e2' : '#f3f4f6'}; border-radius: 8px; padding: 15px; text-align: center;">
-                                <div style="font-size: 1.5rem; font-weight: bold; color: ${data.removedProperties.length > 0 ? '#dc2626' : '#6b7280'};">${data.removedProperties.length}</div>
-                                <div style="color: ${data.removedProperties.length > 0 ? '#b91c1c' : '#6b7280'}; font-size: 0.9rem;">Removed from Beds24</div>
-                            </div>
-                        </div>
-                        
-                        ${data.newProperties.length > 0 ? `
-                        <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-                            <h5 style="margin: 0 0 10px 0; color: #1d4ed8;">🆕 New Properties in Beds24</h5>
-                            <p style="color: #6b7280; font-size: 0.85rem; margin-bottom: 10px;">These properties exist in Beds24 but haven't been synced to GAS yet.</p>
-                            <table class="data-table" style="margin: 0;">
-                                <thead><tr><th>Property</th><th>Location</th><th>Action</th></tr></thead>
-                                <tbody>
-                                    ${data.newProperties.map(p => `
-                                        <tr>
-                                            <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.externalId}</small></td>
-                                            <td>${p.city || ''}, ${p.country || ''}</td>
-                                            <td><button class="btn btn-sm btn-primary" onclick="syncNewProperty(${selectedConnectionId}, '${p.externalId}')">➕ Sync</button></td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                        ` : ''}
-                        
-                        ${data.removedProperties.length > 0 ? `
-                        <div style="background: #fef2f2; border: 1px solid #ef4444; border-radius: 8px; padding: 15px; margin-bottom: 15px;">
-                            <h5 style="margin: 0 0 10px 0; color: #b91c1c;">🗑️ Removed from Beds24</h5>
-                            <p style="color: #6b7280; font-size: 0.85rem; margin-bottom: 10px;">These properties were synced but no longer exist in Beds24.</p>
-                            <table class="data-table" style="margin: 0;">
-                                <thead><tr><th>Property</th><th>Location</th><th>Action</th></tr></thead>
-                                <tbody>
-                                    ${data.removedProperties.map(p => `
-                                        <tr>
-                                            <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.external_id}</small></td>
-                                            <td>${p.city || ''}, ${p.country || ''}</td>
-                                            <td><button class="btn btn-sm btn-danger" onclick="archiveSyncedProperty(${p.id})" style="color: white;">🗑️ Archive</button></td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                        ` : ''}
-                        
-                        ${!hasChanges ? `
-                        <div style="text-align: center; padding: 30px; background: #f0fdf4; border-radius: 8px;">
-                            <div style="font-size: 2rem; margin-bottom: 10px;">✅</div>
-                            <p style="color: #16a34a; margin: 0;">All properties are in sync!</p>
-                        </div>
-                        ` : ''}
-                        
-                        <div style="margin-top: 15px; text-align: right;">
-                            <button class="btn btn-secondary" onclick="runPropertyCheck()">🔄 Check Again</button>
-                        </div>
-                    `;
-                } else {
-                    container.innerHTML = `<p style="color: #ef4444;">Error: ${data.error || 'Failed to check properties'}</p>`;
-                }
-            } catch (error) {
-                console.error('Error checking properties:', error);
-                container.innerHTML = '<p style="color: #ef4444;">Error checking properties</p>';
-            }
-        }
-
-        async function syncNewProperty(connectionId, externalId) {
-            try {
-                showNotification('Syncing property...', 'info');
-                const response = await fetch(`/api/gas-sync/connections/${connectionId}/sync-property`, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ externalId })
-                });
-                const data = await response.json();
-                if (data.success) {
-                    showNotification('Property synced successfully!', 'success');
-                    loadPropertyCheckTab();
-                } else {
-                    showNotification(data.error || 'Failed to sync property', 'error');
-                }
-            } catch (error) {
-                showNotification('Error syncing property', 'error');
-            }
-        }
-
-        async function archiveSyncedProperty(syncPropertyId) {
-            if (!confirm('Archive this property? It will be removed from the synced list.')) return;
-            try {
-                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/archive`, {
-                    method: 'POST',
-                    headers: authHeaders()
-                });
-                const data = await response.json();
-                if (data.success) {
-                    showNotification('Property archived', 'success');
-                    loadPropertyCheckTab();
-                } else {
-                    showNotification(data.error || 'Failed to archive', 'error');
-                }
-            } catch (error) {
-                showNotification('Error archiving property', 'error');
-            }
-        }
-
         async function loadConnectionPropertiesTab() {
             const container = document.getElementById('connectionTabProperties');
             try {
@@ -36288,8 +36020,12 @@ Local honey and preserves"></textarea>
                             <div style="background: white; border-radius: 6px; padding: 12px;">
                                 <strong style="color: #1e293b;">2. API Access (V1 Only)</strong>
                                 <table style="width: 100%; margin-top: 8px; font-size: 0.85rem;">
-                                    <tr><td style="color: #64748b; width: 120px;">propKey:</td><td>Create a random key in Beds24 for each property → Enter in Prop Key field → Test Webhook → Import</td></tr>
+                                    <tr><td style="color: #64748b; width: 120px;">propKey:</td><td>Create a random key in Beds24 → Copy to the Prop Key field below</td></tr>
                                 </table>
+                            </div>
+                            
+                            <div style="margin-top: 12px; display: flex; gap: 10px;">
+                                <button onclick="testWebhook()" class="btn btn-sm" style="background: #22c55e; color: white;">🧪 Test Webhook</button>
                             </div>
                         </div>
                         ` : ''}
@@ -36297,27 +36033,22 @@ Local honey and preserves"></textarea>
                             <th>Status</th>
                             <th>Property</th>
                             <th>Location</th>
-                            ${isBeds24 ? '<th style="min-width: 420px;">Webhook URL</th>' : ''}
                             ${isBeds24 ? '<th>Prop Key</th>' : ''}
-                            <th>Rooms</th>
-                            <th>Import</th>
+                            <th>Room Types</th>
+                            <th>Images</th>
+                            <th>Linked</th>
                             <th>Actions</th>
                         </tr></thead><tbody>
                         ${data.properties.map(p => {
                             let statusLight = '🟢';
                             let statusTitle = 'Fully configured';
-                            const webhookTested = p.webhook_tested || false;
-                            const propKeyTested = p.prop_key_tested || false;
                             if (isBeds24) {
                                 if (!p.prop_key) {
                                     statusLight = '🔴';
-                                    statusTitle = 'Enter prop key';
-                                } else if (!webhookTested || !propKeyTested) {
-                                    statusLight = '🟠';
-                                    statusTitle = 'Test webhook and prop key';
+                                    statusTitle = 'Missing property key';
                                 } else if (!p.gas_property_id) {
                                     statusLight = '🟡';
-                                    statusTitle = 'Ready to import';
+                                    statusTitle = 'Not imported to GAS yet';
                                 }
                             } else {
                                 if (!p.gas_property_id) {
@@ -36325,53 +36056,23 @@ Local honey and preserves"></textarea>
                                     statusTitle = 'Not imported to GAS yet';
                                 }
                             }
-                            const canImport = isBeds24 ? (p.prop_key && webhookTested && propKeyTested && !p.gas_property_id) : !p.gas_property_id;
-                            return `<tr id="prop-row-${p.id}">
+                            return `<tr>
                                 <td title="${statusTitle}" style="font-size: 1.25rem; text-align: center;">${statusLight}</td>
                                 <td><strong>${p.name}</strong><br><small style="color: #6b7280;">ID: ${p.external_id}</small></td>
                                 <td>${p.city || ''}, ${p.country || ''}</td>
                                 ${isBeds24 ? `<td>
-                                    <div style="display: flex; align-items: center; gap: 6px;">
-                                        <input type="text" readonly value="https://admin.gas.travel/api/webhooks/beds24?propertyId=${p.external_id}" 
-                                            style="flex: 1; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.8rem; background: #f8fafc;">
-                                        <button onclick="copyWebhookUrlForProperty('${p.external_id}')" class="btn btn-sm" style="padding: 6px 8px;" title="Copy URL">📋</button>
-                                        <span id="webhook-test-${p.id}">
-                                            ${webhookTested ? 
-                                                '<span style="color: #22c55e; font-weight: bold;">✅</span>' : 
-                                                `<button onclick="testWebhookForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #22c55e; color: white; padding: 6px 10px;">🧪 Test</button>`
-                                            }
-                                        </span>
-                                    </div>
-                                </td>` : ''}
-                                ${isBeds24 ? `<td>
-                                    <div style="display: flex; align-items: center; gap: 6px;">
+                                    <div style="display: flex; gap: 5px; align-items: center;">
                                         <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key" 
-                                            style="width: 90px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;"
-                                            ${p.gas_property_id ? 'disabled' : ''}>
-                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 6px 8px;" ${p.gas_property_id ? 'disabled' : ''} title="Save">💾</button>
-                                        <span id="propkey-test-${p.id}">
-                                            ${propKeyTested ? 
-                                                '<span style="color: #22c55e; font-weight: bold;">✅</span>' : 
-                                                (p.prop_key ? 
-                                                    `<button onclick="testPropKeyForProperty(${p.id}, '${p.external_id}')" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 10px;">🧪 Test</button>` :
-                                                    '<span style="color: #9ca3af;">-</span>'
-                                                )
-                                            }
-                                        </span>
+                                            style="width: 100px; padding: 4px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;">
+                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 4px 8px;">💾</button>
                                     </div>
                                 </td>` : ''}
-                                <td style="text-align: center;">${p.room_type_count}</td>
+                                <td>${p.room_type_count}</td>
+                                <td>${p.image_count}</td>
+                                <td>${p.gas_property_id ? '✅' : '❌'}</td>
                                 <td>
-                                    ${p.gas_property_id ? 
-                                        '<span style="color: #22c55e;">✅ Imported</span>' : 
-                                        `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : (!p.prop_key ? 'Enter Key' : (!webhookTested && !propKeyTested ? 'Run Tests' : (!webhookTested ? 'Test Webhook' : 'Test Key')))}</button>`
-                                    }
-                                </td>
-                                <td>
-                                    <div style="display: flex; gap: 4px;">
-                                        <button onclick="checkRoomChanges(${p.id}, '${p.name.replace(/'/g, "\\'")}')" class="btn btn-sm btn-secondary" title="Check Rooms">🔄</button>
-                                        ${isBeds24 && p.prop_key ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="Download Images">📷</button>` : ''}
-                                    </div>
+                                    ${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
+                                    <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})">📷</button>
                                 </td>
                             </tr>`;
                         }).join('')}
@@ -36389,129 +36090,27 @@ Local honey and preserves"></textarea>
             showNotification('Webhook URL copied - add the property ID at the end', 'success');
         }
         
-        function copyWebhookUrlForProperty(propertyId) {
-            const url = `https://admin.gas.travel/api/webhooks/beds24?propertyId=${propertyId}`;
-            navigator.clipboard.writeText(url);
-            showNotification('Webhook URL copied! Paste this into Beds24 webhook settings.', 'success');
-        }
-        
-        // Test that the webhook URL is correctly configured in Beds24
-        async function testWebhookForProperty(syncPropertyId, externalPropertyId) {
-            const testSpan = document.getElementById(`webhook-test-${syncPropertyId}`);
-            testSpan.innerHTML = '<span style="color: #f59e0b;">⏳</span>';
-            
+        async function testWebhook() {
             try {
-                const response = await fetch('/api/gas-sync/test-webhook-url', {
+                showNotification('Testing webhook...', 'info');
+                const response = await fetch('/api/webhooks/beds24', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ 
-                        syncPropertyId: syncPropertyId,
-                        externalPropertyId: externalPropertyId
-                    })
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ test: true, source: 'gas-admin', timestamp: new Date().toISOString() })
                 });
                 const data = await response.json();
-                
                 if (data.success) {
-                    testSpan.innerHTML = '<span style="color: #22c55e; font-weight: bold;">✅</span>';
-                    showNotification('Webhook URL test passed!', 'success');
-                    updateImportButton(syncPropertyId);
+                    showNotification('Webhook endpoint is working!', 'success');
                 } else {
-                    testSpan.innerHTML = `<button onclick="testWebhookForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
-                    showNotification('Webhook test failed: ' + (data.error || 'Unknown error'), 'error');
+                    showNotification('Webhook test failed', 'error');
                 }
             } catch (error) {
-                testSpan.innerHTML = `<button onclick="testWebhookForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
                 showNotification('Webhook test failed: ' + error.message, 'error');
             }
         }
         
-        // Test that the prop key can fetch data from Beds24 V1 API
-        async function testPropKeyForProperty(syncPropertyId, externalPropertyId) {
-            const testSpan = document.getElementById(`propkey-test-${syncPropertyId}`);
-            const propKey = document.getElementById(`propKey-${syncPropertyId}`)?.value?.trim();
-            
-            if (!propKey) {
-                showNotification('Please enter and save the prop key first', 'error');
-                return;
-            }
-            
-            testSpan.innerHTML = '<span style="color: #f59e0b;">⏳</span>';
-            
-            try {
-                const response = await fetch('/api/gas-sync/test-prop-key', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ 
-                        syncPropertyId: syncPropertyId,
-                        externalPropertyId: externalPropertyId,
-                        propKey: propKey
-                    })
-                });
-                const data = await response.json();
-                
-                if (data.success) {
-                    testSpan.innerHTML = '<span style="color: #22c55e; font-weight: bold;">✅</span>';
-                    showNotification('Prop Key test passed! GAS can fetch data from Beds24.', 'success');
-                    updateImportButton(syncPropertyId);
-                } else {
-                    testSpan.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
-                    showNotification('Prop Key test failed: ' + (data.error || 'Unknown error'), 'error');
-                }
-            } catch (error) {
-                testSpan.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
-                showNotification('Prop Key test failed: ' + error.message, 'error');
-            }
-        }
-        
-        // Check if both tests passed and enable import button
-        async function updateImportButton(syncPropertyId) {
-            // Refresh the row data to check both test statuses
-            try {
-                const response = await fetch(`/api/gas-sync/property/${syncPropertyId}/status`, { headers: authHeaders() });
-                const data = await response.json();
-                
-                if (data.success && data.webhook_tested && data.prop_key_tested) {
-                    const importBtn = document.getElementById(`import-btn-${syncPropertyId}`);
-                    if (importBtn) {
-                        importBtn.disabled = false;
-                        importBtn.style.opacity = '1';
-                        importBtn.style.cursor = 'pointer';
-                        importBtn.textContent = 'Import';
-                    }
-                    // Update status light
-                    const row = document.getElementById(`prop-row-${syncPropertyId}`);
-                    if (row) {
-                        const statusCell = row.querySelector('td:first-child');
-                        if (statusCell) {
-                            statusCell.innerHTML = '🟡';
-                            statusCell.title = 'Ready to import';
-                        }
-                    }
-                }
-            } catch (e) {
-                console.log('Could not update import button:', e);
-            }
-        }
-        
-        async function testPropertyWebhook(syncPropertyId, externalPropertyId) {
-            // Legacy - redirect to new function
-            testPropKeyForProperty(syncPropertyId, externalPropertyId);
-        }
-        
-        async function testWebhook() {
-            // Legacy function - kept for backward compatibility
-            showNotification('Please use the per-property Test buttons in the table', 'info');
-        }
-        
         async function savePropKey(syncPropertyId) {
-            const propKeyInput = document.getElementById(`propKey-${syncPropertyId}`);
-            const propKey = propKeyInput.value.trim();
-            
-            if (!propKey) {
-                showNotification('Please enter a property key', 'error');
-                return;
-            }
-            
+            const propKey = document.getElementById(`propKey-${syncPropertyId}`).value.trim();
             try {
                 const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/set-prop-key`, {
                     method: 'POST',
@@ -36520,24 +36119,8 @@ Local honey and preserves"></textarea>
                 });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Property key saved! Now test both webhook and prop key.', 'success');
-                    
-                    // Show the test button for prop key
-                    const propKeyTest = document.getElementById(`propkey-test-${syncPropertyId}`);
-                    if (propKeyTest) {
-                        const externalId = data.external_id || '';
-                        propKeyTest.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalId}')" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 10px;">🧪 Test</button>`;
-                    }
-                    
-                    // Update status light to orange
-                    const row = document.getElementById(`prop-row-${syncPropertyId}`);
-                    if (row) {
-                        const statusCell = row.querySelector('td:first-child');
-                        if (statusCell) {
-                            statusCell.innerHTML = '🟠';
-                            statusCell.title = 'Test webhook and prop key';
-                        }
-                    }
+                    showNotification('Property key saved', 'success');
+                    loadConnectionPropertiesTab();
                 } else {
                     showNotification(data.error || 'Failed to save', 'error');
                 }
@@ -36704,10 +36287,10 @@ Local honey and preserves"></textarea>
             const accountId = selectedAccountId || currentAccount.id;
             try {
                 showNotification('Importing property...', 'info');
-                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/link-to-gas`, {
+                const response = await fetch(`/api/gas-sync/properties/${syncPropertyId}/import`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ accountId: accountId })
+                    body: JSON.stringify({ account_id: accountId })
                 });
                 const data = await response.json();
                 if (data.success) {
