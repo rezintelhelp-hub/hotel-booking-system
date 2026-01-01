@@ -12732,26 +12732,7 @@ Local honey and preserves"></textarea>
                         </div>
                     </div>
                     
-                    <!-- Travel Agent Access Section (placeholder for future) -->
-                    <!-- Travel Agent Access Section -->
-                    <div id="account-travel-agent-section">
-                        <div style="background: linear-gradient(135deg, #ecfdf5 0%, #d1fae5 100%); padding: 1rem; border-radius: 12px; margin-bottom: 1rem; border: 1px solid #6ee7b7; opacity: 0.7;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                                <h4 style="margin: 0; font-size: 0.85rem; color: #047857; font-weight: 600;">🧳 Travel Agent Access</h4>
-                                <span style="background: #d1fae5; color: #047857; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600;">COMING SOON</span>
-                            </div>
-                            <div style="display: flex; justify-content: space-between; align-items: center; gap: 1rem;">
-                                <div style="flex: 1;">
-                                    <div style="font-size: 0.8rem; color: #065f46; margin-bottom: 0.5rem;">Assign travel agents who can book on behalf of this property</div>
-                                    <select class="form-input" style="padding: 0.4rem; font-size: 0.85rem; width: 100%;" disabled>
-                                        <option value="">Select travel agent...</option>
-                                        <option value="1">Travel Agent 1</option>
-                                        <option value="2">Travel Agent 2</option>
-                                    </select>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- Travel Agent Access Section - Hidden until feature complete -->
                     
                     <!-- Form Actions -->
                     <div style="display: flex; gap: 0.75rem; justify-content: flex-end; padding-top: 1rem; border-top: 1px solid var(--border);">
@@ -12958,6 +12939,18 @@ Local honey and preserves"></textarea>
             </div>
             <form id="editPropertyForm" onsubmit="return saveProperty(event)">
                 <input type="hidden" id="edit-property-id">
+                
+                <!-- Master Admin: Account Assignment -->
+                <div id="property-account-section" style="display: none; margin-bottom: 1.5rem;">
+                    <h4 style="margin: 0 0 1rem 0; color: var(--text-primary); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); padding-bottom: 0.5rem;">🔧 Admin: Account Assignment</h4>
+                    <div class="form-group">
+                        <label class="form-label">Assign to Account</label>
+                        <select class="form-input" id="edit-property-account-id">
+                            <option value="">Loading accounts...</option>
+                        </select>
+                        <small style="color: var(--text-secondary);">Master admin only - move this property to a different account</small>
+                    </div>
+                </div>
                 
                 <!-- Basic Info Section -->
                 <div style="margin-bottom: 1.5rem;">
@@ -28735,6 +28728,23 @@ Local honey and preserves"></textarea>
                     document.getElementById('edit-property-longitude').value = prop.longitude || '';
                     document.getElementById('edit-property-status').value = prop.status || 'active';
                     
+                    // Master admin: show account dropdown
+                    const accountSection = document.getElementById('property-account-section');
+                    if (currentAccount && currentAccount.role === 'master_admin') {
+                        accountSection.style.display = 'block';
+                        // Load accounts into dropdown
+                        const accountsRes = await fetch('/api/accounts', { headers: authHeaders() });
+                        const accountsData = await accountsRes.json();
+                        const accountSelect = document.getElementById('edit-property-account-id');
+                        if (accountsData.success && accountsData.accounts) {
+                            accountSelect.innerHTML = accountsData.accounts.map(a => 
+                                `<option value="${a.id}" ${a.id === prop.account_id ? 'selected' : ''}>${a.name} (${a.email || 'no email'})</option>`
+                            ).join('');
+                        }
+                    } else {
+                        accountSection.style.display = 'none';
+                    }
+                    
                     // Reset map state
                     document.getElementById('property-map-preview').style.display = 'none';
                     document.getElementById('toggle-map-btn').textContent = '🗺️ Show Map';
@@ -28765,6 +28775,12 @@ Local honey and preserves"></textarea>
                 longitude: document.getElementById('edit-property-longitude').value ? parseFloat(document.getElementById('edit-property-longitude').value) : null,
                 status: document.getElementById('edit-property-status').value
             };
+            
+            // Master admin can change account_id
+            const accountIdSelect = document.getElementById('edit-property-account-id');
+            if (accountIdSelect && accountIdSelect.value && currentAccount && currentAccount.role === 'master_admin') {
+                data.account_id = parseInt(accountIdSelect.value);
+            }
             
             try {
                 const response = await fetch(`/api/db/properties/${id}`, {
