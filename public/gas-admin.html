@@ -1421,25 +1421,14 @@
         #credentialFields input { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; }
         #credentialFields .help-text { font-size: 12px; color: #6b7280; margin-top: 4px; }
         
-        /* GrapesJS Editor Styles */
-        .gjs-editor-cont { position: relative !important; }
-        .gjs-cv-canvas { width: 100% !important; height: 600px !important; }
-        .gjs-frame-wrapper { height: 100% !important; }
-        .gjs-pn-panel { position: relative !important; }
-        .gjs-block { min-height: auto !important; }
-        .gjs-blocks-cs { padding: 10px !important; }
-        .grapes-container { border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; }
-        .gjs-one-bg { background-color: #f8fafc !important; }
-        .gjs-two-color { color: #1e293b !important; }
-        .gjs-three-bg { background-color: #7c3aed !important; }
-        .gjs-four-color, .gjs-four-color-h:hover { color: #7c3aed !important; }
+        /* Page Builder Styles */
+        .builder-block:hover { 
+            border-color: #7c3aed !important; 
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(124, 58, 237, 0.15);
+        }
+        .builder-canvas-block:hover .block-controls { display: flex !important; }
     </style>
-    
-    <!-- GrapesJS -->
-    <link href="https://unpkg.com/grapesjs/dist/css/grapes.min.css" rel="stylesheet">
-    <script src="https://unpkg.com/grapesjs"></script>
-    <script src="https://unpkg.com/grapesjs-blocks-basic"></script>
-    <script src="https://unpkg.com/grapesjs-preset-webpage"></script>
 </head>
 <body>
     <div class="dashboard">
@@ -8178,11 +8167,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="header-top">
                         <div>
                             <h2>ℹ️ About Us Page</h2>
-                            <p>Visual page builder - drag and drop to create your page</p>
+                            <p>Build your page by dragging blocks into the canvas</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="previewGrapesPage('about')" style="background: #64748b;">👁️ Preview</button>
-                            <button class="btn" onclick="saveGrapesPage('about')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
+                            <button class="btn" onclick="previewPageBuilder('about')" style="background: #64748b;">👁️ Preview</button>
+                            <button class="btn" onclick="savePageBuilder('about')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
                         </div>
                     </div>
                 </div>
@@ -8203,17 +8192,96 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                <!-- GrapesJS Visual Editor -->
+                <!-- Custom Page Builder -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3>📝 Visual Page Builder</h3>
-                        <small style="color: #64748b; font-weight: normal;">Drag blocks from the right panel to build your page</small>
-                    </div>
+                    <div class="card-header"><h3>📝 Page Builder</h3></div>
                     <div class="card-body" style="padding: 0;">
-                        <div id="gjs-about" class="grapes-container" style="height: 650px;"></div>
-                        <!-- Hidden field to store HTML -->
-                        <input type="hidden" id="wb-page-about-html" value="">
-                        <input type="hidden" id="wb-page-about-css" value="">
+                        <div style="display: flex; min-height: 600px;">
+                            <!-- Canvas Area -->
+                            <div style="flex: 1; background: #e2e8f0; padding: 20px; overflow-y: auto;">
+                                <div id="page-canvas-about" class="page-canvas" style="max-width: 800px; margin: 0 auto; background: white; min-height: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border-radius: 8px; padding: 30px;" ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'about')">
+                                    <!-- Blocks will be dropped here -->
+                                    <div class="canvas-placeholder" style="border: 2px dashed #cbd5e1; border-radius: 8px; padding: 60px 20px; text-align: center; color: #94a3b8;">
+                                        <div style="font-size: 3rem; margin-bottom: 1rem;">📄</div>
+                                        <div style="font-size: 1.1rem; font-weight: 500;">Drag blocks here to build your page</div>
+                                        <div style="font-size: 0.9rem; margin-top: 0.5rem;">Or click a block on the right to add it</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Blocks Panel -->
+                            <div style="width: 280px; background: #f8fafc; border-left: 1px solid #e2e8f0; padding: 15px; overflow-y: auto;">
+                                <div style="font-weight: 600; color: #1e293b; margin-bottom: 15px; font-size: 0.95rem;">📦 Blocks</div>
+                                
+                                <!-- Layout Blocks -->
+                                <div style="margin-bottom: 20px;">
+                                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Layout</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'columns-2')" onclick="addBlock('about', 'columns-2')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">▐ ▌</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">2 Columns</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'columns-3')" onclick="addBlock('about', 'columns-3')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">▐▐▐</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">3 Columns</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Content Blocks -->
+                                <div style="margin-bottom: 20px;">
+                                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Content</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'text')" onclick="addBlock('about', 'text')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">📝</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Text</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'heading')" onclick="addBlock('about', 'heading')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">H</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Heading</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'image')" onclick="addBlock('about', 'image')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🖼️</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Image</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'video')" onclick="addBlock('about', 'video')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🎬</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Video</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'button')" onclick="addBlock('about', 'button')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🔘</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Button</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'spacer')" onclick="addBlock('about', 'spacer')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">↕️</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Spacer</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Embed Blocks -->
+                                <div style="margin-bottom: 20px;">
+                                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Embed</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'iframe')" onclick="addBlock('about', 'iframe')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🌐</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">iFrame</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'map')" onclick="addBlock('about', 'map')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">📍</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Map</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Block Settings (shown when block selected) -->
+                                <div id="block-settings-about" style="display: none; border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 15px;">
+                                    <div style="font-weight: 600; color: #1e293b; margin-bottom: 15px; font-size: 0.95rem;">⚙️ Block Settings</div>
+                                    <div id="block-settings-content-about"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="wb-page-about-builder-data" value="[]">
                     </div>
                 </div>
             </div>
@@ -8224,11 +8292,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="header-top">
                         <div>
                             <h2>🖼️ Gallery Page</h2>
-                            <p>Visual page builder - drag and drop to create your gallery</p>
+                            <p>Build your gallery page by dragging blocks into the canvas</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="previewGrapesPage('gallery')" style="background: #64748b;">👁️ Preview</button>
-                            <button class="btn" onclick="saveGrapesPage('gallery')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
+                            <button class="btn" onclick="previewPageBuilder('gallery')" style="background: #64748b;">👁️ Preview</button>
+                            <button class="btn" onclick="savePageBuilder('gallery')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
                         </div>
                     </div>
                 </div>
@@ -8249,16 +8317,73 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                <!-- GrapesJS Visual Editor -->
+                <!-- Custom Page Builder -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3>📝 Visual Page Builder</h3>
-                        <small style="color: #64748b; font-weight: normal;">Drag blocks from the right panel to build your gallery page</small>
-                    </div>
+                    <div class="card-header"><h3>📝 Page Builder</h3></div>
                     <div class="card-body" style="padding: 0;">
-                        <div id="gjs-gallery" class="grapes-container" style="height: 650px;"></div>
-                        <input type="hidden" id="wb-page-gallery-html" value="">
-                        <input type="hidden" id="wb-page-gallery-css" value="">
+                        <div style="display: flex; min-height: 600px;">
+                            <!-- Canvas Area -->
+                            <div style="flex: 1; background: #e2e8f0; padding: 20px; overflow-y: auto;">
+                                <div id="page-canvas-gallery" class="page-canvas" style="max-width: 800px; margin: 0 auto; background: white; min-height: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border-radius: 8px; padding: 30px;" ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'gallery')">
+                                    <div class="canvas-placeholder" style="border: 2px dashed #cbd5e1; border-radius: 8px; padding: 60px 20px; text-align: center; color: #94a3b8;">
+                                        <div style="font-size: 3rem; margin-bottom: 1rem;">📄</div>
+                                        <div style="font-size: 1.1rem; font-weight: 500;">Drag blocks here to build your page</div>
+                                        <div style="font-size: 0.9rem; margin-top: 0.5rem;">Or click a block on the right to add it</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Blocks Panel -->
+                            <div style="width: 280px; background: #f8fafc; border-left: 1px solid #e2e8f0; padding: 15px; overflow-y: auto;">
+                                <div style="font-weight: 600; color: #1e293b; margin-bottom: 15px; font-size: 0.95rem;">📦 Blocks</div>
+                                
+                                <div style="margin-bottom: 20px;">
+                                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Layout</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'columns-2')" onclick="addBlock('gallery', 'columns-2')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">▐ ▌</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">2 Columns</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'columns-3')" onclick="addBlock('gallery', 'columns-3')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">▐▐▐</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">3 Columns</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-bottom: 20px;">
+                                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Content</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'text')" onclick="addBlock('gallery', 'text')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">📝</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Text</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'heading')" onclick="addBlock('gallery', 'heading')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">H</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Heading</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'image')" onclick="addBlock('gallery', 'image')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🖼️</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Image</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'video')" onclick="addBlock('gallery', 'video')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🎬</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Video</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'spacer')" onclick="addBlock('gallery', 'spacer')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">↕️</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Spacer</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="block-settings-gallery" style="display: none; border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 15px;">
+                                    <div style="font-weight: 600; color: #1e293b; margin-bottom: 15px; font-size: 0.95rem;">⚙️ Block Settings</div>
+                                    <div id="block-settings-content-gallery"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="wb-page-gallery-builder-data" value="[]">
                     </div>
                 </div>
             </div>
@@ -8406,11 +8531,11 @@ const promo = await fetch('/api/v1/offers/validate', {
                     <div class="header-top">
                         <div>
                             <h2>🍽️ Dining Page</h2>
-                            <p>Visual page builder - showcase your breakfast, restaurant, or dining options</p>
+                            <p>Build your dining page by dragging blocks into the canvas</p>
                         </div>
                         <div style="display: flex; gap: 0.5rem;">
-                            <button class="btn" onclick="previewGrapesPage('dining')" style="background: #64748b;">👁️ Preview</button>
-                            <button class="btn" onclick="saveGrapesPage('dining')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
+                            <button class="btn" onclick="previewPageBuilder('dining')" style="background: #64748b;">👁️ Preview</button>
+                            <button class="btn" onclick="savePageBuilder('dining')" style="background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);">💾 Save Page</button>
                         </div>
                     </div>
                 </div>
@@ -8431,16 +8556,77 @@ const promo = await fetch('/api/v1/offers/validate', {
                     </div>
                 </div>
 
-                <!-- GrapesJS Visual Editor -->
+                <!-- Custom Page Builder -->
                 <div class="card" style="margin-top: 1rem;">
-                    <div class="card-header">
-                        <h3>📝 Visual Page Builder</h3>
-                        <small style="color: #64748b; font-weight: normal;">Drag blocks from the right panel to build your dining page</small>
-                    </div>
+                    <div class="card-header"><h3>📝 Page Builder</h3></div>
                     <div class="card-body" style="padding: 0;">
-                        <div id="gjs-dining" class="grapes-container" style="height: 650px;"></div>
-                        <input type="hidden" id="wb-page-dining-html" value="">
-                        <input type="hidden" id="wb-page-dining-css" value="">
+                        <div style="display: flex; min-height: 600px;">
+                            <!-- Canvas Area -->
+                            <div style="flex: 1; background: #e2e8f0; padding: 20px; overflow-y: auto;">
+                                <div id="page-canvas-dining" class="page-canvas" style="max-width: 800px; margin: 0 auto; background: white; min-height: 600px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); border-radius: 8px; padding: 30px;" ondragover="handleDragOver(event)" ondrop="handleDrop(event, 'dining')">
+                                    <div class="canvas-placeholder" style="border: 2px dashed #cbd5e1; border-radius: 8px; padding: 60px 20px; text-align: center; color: #94a3b8;">
+                                        <div style="font-size: 3rem; margin-bottom: 1rem;">📄</div>
+                                        <div style="font-size: 1.1rem; font-weight: 500;">Drag blocks here to build your page</div>
+                                        <div style="font-size: 0.9rem; margin-top: 0.5rem;">Or click a block on the right to add it</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Blocks Panel -->
+                            <div style="width: 280px; background: #f8fafc; border-left: 1px solid #e2e8f0; padding: 15px; overflow-y: auto;">
+                                <div style="font-weight: 600; color: #1e293b; margin-bottom: 15px; font-size: 0.95rem;">📦 Blocks</div>
+                                
+                                <div style="margin-bottom: 20px;">
+                                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Layout</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'columns-2')" onclick="addBlock('dining', 'columns-2')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">▐ ▌</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">2 Columns</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'columns-3')" onclick="addBlock('dining', 'columns-3')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">▐▐▐</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">3 Columns</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-bottom: 20px;">
+                                    <div style="font-size: 0.8rem; color: #64748b; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;">Content</div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'text')" onclick="addBlock('dining', 'text')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">📝</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Text</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'heading')" onclick="addBlock('dining', 'heading')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">H</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Heading</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'image')" onclick="addBlock('dining', 'image')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🖼️</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Image</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'video')" onclick="addBlock('dining', 'video')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🎬</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Video</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'button')" onclick="addBlock('dining', 'button')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">🔘</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Button</div>
+                                        </div>
+                                        <div class="builder-block" draggable="true" ondragstart="handleDragStart(event, 'spacer')" onclick="addBlock('dining', 'spacer')" style="background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 12px; text-align: center; cursor: grab; transition: all 0.2s;">
+                                            <div style="font-size: 1.2rem; margin-bottom: 4px;">↕️</div>
+                                            <div style="font-size: 0.75rem; color: #64748b;">Spacer</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <div id="block-settings-dining" style="display: none; border-top: 1px solid #e2e8f0; padding-top: 15px; margin-top: 15px;">
+                                    <div style="font-weight: 600; color: #1e293b; margin-bottom: 15px; font-size: 0.95rem;">⚙️ Block Settings</div>
+                                    <div id="block-settings-content-dining"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <input type="hidden" id="wb-page-dining-builder-data" value="[]">
                     </div>
                 </div>
             </div>
@@ -14799,13 +14985,6 @@ const promo = await fetch('/api/v1/offers/validate', {
             
             // Load data for this section
             loadWebsiteBuilderSection(subTabName);
-            
-            // Initialize GrapesJS for pages that use visual editor
-            setTimeout(() => {
-                if (subTabName === 'page-about') initGrapesEditor('about');
-                if (subTabName === 'page-gallery') initGrapesEditor('gallery');
-                if (subTabName === 'page-dining') initGrapesEditor('dining');
-            }, 200);
         }
         
         // Switch Footer tabs
@@ -15909,176 +16088,586 @@ Fresh pastries"></textarea>
         // ============================================
         
         // ============================================
-        // GRAPESJS VISUAL PAGE BUILDER
+        // CUSTOM PAGE BUILDER
         // ============================================
         
-        let grapesEditors = {};
+        let pageBuilderData = {};
+        let selectedBlockId = null;
+        let blockIdCounter = 0;
         
-        function initGrapesEditor(page) {
-            console.log('initGrapesEditor called for:', page);
-            
-            const containerId = `gjs-${page}`;
-            const container = document.getElementById(containerId);
-            
-            console.log('Container ID:', containerId, 'Found:', !!container);
-            
-            if (!container) {
-                console.error('Container not found:', containerId);
-                return;
-            }
-            
-            if (grapesEditors[page]) {
-                console.log('Editor already exists for:', page);
-                return;
-            }
-            
-            console.log('Initializing GrapesJS...');
-            
-            try {
-                const editor = grapesjs.init({
-                    container: `#${containerId}`,
-                    height: '600px',
-                    width: '100%',
-                    storageManager: false,
-                    plugins: ['gjs-blocks-basic'],
-                    pluginsOpts: {
-                        'gjs-blocks-basic': {
-                            flexGrid: true,
-                        },
-                    },
-                    canvas: {
-                        styles: [
-                            'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
-                        ],
-                    },
-                    deviceManager: {
-                        devices: [{
-                            name: 'Desktop',
-                            width: '',
-                        }, {
-                            name: 'Tablet',
-                            width: '768px',
-                            widthMedia: '768px',
-                        }, {
-                            name: 'Mobile',
-                            width: '375px',
-                            widthMedia: '375px',
-                        }]
-                    },
-                });
-                
-                console.log('GrapesJS initialized successfully');
-                
-                // Add custom hospitality blocks
-                editor.BlockManager.add('section-hero', {
-                    label: '🖼️ Hero Section',
-                    category: 'Sections',
-                    content: `
-                        <section style="background: linear-gradient(rgba(0,0,0,0.4), rgba(0,0,0,0.4)), url('https://images.unsplash.com/photo-1566073771259-6a8506099945?w=1200') center/cover; min-height: 400px; display: flex; align-items: center; justify-content: center; text-align: center; color: white; padding: 60px 20px;">
-                            <div>
-                                <h1 style="font-size: 3rem; margin-bottom: 1rem; font-weight: 700;">Welcome to Our Property</h1>
-                                <p style="font-size: 1.25rem; opacity: 0.9; max-width: 600px; margin: 0 auto;">Experience unforgettable moments</p>
-                            </div>
-                        </section>
-                    `,
-                });
-                
-                editor.BlockManager.add('section-text-image', {
-                    label: '📄 Text + Image',
-                    category: 'Sections',
-                    content: `
-                        <section style="padding: 60px 20px;">
-                            <div style="display: flex; flex-wrap: wrap; gap: 40px; max-width: 1200px; margin: 0 auto; align-items: center;">
-                                <div style="flex: 1; min-width: 300px;">
-                                    <h2 style="font-size: 2rem; margin-bottom: 1rem; color: #1e293b;">Our Story</h2>
-                                    <p style="color: #64748b; line-height: 1.7;">Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-                                </div>
-                                <div style="flex: 1; min-width: 300px;">
-                                    <img src="https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?w=600" style="width: 100%; border-radius: 12px;" alt="About image">
-                                </div>
-                            </div>
-                        </section>
-                    `,
-                });
-                
-                editor.BlockManager.add('section-features', {
-                    label: '✨ Features Grid',
-                    category: 'Sections',
-                    content: `
-                        <section style="padding: 60px 20px;">
-                            <div style="max-width: 1200px; margin: 0 auto; text-align: center;">
-                                <h2 style="font-size: 2rem; margin-bottom: 2rem; color: #1e293b;">Why Choose Us</h2>
-                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px;">
-                                    <div style="padding: 30px; background: #f8fafc; border-radius: 12px;">
-                                        <div style="font-size: 2.5rem; margin-bottom: 1rem;">🏡</div>
-                                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">Comfort</h3>
-                                        <p style="color: #64748b;">Luxurious amenities for your relaxation</p>
-                                    </div>
-                                    <div style="padding: 30px; background: #f8fafc; border-radius: 12px;">
-                                        <div style="font-size: 2.5rem; margin-bottom: 1rem;">📍</div>
-                                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">Location</h3>
-                                        <p style="color: #64748b;">Near local attractions</p>
-                                    </div>
-                                    <div style="padding: 30px; background: #f8fafc; border-radius: 12px;">
-                                        <div style="font-size: 2.5rem; margin-bottom: 1rem;">⭐</div>
-                                        <h3 style="margin-bottom: 0.5rem; color: #1e293b;">Service</h3>
-                                        <p style="color: #64748b;">24/7 dedicated team</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </section>
-                    `,
-                });
-                
-                editor.BlockManager.add('section-gallery', {
-                    label: '📸 Photo Gallery',
-                    category: 'Sections',
-                    content: `
-                        <section style="padding: 60px 20px;">
-                            <div style="max-width: 1200px; margin: 0 auto;">
-                                <h2 style="font-size: 2rem; margin-bottom: 2rem; color: #1e293b; text-align: center;">Gallery</h2>
-                                <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px;">
-                                    <img src="https://images.unsplash.com/photo-1590490360182-c33d57733427?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                                    <img src="https://images.unsplash.com/photo-1584132967334-10e028bd69f7?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                                    <img src="https://images.unsplash.com/photo-1582719508461-905c673771fd?w=400" style="width: 100%; height: 250px; object-fit: cover; border-radius: 12px;">
-                                </div>
-                            </div>
-                        </section>
-                    `,
-                });
-                
-                // Store reference
-                grapesEditors[page] = editor;
-                
-            } catch (error) {
-                console.error('GrapesJS init error:', error);
+        function handleDragStart(event, blockType) {
+            event.dataTransfer.setData('blockType', blockType);
+            event.dataTransfer.effectAllowed = 'copy';
+        }
+        
+        function handleDragOver(event) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
+        }
+        
+        function handleDrop(event, page) {
+            event.preventDefault();
+            const blockType = event.dataTransfer.getData('blockType');
+            if (blockType) {
+                addBlock(page, blockType);
             }
         }
         
-        function saveGrapesPage(page) {
-            const editor = grapesEditors[page];
-            if (!editor) {
-                showNotification('Editor not initialized', 'error');
+        function addBlock(page, blockType) {
+            const canvas = document.getElementById(`page-canvas-${page}`);
+            if (!canvas) return;
+            
+            // Remove placeholder if exists
+            const placeholder = canvas.querySelector('.canvas-placeholder');
+            if (placeholder) placeholder.remove();
+            
+            blockIdCounter++;
+            const blockId = `block-${page}-${blockIdCounter}`;
+            
+            const block = document.createElement('div');
+            block.className = 'builder-canvas-block';
+            block.id = blockId;
+            block.dataset.type = blockType;
+            block.style.cssText = 'position: relative; margin-bottom: 15px; border: 2px solid transparent; border-radius: 8px; transition: all 0.2s;';
+            block.onclick = (e) => { e.stopPropagation(); selectBlock(page, blockId); };
+            
+            // Block controls
+            const controls = `
+                <div class="block-controls" style="position: absolute; top: -12px; right: 10px; display: none; gap: 4px; z-index: 10;">
+                    <button onclick="event.stopPropagation(); moveBlock('${page}', '${blockId}', -1)" style="width: 24px; height: 24px; border: none; background: #3b82f6; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">↑</button>
+                    <button onclick="event.stopPropagation(); moveBlock('${page}', '${blockId}', 1)" style="width: 24px; height: 24px; border: none; background: #3b82f6; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">↓</button>
+                    <button onclick="event.stopPropagation(); duplicateBlock('${page}', '${blockId}')" style="width: 24px; height: 24px; border: none; background: #8b5cf6; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">📋</button>
+                    <button onclick="event.stopPropagation(); deleteBlock('${page}', '${blockId}')" style="width: 24px; height: 24px; border: none; background: #ef4444; color: white; border-radius: 4px; cursor: pointer; font-size: 12px;">🗑️</button>
+                </div>
+            `;
+            
+            let content = '';
+            
+            switch(blockType) {
+                case 'heading':
+                    content = `
+                        ${controls}
+                        <h2 contenteditable="true" style="font-size: 1.75rem; font-weight: 700; color: #1e293b; margin: 0; padding: 10px; outline: none;" onblur="updateBlockData('${page}')">Enter your heading</h2>
+                    `;
+                    break;
+                    
+                case 'text':
+                    content = `
+                        ${controls}
+                        <p contenteditable="true" style="color: #64748b; line-height: 1.7; margin: 0; padding: 10px; outline: none;" onblur="updateBlockData('${page}')">Click to edit this text. Add your content here - describe your property, share your story, or provide information for your guests.</p>
+                    `;
+                    break;
+                    
+                case 'image':
+                    content = `
+                        ${controls}
+                        <div class="image-block-content" style="padding: 10px;">
+                            <div class="image-placeholder" style="background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 40px; text-align: center; cursor: pointer;" onclick="triggerImageUpload('${blockId}')">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🖼️</div>
+                                <div style="color: #64748b;">Click to upload image</div>
+                            </div>
+                            <input type="file" id="image-input-${blockId}" accept="image/*" style="display: none;" onchange="handleImageUpload(event, '${page}', '${blockId}')">
+                            <img class="uploaded-image" style="display: none; max-width: 100%; border-radius: 8px;">
+                        </div>
+                    `;
+                    break;
+                    
+                case 'video':
+                    content = `
+                        ${controls}
+                        <div class="video-block-content" style="padding: 10px;">
+                            <div class="video-placeholder" style="background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center;">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🎬</div>
+                                <input type="text" class="form-input video-url-input" placeholder="Paste YouTube or Vimeo URL" style="max-width: 400px; margin: 0 auto;" onchange="loadVideo('${page}', '${blockId}', this.value)">
+                            </div>
+                            <div class="video-embed" style="display: none;"></div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'button':
+                    content = `
+                        ${controls}
+                        <div style="padding: 10px; text-align: center;">
+                            <a href="#" contenteditable="true" style="display: inline-block; background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%); color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: 600; outline: none;" onblur="updateBlockData('${page}')">Click to Edit Button</a>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'spacer':
+                    content = `
+                        ${controls}
+                        <div class="spacer-block" style="height: 40px; background: repeating-linear-gradient(45deg, #f1f5f9, #f1f5f9 10px, #e2e8f0 10px, #e2e8f0 20px); border-radius: 4px;"></div>
+                    `;
+                    break;
+                    
+                case 'columns-2':
+                    content = `
+                        ${controls}
+                        <div class="columns-container" style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; padding: 10px;">
+                            <div class="column-drop-zone" style="min-height: 100px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center;" ondragover="handleDragOver(event)" ondrop="handleColumnDrop(event, '${page}', '${blockId}', 0)">
+                                <span style="color: #94a3b8; font-size: 0.85rem;">Drop blocks here</span>
+                            </div>
+                            <div class="column-drop-zone" style="min-height: 100px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center;" ondragover="handleDragOver(event)" ondrop="handleColumnDrop(event, '${page}', '${blockId}', 1)">
+                                <span style="color: #94a3b8; font-size: 0.85rem;">Drop blocks here</span>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'columns-3':
+                    content = `
+                        ${controls}
+                        <div class="columns-container" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px; padding: 10px;">
+                            <div class="column-drop-zone" style="min-height: 100px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center;" ondragover="handleDragOver(event)" ondrop="handleColumnDrop(event, '${page}', '${blockId}', 0)">
+                                <span style="color: #94a3b8; font-size: 0.85rem;">Drop here</span>
+                            </div>
+                            <div class="column-drop-zone" style="min-height: 100px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center;" ondragover="handleDragOver(event)" ondrop="handleColumnDrop(event, '${page}', '${blockId}', 1)">
+                                <span style="color: #94a3b8; font-size: 0.85rem;">Drop here</span>
+                            </div>
+                            <div class="column-drop-zone" style="min-height: 100px; background: #f8fafc; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center;" ondragover="handleDragOver(event)" ondrop="handleColumnDrop(event, '${page}', '${blockId}', 2)">
+                                <span style="color: #94a3b8; font-size: 0.85rem;">Drop here</span>
+                            </div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'iframe':
+                    content = `
+                        ${controls}
+                        <div class="iframe-block-content" style="padding: 10px;">
+                            <div class="iframe-placeholder" style="background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center;">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">🌐</div>
+                                <input type="text" class="form-input iframe-url-input" placeholder="Enter iframe URL" style="max-width: 400px; margin: 0 auto 10px;" onchange="loadIframe('${page}', '${blockId}', this.value)">
+                            </div>
+                            <div class="iframe-embed" style="display: none;"></div>
+                        </div>
+                    `;
+                    break;
+                    
+                case 'map':
+                    content = `
+                        ${controls}
+                        <div class="map-block-content" style="padding: 10px;">
+                            <div class="map-placeholder" style="background: #f1f5f9; border: 2px dashed #cbd5e1; border-radius: 8px; padding: 20px; text-align: center;">
+                                <div style="font-size: 2rem; margin-bottom: 0.5rem;">📍</div>
+                                <input type="text" class="form-input map-address-input" placeholder="Enter address or Google Maps embed URL" style="max-width: 400px; margin: 0 auto 10px;" onchange="loadMap('${page}', '${blockId}', this.value)">
+                            </div>
+                            <div class="map-embed" style="display: none;"></div>
+                        </div>
+                    `;
+                    break;
+            }
+            
+            block.innerHTML = content;
+            canvas.appendChild(block);
+            
+            // Select the new block
+            selectBlock(page, blockId);
+            updateBlockData(page);
+        }
+        
+        function handleColumnDrop(event, page, parentBlockId, columnIndex) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            const blockType = event.dataTransfer.getData('blockType');
+            if (!blockType || blockType.startsWith('columns')) return; // Can't nest columns
+            
+            const column = event.target.closest('.column-drop-zone');
+            if (!column) return;
+            
+            // Clear placeholder text
+            const placeholder = column.querySelector('span');
+            if (placeholder) placeholder.remove();
+            column.style.border = 'none';
+            column.style.background = 'transparent';
+            
+            // Add block to column
+            addBlockToColumn(page, column, blockType);
+        }
+        
+        function addBlockToColumn(page, column, blockType) {
+            blockIdCounter++;
+            const blockId = `block-${page}-col-${blockIdCounter}`;
+            
+            const block = document.createElement('div');
+            block.className = 'column-block';
+            block.id = blockId;
+            block.dataset.type = blockType;
+            block.style.cssText = 'position: relative; margin-bottom: 10px;';
+            
+            const controls = `
+                <div class="block-controls" style="position: absolute; top: -8px; right: 5px; display: none; gap: 2px; z-index: 10;">
+                    <button onclick="event.stopPropagation(); deleteColumnBlock('${blockId}')" style="width: 20px; height: 20px; border: none; background: #ef4444; color: white; border-radius: 4px; cursor: pointer; font-size: 10px;">✕</button>
+                </div>
+            `;
+            
+            let content = '';
+            
+            switch(blockType) {
+                case 'heading':
+                    content = `${controls}<h3 contenteditable="true" style="font-size: 1.25rem; font-weight: 600; color: #1e293b; margin: 0; outline: none;">Heading</h3>`;
+                    break;
+                case 'text':
+                    content = `${controls}<p contenteditable="true" style="color: #64748b; line-height: 1.6; margin: 0; outline: none; font-size: 0.95rem;">Enter text here</p>`;
+                    break;
+                case 'image':
+                    content = `${controls}<div class="image-placeholder" style="background: #e2e8f0; border-radius: 6px; padding: 20px; text-align: center; cursor: pointer;" onclick="triggerImageUpload('${blockId}')"><span style="color: #94a3b8;">🖼️ Add image</span></div><input type="file" id="image-input-${blockId}" accept="image/*" style="display: none;" onchange="handleColumnImageUpload(event, '${blockId}')"><img class="uploaded-image" style="display: none; max-width: 100%; border-radius: 6px;">`;
+                    break;
+                case 'button':
+                    content = `${controls}<a href="#" contenteditable="true" style="display: inline-block; background: #7c3aed; color: white; padding: 8px 20px; border-radius: 6px; text-decoration: none; font-weight: 500; font-size: 0.9rem; outline: none;">Button</a>`;
+                    break;
+            }
+            
+            block.innerHTML = content;
+            block.onmouseenter = () => block.querySelector('.block-controls').style.display = 'flex';
+            block.onmouseleave = () => block.querySelector('.block-controls').style.display = 'none';
+            
+            column.appendChild(block);
+            updateBlockData(page);
+        }
+        
+        function selectBlock(page, blockId) {
+            // Deselect previous
+            document.querySelectorAll('.builder-canvas-block').forEach(b => {
+                b.style.borderColor = 'transparent';
+                const controls = b.querySelector('.block-controls');
+                if (controls) controls.style.display = 'none';
+            });
+            
+            // Select new
+            const block = document.getElementById(blockId);
+            if (block) {
+                block.style.borderColor = '#7c3aed';
+                const controls = block.querySelector('.block-controls');
+                if (controls) controls.style.display = 'flex';
+                selectedBlockId = blockId;
+                showBlockSettings(page, block);
+            }
+        }
+        
+        function showBlockSettings(page, block) {
+            const settingsPanel = document.getElementById(`block-settings-${page}`);
+            const settingsContent = document.getElementById(`block-settings-content-${page}`);
+            if (!settingsPanel || !settingsContent) return;
+            
+            const blockType = block.dataset.type;
+            let settingsHTML = '';
+            
+            // Common settings
+            settingsHTML += `
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label" style="font-size: 0.8rem;">Background Color</label>
+                    <input type="color" class="form-input" value="#ffffff" style="width: 100%; height: 36px; cursor: pointer;" onchange="updateBlockStyle('${block.id}', 'background', this.value)">
+                </div>
+                <div class="form-group" style="margin-bottom: 12px;">
+                    <label class="form-label" style="font-size: 0.8rem;">Padding</label>
+                    <select class="form-select" style="font-size: 0.85rem;" onchange="updateBlockStyle('${block.id}', 'padding', this.value)">
+                        <option value="10px">Small</option>
+                        <option value="20px" selected>Medium</option>
+                        <option value="40px">Large</option>
+                        <option value="60px">Extra Large</option>
+                    </select>
+                </div>
+            `;
+            
+            // Type-specific settings
+            if (blockType === 'heading' || blockType === 'text') {
+                settingsHTML += `
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label" style="font-size: 0.8rem;">Text Align</label>
+                        <select class="form-select" style="font-size: 0.85rem;" onchange="updateBlockStyle('${block.id}', 'textAlign', this.value, 'h2, p')">
+                            <option value="left">Left</option>
+                            <option value="center">Center</option>
+                            <option value="right">Right</option>
+                        </select>
+                    </div>
+                `;
+            }
+            
+            if (blockType === 'spacer') {
+                settingsHTML += `
+                    <div class="form-group" style="margin-bottom: 12px;">
+                        <label class="form-label" style="font-size: 0.8rem;">Height</label>
+                        <select class="form-select" style="font-size: 0.85rem;" onchange="updateBlockStyle('${block.id}', 'height', this.value, '.spacer-block')">
+                            <option value="20px">Small (20px)</option>
+                            <option value="40px" selected>Medium (40px)</option>
+                            <option value="60px">Large (60px)</option>
+                            <option value="100px">Extra Large (100px)</option>
+                        </select>
+                    </div>
+                `;
+            }
+            
+            settingsContent.innerHTML = settingsHTML;
+            settingsPanel.style.display = 'block';
+        }
+        
+        function updateBlockStyle(blockId, property, value, selector = null) {
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            if (selector) {
+                const target = block.querySelector(selector);
+                if (target) target.style[property] = value;
+            } else {
+                block.style[property] = value;
+            }
+        }
+        
+        function moveBlock(page, blockId, direction) {
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            const canvas = document.getElementById(`page-canvas-${page}`);
+            const blocks = Array.from(canvas.querySelectorAll('.builder-canvas-block'));
+            const index = blocks.indexOf(block);
+            const newIndex = index + direction;
+            
+            if (newIndex < 0 || newIndex >= blocks.length) return;
+            
+            if (direction === -1 && blocks[newIndex]) {
+                canvas.insertBefore(block, blocks[newIndex]);
+            } else if (direction === 1 && blocks[newIndex]) {
+                canvas.insertBefore(block, blocks[newIndex].nextSibling);
+            }
+            
+            updateBlockData(page);
+        }
+        
+        function duplicateBlock(page, blockId) {
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            const clone = block.cloneNode(true);
+            blockIdCounter++;
+            const newId = `block-${page}-${blockIdCounter}`;
+            clone.id = newId;
+            
+            // Update onclick handlers in clone
+            clone.onclick = (e) => { e.stopPropagation(); selectBlock(page, newId); };
+            
+            block.parentNode.insertBefore(clone, block.nextSibling);
+            selectBlock(page, newId);
+            updateBlockData(page);
+        }
+        
+        function deleteBlock(page, blockId) {
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            block.remove();
+            
+            // Show placeholder if canvas is empty
+            const canvas = document.getElementById(`page-canvas-${page}`);
+            if (!canvas.querySelector('.builder-canvas-block')) {
+                canvas.innerHTML = `
+                    <div class="canvas-placeholder" style="border: 2px dashed #cbd5e1; border-radius: 8px; padding: 60px 20px; text-align: center; color: #94a3b8;">
+                        <div style="font-size: 3rem; margin-bottom: 1rem;">📄</div>
+                        <div style="font-size: 1.1rem; font-weight: 500;">Drag blocks here to build your page</div>
+                        <div style="font-size: 0.9rem; margin-top: 0.5rem;">Or click a block on the right to add it</div>
+                    </div>
+                `;
+            }
+            
+            // Hide settings panel
+            const settingsPanel = document.getElementById(`block-settings-${page}`);
+            if (settingsPanel) settingsPanel.style.display = 'none';
+            
+            updateBlockData(page);
+        }
+        
+        function deleteColumnBlock(blockId) {
+            const block = document.getElementById(blockId);
+            if (block) block.remove();
+        }
+        
+        function triggerImageUpload(blockId) {
+            const input = document.getElementById(`image-input-${blockId}`);
+            if (input) input.click();
+        }
+        
+        async function handleImageUpload(event, page, blockId) {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            const placeholder = block.querySelector('.image-placeholder');
+            const img = block.querySelector('.uploaded-image');
+            
+            // Show loading
+            if (placeholder) {
+                placeholder.innerHTML = '<div style="color: #64748b;">Uploading...</div>';
+            }
+            
+            // Get account ID
+            let accountId = selectedAccountId;
+            if (!accountId && selectedDeployedSiteId && selectedWebsiteData) {
+                accountId = selectedWebsiteData.account_id;
+            }
+            
+            if (!accountId) {
+                if (placeholder) placeholder.innerHTML = '<div style="color: #ef4444;">No account selected</div>';
                 return;
             }
             
-            const html = editor.getHtml();
-            const css = editor.getCss();
+            const formData = new FormData();
+            formData.append('image', file);
+            formData.append('account_id', accountId);
+            formData.append('section', 'page-content');
             
-            // Store in hidden fields
-            document.getElementById(`wb-page-${page}-html`).value = html;
-            document.getElementById(`wb-page-${page}-css`).value = css;
+            try {
+                const response = await fetch('/api/admin/website-builder/upload-image', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                const data = await response.json();
+                
+                if (data.success && data.url) {
+                    if (placeholder) placeholder.style.display = 'none';
+                    if (img) {
+                        img.src = data.url;
+                        img.style.display = 'block';
+                    }
+                    updateBlockData(page);
+                } else {
+                    if (placeholder) placeholder.innerHTML = '<div style="color: #ef4444;">Upload failed</div>';
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                if (placeholder) placeholder.innerHTML = '<div style="color: #ef4444;">Upload error</div>';
+            }
+        }
+        
+        async function handleColumnImageUpload(event, blockId) {
+            const file = event.target.files[0];
+            if (!file) return;
             
-            // Save via API
+            const block = document.getElementById(blockId);
+            if (!block) return;
+            
+            const placeholder = block.querySelector('.image-placeholder');
+            const img = block.querySelector('.uploaded-image');
+            
+            // Preview immediately
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (placeholder) placeholder.style.display = 'none';
+                if (img) {
+                    img.src = e.target.result;
+                    img.style.display = 'block';
+                }
+            };
+            reader.readAsDataURL(file);
+        }
+        
+        function loadVideo(page, blockId, url) {
+            const block = document.getElementById(blockId);
+            if (!block || !url) return;
+            
+            const placeholder = block.querySelector('.video-placeholder');
+            const embedDiv = block.querySelector('.video-embed');
+            
+            let embedUrl = '';
+            
+            // YouTube
+            const ytMatch = url.match(/(?:youtube\.com\/watch\?v=|youtu\.be\/)([^&\s]+)/);
+            if (ytMatch) {
+                embedUrl = `https://www.youtube.com/embed/${ytMatch[1]}`;
+            }
+            
+            // Vimeo
+            const vimeoMatch = url.match(/vimeo\.com\/(\d+)/);
+            if (vimeoMatch) {
+                embedUrl = `https://player.vimeo.com/video/${vimeoMatch[1]}`;
+            }
+            
+            if (embedUrl) {
+                if (placeholder) placeholder.style.display = 'none';
+                if (embedDiv) {
+                    embedDiv.innerHTML = `<iframe src="${embedUrl}" style="width: 100%; height: 350px; border: none; border-radius: 8px;" allowfullscreen></iframe>`;
+                    embedDiv.style.display = 'block';
+                }
+                updateBlockData(page);
+            }
+        }
+        
+        function loadIframe(page, blockId, url) {
+            const block = document.getElementById(blockId);
+            if (!block || !url) return;
+            
+            const placeholder = block.querySelector('.iframe-placeholder');
+            const embedDiv = block.querySelector('.iframe-embed');
+            
+            if (placeholder) placeholder.style.display = 'none';
+            if (embedDiv) {
+                embedDiv.innerHTML = `<iframe src="${url}" style="width: 100%; height: 400px; border: 1px solid #e2e8f0; border-radius: 8px;"></iframe>`;
+                embedDiv.style.display = 'block';
+            }
+            updateBlockData(page);
+        }
+        
+        function loadMap(page, blockId, input) {
+            const block = document.getElementById(blockId);
+            if (!block || !input) return;
+            
+            const placeholder = block.querySelector('.map-placeholder');
+            const embedDiv = block.querySelector('.map-embed');
+            
+            let embedUrl = '';
+            
+            // If it's already a Google Maps embed URL
+            if (input.includes('google.com/maps/embed')) {
+                embedUrl = input;
+            } else {
+                // Convert address to embed URL
+                embedUrl = `https://maps.google.com/maps?q=${encodeURIComponent(input)}&output=embed`;
+            }
+            
+            if (placeholder) placeholder.style.display = 'none';
+            if (embedDiv) {
+                embedDiv.innerHTML = `<iframe src="${embedUrl}" style="width: 100%; height: 300px; border: none; border-radius: 8px;" allowfullscreen loading="lazy"></iframe>`;
+                embedDiv.style.display = 'block';
+            }
+            updateBlockData(page);
+        }
+        
+        function updateBlockData(page) {
+            // This would serialize all blocks to JSON for saving
+            const canvas = document.getElementById(`page-canvas-${page}`);
+            const dataField = document.getElementById(`wb-page-${page}-builder-data`);
+            if (!canvas || !dataField) return;
+            
+            const blocks = [];
+            canvas.querySelectorAll('.builder-canvas-block').forEach(block => {
+                blocks.push({
+                    id: block.id,
+                    type: block.dataset.type,
+                    html: block.innerHTML,
+                    style: block.getAttribute('style')
+                });
+            });
+            
+            dataField.value = JSON.stringify(blocks);
+        }
+        
+        function savePageBuilder(page) {
+            updateBlockData(page);
             saveWebsiteSection(`page-${page}`);
         }
         
-        function previewGrapesPage(page) {
-            const editor = grapesEditors[page];
-            if (!editor) return;
+        function previewPageBuilder(page) {
+            const canvas = document.getElementById(`page-canvas-${page}`);
+            if (!canvas) return;
             
-            const html = editor.getHtml();
-            const css = editor.getCss();
+            // Clone canvas and clean up controls
+            const clone = canvas.cloneNode(true);
+            clone.querySelectorAll('.block-controls').forEach(c => c.remove());
+            clone.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
             
             const previewWindow = window.open('', '_blank');
             previewWindow.document.write(`
@@ -16089,18 +16678,20 @@ Fresh pastries"></textarea>
                     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
                     <style>
                         * { margin: 0; padding: 0; box-sizing: border-box; }
-                        body { font-family: 'Inter', sans-serif; }
-                        ${css}
+                        body { font-family: 'Inter', sans-serif; padding: 40px 20px; background: #f8fafc; }
+                        .page-canvas { max-width: 800px; margin: 0 auto; background: white; padding: 40px; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.1); }
+                        .builder-canvas-block { border: none !important; }
+                        .canvas-placeholder { display: none; }
                     </style>
                 </head>
-                <body>${html}</body>
+                <body>${clone.outerHTML}</body>
                 </html>
             `);
             previewWindow.document.close();
         }
         
         // ============================================
-        // END GRAPESJS VISUAL PAGE BUILDER
+        // END CUSTOM PAGE BUILDER
         // ============================================
         
         // FAQ Schema Management Functions
