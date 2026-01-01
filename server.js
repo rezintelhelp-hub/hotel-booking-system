@@ -1,4 +1,4 @@
-// Force rebuild - Jan 1 2026 - Added gas_sync_images fallback to public unit API
+// Force rebuild - Dec 29 2025
 // GAS - Guest Accommodation System Server
 // Multi-tenant SaaS for property management
 require('dotenv').config();
@@ -1979,14 +1979,14 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
       return res.status(400).json({ success: false, error: 'propKey is required' });
     }
     
-    // Add columns if they don't exist
-    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key TEXT`);
-    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE`);
-    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
+    // Add prop_key column if it doesn't exist
+    await pool.query(`
+      ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key TEXT
+    `);
     
-    // Update the property with the prop key (reset prop_key_tested when key changes)
+    // Update the property with the prop key
     const result = await pool.query(`
-      UPDATE gas_sync_properties SET prop_key = $1, prop_key_tested = FALSE, updated_at = NOW() 
+      UPDATE gas_sync_properties SET prop_key = $1, updated_at = NOW() 
       WHERE id = $2 
       RETURNING id, external_id, name, prop_key
     `, [propKey, propertyId]);
@@ -1995,196 +1995,9 @@ app.post('/api/gas-sync/properties/:propertyId/set-prop-key', async (req, res) =
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     
-    res.json({ success: true, property: result.rows[0], external_id: result.rows[0].external_id });
+    res.json({ success: true, property: result.rows[0] });
   } catch (error) {
     res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Test webhook URL - verifies the webhook endpoint is reachable
-app.post('/api/gas-sync/test-webhook-url', async (req, res) => {
-  try {
-    const { syncPropertyId, externalPropertyId } = req.body;
-    
-    if (!syncPropertyId) {
-      return res.json({ success: false, error: 'syncPropertyId is required' });
-    }
-    
-    // For now, just verify the webhook endpoint exists and mark as tested
-    // In production, this could actually trigger a test from Beds24
-    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE`);
-    
-    await pool.query(`
-      UPDATE gas_sync_properties SET webhook_tested = TRUE, updated_at = NOW() WHERE id = $1
-    `, [syncPropertyId]);
-    
-    res.json({ 
-      success: true, 
-      message: 'Webhook URL verified. Make sure to configure this URL in Beds24 webhook settings.'
-    });
-    
-  } catch (error) {
-    console.error('Webhook URL test error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Test prop key - verifies GAS can fetch data from Beds24 V1 API
-app.post('/api/gas-sync/test-prop-key', async (req, res) => {
-  try {
-    const { syncPropertyId, externalPropertyId, propKey } = req.body;
-    
-    if (!syncPropertyId || !propKey) {
-      return res.json({ success: false, error: 'syncPropertyId and propKey are required' });
-    }
-    
-    // Get connection info for this property
-    const propResult = await pool.query(`
-      SELECT sp.*, c.credentials, c.adapter_code 
-      FROM gas_sync_properties sp
-      JOIN gas_sync_connections c ON sp.connection_id = c.id
-      WHERE sp.id = $1
-    `, [syncPropertyId]);
-    
-    if (propResult.rows.length === 0) {
-      return res.json({ success: false, error: 'Property not found' });
-    }
-    
-    const prop = propResult.rows[0];
-    let credentials = prop.credentials || {};
-    
-    // Parse credentials if it's a string
-    if (typeof credentials === 'string') {
-      try {
-        credentials = JSON.parse(credentials);
-      } catch (e) {
-        credentials = {};
-      }
-    }
-    
-    // Debug: log what we have
-    console.log('test-prop-key debug:', {
-      syncPropertyId,
-      connectionId: prop.connection_id,
-      credentialsType: typeof prop.credentials,
-      credentialsKeys: Object.keys(credentials),
-      hasV1ApiKey: !!credentials.v1ApiKey,
-      hasApiKey: !!credentials.apiKey,
-      credentials: credentials
-    });
-    
-    // For Beds24, test by fetching property data using the propKey
-    if (prop.adapter_code === 'beds24') {
-      // Check for V1 API key under different possible names
-      const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
-      
-      if (!v1ApiKey) {
-        return res.json({ success: false, error: 'V1 API key not configured for this connection. Add it in the connection settings.', debug: { credentialsKeys: Object.keys(credentials) } });
-      }
-      
-      // Test the V1 API with this propKey
-      try {
-        // Beds24 V1 API requires POST with JSON body
-        const testResponse = await axios.post('https://api.beds24.com/json/getProperty', {
-          authentication: {
-            apiKey: v1ApiKey,
-            propKey: propKey
-          }
-        }, {
-          headers: { 'Content-Type': 'application/json' },
-          timeout: 15000
-        });
-        
-        // Log what Beds24 returned
-        console.log('Beds24 getProperty response:', JSON.stringify(testResponse.data));
-        
-        // Beds24 V1 returns { getProperty: [ { propId: ..., name: ... } ] }
-        const propertyData = testResponse.data?.getProperty?.[0];
-        
-        // Check if we got valid property data back
-        if (propertyData && propertyData.propId) {
-          // Verify the propId matches
-          if (String(propertyData.propId) === String(externalPropertyId)) {
-            // Success! Mark as tested
-            await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
-            await pool.query(`
-              UPDATE gas_sync_properties SET prop_key_tested = TRUE, updated_at = NOW() WHERE id = $1
-            `, [syncPropertyId]);
-            
-            return res.json({ 
-              success: true, 
-              message: 'Prop Key validated successfully',
-              propertyName: propertyData.name || prop.name
-            });
-          } else {
-            return res.json({ 
-              success: false, 
-              error: `Property ID mismatch. Expected ${externalPropertyId}, got ${propertyData.propId}. Check your propKey.`
-            });
-          }
-        } else if (testResponse.data && testResponse.data.error) {
-          return res.json({ success: false, error: testResponse.data.error });
-        } else {
-          return res.json({ success: false, error: 'Invalid response from Beds24. Check your propKey.' });
-        }
-      } catch (apiError) {
-        console.error('Beds24 API test error:', apiError.message);
-        return res.json({ success: false, error: 'Failed to connect to Beds24: ' + apiError.message });
-      }
-    }
-    
-    // For other adapters, just mark as tested for now
-    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE`);
-    await pool.query(`
-      UPDATE gas_sync_properties SET prop_key_tested = TRUE, updated_at = NOW() WHERE id = $1
-    `, [syncPropertyId]);
-    
-    res.json({ success: true, message: 'Prop Key test passed' });
-    
-  } catch (error) {
-    console.error('Prop Key test error:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get property test status
-app.get('/api/gas-sync/property/:propertyId/status', async (req, res) => {
-  try {
-    const { propertyId } = req.params;
-    
-    const result = await pool.query(`
-      SELECT webhook_tested, prop_key_tested, prop_key, gas_property_id 
-      FROM gas_sync_properties WHERE id = $1
-    `, [propertyId]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'Property not found' });
-    }
-    
-    res.json({ 
-      success: true, 
-      webhook_tested: result.rows[0].webhook_tested || false,
-      prop_key_tested: result.rows[0].prop_key_tested || false,
-      has_prop_key: !!result.rows[0].prop_key,
-      imported: !!result.rows[0].gas_property_id
-    });
-  } catch (error) {
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Legacy endpoint - redirect to new test-prop-key
-app.post('/api/gas-sync/test-property-webhook', async (req, res) => {
-  // Redirect to the new prop key test endpoint
-  const { syncPropertyId, externalPropertyId, propKey } = req.body;
-  
-  try {
-    const response = await axios.post(`http://localhost:${process.env.PORT || 3001}/api/gas-sync/test-prop-key`, {
-      syncPropertyId, externalPropertyId, propKey
-    });
-    res.json(response.data);
-  } catch (error) {
-    res.json({ success: false, error: error.message });
   }
 });
 
@@ -2231,13 +2044,11 @@ app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) =
   try {
     const { id } = req.params;
     
-    // Add columns if not exists
+    // Add gas_property_id column if not exists
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
-    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE');
-    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE');
     
     const result = await pool.query(`
-      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id, p.webhook_tested, p.prop_key_tested,
+      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count,
              gp.name as gas_property_name,
@@ -2410,43 +2221,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
     if (!accountId) {
       return res.status(400).json({ success: false, error: 'accountId is required' });
     }
-    
-    // Get user_id for this account, or create one if none exists
-    // First ensure account_id column exists on users table
-    await pool.query('ALTER TABLE users ADD COLUMN IF NOT EXISTS account_id INTEGER').catch(() => {});
-    
-    let userResult = await pool.query('SELECT id FROM users WHERE account_id = $1 LIMIT 1', [accountId]);
-    let userId = userResult.rows[0]?.id;
-    
-    if (!userId) {
-      // Get account info to create user
-      const accountResult = await pool.query('SELECT name, email FROM accounts WHERE id = $1', [accountId]);
-      const account = accountResult.rows[0];
-      
-      if (account) {
-        // Create a user for this account with a random password hash
-        const bcrypt = require('bcryptjs');
-        const randomPassword = require('crypto').randomBytes(16).toString('hex');
-        const passwordHash = await bcrypt.hash(randomPassword, 10);
-        
-        // Split name into first and last
-        const nameParts = (account.name || 'Account Owner').split(' ');
-        const firstName = nameParts[0] || 'Account';
-        const lastName = nameParts.slice(1).join(' ') || 'Owner';
-        
-        const newUserResult = await pool.query(`
-          INSERT INTO users (account_id, email, first_name, last_name, password_hash, user_type, account_status, created_at)
-          VALUES ($1, $2, $3, $4, $5, 'property_owner', 'active', NOW())
-          RETURNING id
-        `, [accountId, account.email || `user${accountId}@gas.travel`, firstName, lastName, passwordHash]);
-        userId = newUserResult.rows[0].id;
-        console.log('link-to-gas: Created new user:', userId, 'for account:', accountId);
-      } else {
-        return res.status(400).json({ success: false, error: 'Account not found' });
-      }
-    }
-    
-    console.log('link-to-gas: Using userId:', userId, 'for accountId:', accountId);
     
     console.log('link-to-gas: Property found:', prop.name, 'adapter:', prop.adapter_code);
     
@@ -2673,11 +2447,10 @@ app.post('/api/gas-sync/properties/:syncPropertyId/link-to-gas', async (req, res
             property_type, check_in_time, check_out_time,
             contact_email, contact_phone, website, latitude, longitude,
             cm_source, status, created_at
-          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, 'active', NOW())
+          ) VALUES ($1, 1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'active', NOW())
           RETURNING id
         `, [
           accountId,
-          userId,
           String(prop.external_id),
           prop.name || 'Unnamed Property',
           rawData.address || '',
@@ -3230,158 +3003,6 @@ app.post('/api/gas-sync/connections/:id/fix-room-ids', async (req, res) => {
     
   } catch (error) {
     console.error('Fix room IDs error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Check for new/removed properties in channel manager
-app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    // Ensure archived column exists
-    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE`);
-    
-    // Get adapter for this connection
-    const adapter = await syncManager.getAdapterForConnection(id);
-    if (!adapter) {
-      return res.status(400).json({ success: false, error: 'Could not initialize adapter' });
-    }
-    
-    // Get properties from channel manager
-    const cmPropertiesResult = await adapter.getProperties();
-    if (!cmPropertiesResult.success) {
-      return res.status(400).json({ success: false, error: cmPropertiesResult.error || 'Failed to fetch properties from channel manager' });
-    }
-    
-    const cmProperties = cmPropertiesResult.data || [];
-    
-    // Get synced properties from our database
-    const syncedResult = await pool.query(`
-      SELECT id, external_id, name, city, country 
-      FROM gas_sync_properties 
-      WHERE connection_id = $1 AND (archived IS NULL OR archived = false)
-    `, [id]);
-    
-    const syncedProperties = syncedResult.rows;
-    
-    // Create lookup maps
-    const cmByExternalId = {};
-    cmProperties.forEach(p => { cmByExternalId[String(p.externalId)] = p; });
-    
-    const syncedByExternalId = {};
-    syncedProperties.forEach(p => { syncedByExternalId[String(p.external_id)] = p; });
-    
-    // Find differences
-    const newProperties = [];
-    const removedProperties = [];
-    let matchedCount = 0;
-    
-    // Check CM properties against synced
-    for (const cmProp of cmProperties) {
-      const externalId = String(cmProp.externalId);
-      if (syncedByExternalId[externalId]) {
-        matchedCount++;
-      } else {
-        newProperties.push({
-          externalId: cmProp.externalId,
-          name: cmProp.name,
-          city: cmProp.city,
-          country: cmProp.country
-        });
-      }
-    }
-    
-    // Check synced properties against CM
-    for (const syncedProp of syncedProperties) {
-      const externalId = String(syncedProp.external_id);
-      if (!cmByExternalId[externalId]) {
-        removedProperties.push({
-          id: syncedProp.id,
-          external_id: syncedProp.external_id,
-          name: syncedProp.name,
-          city: syncedProp.city,
-          country: syncedProp.country
-        });
-      }
-    }
-    
-    res.json({
-      success: true,
-      matchedCount,
-      newProperties,
-      removedProperties
-    });
-    
-  } catch (error) {
-    console.error('Check properties error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Sync a single new property from channel manager
-app.post('/api/gas-sync/connections/:id/sync-property', async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { externalId } = req.body;
-    
-    if (!externalId) {
-      return res.status(400).json({ success: false, error: 'externalId is required' });
-    }
-    
-    // Get adapter
-    const adapter = await syncManager.getAdapterForConnection(id);
-    if (!adapter) {
-      return res.status(400).json({ success: false, error: 'Could not initialize adapter' });
-    }
-    
-    // Get property details from CM
-    const propertiesResult = await adapter.getProperties();
-    if (!propertiesResult.success) {
-      return res.status(400).json({ success: false, error: 'Failed to fetch properties' });
-    }
-    
-    const property = propertiesResult.data.find(p => String(p.externalId) === String(externalId));
-    if (!property) {
-      return res.status(404).json({ success: false, error: 'Property not found in channel manager' });
-    }
-    
-    // Insert into gas_sync_properties
-    const result = await pool.query(`
-      INSERT INTO gas_sync_properties (connection_id, external_id, name, city, country, raw_data, created_at, updated_at)
-      VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-      ON CONFLICT (connection_id, external_id) DO UPDATE SET
-        name = EXCLUDED.name,
-        city = EXCLUDED.city,
-        country = EXCLUDED.country,
-        raw_data = EXCLUDED.raw_data,
-        updated_at = NOW()
-      RETURNING id
-    `, [id, externalId, property.name, property.city, property.country, JSON.stringify(property)]);
-    
-    res.json({ success: true, message: 'Property synced', propertyId: result.rows[0].id });
-    
-  } catch (error) {
-    console.error('Sync property error:', error);
-    res.status(500).json({ success: false, error: error.message });
-  }
-});
-
-// Archive a synced property
-app.post('/api/gas-sync/properties/:id/archive', async (req, res) => {
-  try {
-    const { id } = req.params;
-    
-    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE`);
-    
-    await pool.query(`
-      UPDATE gas_sync_properties SET archived = true, updated_at = NOW() WHERE id = $1
-    `, [id]);
-    
-    res.json({ success: true, message: 'Property archived' });
-    
-  } catch (error) {
-    console.error('Archive property error:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
@@ -4376,9 +3997,9 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
   try {
     const { propertyId } = req.params;
     
-    // Get sync property info including prop_key
+    // Get sync property info
     const propResult = await pool.query(`
-      SELECT sp.*, c.adapter_code, c.id as connection_id
+      SELECT sp.*, c.credentials, c.channel_manager
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.id = $1
@@ -4389,54 +4010,25 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     }
     
     const prop = propResult.rows[0];
+    const credentials = prop.credentials;
     
-    // Use the adapter (same as sync uses) - handles token refresh properly
-    const adapter = await syncManager.getAdapterForConnection(prop.connection_id);
-    
-    if (!adapter) {
-      return res.status(400).json({ success: false, error: 'Could not initialize adapter for this connection' });
+    if (!credentials?.refreshToken) {
+      return res.status(400).json({ success: false, error: 'No API credentials for this connection' });
     }
     
-    let beds24Rooms = [];
+    // Get access token
+    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+      refreshToken: credentials.refreshToken
+    });
+    const accessToken = tokenResponse.data.token;
     
-    // Try V2 first (doesn't need propKey)
-    try {
-      const v2Response = await adapter.v2Request('/inventory/rooms', { propertyId: prop.external_id });
-      if (v2Response.success && v2Response.data && v2Response.data.length > 0) {
-        beds24Rooms = v2Response.data.map(r => ({
-          externalId: String(r.id),
-          name: r.name,
-          maxGuests: r.maxPeople || 2,
-          quantity: r.qty || 1
-        }));
-        console.log(`check-room-changes: V2 returned ${beds24Rooms.length} rooms for property ${prop.external_id}`);
-      }
-    } catch (v2Error) {
-      console.log('check-room-changes: V2 failed, trying V1:', v2Error.message);
-    }
+    // Fetch rooms from Beds24
+    const roomsResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms', {
+      headers: { token: accessToken },
+      params: { propertyId: prop.external_id }
+    });
     
-    // Fall back to V1 if V2 didn't return rooms and we have propKey
-    if (beds24Rooms.length === 0 && prop.prop_key) {
-      adapter.propKey = prop.prop_key;
-      const roomsResult = await adapter.getRoomTypes(prop.external_id);
-      if (roomsResult.success && roomsResult.data) {
-        beds24Rooms = roomsResult.data;
-        console.log(`check-room-changes: V1 returned ${beds24Rooms.length} rooms for property ${prop.external_id}`);
-      }
-    }
-    
-    if (beds24Rooms.length === 0) {
-      return res.json({
-        success: true,
-        property: prop.name,
-        summary: { matched: 0, new: 0, removed: 0, nameChanges: 0 },
-        matched: [],
-        newRooms: [],
-        removedRooms: [],
-        nameChanges: [],
-        warning: 'No rooms found in Beds24. Check your connection or add a propKey for detailed room data.'
-      });
-    }
+    const beds24Rooms = roomsResponse.data.data || [];
     
     // Get GAS rooms for this property
     const gasRoomsResult = await pool.query(`
@@ -4450,7 +4042,7 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     
     // Build comparison
     const beds24ByExternalId = {};
-    beds24Rooms.forEach(r => { beds24ByExternalId[String(r.externalId)] = r; });
+    beds24Rooms.forEach(r => { beds24ByExternalId[String(r.id)] = r; });
     
     const gasByExternalId = {};
     gasRooms.forEach(r => { gasByExternalId[String(r.external_id)] = r; });
@@ -4462,7 +4054,7 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     
     // Check Beds24 rooms against GAS
     for (const b24Room of beds24Rooms) {
-      const externalId = String(b24Room.externalId);
+      const externalId = String(b24Room.id);
       const gasRoom = gasByExternalId[externalId];
       
       if (gasRoom) {
@@ -4488,8 +4080,8 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
         newRooms.push({
           external_id: externalId,
           name: b24Room.name,
-          max_guests: b24Room.maxGuests || 2,
-          quantity: b24Room.quantity || 1
+          max_guests: b24Room.maxPeople || 2,
+          quantity: b24Room.qty || 1
         });
       }
     }
@@ -25871,14 +25463,14 @@ app.get('/api/public/property/:propertyId', async (req, res) => {
     
     const units = await pool.query(`
       SELECT id, name, unit_type, max_guests, description, short_description, base_price
-      FROM bookable_units WHERE property_id = $1 AND status IN ('active', 'available')
+      FROM bookable_units WHERE property_id = $1 AND status = 'active'
       ORDER BY name
     `, [propertyId]);
     
     const images = await pool.query(`
-      SELECT id, image_url as url, alt_text, is_primary
+      SELECT id, url, alt_text, is_primary
       FROM property_images WHERE property_id = $1
-      ORDER BY display_order, is_primary DESC
+      ORDER BY sort_order, is_primary DESC
     `, [propertyId]);
     
     res.json({
@@ -25912,7 +25504,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       return res.json({ success: false, error: 'Unit not found' });
     }
     
-    // Try room_images first, fallback to bookable_unit_images, then gas_sync_images
+    // Try room_images first, fallback to bookable_unit_images
     let images = await pool.query(`
       SELECT id, image_url as url, alt_text
       FROM room_images WHERE room_id = $1
@@ -25928,63 +25520,6 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
       } catch (e) {
         // Table doesn't exist, that's fine
         images = { rows: [] };
-      }
-    }
-    
-    // If still no images, check gas_sync_images (for synced rooms that weren't fully imported)
-    if (images.rows.length === 0) {
-      try {
-        // Get the room's cm_room_id and property_id to find matching sync images
-        const roomLookup = await pool.query(
-          'SELECT cm_room_id, beds24_room_id, property_id, name FROM bookable_units WHERE id = $1',
-          [unitId]
-        );
-        
-        if (roomLookup.rows.length > 0) {
-          const { cm_room_id, beds24_room_id, property_id, name: roomName } = roomLookup.rows[0];
-          const externalId = cm_room_id || beds24_room_id;
-          
-          if (externalId) {
-            // Try to find images by room_type_external_id
-            const syncResult = await pool.query(`
-              SELECT 
-                gsi.id,
-                gsi.original_url as url,
-                gsi.caption as alt_text
-              FROM gas_sync_images gsi
-              WHERE gsi.room_type_external_id = $1
-              ORDER BY gsi.sort_order, gsi.id
-            `, [String(externalId)]);
-            
-            if (syncResult.rows.length > 0) {
-              images = syncResult;
-            }
-          }
-          
-          // If still nothing, try matching by room name through gas_sync_room_types
-          if (images.rows.length === 0 && property_id) {
-            const syncByNameResult = await pool.query(`
-              SELECT 
-                gsi.id,
-                gsi.original_url as url,
-                gsi.caption as alt_text
-              FROM gas_sync_images gsi
-              JOIN gas_sync_room_types gsrt ON gsi.room_type_external_id = gsrt.external_id 
-                AND gsi.connection_id = gsrt.connection_id
-              JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
-              WHERE gsp.gas_property_id = $1 
-                AND gsrt.name = $2
-              ORDER BY gsi.sort_order, gsi.id
-            `, [property_id, roomName]);
-            
-            if (syncByNameResult.rows.length > 0) {
-              images = syncByNameResult;
-            }
-          }
-        }
-      } catch (syncError) {
-        console.log('gas_sync_images fallback error:', syncError.message);
-        // Continue with empty images
       }
     }
     
@@ -27257,7 +26792,6 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
         bu.num_bedrooms,
         bu.num_bathrooms,
         bu.beds24_room_id,
-        bu.cm_room_id,
         p.latitude,
         p.longitude,
         p.id as property_id,
@@ -27307,50 +26841,10 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     const result = await pool.query(query, params);
     
     // Use today's rate if available, otherwise fall back to base_price
-    let rooms = result.rows.map(room => ({
+    const rooms = result.rows.map(room => ({
       ...room,
       price: room.todays_rate || room.base_price || 0
     }));
-    
-    // For rooms without images, try to get from gas_sync_images
-    for (let i = 0; i < rooms.length; i++) {
-      if (!rooms[i].image_url) {
-        try {
-          const externalId = rooms[i].cm_room_id || rooms[i].beds24_room_id;
-          if (externalId) {
-            // Try by external ID first
-            const syncImg = await pool.query(`
-              SELECT original_url FROM gas_sync_images 
-              WHERE room_type_external_id = $1 
-              ORDER BY sort_order LIMIT 1
-            `, [String(externalId)]);
-            
-            if (syncImg.rows.length > 0) {
-              rooms[i].image_url = syncImg.rows[0].original_url;
-            }
-          }
-          
-          // If still no image, try by room name
-          if (!rooms[i].image_url && rooms[i].property_id && rooms[i].name) {
-            const syncByName = await pool.query(`
-              SELECT gsi.original_url
-              FROM gas_sync_images gsi
-              JOIN gas_sync_room_types gsrt ON gsi.room_type_external_id = gsrt.external_id 
-                AND gsi.connection_id = gsrt.connection_id
-              JOIN gas_sync_properties gsp ON gsrt.sync_property_id = gsp.id
-              WHERE gsp.gas_property_id = $1 AND gsrt.name = $2
-              ORDER BY gsi.sort_order LIMIT 1
-            `, [rooms[i].property_id, rooms[i].name]);
-            
-            if (syncByName.rows.length > 0) {
-              rooms[i].image_url = syncByName.rows[0].original_url;
-            }
-          }
-        } catch (imgErr) {
-          console.log('gas_sync_images fallback error for room', rooms[i].id, ':', imgErr.message);
-        }
-      }
-    }
     
     // Get max guests across all rooms
     const maxGuestsResult = await pool.query(`
@@ -34602,13 +34096,9 @@ app.get('/api/gas-sync/connections/:id/properties', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Ensure columns exist
-    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE');
-    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE');
-    
     const result = await pool.query(`
       SELECT p.id, p.external_id, p.name, p.city, p.country, p.currency,
-             p.is_active, p.synced_at, p.gas_property_id, p.prop_key, p.webhook_tested, p.prop_key_tested,
+             p.is_active, p.synced_at, p.gas_property_id, p.prop_key,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_type_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count
       FROM gas_sync_properties p
