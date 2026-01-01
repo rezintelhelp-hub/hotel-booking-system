@@ -23307,10 +23307,19 @@ app.delete('/api/admin/rooms/images/:imageId', async (req, res) => {
   try {
     const { imageId } = req.params;
     
-    const image = await client.query(
-      'SELECT * FROM room_images WHERE id = $1',
+    // Try room_images first
+    let image = await client.query(
+      'SELECT *, \'room_images\' as source_table FROM room_images WHERE id = $1',
       [imageId]
     );
+    
+    // If not found, try gas_sync_images
+    if (image.rows.length === 0) {
+      image = await client.query(
+        'SELECT *, \'gas_sync_images\' as source_table FROM gas_sync_images WHERE id = $1',
+        [imageId]
+      );
+    }
     
     if (image.rows.length === 0) {
       return res.json({ success: false, error: 'Image not found' });
@@ -23318,9 +23327,14 @@ app.delete('/api/admin/rooms/images/:imageId', async (req, res) => {
     
     await client.query('BEGIN');
     
-    await deleteImageFromR2(image.rows[0].image_key);
+    const sourceTable = image.rows[0].source_table;
     
-    await client.query('DELETE FROM room_images WHERE id = $1', [imageId]);
+    // Only try R2 delete for room_images (sync images are external URLs)
+    if (sourceTable === 'room_images' && image.rows[0].image_key) {
+      await deleteImageFromR2(image.rows[0].image_key);
+    }
+    
+    await client.query(`DELETE FROM ${sourceTable} WHERE id = $1`, [imageId]);
     
     await client.query('COMMIT');
     
