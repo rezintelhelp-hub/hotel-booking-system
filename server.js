@@ -4226,7 +4226,7 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     
     // Get sync property info
     const propResult = await pool.query(`
-      SELECT sp.*, c.credentials, c.channel_manager
+      SELECT sp.*, c.credentials, c.adapter_code
       FROM gas_sync_properties sp
       JOIN gas_sync_connections c ON sp.connection_id = c.id
       WHERE sp.id = $1
