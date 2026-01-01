@@ -4224,7 +4224,7 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
   try {
     const { propertyId } = req.params;
     
-    // Get sync property info
+    // Get sync property info including prop_key
     const propResult = await pool.query(`
       SELECT sp.*, c.adapter_code, c.id as connection_id
       FROM gas_sync_properties sp
@@ -4243,6 +4243,11 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     
     if (!adapter) {
       return res.status(400).json({ success: false, error: 'Could not initialize adapter for this connection' });
+    }
+    
+    // Set property-specific propKey for V1 API calls
+    if (prop.prop_key) {
+      adapter.propKey = prop.prop_key;
     }
     
     // Get rooms from Beds24 using the adapter
