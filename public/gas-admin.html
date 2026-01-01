@@ -15411,7 +15411,16 @@ Local honey and preserves"></textarea>
             
             // GasSync views
             if (viewName === 'gas-sync-dashboard') loadGasSyncDashboard();
-            if (viewName === 'gas-sync-connections') loadGasSyncConnections();
+            if (viewName === 'gas-sync-connections') {
+                loadGasSyncConnections().then(() => {
+                    // Check if we should auto-open a connection modal (from wizard redirect)
+                    const openConnectionId = sessionStorage.getItem('openConnectionId');
+                    if (openConnectionId) {
+                        sessionStorage.removeItem('openConnectionId');
+                        showConnectionDetails(parseInt(openConnectionId));
+                    }
+                });
+            }
             if (viewName === 'gas-sync-properties') { loadGasSyncConnections().then(() => loadSyncedProperties()); }
             if (viewName === 'gas-sync-logs') { loadGasSyncConnections().then(() => loadSyncLogs()); }
             if (viewName === 'sync-review') { window.location.href = '/sync-review'; return; }
@@ -35836,7 +35845,7 @@ Local honey and preserves"></textarea>
                             </div>
                             
                             <div class="connection-actions">
-                                <button class="btn btn-secondary btn-sm" onclick="triggerSync(${conn.id})">🔄 Sync</button>
+                                <button class="btn btn-secondary btn-sm" onclick="showConnectionOverview(${conn.id})">🔄 Sync</button>
                                 <button class="btn btn-secondary btn-sm" onclick="showConnectionDetails(${conn.id})">⚙️ Details</button>
                                 <button class="btn btn-danger btn-sm" onclick="deleteConnection(${conn.id})" style="color: white;">🗑️ Delete</button>
                             </div>
@@ -36031,6 +36040,12 @@ Local honey and preserves"></textarea>
         }
 
         // Connection Details Modal
+        async function showConnectionOverview(connectionId) {
+            selectedConnectionId = connectionId;
+            document.getElementById('connectionDetailsModal').style.display = 'flex';
+            showConnectionTab('overview');
+        }
+
         async function showConnectionDetails(connectionId) {
             selectedConnectionId = connectionId;
             document.getElementById('connectionDetailsModal').style.display = 'flex';
@@ -36140,6 +36155,7 @@ Local honey and preserves"></textarea>
                             ${isBeds24 ? '<th>Prop Key</th>' : ''}
                             <th>Rooms</th>
                             <th>Import</th>
+                            <th>Actions</th>
                         </tr></thead><tbody>
                         ${data.properties.map(p => {
                             let statusLight = '🟢';
@@ -36204,6 +36220,12 @@ Local honey and preserves"></textarea>
                                         '<span style="color: #22c55e;">✅ Imported</span>' : 
                                         `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : (!p.prop_key ? 'Enter Key' : (!webhookTested && !propKeyTested ? 'Run Tests' : (!webhookTested ? 'Test Webhook' : 'Test Key')))}</button>`
                                     }
+                                </td>
+                                <td>
+                                    <div style="display: flex; gap: 4px;">
+                                        <button onclick="checkRoomChanges(${p.id}, '${p.name.replace(/'/g, "\\'")}')" class="btn btn-sm btn-secondary" title="Check Rooms">🔄</button>
+                                        ${isBeds24 && p.prop_key ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="Download Images">📷</button>` : ''}
+                                    </div>
                                 </td>
                             </tr>`;
                         }).join('')}

@@ -823,7 +823,11 @@
                 showStep(currentStep);
                 updateFinalCounts();
             } else if (currentStep === 5) {
-                window.location.href = '/gas-admin.html#gas-sync';
+                // Store connection ID in sessionStorage for gas-admin to pick up
+                if (wizardData.connectionId) {
+                    sessionStorage.setItem('openConnectionId', wizardData.connectionId);
+                }
+                window.location.href = '/gas-admin.html#gas-sync-connections';
             }
         }
         
