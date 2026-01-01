@@ -2263,8 +2263,6 @@ app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res
     res.json({ success: false, error: error.message });
   }
 });
-  }
-});
 
 // Set V1 API key for a connection (for Fixed Prices fallback)
 app.post('/api/gas-sync/connections/:id/set-v1-api-key', async (req, res) => {
