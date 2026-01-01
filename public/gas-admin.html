@@ -28733,7 +28733,7 @@ Local honey and preserves"></textarea>
                     if (currentAccount && currentAccount.role === 'master_admin') {
                         accountSection.style.display = 'block';
                         // Load accounts into dropdown
-                        const accountsRes = await fetch('/api/accounts', { headers: authHeaders() });
+                        const accountsRes = await fetch('/api/admin/accounts', { headers: authHeaders() });
                         const accountsData = await accountsRes.json();
                         const accountSelect = document.getElementById('edit-property-account-id');
                         if (accountsData.success && accountsData.accounts) {
