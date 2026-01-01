@@ -3239,6 +3239,9 @@ app.post('/api/gas-sync/connections/:id/check-properties', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Ensure archived column exists
+    await pool.query(`ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS archived BOOLEAN DEFAULT FALSE`);
+    
     // Get adapter for this connection
     const adapter = await syncManager.getAdapterForConnection(id);
     if (!adapter) {
