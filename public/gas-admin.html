@@ -15524,19 +15524,52 @@ Local honey and preserves"></textarea>
                 // Apply saved settings if we got any
                 if (data && data.success && data.settings) {
                     console.log(`Applying saved ${section} settings from source: ${data.source}`);
+                    
+                    // Map sections to their cloned editor panel IDs
+                    const clonedPanelMap = {
+                        'header': 'editor-header-content',
+                        'hero': 'editor-hero-content',
+                        'intro': 'editor-intro-content',
+                        'featured': 'editor-featured-content',
+                        'about': 'editor-about-content',
+                        'reviews': 'editor-reviews-content',
+                        'cta': 'editor-cta-content'
+                    };
+                    
+                    const clonedPanelId = clonedPanelMap[section];
+                    const clonedPanel = clonedPanelId ? document.getElementById(clonedPanelId) : null;
+                    
                     Object.keys(data.settings).forEach(key => {
-                        const el = getEl(`wb-${section}-${key}`);
-                        const pickerEl = getEl(`wb-${section}-${key}-picker`);
+                        const elId = `wb-${section}-${key}`;
+                        const pickerId = `wb-${section}-${key}-picker`;
+                        
+                        // Update original element
+                        const el = getEl(elId);
+                        const pickerEl = getEl(pickerId);
                         if (el) {
                             if (el.type === 'checkbox') {
-                                // Handle boolean values properly
                                 el.checked = data.settings[key] === true || data.settings[key] === 'true' || data.settings[key] === '1' || data.settings[key] === 1;
                             } else {
                                 el.value = data.settings[key] ?? '';
                             }
-                            // Always sync color picker if it exists
                             if (pickerEl && data.settings[key]) {
                                 pickerEl.value = data.settings[key];
+                            }
+                        }
+                        
+                        // Also update cloned panel element if it exists
+                        if (clonedPanel) {
+                            const clonedEl = clonedPanel.querySelector(`#${elId}`);
+                            const clonedPickerEl = clonedPanel.querySelector(`#${pickerId}`);
+                            if (clonedEl) {
+                                if (clonedEl.type === 'checkbox') {
+                                    clonedEl.checked = data.settings[key] === true || data.settings[key] === 'true' || data.settings[key] === '1' || data.settings[key] === 1;
+                                } else {
+                                    clonedEl.value = data.settings[key] ?? '';
+                                }
+                            }
+                            if (clonedPickerEl && data.settings[key]) {
+                                clonedPickerEl.value = data.settings[key];
                             }
                         }
                     });
