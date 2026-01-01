@@ -4237,20 +4237,41 @@ app.post('/api/gas-sync/properties/:propertyId/check-room-changes', async (req, 
     }
     
     const prop = propResult.rows[0];
-    const credentials = typeof prop.credentials === 'string' ? JSON.parse(prop.credentials) : (prop.credentials || {});
+    
+    // Parse credentials safely
+    let credentials = {};
+    try {
+      credentials = typeof prop.credentials === 'string' ? JSON.parse(prop.credentials) : (prop.credentials || {});
+    } catch (e) {
+      console.log('check-room-changes: Failed to parse credentials:', e.message);
+    }
     
     // Get refresh token from either credentials JSON or dedicated column
     const refreshToken = credentials?.refreshToken || prop.refresh_token;
+    
+    console.log('check-room-changes debug:', {
+      propertyId,
+      hasCredentials: !!prop.credentials,
+      hasRefreshTokenInCreds: !!credentials?.refreshToken,
+      hasRefreshTokenColumn: !!prop.refresh_token,
+      refreshTokenFound: !!refreshToken
+    });
     
     if (!refreshToken) {
       return res.status(400).json({ success: false, error: 'No API credentials for this connection. Please reconnect via the wizard.' });
     }
     
     // Get access token
-    const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-      refreshToken: refreshToken
-    });
-    const accessToken = tokenResponse.data.token;
+    let accessToken;
+    try {
+      const tokenResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+        refreshToken: refreshToken
+      });
+      accessToken = tokenResponse.data.token;
+    } catch (tokenError) {
+      console.error('check-room-changes: Token refresh failed:', tokenError.message);
+      return res.status(400).json({ success: false, error: 'Failed to refresh API token. Please reconnect via the wizard.' });
+    }
     
     // Fetch rooms from Beds24
     const roomsResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms', {
