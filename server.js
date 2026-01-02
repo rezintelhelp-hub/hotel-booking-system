@@ -27217,10 +27217,44 @@ app.get('/api/public/client/:clientId/rooms', async (req, res) => {
     
     const result = await pool.query(query, params);
     
+    // Get room IDs for amenities lookup
+    const roomIds = result.rows.map(r => r.id);
+    
+    // Fetch amenities for all rooms in one query
+    let amenitiesByRoom = {};
+    if (roomIds.length > 0) {
+      const amenitiesResult = await pool.query(`
+        SELECT 
+          bua.bookable_unit_id as room_id,
+          ma.amenity_code as code,
+          ma.amenity_name->>'en' as name,
+          ma.icon,
+          ma.category
+        FROM bookable_unit_amenities bua
+        JOIN master_amenities ma ON bua.amenity_id = ma.id
+        WHERE bua.bookable_unit_id = ANY($1::int[])
+        ORDER BY bua.display_order
+      `, [roomIds]);
+      
+      // Group amenities by room
+      amenitiesResult.rows.forEach(a => {
+        if (!amenitiesByRoom[a.room_id]) {
+          amenitiesByRoom[a.room_id] = [];
+        }
+        amenitiesByRoom[a.room_id].push({
+          code: a.code,
+          name: a.name,
+          icon: a.icon,
+          category: a.category
+        });
+      });
+    }
+    
     // Use today's rate if available, otherwise fall back to base_price
     const rooms = result.rows.map(room => ({
       ...room,
-      price: room.todays_rate || room.base_price || 0
+      price: room.todays_rate || room.base_price || 0,
+      amenities: amenitiesByRoom[room.id] || []
     }));
     
     // Get max guests across all rooms
