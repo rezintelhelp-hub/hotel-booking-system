@@ -17598,6 +17598,15 @@ Local honey and preserves"></textarea>
             selectedAccountId = accountId;
             selectedAccountName = account.name;
             
+            // SYNC with client selector system for blog/attractions filtering
+            if (account.public_id) {
+                currentClientPublicId = account.public_id;
+                clientIdMap[account.public_id] = account.id;
+                // Update the dropdown if visible
+                const selector = document.getElementById('globalClientSelector');
+                if (selector) selector.value = account.public_id;
+            }
+            
             // Show banner
             const banner = document.getElementById('agencyFilterBanner');
             const nameEl = document.getElementById('agencyFilterName');
@@ -17812,6 +17821,15 @@ Local honey and preserves"></textarea>
             selectedAccountId = accountId;
             selectedAccountName = accountName;
             
+            // SYNC with client selector system for blog/attractions filtering
+            const account = allAccounts.find(a => a.id === accountId);
+            if (account && account.public_id) {
+                currentClientPublicId = account.public_id;
+                clientIdMap[account.public_id] = account.id;
+                const selector = document.getElementById('globalClientSelector');
+                if (selector) selector.value = account.public_id;
+            }
+            
             // Show banner
             const banner = document.getElementById('agencyFilterBanner');
             const nameEl = document.getElementById('agencyFilterName');
@@ -17847,6 +17865,16 @@ Local honey and preserves"></textarea>
             
             selectedAccountId = null;
             selectedAccountName = null;
+            
+            // SYNC with client selector system
+            currentClientPublicId = null;
+            const selector = document.getElementById('globalClientSelector');
+            if (selector) selector.value = '';
+            
+            // Clear URL parameter
+            const url = new URL(window.location);
+            url.searchParams.delete('client');
+            window.history.pushState({}, '', url);
             
             // Also clear old agency filter
             selectedAgencyId = null;
