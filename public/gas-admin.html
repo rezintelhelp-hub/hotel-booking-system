@@ -15130,24 +15130,35 @@ Local honey and preserves"></textarea>
         // Load clients into the selector dropdown
         async function loadClientSelector() {
             try {
-                const [clientsRes, agenciesRes] = await Promise.all([
-                    fetch('/api/admin/clients'),
+                const [accountsRes, agenciesRes] = await Promise.all([
+                    fetch('/api/admin/accounts'),
                     fetch('/api/admin/agencies')
                 ]);
-                const clientsData = await clientsRes.json();
+                const accountsData = await accountsRes.json();
                 const agenciesData = await agenciesRes.json();
                 
                 const selector = document.getElementById('globalClientSelector');
                 if (!selector) return;
                 
-                selector.innerHTML = '<option value="">🌐 All Clients (Admin View)</option>';
+                // Check if current user is master_admin
+                const isMaster = currentAccount && currentAccount.role === 'master_admin';
+                
+                selector.innerHTML = '';
                 clientIdMap = {}; // Reset map
                 
-                const agencies = agenciesData.agencies || [];
-                const clients = clientsData.clients || [];
+                // Only show "All Clients" option for master admins
+                if (isMaster) {
+                    selector.innerHTML = '<option value="">🌐 All Clients (Admin View)</option>';
+                }
                 
-                // Add agencies first
-                if (agencies.length > 0) {
+                const agencies = agenciesData.agencies || [];
+                const accounts = accountsData.accounts || [];
+                
+                // Filter out master_admin accounts - they shouldn't appear in the selector
+                const clientAccounts = accounts.filter(a => a.role !== 'master_admin');
+                
+                // Add agencies first (only for master admins)
+                if (isMaster && agencies.length > 0) {
                     const agencyGroup = document.createElement('optgroup');
                     agencyGroup.label = '🏢 Agencies';
                     agencies.forEach(agency => {
@@ -15159,27 +15170,39 @@ Local honey and preserves"></textarea>
                     selector.appendChild(agencyGroup);
                 }
                 
-                // Add direct clients (API already filters out agencies)
-                if (clients.length > 0) {
+                // Add client accounts
+                if (clientAccounts.length > 0) {
                     const clientGroup = document.createElement('optgroup');
-                    clientGroup.label = '👤 Direct Clients';
-                    clients.forEach(client => {
+                    clientGroup.label = '👤 Accounts';
+                    clientAccounts.forEach(account => {
                         const option = document.createElement('option');
-                        const publicId = client.public_id || client.id;
+                        const publicId = account.public_id || account.id;
                         option.value = publicId;
-                        option.textContent = client.business_name || client.name || 'Client';
+                        option.textContent = account.business_name || account.name || 'Account';
                         clientGroup.appendChild(option);
-                        clientIdMap[publicId] = client.id;
+                        clientIdMap[publicId] = account.id;
                     });
                     selector.appendChild(clientGroup);
                 }
                 
-                // Check URL for client parameter and select it
-                const urlParams = new URLSearchParams(window.location.search);
-                const urlClientId = urlParams.get('client');
-                if (urlClientId && clientIdMap[urlClientId]) {
-                    selector.value = urlClientId;
-                    switchClient(urlClientId, false);
+                // For non-master users, auto-select their own account and hide selector
+                if (!isMaster && currentAccount) {
+                    const ownPublicId = currentAccount.public_id;
+                    if (ownPublicId) {
+                        selector.value = ownPublicId;
+                        switchClient(ownPublicId, false);
+                        // Hide the selector for non-master users - they can only see their own data
+                        selector.style.display = 'none';
+                    }
+                } else {
+                    selector.style.display = '';
+                    // Check URL for client parameter and select it
+                    const urlParams = new URLSearchParams(window.location.search);
+                    const urlClientId = urlParams.get('client');
+                    if (urlClientId && clientIdMap[urlClientId]) {
+                        selector.value = urlClientId;
+                        switchClient(urlClientId, false);
+                    }
                 }
             } catch (error) {
                 console.error('Error loading clients:', error);
