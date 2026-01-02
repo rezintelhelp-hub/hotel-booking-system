@@ -2308,6 +2308,89 @@
                     <div id="amenities-tab-bathrooms" class="amenity-tab-panel" style="display: none;">
                         <div class="card">
                             <div class="card-header">
+                                <h3>🚿 Bathroom Configuration</h3>
+                            </div>
+                            <div class="card-body">
+                                <p style="color: var(--text-secondary); margin-bottom: 1rem;">Configure the bathrooms for this room</p>
+                                <div id="bathroom-configuration">
+                                    <div class="bathroom-row" style="display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;">
+                                        <select class="form-input bathroom-type-select">
+                                            <option value="">Select bathroom type...</option>
+                                            <option value="full-ensuite">Full Ensuite (Private, in room)</option>
+                                            <option value="half-ensuite">Half Bath Ensuite (Toilet & Sink only)</option>
+                                            <option value="full-adjacent">Full Adjacent (Private, outside room)</option>
+                                            <option value="full-shared">Full Shared Bathroom</option>
+                                            <option value="half-shared">Half Shared (Toilet & Sink only)</option>
+                                            <option value="outdoor-shower">Outdoor Shower</option>
+                                        </select>
+                                        <input type="number" class="form-input bathroom-qty" min="1" max="10" value="1" style="width: 80px;">
+                                        <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);">✕</button>
+                                    </div>
+                                </div>
+                                <button class="btn btn-secondary btn-small" onclick="addBathroomRow()" style="margin-top: 0.5rem;">+ Add Bathroom</button>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
+                                <h3>🚿 Bathroom Features</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 0.75rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-shower" style="width: 18px; height: 18px;">
+                                        <span>🚿 Shower</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-bathtub" style="width: 18px; height: 18px;">
+                                        <span>🛁 Bathtub</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-rainfall" style="width: 18px; height: 18px;">
+                                        <span>🌧️ Rainfall Shower</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-walkin" style="width: 18px; height: 18px;">
+                                        <span>🚶 Walk-in Shower</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-jacuzzi" style="width: 18px; height: 18px;">
+                                        <span>💆 Jacuzzi/Spa Tub</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-bidet" style="width: 18px; height: 18px;">
+                                        <span>🚽 Bidet</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-heated-floor" style="width: 18px; height: 18px;">
+                                        <span>🔥 Heated Floor</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-double-vanity" style="width: 18px; height: 18px;">
+                                        <span>🪞 Double Vanity</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-hairdryer" style="width: 18px; height: 18px;">
+                                        <span>💨 Hair Dryer</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-toiletries" style="width: 18px; height: 18px;">
+                                        <span>🧴 Toiletries Provided</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-towels" style="width: 18px; height: 18px;">
+                                        <span>🛁 Towels Provided</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="bath-robes" style="width: 18px; height: 18px;">
+                                        <span>👘 Bathrobes</span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="card" style="margin-top: 1rem;">
+                            <div class="card-header">
                                 <h3>🚿 Bathroom Amenities</h3>
                             </div>
                             <div class="card-body" id="bathroom-amenities-list">
@@ -19933,6 +20016,40 @@ Local honey and preserves"></textarea>
                 // Reset the row instead of removing
                 row.querySelector('.bed-type-select').value = '';
                 row.querySelector('.bed-qty').value = '1';
+            }
+        }
+        
+        function addBathroomRow() {
+            const container = document.getElementById('bathroom-configuration');
+            const newRow = document.createElement('div');
+            newRow.className = 'bathroom-row';
+            newRow.style.cssText = 'display: grid; grid-template-columns: 2fr 1fr auto; gap: 1rem; align-items: center; margin-bottom: 0.75rem;';
+            newRow.innerHTML = `
+                <select class="form-input bathroom-type-select">
+                    <option value="">Select bathroom type...</option>
+                    <option value="full-ensuite">Full Ensuite (Private, in room)</option>
+                    <option value="half-ensuite">Half Bath Ensuite (Toilet & Sink only)</option>
+                    <option value="full-adjacent">Full Adjacent (Private, outside room)</option>
+                    <option value="full-shared">Full Shared Bathroom</option>
+                    <option value="half-shared">Half Shared (Toilet & Sink only)</option>
+                    <option value="outdoor-shower">Outdoor Shower</option>
+                </select>
+                <input type="number" class="form-input bathroom-qty" min="1" max="10" value="1" style="width: 80px;">
+                <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);">✕</button>
+            `;
+            container.appendChild(newRow);
+        }
+        
+        function removeBathroomRow(btn) {
+            const row = btn.closest('.bathroom-row');
+            const container = document.getElementById('bathroom-configuration');
+            // Keep at least one row
+            if (container.querySelectorAll('.bathroom-row').length > 1) {
+                row.remove();
+            } else {
+                // Reset the row instead of removing
+                row.querySelector('.bathroom-type-select').value = '';
+                row.querySelector('.bathroom-qty').value = '1';
             }
         }
         
