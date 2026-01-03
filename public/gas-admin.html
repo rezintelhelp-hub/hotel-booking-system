@@ -16674,7 +16674,7 @@ Local honey and preserves"></textarea>
             const placeholder = preview.querySelector('.slide-placeholder');
             const removeBtn = preview.querySelector('.remove-slide-btn');
             
-            // Show preview immediately
+            // Show preview immediately (before upload)
             const reader = new FileReader();
             reader.onload = function(e) {
                 preview.style.backgroundImage = `url(${e.target.result})`;
@@ -16683,7 +16683,7 @@ Local honey and preserves"></textarea>
             };
             reader.readAsDataURL(file);
             
-            // Upload the file
+            // Upload the file to server
             try {
                 const formData = new FormData();
                 formData.append('image', file);
@@ -16693,9 +16693,11 @@ Local honey and preserves"></textarea>
                     formData.append('deployedSiteId', selectedDeployedSiteId);
                 }
                 
+                // Don't set Content-Type header - browser sets it automatically for FormData
+                const token = localStorage.getItem('gas_token');
                 const response = await fetch('/api/admin/website-builder/upload-image', {
                     method: 'POST',
-                    headers: authHeaders(),
+                    headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                     body: formData
                 });
                 
@@ -16704,8 +16706,8 @@ Local honey and preserves"></textarea>
                     document.getElementById(`wb-hero-slide-${slot}-url`).value = data.url;
                     showNotification(`Slide ${slot} uploaded successfully`, 'success');
                 } else {
-                    const err = await response.json();
-                    showNotification('Failed to upload image: ' + (err.error || 'Unknown error'), 'error');
+                    const err = await response.json().catch(() => ({}));
+                    showNotification('Failed to upload image: ' + (err.error || response.statusText), 'error');
                 }
             } catch (error) {
                 console.error('Upload error:', error);
