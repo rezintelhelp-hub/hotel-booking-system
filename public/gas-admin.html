@@ -5242,7 +5242,7 @@
                                         <button type="button" class="remove-slide-btn" onclick="removeSliderImage(1)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">×</button>
                                     </div>
                                     <input type="file" accept="image/*" onchange="previewSliderImage(1, this)" style="font-size: 0.8rem; width: 100%;">
-                                    <input type="hidden" id="wb-hero-slide-1-url">
+                                    <input type="hidden" id="wb-hero-slide-1-url" value="">
                                 </div>
                                 <!-- Slide 2 -->
                                 <div class="slider-image-slot" data-slot="2" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
@@ -5251,7 +5251,7 @@
                                         <button type="button" class="remove-slide-btn" onclick="removeSliderImage(2)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">×</button>
                                     </div>
                                     <input type="file" accept="image/*" onchange="previewSliderImage(2, this)" style="font-size: 0.8rem; width: 100%;">
-                                    <input type="hidden" id="wb-hero-slide-2-url">
+                                    <input type="hidden" id="wb-hero-slide-2-url" value="">
                                 </div>
                                 <!-- Slide 3 -->
                                 <div class="slider-image-slot" data-slot="3" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
@@ -5260,7 +5260,7 @@
                                         <button type="button" class="remove-slide-btn" onclick="removeSliderImage(3)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">×</button>
                                     </div>
                                     <input type="file" accept="image/*" onchange="previewSliderImage(3, this)" style="font-size: 0.8rem; width: 100%;">
-                                    <input type="hidden" id="wb-hero-slide-3-url">
+                                    <input type="hidden" id="wb-hero-slide-3-url" value="">
                                 </div>
                                 <!-- Slide 4 -->
                                 <div class="slider-image-slot" data-slot="4" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
@@ -5269,7 +5269,7 @@
                                         <button type="button" class="remove-slide-btn" onclick="removeSliderImage(4)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">×</button>
                                     </div>
                                     <input type="file" accept="image/*" onchange="previewSliderImage(4, this)" style="font-size: 0.8rem; width: 100%;">
-                                    <input type="hidden" id="wb-hero-slide-4-url">
+                                    <input type="hidden" id="wb-hero-slide-4-url" value="">
                                 </div>
                             </div>
                             <!-- Slider Settings -->
@@ -15917,7 +15917,8 @@ Local honey and preserves"></textarea>
                         // Load slider images if present
                         for (let i = 1; i <= 4; i++) {
                             const slideUrl = data.settings[`slide-${i}-url`];
-                            if (slideUrl) {
+                            // Skip if empty, null, undefined, or the literal string "undefined"
+                            if (slideUrl && slideUrl !== 'undefined' && slideUrl !== '') {
                                 const preview = document.getElementById(`wb-hero-slide-${i}-preview`);
                                 const urlField = document.getElementById(`wb-hero-slide-${i}-url`);
                                 if (preview) {
