@@ -4130,6 +4130,9 @@
                     <button class="editor-tab" data-tab="seo" onclick="switchEditorTab('seo')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
                         🔍 SEO & Analytics
                     </button>
+                    <button class="editor-tab" data-tab="wpguide" onclick="switchEditorTab('wpguide')" style="padding: 1rem 1.5rem; border: none; background: none; cursor: pointer; font-weight: 600; color: #64748b; border-bottom: 3px solid transparent; margin-bottom: -2px; white-space: nowrap; transition: all 0.2s;">
+                        📚 WP Guide
+                    </button>
                 </div>
                 
                 <!-- Tab Content Panels -->
@@ -4824,6 +4827,139 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- WP Guide Tab -->
+                    <div id="editor-panel-wpguide" class="editor-panel" style="display: none;">
+                        <div style="max-width: 900px;">
+                            <div class="card" style="margin-bottom: 1.5rem; border: 2px solid #6366f1;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white;">
+                                    <h3>📚 WordPress Customization Guide</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p style="color: #64748b; margin-bottom: 1.5rem;">
+                                        While GAS Admin handles most of your site configuration, some advanced customizations require accessing WordPress directly. 
+                                        This guide explains how to make these changes.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <!-- Accessing WordPress -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🔐 Accessing WordPress Admin</h3></div>
+                                <div class="card-body">
+                                    <ol style="margin: 0; padding-left: 1.5rem; color: #374151;">
+                                        <li style="margin-bottom: 0.75rem;">Go to your site URL and add <code style="background: #f1f5f9; padding: 2px 6px; border-radius: 4px;">/wp-admin</code> to the end<br>
+                                            <span style="color: #64748b; font-size: 0.9rem;">Example: https://yoursite.sites.gas.travel/wp-admin</span>
+                                        </li>
+                                        <li style="margin-bottom: 0.75rem;">Log in with your GAS credentials (same as GAS Admin)</li>
+                                        <li>You'll see the WordPress Dashboard</li>
+                                    </ol>
+                                </div>
+                            </div>
+
+                            <!-- Switching Themes -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🎨 Switching Between Light & Dark Themes</h3></div>
+                                <div class="card-body">
+                                    <p style="margin-bottom: 1rem;">GAS provides two theme variants: <strong>GAS Developer (Light)</strong> and <strong>GAS Developer Dark</strong>.</p>
+                                    <ol style="margin: 0; padding-left: 1.5rem; color: #374151;">
+                                        <li style="margin-bottom: 0.75rem;">In WordPress Admin, go to <strong>Appearance → Themes</strong></li>
+                                        <li style="margin-bottom: 0.75rem;">You'll see both theme options available</li>
+                                        <li style="margin-bottom: 0.75rem;">Hover over the theme you want and click <strong>Activate</strong></li>
+                                        <li>Your site will immediately switch to the new theme</li>
+                                    </ol>
+                                    <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+                                        <strong style="color: #92400e;">⚠️ Note:</strong>
+                                        <span style="color: #92400e;"> All your content and settings from GAS Admin will work with both themes. Only the color scheme changes.</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- GAS Booking Plugin Settings -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>⚙️ GAS Booking Plugin Settings</h3></div>
+                                <div class="card-body">
+                                    <p style="margin-bottom: 1rem;">Advanced booking display options are available in the plugin settings:</p>
+                                    <ol style="margin: 0; padding-left: 1.5rem; color: #374151;">
+                                        <li style="margin-bottom: 0.75rem;">Go to <strong>Settings → GAS Booking</strong></li>
+                                        <li style="margin-bottom: 0.75rem;">You'll find options for:
+                                            <ul style="margin-top: 0.5rem; padding-left: 1.5rem;">
+                                                <li>Room layout style (Auto/Grid/Row)</li>
+                                                <li>Amenity filter visibility</li>
+                                                <li>Location filter visibility</li>
+                                                <li>Number of amenities to display</li>
+                                                <li>Button colors and text</li>
+                                            </ul>
+                                        </li>
+                                        <li>Click <strong>Sync from GAS</strong> to pull the latest settings from GAS Admin</li>
+                                    </ol>
+                                </div>
+                            </div>
+
+                            <!-- Managing Pages -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>📄 Managing Pages</h3></div>
+                                <div class="card-body">
+                                    <p style="margin-bottom: 1rem;">Your pages are automatically created by GAS, but you can edit them in WordPress:</p>
+                                    <ol style="margin: 0; padding-left: 1.5rem; color: #374151;">
+                                        <li style="margin-bottom: 0.75rem;">Go to <strong>Pages → All Pages</strong></li>
+                                        <li style="margin-bottom: 0.75rem;">Click on any page to edit it</li>
+                                        <li style="margin-bottom: 0.75rem;">Pages use <strong>shortcodes</strong> to display GAS content:
+                                            <ul style="margin-top: 0.5rem; padding-left: 1.5rem; font-family: monospace; font-size: 0.85rem;">
+                                                <li><code>[gas_search]</code> - Search widget</li>
+                                                <li><code>[gas_rooms]</code> - Room listings</li>
+                                                <li><code>[gas_room]</code> - Single room details</li>
+                                                <li><code>[gas_blog]</code> - Blog posts</li>
+                                                <li><code>[gas_attractions]</code> - Local attractions</li>
+                                            </ul>
+                                        </li>
+                                    </ol>
+                                </div>
+                            </div>
+
+                            <!-- Managing Menus -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🔗 Managing Navigation Menus</h3></div>
+                                <div class="card-body">
+                                    <p style="margin-bottom: 1rem;">To add, remove, or reorder menu items:</p>
+                                    <ol style="margin: 0; padding-left: 1.5rem; color: #374151;">
+                                        <li style="margin-bottom: 0.75rem;">Go to <strong>Appearance → Menus</strong></li>
+                                        <li style="margin-bottom: 0.75rem;">Select the <strong>Primary Menu</strong> from the dropdown</li>
+                                        <li style="margin-bottom: 0.75rem;">Drag items to reorder them</li>
+                                        <li style="margin-bottom: 0.75rem;">Use the left panel to add new pages, links, or categories</li>
+                                        <li>Click <strong>Save Menu</strong> when done</li>
+                                    </ol>
+                                </div>
+                            </div>
+
+                            <!-- Uploading Media -->
+                            <div class="card" style="margin-bottom: 1.5rem;">
+                                <div class="card-header"><h3>🖼️ Uploading Media</h3></div>
+                                <div class="card-body">
+                                    <p style="margin-bottom: 1rem;">While GAS Admin handles hero images and property photos, you can upload additional media:</p>
+                                    <ol style="margin: 0; padding-left: 1.5rem; color: #374151;">
+                                        <li style="margin-bottom: 0.75rem;">Go to <strong>Media → Add New</strong></li>
+                                        <li style="margin-bottom: 0.75rem;">Drag and drop files or click to select</li>
+                                        <li>Images are automatically optimized for web</li>
+                                    </ol>
+                                </div>
+                            </div>
+
+                            <!-- Need Help -->
+                            <div class="card" style="border: 2px solid #10b981;">
+                                <div class="card-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white;">
+                                    <h3>💬 Need Help?</h3>
+                                </div>
+                                <div class="card-body">
+                                    <p style="margin: 0; color: #374151;">
+                                        For most changes, use <strong>GAS Admin</strong> - it's simpler and automatically syncs to your site.<br><br>
+                                        Only use WordPress Admin for advanced customizations not available in GAS Admin.<br><br>
+                                        If you get stuck, contact support or check our documentation.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -5076,18 +5212,87 @@
                                     <input type="radio" name="hero-bg-type" value="image" checked onchange="toggleHeroBackgroundType('image')"> 🖼️ Image
                                 </label>
                                 <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                    <input type="radio" name="hero-bg-type" value="slider" onchange="toggleHeroBackgroundType('slider')"> 🎠 Image Slider
+                                </label>
+                                <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
                                     <input type="radio" name="hero-bg-type" value="video" onchange="toggleHeroBackgroundType('video')"> 🎬 Video (MP4)
                                 </label>
                             </div>
                         </div>
                         
-                        <!-- Image Upload (default) -->
+                        <!-- Single Image Upload (default) -->
                         <div id="hero-image-upload-section" class="form-group">
                             <div id="wb-hero-image-preview" style="width: 100%; height: 200px; background: #f1f5f9; border-radius: 8px; display: flex; align-items: center; justify-content: center; margin-bottom: 10px; background-size: cover; background-position: center;">
                                 <span style="color: #94a3b8;">Click below to upload an image</span>
                             </div>
                             <input type="file" id="wb-hero-image" accept="image/*" onchange="previewWebsiteImage('hero')">
                             <input type="hidden" id="wb-hero-image-url">
+                        </div>
+                        
+                        <!-- Image Slider Upload (hidden by default) -->
+                        <div id="hero-slider-upload-section" class="form-group" style="display: none;">
+                            <p style="font-size: 0.9rem; color: #64748b; margin-bottom: 1rem;">
+                                🎠 Add up to 4 images that will automatically rotate in the hero section
+                            </p>
+                            <div id="hero-slider-images" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                                <!-- Slide 1 -->
+                                <div class="slider-image-slot" data-slot="1" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                                    <div id="wb-hero-slide-1-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center; position: relative;">
+                                        <span class="slide-placeholder" style="color: #94a3b8; font-size: 0.8rem;">Slide 1 (required)</span>
+                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(1)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">×</button>
+                                    </div>
+                                    <input type="file" accept="image/*" onchange="previewSliderImage(1, this)" style="font-size: 0.8rem; width: 100%;">
+                                    <input type="hidden" id="wb-hero-slide-1-url">
+                                </div>
+                                <!-- Slide 2 -->
+                                <div class="slider-image-slot" data-slot="2" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                                    <div id="wb-hero-slide-2-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center; position: relative;">
+                                        <span class="slide-placeholder" style="color: #94a3b8; font-size: 0.8rem;">Slide 2 (optional)</span>
+                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(2)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">×</button>
+                                    </div>
+                                    <input type="file" accept="image/*" onchange="previewSliderImage(2, this)" style="font-size: 0.8rem; width: 100%;">
+                                    <input type="hidden" id="wb-hero-slide-2-url">
+                                </div>
+                                <!-- Slide 3 -->
+                                <div class="slider-image-slot" data-slot="3" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                                    <div id="wb-hero-slide-3-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center; position: relative;">
+                                        <span class="slide-placeholder" style="color: #94a3b8; font-size: 0.8rem;">Slide 3 (optional)</span>
+                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(3)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">×</button>
+                                    </div>
+                                    <input type="file" accept="image/*" onchange="previewSliderImage(3, this)" style="font-size: 0.8rem; width: 100%;">
+                                    <input type="hidden" id="wb-hero-slide-3-url">
+                                </div>
+                                <!-- Slide 4 -->
+                                <div class="slider-image-slot" data-slot="4" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
+                                    <div id="wb-hero-slide-4-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center; position: relative;">
+                                        <span class="slide-placeholder" style="color: #94a3b8; font-size: 0.8rem;">Slide 4 (optional)</span>
+                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(4)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">×</button>
+                                    </div>
+                                    <input type="file" accept="image/*" onchange="previewSliderImage(4, this)" style="font-size: 0.8rem; width: 100%;">
+                                    <input type="hidden" id="wb-hero-slide-4-url">
+                                </div>
+                            </div>
+                            <!-- Slider Settings -->
+                            <div style="margin-top: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div class="form-group">
+                                        <label class="form-label">Slide Duration</label>
+                                        <select class="form-select" id="wb-hero-slider-duration">
+                                            <option value="3000">3 seconds</option>
+                                            <option value="5000" selected>5 seconds</option>
+                                            <option value="7000">7 seconds</option>
+                                            <option value="10000">10 seconds</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label class="form-label">Transition Effect</label>
+                                        <select class="form-select" id="wb-hero-slider-transition">
+                                            <option value="fade" selected>Fade</option>
+                                            <option value="slide">Slide</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                         
                         <!-- Video URL (hidden by default) -->
@@ -15700,6 +15905,33 @@ Local honey and preserves"></textarea>
                         previewHeroVideo(data.settings['video-url']);
                     }
                     
+                    // Handle hero background type and slider images
+                    if (section === 'hero') {
+                        const bgType = data.settings['background-type'] || 'image';
+                        const bgRadio = document.querySelector(`input[name="hero-bg-type"][value="${bgType}"]`);
+                        if (bgRadio) {
+                            bgRadio.checked = true;
+                            toggleHeroBackgroundType(bgType);
+                        }
+                        
+                        // Load slider images if present
+                        for (let i = 1; i <= 4; i++) {
+                            const slideUrl = data.settings[`slide-${i}-url`];
+                            if (slideUrl) {
+                                const preview = document.getElementById(`wb-hero-slide-${i}-preview`);
+                                const urlField = document.getElementById(`wb-hero-slide-${i}-url`);
+                                if (preview) {
+                                    preview.style.backgroundImage = `url(${slideUrl})`;
+                                    const placeholder = preview.querySelector('.slide-placeholder');
+                                    const removeBtn = preview.querySelector('.remove-slide-btn');
+                                    if (placeholder) placeholder.style.display = 'none';
+                                    if (removeBtn) removeBtn.style.display = 'block';
+                                }
+                                if (urlField) urlField.value = slideUrl;
+                            }
+                        }
+                    }
+                    
                     // Handle reviews app toggle
                     if (section === 'reviews') {
                         toggleReviewsAppFields();
@@ -16010,6 +16242,14 @@ Local honey and preserves"></textarea>
                 const faqEnabledEl = document.getElementById(faqEnabledId);
                 if (faqEnabledEl) {
                     settings['faq-enabled'] = faqEnabledEl.checked;
+                }
+                
+                // Handle hero background type (radio buttons)
+                if (section === 'hero') {
+                    const bgTypeRadio = document.querySelector('input[name="hero-bg-type"]:checked');
+                    if (bgTypeRadio) {
+                        settings['background-type'] = bgTypeRadio.value;
+                    }
                 }
                 
                 console.log(`Saving ${section} for deployed site ${selectedDeployedSiteId}:`, settings);
@@ -16409,15 +16649,87 @@ Local honey and preserves"></textarea>
         // Hero video background functions
         function toggleHeroBackgroundType(type) {
             const imageSection = document.getElementById('hero-image-upload-section');
+            const sliderSection = document.getElementById('hero-slider-upload-section');
             const videoSection = document.getElementById('hero-video-upload-section');
             
+            imageSection.style.display = 'none';
+            sliderSection.style.display = 'none';
+            videoSection.style.display = 'none';
+            
             if (type === 'video') {
-                imageSection.style.display = 'none';
                 videoSection.style.display = 'block';
+            } else if (type === 'slider') {
+                sliderSection.style.display = 'block';
             } else {
                 imageSection.style.display = 'block';
-                videoSection.style.display = 'none';
             }
+        }
+        
+        // Slider image preview and upload functions
+        async function previewSliderImage(slot, input) {
+            if (!input.files || !input.files[0]) return;
+            
+            const file = input.files[0];
+            const preview = document.getElementById(`wb-hero-slide-${slot}-preview`);
+            const placeholder = preview.querySelector('.slide-placeholder');
+            const removeBtn = preview.querySelector('.remove-slide-btn');
+            
+            // Show preview immediately
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                preview.style.backgroundImage = `url(${e.target.result})`;
+                if (placeholder) placeholder.style.display = 'none';
+                if (removeBtn) removeBtn.style.display = 'block';
+            };
+            reader.readAsDataURL(file);
+            
+            // Upload the file
+            try {
+                const formData = new FormData();
+                formData.append('file', file);
+                formData.append('type', `hero-slide-${slot}`);
+                
+                const clientId = localStorage.getItem('gas_selected_client_id');
+                if (clientId) {
+                    formData.append('clientId', clientId);
+                }
+                
+                const response = await fetch('/api/upload-image', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('gas_token')}`
+                    },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    document.getElementById(`wb-hero-slide-${slot}-url`).value = data.url;
+                    showNotification(`Slide ${slot} uploaded successfully`, 'success');
+                } else {
+                    showNotification('Failed to upload image', 'error');
+                }
+            } catch (error) {
+                console.error('Upload error:', error);
+                showNotification('Upload failed', 'error');
+            }
+        }
+        
+        function removeSliderImage(slot) {
+            const preview = document.getElementById(`wb-hero-slide-${slot}-preview`);
+            const placeholder = preview.querySelector('.slide-placeholder');
+            const removeBtn = preview.querySelector('.remove-slide-btn');
+            const urlField = document.getElementById(`wb-hero-slide-${slot}-url`);
+            const fileInput = preview.parentElement.querySelector('input[type="file"]');
+            
+            preview.style.backgroundImage = '';
+            if (placeholder) {
+                placeholder.style.display = 'block';
+                placeholder.textContent = `Slide ${slot} ${slot === 1 ? '(required)' : '(optional)'}`;
+            }
+            if (removeBtn) removeBtn.style.display = 'none';
+            if (urlField) urlField.value = '';
+            if (fileInput) fileInput.value = '';
         }
         
         function previewHeroVideo(url) {
