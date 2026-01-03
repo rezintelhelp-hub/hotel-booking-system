@@ -16686,19 +16686,16 @@ Local honey and preserves"></textarea>
             // Upload the file
             try {
                 const formData = new FormData();
-                formData.append('file', file);
+                formData.append('image', file);
                 formData.append('type', `hero-slide-${slot}`);
                 
-                const clientId = localStorage.getItem('gas_selected_client_id');
-                if (clientId) {
-                    formData.append('clientId', clientId);
+                if (selectedDeployedSiteId) {
+                    formData.append('deployedSiteId', selectedDeployedSiteId);
                 }
                 
-                const response = await fetch('/api/upload-image', {
+                const response = await fetch('/api/admin/website-builder/upload-image', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('gas_token')}`
-                    },
+                    headers: authHeaders(),
                     body: formData
                 });
                 
@@ -16707,11 +16704,12 @@ Local honey and preserves"></textarea>
                     document.getElementById(`wb-hero-slide-${slot}-url`).value = data.url;
                     showNotification(`Slide ${slot} uploaded successfully`, 'success');
                 } else {
-                    showNotification('Failed to upload image', 'error');
+                    const err = await response.json();
+                    showNotification('Failed to upload image: ' + (err.error || 'Unknown error'), 'error');
                 }
             } catch (error) {
                 console.error('Upload error:', error);
-                showNotification('Upload failed', 'error');
+                showNotification('Upload failed: ' + error.message, 'error');
             }
         }
         
