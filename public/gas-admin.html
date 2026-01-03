@@ -16691,15 +16691,20 @@ Local honey and preserves"></textarea>
             try {
                 const formData = new FormData();
                 formData.append('image', file);
-                formData.append('type', `hero-slide-${slot}`);
+                formData.append('section', `hero-slide-${slot}`);
                 
-                if (selectedDeployedSiteId) {
-                    formData.append('deployedSiteId', selectedDeployedSiteId);
+                // Server needs account_id - get from selected client
+                const accountId = localStorage.getItem('gas_selected_client_id') || selectedAccountId;
+                if (accountId) {
+                    formData.append('account_id', accountId);
+                } else {
+                    showNotification('No account selected - cannot upload', 'error');
+                    return;
                 }
                 
                 // Don't set Content-Type header - browser sets it automatically for FormData
                 const token = localStorage.getItem('gas_token');
-                console.log(`Slider image ${slot}: Uploading to /api/admin/website-builder/upload-image`);
+                console.log(`Slider image ${slot}: Uploading to /api/admin/website-builder/upload-image with account_id:`, accountId);
                 
                 const response = await fetch('/api/admin/website-builder/upload-image', {
                     method: 'POST',
