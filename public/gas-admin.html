@@ -4290,14 +4290,6 @@
                                                 <option value="4">4 Columns</option>
                                             </select>
                                         </div>
-                                        <div class="form-group">
-                                            <label class="form-label">Card Style</label>
-                                            <select class="form-select" id="wb-page-rooms-card-style">
-                                                <option value="standard" selected>Standard</option>
-                                                <option value="compact">Compact</option>
-                                                <option value="featured">Featured</option>
-                                            </select>
-                                        </div>
                                     </div>
                                     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
                                         <div class="form-group">
@@ -5589,6 +5581,24 @@
                             <div class="form-group">
                                 <label class="form-label">Count: <span id="wb-featured-count-value">3</span></label>
                                 <input type="range" id="wb-featured-count" min="1" max="12" value="3" style="width: 100%;" oninput="document.getElementById('wb-featured-count-value').textContent = this.value">
+                            </div>
+                        </div>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <div class="form-group">
+                                <label class="form-label">Columns</label>
+                                <select class="form-select" id="wb-featured-columns">
+                                    <option value="1">1 Column</option>
+                                    <option value="2">2 Columns</option>
+                                    <option value="3" selected>3 Columns</option>
+                                    <option value="4">4 Columns</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Layout Style</label>
+                                <select class="form-select" id="wb-featured-layout-style">
+                                    <option value="grid" selected>Grid</option>
+                                    <option value="row">Row</option>
+                                </select>
                             </div>
                         </div>
                         <div class="form-group" style="margin-top: 1rem;">
@@ -16308,7 +16318,7 @@ Local honey and preserves"></textarea>
                 
                 // Update range slider value displays
                 const rangeKeys = ['search-opacity', 'search-radius', 'search-padding', 'search-max-width', 'search-scale',
-                                   'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size'];
+                                   'overlay', 'height', 'font-size', 'title-size', 'text-size', 'max-width', 'btn-radius', 'body-size', 'count'];
                 rangeKeys.forEach(key => {
                     const valueEl = document.getElementById(`wb-${section}-${key}-value`);
                     if (valueEl && data.settings[key]) {
