@@ -16673,6 +16673,9 @@ Local honey and preserves"></textarea>
             const preview = document.getElementById(`wb-hero-slide-${slot}-preview`);
             const placeholder = preview.querySelector('.slide-placeholder');
             const removeBtn = preview.querySelector('.remove-slide-btn');
+            const urlField = document.getElementById(`wb-hero-slide-${slot}-url`);
+            
+            console.log(`Slider image ${slot}: Starting upload for`, file.name);
             
             // Show preview immediately (before upload)
             const reader = new FileReader();
@@ -16695,22 +16698,33 @@ Local honey and preserves"></textarea>
                 
                 // Don't set Content-Type header - browser sets it automatically for FormData
                 const token = localStorage.getItem('gas_token');
+                console.log(`Slider image ${slot}: Uploading to /api/admin/website-builder/upload-image`);
+                
                 const response = await fetch('/api/admin/website-builder/upload-image', {
                     method: 'POST',
                     headers: token ? { 'Authorization': `Bearer ${token}` } : {},
                     body: formData
                 });
                 
+                console.log(`Slider image ${slot}: Response status`, response.status);
+                
                 if (response.ok) {
                     const data = await response.json();
-                    document.getElementById(`wb-hero-slide-${slot}-url`).value = data.url;
+                    console.log(`Slider image ${slot}: Upload success, URL:`, data.url);
+                    if (urlField && data.url) {
+                        urlField.value = data.url;
+                        console.log(`Slider image ${slot}: Set urlField value to`, urlField.value);
+                    } else {
+                        console.error(`Slider image ${slot}: urlField not found or no URL in response`, { urlField, data });
+                    }
                     showNotification(`Slide ${slot} uploaded successfully`, 'success');
                 } else {
                     const err = await response.json().catch(() => ({}));
+                    console.error(`Slider image ${slot}: Upload failed`, err);
                     showNotification('Failed to upload image: ' + (err.error || response.statusText), 'error');
                 }
             } catch (error) {
-                console.error('Upload error:', error);
+                console.error(`Slider image ${slot}: Upload error`, error);
                 showNotification('Upload failed: ' + error.message, 'error');
             }
         }
