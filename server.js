@@ -23372,7 +23372,7 @@ app.get('/api/admin/properties/:id/rooms', async (req, res) => {
     
     const result = await pool.query(`
       SELECT * FROM bookable_units 
-      WHERE property_id = $1 AND status = 'active'
+      WHERE property_id = $1
       ORDER BY name
     `, [id]);
     
