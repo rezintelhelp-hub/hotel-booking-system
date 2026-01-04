@@ -23342,8 +23342,11 @@ Local honey and preserves"></textarea>
                 dateRangeText = `${startMonth} ${gridStartDate.getDate()}, ${startYear} - ${endMonth} ${endDate.getDate()}, ${endYear}`;
             }
             
-            document.getElementById('grid-date-range').textContent = dateRangeText;
-            document.getElementById('grid-date-picker').value = fromDate;
+            const dateRangeEl = document.getElementById('grid-date-range');
+            if (dateRangeEl) dateRangeEl.textContent = dateRangeText;
+            
+            const datePickerEl = document.getElementById('grid-date-picker');
+            if (datePickerEl) datePickerEl.value = fromDate;
             
             // Update month selector
             populateMonthSelector();
