@@ -25154,37 +25154,21 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
     const conn = connQuery.rows[0];
     console.log(`[Full Pricing Sync] Using connection ${conn.id} for property ${propertyId}`);
     
-    // Get or refresh access token for THIS connection
+    // Get or refresh access token for THIS connection (match tiered sync method)
     let accessToken = conn.access_token;
-    const tokenExpiry = conn.token_expires_at ? new Date(conn.token_expires_at) : null;
-    const now = new Date();
     
-    if (!accessToken || !tokenExpiry || tokenExpiry <= now) {
-      // Need to refresh token
-      if (conn.refresh_token) {
-        try {
-          const refreshResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
-            refreshToken: conn.refresh_token
-          });
-          
-          if (refreshResponse.data.token) {
-            accessToken = refreshResponse.data.token;
-            const expiresAt = new Date(Date.now() + (refreshResponse.data.expiresIn || 3600) * 1000);
-            
-            await pool.query(`
-              UPDATE gas_sync_connections 
-              SET access_token = $1, token_expires_at = $2, updated_at = NOW()
-              WHERE id = $3
-            `, [accessToken, expiresAt, conn.id]);
-            
-            console.log(`[Full Pricing Sync] Refreshed token for connection ${conn.id}`);
-          }
-        } catch (refreshErr) {
-          console.error(`[Full Pricing Sync] Token refresh failed: ${refreshErr.message}`);
-          return res.json({ success: false, error: 'Failed to refresh Beds24 token' });
-        }
-      } else {
-        return res.json({ success: false, error: 'No refresh token available for this connection' });
+    // Always refresh token like tiered sync does
+    if (conn.refresh_token) {
+      try {
+        const tokenResponse = await axios.get('https://beds24.com/api/v2/authentication/token', {
+          headers: { 'refreshToken': conn.refresh_token }
+        });
+        accessToken = tokenResponse.data.token;
+        await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [accessToken, conn.id]);
+        console.log(`[Full Pricing Sync] Refreshed token for connection ${conn.id}`);
+      } catch (refreshErr) {
+        console.error(`[Full Pricing Sync] Token refresh failed: ${refreshErr.message}`);
+        return res.json({ success: false, error: 'Failed to refresh Beds24 token: ' + refreshErr.message });
       }
     }
     
