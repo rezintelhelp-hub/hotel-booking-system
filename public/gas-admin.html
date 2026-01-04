@@ -10025,10 +10025,11 @@ Local honey and preserves"></textarea>
                 <div class="header">
                     <div class="header-top">
                         <div>
-                            <h2> Synced Properties</h2>
+                            <h2>Synced Properties</h2>
                             <p>Properties synchronized from channel managers</p>
                         </div>
-                        <div class="header-actions">
+                        <div class="header-actions" style="display: flex; gap: 1rem; align-items: center;">
+                            <input type="text" id="syncPropertiesSearch" class="form-input" placeholder="Search properties..." style="width: 250px;" oninput="filterSyncedProperties()">
                             <select id="syncPropertiesConnectionFilter" class="form-control" style="width: 200px;" onchange="loadSyncedProperties()">
                                 <option value="">All Connections</option>
                             </select>
@@ -10041,17 +10042,15 @@ Local honey and preserves"></textarea>
                         <table class="data-table">
                             <thead>
                                 <tr>
+                                    <th style="width: 40px;">Status</th>
                                     <th>Property</th>
                                     <th>Location</th>
-                                    <th>Room Types</th>
-                                    <th>Images</th>
-                                    <th>Linked</th>
+                                    <th>Rooms</th>
                                     <th>Last Sync</th>
-                                    <th>Actions</th>
                                 </tr>
                             </thead>
                             <tbody id="syncedPropertiesTable">
-                                <tr><td colspan="7" style="text-align:center; color: var(--text-secondary);">Loading...</td></tr>
+                                <tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">Loading...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -37350,6 +37349,8 @@ Local honey and preserves"></textarea>
         }
 
         // Synced Properties View
+        let allSyncedProperties = []; // Store for filtering
+        
         async function loadSyncedProperties() {
             const connectionId = document.getElementById('syncPropertiesConnectionFilter')?.value;
             try {
@@ -37358,34 +37359,100 @@ Local honey and preserves"></textarea>
                     const response = await fetch(`/api/gas-sync/connections/${connectionId}/properties`, { headers: authHeaders() });
                     const data = await response.json();
                     properties = data.properties || [];
+                    properties = properties.map(p => ({...p, connectionId: connectionId}));
                 } else {
                     for (const conn of gasSyncConnections) {
                         const response = await fetch(`/api/gas-sync/connections/${conn.id}/properties`, { headers: authHeaders() });
                         const data = await response.json();
                         if (data.properties) {
-                            properties = properties.concat(data.properties.map(p => ({...p, connection: conn})));
+                            properties = properties.concat(data.properties.map(p => ({...p, connection: conn, connectionId: conn.id})));
                         }
                     }
                 }
                 
-                const tbody = document.getElementById('syncedPropertiesTable');
-                if (properties.length > 0) {
-                    tbody.innerHTML = properties.map(p => `<tr>
-                        <td><strong>${p.name}</strong><br><small style="color: #6b7280;">${p.connection?.adapter_name || ''}</small></td>
-                        <td>${p.city || ''}, ${p.country || ''}</td>
-                        <td>${p.room_type_count || 0}</td>
-                        <td>${p.image_count || 0}</td>
-                        <td>${p.gas_property_id ? '<span class="badge" style="background:#d1fae5;color:#047857;">Linked</span>' : '<span class="badge" style="background:#fef3c7;color:#92400e;">Not Linked</span>'}</td>
-                        <td>${formatTimeAgo(p.synced_at)}</td>
-                        <td>${!p.gas_property_id ? `<button class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})">Import</button>` : ''}
-                            ${p.gas_property_id ? `<button class="btn btn-sm btn-secondary" onclick="checkRoomChanges(${p.id}, '${p.name.replace(/'/g, "\\'")}')"> Rooms</button>` : ''}
-                            <button class="btn btn-sm btn-secondary" onclick="downloadPropertyImages(${p.id})"></button></td>
-                    </tr>`).join('');
-                } else {
-                    tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color: var(--text-secondary);">No synced properties</td></tr>';
-                }
+                allSyncedProperties = properties;
+                renderSyncedProperties(properties);
+                
             } catch (error) {
                 console.error('Error loading synced properties:', error);
+            }
+        }
+        
+        function filterSyncedProperties() {
+            const search = document.getElementById('syncPropertiesSearch')?.value?.toLowerCase() || '';
+            const filtered = allSyncedProperties.filter(p => {
+                const name = (p.name || '').toLowerCase();
+                const city = (p.city || '').toLowerCase();
+                const country = (p.country || '').toLowerCase();
+                return name.includes(search) || city.includes(search) || country.includes(search);
+            });
+            renderSyncedProperties(filtered);
+        }
+        
+        function getSyncStatus(property) {
+            // Green: Linked and synced within 24hrs
+            // Yellow: Partially linked OR sync older than 24hrs  
+            // Red: Not linked OR sync older than 7 days OR no sync
+            
+            const now = new Date();
+            const syncedAt = property.synced_at ? new Date(property.synced_at) : null;
+            const hoursSinceSync = syncedAt ? (now - syncedAt) / (1000 * 60 * 60) : Infinity;
+            
+            const isLinked = !!property.gas_property_id;
+            const roomCount = property.room_type_count || 0;
+            
+            if (!isLinked) {
+                return { color: '#ef4444', label: 'Not Linked', icon: '🔴' };
+            }
+            
+            if (hoursSinceSync > 168) { // 7 days
+                return { color: '#ef4444', label: 'Sync Stale', icon: '🔴' };
+            }
+            
+            if (hoursSinceSync > 24) {
+                return { color: '#f59e0b', label: 'Sync Aging', icon: '🟡' };
+            }
+            
+            if (roomCount === 0) {
+                return { color: '#f59e0b', label: 'No Rooms', icon: '🟡' };
+            }
+            
+            return { color: '#10b981', label: 'Healthy', icon: '🟢' };
+        }
+        
+        function renderSyncedProperties(properties) {
+            const tbody = document.getElementById('syncedPropertiesTable');
+            
+            if (properties.length > 0) {
+                tbody.innerHTML = properties.map(p => {
+                    const status = getSyncStatus(p);
+                    const location = [p.city, p.country].filter(Boolean).join(', ') || '-';
+                    
+                    return `<tr style="cursor: pointer;" onclick="navigateToConnectionProperty(${p.connectionId}, ${p.id})" title="Click to view details">
+                        <td style="text-align: center;">
+                            <span style="font-size: 0.8rem;" title="${status.label}">${status.icon}</span>
+                        </td>
+                        <td>
+                            <strong>${p.name}</strong>
+                            <br><small style="color: #6b7280;">${p.connection?.adapter_name || 'Beds24'}</small>
+                        </td>
+                        <td>${location}</td>
+                        <td>${p.room_type_count || 0}</td>
+                        <td>${formatTimeAgo(p.synced_at)}</td>
+                    </tr>`;
+                }).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center; color: var(--text-secondary);">No synced properties found</td></tr>';
+            }
+        }
+        
+        function navigateToConnectionProperty(connectionId, propertyId) {
+            // Navigate to the connection's Properties tab
+            if (connectionId) {
+                showView('gas-sync-connections');
+                setTimeout(() => {
+                    viewConnectionDetails(connectionId, 'properties');
+                }, 100);
             }
         }
 
