@@ -2136,6 +2136,32 @@ app.post('/api/gas-sync/test-webhook-url', async (req, res) => {
   }
 });
 
+// Get property test status
+app.get('/api/gas-sync/property/:propertyId/status', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    const result = await pool.query(`
+      SELECT webhook_tested, prop_key_tested, prop_key, gas_property_id 
+      FROM gas_sync_properties WHERE id = $1
+    `, [propertyId]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    res.json({ 
+      success: true, 
+      webhook_tested: result.rows[0].webhook_tested || false,
+      prop_key_tested: result.rows[0].prop_key_tested || false,
+      has_prop_key: !!result.rows[0].prop_key,
+      imported: !!result.rows[0].gas_property_id
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Copy images from gas_sync_images to room_images for a property
 app.post('/api/gas-sync/properties/:syncPropertyId/copy-images', async (req, res) => {
   try {
