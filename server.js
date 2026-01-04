@@ -25186,6 +25186,8 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
           }
         });
         
+        console.log(`    V2 raw response for ${room.beds24_room_id}:`, JSON.stringify(calResponse.data).substring(0, 500));
+        
         const calendarData = calResponse.data.data?.[0]?.calendar || [];
         let daysUpdated = 0;
         let hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
