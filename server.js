@@ -30972,12 +30972,14 @@ app.get('/api/public/client/:clientId/site-config', async (req, res) => {
         const { clientId } = req.params;
         
         // Get all data in parallel
-        // First get the deployed_site_id for this account
+        // First get the deployed_site_id for this client
         const deployedSiteIdResult = await pool.query(
-            `SELECT id FROM deployed_sites WHERE account_id = $1 LIMIT 1`,
+            `SELECT id FROM deployed_sites WHERE client_id = $1 LIMIT 1`,
             [clientId]
         );
         const deployedSiteId = deployedSiteIdResult.rows[0]?.id;
+        
+        console.log(`site-config: clientId=${clientId}, deployedSiteId=${deployedSiteId}`);
         
         const [pagesResult, contactResult, brandingResult, navigationResult, propertiesResult, roomsResult, websiteSettingsResult, deployedSiteResult] = await Promise.all([
             pool.query(`SELECT * FROM client_pages WHERE client_id = $1`, [clientId]),
