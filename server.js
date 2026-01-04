@@ -31828,21 +31828,27 @@ app.get('/api/admin/website-builder/:section', async (req, res) => {
 // Upload image for website builder (hero, about, etc.)
 app.post('/api/admin/website-builder/upload-image', upload.single('image'), async (req, res) => {
   try {
-    const { account_id, section } = req.body;
+    const { account_id, client_id, deployed_site_id, section } = req.body;
     
     if (!req.file) {
       return res.json({ success: false, error: 'No image uploaded' });
     }
     
-    if (!account_id) {
-      return res.json({ success: false, error: 'account_id required' });
+    // IMPORTANT: Use client_id for website images (maps to deployed site)
+    // Fall back to deployed_site_id, then account_id for backwards compatibility
+    const entityId = client_id || deployed_site_id || account_id;
+    
+    if (!entityId) {
+      return res.json({ success: false, error: 'client_id, deployed_site_id, or account_id required' });
     }
+    
+    console.log(`Website image upload: section=${section}, client_id=${client_id}, deployed_site_id=${deployed_site_id}, account_id=${account_id}, using entityId=${entityId}`);
     
     // Process and upload to R2
     const results = await processAndUploadImage(
       req.file.buffer,
       `website/${section || 'general'}`,
-      account_id,
+      entityId,
       req.file.originalname
     );
     
@@ -31872,20 +31878,26 @@ const videoUpload = multer({
 
 app.post('/api/admin/website-builder/upload-video', videoUpload.single('video'), async (req, res) => {
   try {
-    const { account_id, section } = req.body;
+    const { account_id, client_id, deployed_site_id, section } = req.body;
     
     if (!req.file) {
       return res.json({ success: false, error: 'No video uploaded' });
     }
     
-    if (!account_id) {
-      return res.json({ success: false, error: 'account_id required' });
+    // IMPORTANT: Use client_id for website videos (maps to deployed site)
+    // Fall back to deployed_site_id, then account_id for backwards compatibility
+    const entityId = client_id || deployed_site_id || account_id;
+    
+    if (!entityId) {
+      return res.json({ success: false, error: 'client_id, deployed_site_id, or account_id required' });
     }
+    
+    console.log(`Website video upload: section=${section}, client_id=${client_id}, using entityId=${entityId}`);
     
     // Generate unique filename
     const ext = req.file.originalname.split('.').pop().toLowerCase();
     const filename = `video-${Date.now()}-${uuidv4().slice(0, 8)}.${ext}`;
-    const key = `website/${section || 'hero'}/account-${account_id}/${filename}`;
+    const key = `website/${section || 'hero'}/client-${entityId}/${filename}`;
     
     // Upload directly to R2 (no processing needed for video)
     await r2Client.send(new PutObjectCommand({
