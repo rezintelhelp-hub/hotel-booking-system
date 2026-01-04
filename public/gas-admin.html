@@ -2790,12 +2790,15 @@
                             </label>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: center; margin-left: auto;">
-                            <button class="btn btn-secondary" onclick="refreshCalendar()" title="Refresh calendar data" style="padding: 0.5rem 0.75rem;"></button>
-                            <button class="btn btn-secondary" onclick="shiftGridDays(-7)"></button>
-                            <button class="btn btn-secondary" onclick="shiftGridDays(-1)"></button>
+                            <button class="btn btn-secondary" onclick="refreshCalendar()" title="Refresh calendar data" style="padding: 0.5rem 0.75rem;">🔄</button>
+                            <button class="btn btn-secondary" onclick="shiftGridDays(-7)">⏪</button>
+                            <button class="btn btn-secondary" onclick="shiftGridDays(-1)">◀</button>
                             <button class="btn btn-secondary" onclick="goToToday()">Today</button>
-                            <button class="btn btn-secondary" onclick="shiftGridDays(1)"></button>
-                            <button class="btn btn-secondary" onclick="shiftGridDays(7)"></button>
+                            <button class="btn btn-secondary" onclick="shiftGridDays(1)">▶</button>
+                            <button class="btn btn-secondary" onclick="shiftGridDays(7)">⏩</button>
+                            <select id="grid-month-select" class="form-input" style="padding: 0.5rem; min-width: 140px;" onchange="jumpToMonth(this.value)">
+                                <!-- Populated by JS -->
+                            </select>
                             <input type="date" id="grid-date-picker" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" onchange="jumpToDate(this.value)">
                             <span style="color: #6b7280;" id="grid-date-range"></span>
                         </div>
@@ -23265,6 +23268,37 @@ Local honey and preserves"></textarea>
             }
         }
         
+        function jumpToMonth(monthStr) {
+            if (monthStr) {
+                gridStartDate = new Date(monthStr + '-01');
+                loadGridData();
+            }
+        }
+        
+        function populateMonthSelector() {
+            const select = document.getElementById('grid-month-select');
+            if (!select) return;
+            
+            select.innerHTML = '';
+            const today = new Date();
+            const currentMonth = gridStartDate.getMonth();
+            const currentYear = gridStartDate.getFullYear();
+            
+            // Generate 12 months from today
+            for (let i = 0; i < 12; i++) {
+                const date = new Date(today.getFullYear(), today.getMonth() + i, 1);
+                const value = date.toISOString().slice(0, 7); // YYYY-MM
+                const label = date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = label;
+                if (date.getMonth() === currentMonth && date.getFullYear() === currentYear) {
+                    option.selected = true;
+                }
+                select.appendChild(option);
+            }
+        }
+        
         function goToToday() {
             gridStartDate = new Date();
             gridStartDate.setHours(0, 0, 0, 0);
@@ -23275,13 +23309,13 @@ Local honey and preserves"></textarea>
             // Refresh calendar data without changing the current date position
             const btn = event.target;
             const originalText = btn.innerHTML;
-            btn.innerHTML = '';
+            btn.innerHTML = '⏳';
             btn.disabled = true;
             
             try {
                 await loadGridData();
             } finally {
-                btn.innerHTML = originalText;
+                btn.innerHTML = '🔄';
                 btn.disabled = false;
             }
         }
@@ -23311,6 +23345,9 @@ Local honey and preserves"></textarea>
             
             document.getElementById('grid-date-range').textContent = dateRangeText;
             document.getElementById('grid-date-picker').value = fromDate;
+            
+            // Update month selector
+            populateMonthSelector();
             
             // Load availability for all rooms
             gridData = {};
