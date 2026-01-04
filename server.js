@@ -25122,44 +25122,90 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
 // Full Pricing & Availability Sync - syncs ALL data for 365 days
 app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
   try {
-    const { propertyId } = req.body; // Optional - sync specific property only
+    const { propertyId } = req.body;
     
-    // Get V2 access token
-    const accessToken = await getBeds24AccessToken(pool);
-    if (!accessToken) {
-      return res.json({ success: false, error: 'No Beds24 access token available' });
+    // Property ID is required
+    if (!propertyId) {
+      return res.json({ success: false, error: 'Property ID is required. Select a property first.' });
     }
     
-    // Get V1 credentials for price fallback
-    const connResult = await pool.query(`
-      SELECT c.id, c.credentials FROM gas_sync_connections c 
-      WHERE c.adapter_code = 'beds24' AND c.status = 'active' 
+    // Get the connection for this property
+    const connQuery = await pool.query(`
+      SELECT c.id, c.credentials, c.access_token, c.refresh_token, c.token_expires_at, c.account_id
+      FROM gas_sync_connections c
+      JOIN gas_sync_properties sp ON sp.connection_id = c.id
+      JOIN properties p ON p.id = sp.gas_property_id
+      WHERE p.id = $1 AND c.adapter_code = 'beds24' AND c.status = 'active'
       LIMIT 1
-    `);
-    const credentials = connResult.rows[0]?.credentials || {};
-    const v1ApiKey = typeof credentials === 'string' 
-      ? JSON.parse(credentials).v1ApiKey 
-      : credentials.v1ApiKey;
+    `, [propertyId]);
     
-    // Get rooms to sync
-    let roomsQuery = `
-      SELECT bu.id, bu.beds24_room_id, bu.name, bu.property_id, sp.prop_key
+    if (connQuery.rows.length === 0) {
+      return res.json({ success: false, error: 'No Beds24 connection found for this property' });
+    }
+    
+    const conn = connQuery.rows[0];
+    console.log(`[Full Pricing Sync] Using connection ${conn.id} for property ${propertyId}`);
+    
+    // Get or refresh access token for THIS connection
+    let accessToken = conn.access_token;
+    const tokenExpiry = conn.token_expires_at ? new Date(conn.token_expires_at) : null;
+    const now = new Date();
+    
+    if (!accessToken || !tokenExpiry || tokenExpiry <= now) {
+      // Need to refresh token
+      if (conn.refresh_token) {
+        try {
+          const refreshResponse = await axios.post('https://beds24.com/api/v2/authentication/token', {
+            refreshToken: conn.refresh_token
+          });
+          
+          if (refreshResponse.data.token) {
+            accessToken = refreshResponse.data.token;
+            const expiresAt = new Date(Date.now() + (refreshResponse.data.expiresIn || 3600) * 1000);
+            
+            await pool.query(`
+              UPDATE gas_sync_connections 
+              SET access_token = $1, token_expires_at = $2, updated_at = NOW()
+              WHERE id = $3
+            `, [accessToken, expiresAt, conn.id]);
+            
+            console.log(`[Full Pricing Sync] Refreshed token for connection ${conn.id}`);
+          }
+        } catch (refreshErr) {
+          console.error(`[Full Pricing Sync] Token refresh failed: ${refreshErr.message}`);
+          return res.json({ success: false, error: 'Failed to refresh Beds24 token' });
+        }
+      } else {
+        return res.json({ success: false, error: 'No refresh token available for this connection' });
+      }
+    }
+    
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No valid access token for this connection' });
+    }
+    
+    // Get V1 credentials from this connection
+    const credentials = typeof conn.credentials === 'string' 
+      ? JSON.parse(conn.credentials || '{}') 
+      : (conn.credentials || {});
+    const v1ApiKey = credentials.v1ApiKey || credentials.apiKey;
+    
+    // Get rooms for this property
+    const roomsResult = await pool.query(`
+      SELECT bu.id, bu.beds24_room_id, bu.name, sp.prop_key
       FROM bookable_units bu
       JOIN gas_sync_room_types rt ON rt.gas_room_id = bu.id
       JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
-      WHERE bu.beds24_room_id IS NOT NULL
-    `;
-    const params = [];
+      WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL
+    `, [propertyId]);
     
-    if (propertyId) {
-      roomsQuery += ' AND bu.property_id = $1';
-      params.push(propertyId);
-    }
-    
-    const roomsResult = await pool.query(roomsQuery, params);
     const rooms = roomsResult.rows;
     
-    console.log(`[Full Pricing Sync] Starting for ${rooms.length} rooms`);
+    if (rooms.length === 0) {
+      return res.json({ success: false, error: 'No Beds24 rooms found for this property' });
+    }
+    
+    console.log(`[Full Pricing Sync] Starting for ${rooms.length} rooms (property ${propertyId})`);
     
     const today = new Date();
     const startDate = today.toISOString().split('T')[0];
@@ -25186,13 +25232,11 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
           }
         });
         
-        console.log(`    V2 raw response for ${room.beds24_room_id}:`, JSON.stringify(calResponse.data).substring(0, 500));
-        
         const calendarData = calResponse.data.data?.[0]?.calendar || [];
         let daysUpdated = 0;
         let hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
         
-        console.log(`    V2 calendar entries: ${calendarData.length}, hasAnyPrices: ${hasAnyPrices}, v1ApiKey: ${!!v1ApiKey}, prop_key: ${room.prop_key}`);
+        console.log(`    V2 calendar entries: ${calendarData.length}, hasAnyPrices: ${hasAnyPrices}`);
         
         if (hasAnyPrices) {
           // V2 has prices - use them
@@ -25226,11 +25270,10 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
             }
           }
         } else if (v1ApiKey && room.prop_key) {
-          // V2 has no prices - use V1 getRates (batch endpoint - one call for all days)
+          // V2 has no prices - use V1 getRates (batch endpoint)
           console.log(`    V2 no prices, using V1 getRates fallback...`);
           
           try {
-            // V1 getRates can fetch all days in one call
             const v1Response = await axios.post('https://api.beds24.com/json/getRates', {
               authentication: {
                 apiKey: v1ApiKey,
@@ -25241,7 +25284,6 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
               to: endDate
             });
             
-            // getRates returns array of rates per day
             const ratesData = v1Response.data;
             
             if (Array.isArray(ratesData)) {
@@ -25273,16 +25315,13 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
               }
             }
             
-            // Delay after V1 call
             await new Promise(resolve => setTimeout(resolve, 2000));
             
           } catch (v1Error) {
             console.log(`    V1 getRates failed: ${v1Error.message}`);
-            if (v1Error.response?.status === 429) {
-              console.log('    Rate limited, waiting 60s...');
-              await new Promise(resolve => setTimeout(resolve, 60000));
-            }
           }
+        } else {
+          console.log(`    No V1 fallback available (v1ApiKey: ${!!v1ApiKey}, prop_key: ${room.prop_key})`);
         }
         
         totalDaysUpdated += daysUpdated;
