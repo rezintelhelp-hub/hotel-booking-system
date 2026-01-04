@@ -32132,15 +32132,15 @@ app.get('/api/websites/:websiteId/builder/:section', async (req, res) => {
       return res.json({ success: false, error: 'Website not found' });
     }
     
-    // For deployed sites, load from account-based settings
+    // For deployed sites, load from deployed_site_id settings
     if (isDeployedSite) {
       const result = await pool.query(`
         SELECT settings, variant, is_enabled, display_order
         FROM website_settings
-        WHERE account_id = $1 AND section = $2
+        WHERE deployed_site_id = $1 AND section = $2
         ORDER BY updated_at DESC NULLS LAST
         LIMIT 1
-      `, [accountId, section]);
+      `, [dbWebsiteId, section]);
       
       if (result.rows.length > 0) {
         res.json({ success: true, ...result.rows[0] });
