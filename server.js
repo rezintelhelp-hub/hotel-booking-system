@@ -25119,6 +25119,212 @@ app.post('/api/admin/sync-beds24-inventory', async (req, res) => {
   }
 });
 
+// Full Pricing & Availability Sync - syncs ALL data for 365 days
+app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
+  try {
+    const { propertyId } = req.body; // Optional - sync specific property only
+    
+    // Get V2 access token
+    const accessToken = await getBeds24AccessToken(pool);
+    if (!accessToken) {
+      return res.json({ success: false, error: 'No Beds24 access token available' });
+    }
+    
+    // Get V1 credentials for price fallback
+    const connResult = await pool.query(`
+      SELECT c.id, c.credentials FROM gas_sync_connections c 
+      WHERE c.cm_type = 'beds24' AND c.status = 'active' 
+      LIMIT 1
+    `);
+    const credentials = connResult.rows[0]?.credentials || {};
+    const v1ApiKey = typeof credentials === 'string' 
+      ? JSON.parse(credentials).v1ApiKey 
+      : credentials.v1ApiKey;
+    
+    // Get rooms to sync
+    let roomsQuery = `
+      SELECT bu.id, bu.beds24_room_id, bu.name, bu.property_id, sp.prop_key
+      FROM bookable_units bu
+      JOIN gas_sync_room_types rt ON rt.gas_room_id = bu.id
+      JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+      WHERE bu.beds24_room_id IS NOT NULL
+    `;
+    const params = [];
+    
+    if (propertyId) {
+      roomsQuery += ' AND bu.property_id = $1';
+      params.push(propertyId);
+    }
+    
+    const roomsResult = await pool.query(roomsQuery, params);
+    const rooms = roomsResult.rows;
+    
+    console.log(`[Full Pricing Sync] Starting for ${rooms.length} rooms`);
+    
+    const today = new Date();
+    const startDate = today.toISOString().split('T')[0];
+    const endDate = new Date(today.getTime() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    let totalDaysUpdated = 0;
+    let roomsSynced = 0;
+    let errors = [];
+    
+    for (const room of rooms) {
+      try {
+        console.log(`  Syncing ${room.name} (${room.beds24_room_id})...`);
+        
+        // Get calendar data from V2 (includes prices)
+        const calResponse = await axios.get('https://beds24.com/api/v2/inventory/rooms/calendar', {
+          headers: { 'token': accessToken },
+          params: {
+            roomId: parseInt(room.beds24_room_id),
+            startDate,
+            endDate,
+            includeNumAvail: true,
+            includePrices: true,
+            includeMinStay: true
+          }
+        });
+        
+        const calendarData = calResponse.data.data?.[0]?.calendar || [];
+        let daysUpdated = 0;
+        let hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
+        
+        if (hasAnyPrices) {
+          // V2 has prices - use them
+          for (const entry of calendarData) {
+            const fromDate = new Date(entry.from);
+            const toDate = new Date(entry.to);
+            
+            for (let d = new Date(fromDate); d <= toDate; d.setDate(d.getDate() + 1)) {
+              const dateStr = d.toISOString().split('T')[0];
+              const numAvail = entry.numAvail || 0;
+              const price = entry.price1 || null;
+              const minStay = entry.minStay || 1;
+              
+              await pool.query(`
+                INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-full', NOW())
+                ON CONFLICT (room_id, date) 
+                DO UPDATE SET 
+                  cm_price = COALESCE($3, room_availability.cm_price),
+                  direct_price = COALESCE($3, room_availability.direct_price),
+                  standard_price = COALESCE($3, room_availability.standard_price),
+                  is_available = $4,
+                  is_blocked = $5,
+                  min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                  cm_min_stay = $6,
+                  source = 'beds24-full',
+                  updated_at = NOW()
+              `, [room.id, dateStr, price, numAvail > 0, numAvail === 0, minStay]);
+              
+              daysUpdated++;
+            }
+          }
+        } else if (v1ApiKey && room.prop_key) {
+          // V2 has no prices - use V1 getPrice
+          console.log(`    V2 no prices, using V1 fallback...`);
+          
+          // Batch dates into chunks to avoid rate limits
+          const dateChunks = [];
+          let currentChunk = [];
+          for (let d = new Date(today); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
+            currentChunk.push(new Date(d));
+            if (currentChunk.length >= 30) {
+              dateChunks.push(currentChunk);
+              currentChunk = [];
+            }
+          }
+          if (currentChunk.length > 0) dateChunks.push(currentChunk);
+          
+          for (const chunk of dateChunks) {
+            for (const d of chunk) {
+              const dateStr = d.toISOString().split('T')[0];
+              const nextDay = new Date(d);
+              nextDay.setDate(nextDay.getDate() + 1);
+              const departStr = nextDay.toISOString().split('T')[0];
+              
+              try {
+                const v1Response = await axios.post('https://api.beds24.com/json/getPrice', {
+                  authentication: {
+                    apiKey: v1ApiKey,
+                    propKey: room.prop_key
+                  },
+                  roomId: room.beds24_room_id,
+                  arrival: dateStr,
+                  departure: departStr,
+                  numAdult: 2
+                });
+                
+                const priceData = v1Response.data;
+                const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || null;
+                const minStay = priceData?.minStay || 1;
+                const isAvailable = priceData?.available !== false;
+                
+                if (price !== null) {
+                  await pool.query(`
+                    INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
+                    VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-v1-full', NOW())
+                    ON CONFLICT (room_id, date) 
+                    DO UPDATE SET 
+                      cm_price = COALESCE($3, room_availability.cm_price),
+                      direct_price = COALESCE($3, room_availability.direct_price),
+                      standard_price = COALESCE($3, room_availability.standard_price),
+                      is_available = $4,
+                      is_blocked = $5,
+                      min_stay = CASE WHEN room_availability.min_stay_override IS NOT NULL THEN room_availability.min_stay ELSE $6 END,
+                      cm_min_stay = $6,
+                      source = 'beds24-v1-full',
+                      updated_at = NOW()
+                  `, [room.id, dateStr, price, isAvailable, !isAvailable, minStay]);
+                  
+                  daysUpdated++;
+                }
+                
+                // Small delay between V1 calls
+                await new Promise(resolve => setTimeout(resolve, 200));
+                
+              } catch (dayErr) {
+                if (dayErr.response?.status === 429) {
+                  console.log('    Rate limited, waiting 30s...');
+                  await new Promise(resolve => setTimeout(resolve, 30000));
+                }
+              }
+            }
+            
+            // Delay between chunks
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+        }
+        
+        totalDaysUpdated += daysUpdated;
+        roomsSynced++;
+        console.log(`    ✓ ${room.name}: ${daysUpdated} days synced`);
+        
+        // Delay between rooms
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+      } catch (roomError) {
+        console.error(`    ✗ ${room.name}: ${roomError.message}`);
+        errors.push({ room: room.name, error: roomError.message });
+      }
+    }
+    
+    console.log(`[Full Pricing Sync] Complete: ${roomsSynced} rooms, ${totalDaysUpdated} days`);
+    
+    res.json({
+      success: true,
+      roomsSynced,
+      totalDaysUpdated,
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('Full pricing sync error:', error.message);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Debug endpoint - check specific date availability from Beds24
 app.get('/api/admin/debug/beds24-availability/:date', async (req, res) => {
   try {
