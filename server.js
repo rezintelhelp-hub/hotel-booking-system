@@ -25130,18 +25130,8 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
     }
     
     // Get the connection for this property via the room types
+    // Match tiered sync: connections use sync_enabled, not just status='active'
     console.log(`[Full Pricing Sync] Looking for connection for property ${propertyId}`);
-    
-    // First check if property has any linked rooms
-    const roomCheck = await pool.query(`
-      SELECT bu.id, bu.beds24_room_id, rt.id as rt_id, rt.sync_property_id, sp.connection_id
-      FROM bookable_units bu
-      LEFT JOIN gas_sync_room_types rt ON rt.gas_room_id = bu.id
-      LEFT JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
-      WHERE bu.property_id = $1 AND bu.beds24_room_id IS NOT NULL
-      LIMIT 5
-    `, [propertyId]);
-    console.log(`[Full Pricing Sync] Room check:`, roomCheck.rows);
     
     const connQuery = await pool.query(`
       SELECT DISTINCT c.id, c.credentials, c.access_token, c.refresh_token, c.token_expires_at, c.account_id
@@ -25149,9 +25139,13 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
       JOIN gas_sync_properties sp ON sp.connection_id = c.id
       JOIN gas_sync_room_types rt ON rt.sync_property_id = sp.id
       JOIN bookable_units bu ON bu.id = rt.gas_room_id
-      WHERE bu.property_id = $1 AND c.adapter_code = 'beds24' AND c.status = 'active'
+      WHERE bu.property_id = $1 
+        AND c.adapter_code = 'beds24' 
+        AND c.sync_enabled = true
       LIMIT 1
     `, [propertyId]);
+    
+    console.log(`[Full Pricing Sync] Connection query returned ${connQuery.rows.length} rows`);
     
     if (connQuery.rows.length === 0) {
       return res.json({ success: false, error: 'No Beds24 connection found for this property' });
