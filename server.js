@@ -12806,10 +12806,10 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
       return res.json({ success: true, rooms: [], message: 'No property linked to site' });
     }
     
-    // Get ALL rooms for this property
+    // Get ALL rooms for this property (no status filter - matches /api/admin/units)
     const roomsResult = await pool.query(`
       SELECT * FROM bookable_units
-      WHERE property_id = $1 AND status = 'active'
+      WHERE property_id = $1
       ORDER BY name
     `, [propertyId]);
     
@@ -15436,6 +15436,33 @@ app.get('/api/db/bookings', async (req, res) => {
 });
 
 // Debug: Check bookings table schema
+app.get('/api/admin/debug/rooms-for-property/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await pool.query(`
+      SELECT id, name, property_id, status, beds24_room_id 
+      FROM bookable_units 
+      WHERE property_id = $1
+    `, [id]);
+    
+    // Also check what property IDs exist
+    const allProps = await pool.query(`
+      SELECT DISTINCT property_id, COUNT(*) as count 
+      FROM bookable_units 
+      GROUP BY property_id
+    `);
+    
+    res.json({ 
+      success: true, 
+      propertyId: id,
+      rooms: result.rows,
+      allPropertyIds: allProps.rows
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/admin/debug/bookings-schema', async (req, res) => {
   try {
     const result = await pool.query(`
