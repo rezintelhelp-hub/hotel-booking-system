@@ -15502,6 +15502,48 @@ app.get('/api/admin/debug/rooms-for-property/:id', async (req, res) => {
   }
 });
 
+// Detailed debug for room images and availability
+app.get('/api/admin/debug/room-details/:roomId', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    
+    // Get room
+    const room = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [roomId]);
+    
+    // Get images
+    const images = await pool.query('SELECT * FROM room_images WHERE room_id = $1 ORDER BY display_order', [roomId]);
+    
+    // Get recent availability
+    const availability = await pool.query(`
+      SELECT * FROM room_availability 
+      WHERE room_id = $1 
+      ORDER BY date DESC 
+      LIMIT 10
+    `, [roomId]);
+    
+    res.json({
+      success: true,
+      room: room.rows[0] || null,
+      images: images.rows,
+      availability: availability.rows
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Fix missing is_active on room_images
+app.post('/api/admin/fix-room-images', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE room_images SET is_active = true WHERE is_active IS NULL OR is_active = false
+    `);
+    res.json({ success: true, updated: result.rowCount });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('/api/admin/debug/bookings-schema', async (req, res) => {
   try {
     const result = await pool.query(`
@@ -36058,8 +36100,8 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
             if (imageUrl && typeof imageUrl === 'string') {
               try {
                 await pool.query(`
-                  INSERT INTO room_images (room_id, image_url, display_order, created_at)
-                  VALUES ($1, $2, $3, NOW())
+                  INSERT INTO room_images (room_id, image_url, display_order, is_active, created_at)
+                  VALUES ($1, $2, $3, true, NOW())
                   ON CONFLICT DO NOTHING
                 `, [gasRoomId, imageUrl, i]);
                 imagesCreated++;
