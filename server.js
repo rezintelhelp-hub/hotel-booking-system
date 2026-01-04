@@ -23329,6 +23329,23 @@ async function deleteImageFromR2(imageKey) {
 // =========================================================
 
 // Upload property images
+// Get rooms for a property
+app.get('/api/admin/properties/:id/rooms', async (req, res) => {
+  try {
+    const { id } = req.params;
+    
+    const result = await pool.query(`
+      SELECT * FROM bookable_units 
+      WHERE property_id = $1 AND status = 'active'
+      ORDER BY name
+    `, [id]);
+    
+    res.json({ success: true, rooms: result.rows });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.post('/api/admin/properties/:id/images', upload.array('images', 10), async (req, res) => {
   const client = await pool.connect();
   try {
