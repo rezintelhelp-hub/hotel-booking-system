@@ -20950,13 +20950,13 @@ Local honey and preserves"></textarea>
                                             ${img.is_primary ? '<span class="image-tag" style="background: gold; color: #000;"> Primary</span>' : ''}
                                         </div>
                                         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
-                                            ${img.width}  ${img.height} px  Order: ${idx + 1}
+                                            ${img.width && img.height ? `${img.width} × ${img.height} px · ` : ""}Order: ${idx + 1}
                                         </div>
                                         <div class="image-actions">
-                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''}></button>
-                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''}></button>
-                                            ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})"></button>` : ''}
-                                            <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;"></button>
+                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''}>⬆️</button>
+                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''}>⬇️</button>
+                                            ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})">⭐</button>` : ''}
+                                            <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;">🗑️</button>
                                         </div>
                                     </div>
                                 </div>
