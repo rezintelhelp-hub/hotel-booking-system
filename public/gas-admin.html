@@ -21943,10 +21943,11 @@ Local honey and preserves"></textarea>
                                         <span style="color: #94a3b8;">  ${templateLabel}</span>
                                     </p>
                                     <div style="margin-top: 0.75rem; display: flex; gap: 0.5rem; flex-wrap: wrap;">
-                                        <button onclick="editWebsite(${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-color: #6366f1;"> Edit</button>
-                                        <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;"> View Site</a>
-                                        <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;"> WP Admin</a>
-                                                                                <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;"> Delete</button>
+                                        <button onclick="editWebsite(${site.id})" class="btn btn-small" style="font-size: 0.75rem; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); border-color: #6366f1;">✏️ Edit</button>
+                                        <a href="${site.site_url}" target="_blank" class="btn btn-small" style="font-size: 0.75rem;">🌐 View Site</a>
+                                        <a href="${site.admin_url}" target="_blank" class="btn btn-small btn-secondary" style="font-size: 0.75rem;">⚙️ WP Admin</a>
+                                        <button onclick="manageWebsiteRooms(${site.id}, ${site.property_id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #10b981; border-color: #10b981;">🛏️ Rooms</button>
+                                                                                <button onclick="deleteDeployedSite(${site.id}, '${(site.site_name || site.slug).replace(/'/g, "\\'")}')" class="btn btn-small" style="font-size: 0.75rem; background: #ef4444; border-color: #ef4444;">🗑️ Delete</button>
                                     </div>
                                 </div>
                                 <div style="text-align: right;">
@@ -22122,6 +22123,90 @@ Local honey and preserves"></textarea>
                 showNotification('Error deleting site: ' + error.message, 'error');
             } finally {
                 window.deleteInProgress = false;
+            }
+        }
+        
+        async function manageWebsiteRooms(siteId, propertyId, siteName) {
+            if (!propertyId) {
+                showNotification('No property linked to this site', 'error');
+                return;
+            }
+            
+            try {
+                // Get all rooms for this property
+                const roomsResp = await fetch(`/api/admin/properties/${propertyId}/rooms`, { headers: authHeaders() });
+                const roomsData = await roomsResp.json();
+                
+                // Get currently linked rooms for this website
+                const linkedResp = await fetch(`/api/admin/deployed-sites/${siteId}/rooms`, { headers: authHeaders() });
+                const linkedData = await linkedResp.json();
+                
+                const allRooms = roomsData.rooms || [];
+                const linkedRoomIds = new Set((linkedData.rooms || []).map(r => r.id));
+                
+                if (allRooms.length === 0) {
+                    showNotification('No rooms found for this property', 'error');
+                    return;
+                }
+                
+                // Build checkbox list
+                const roomCheckboxes = allRooms.map(room => `
+                    <label style="display: flex; align-items: center; gap: 0.75rem; padding: 0.75rem; background: var(--bg-secondary); border-radius: 8px; cursor: pointer;">
+                        <input type="checkbox" name="website-room" value="${room.id}" ${linkedRoomIds.has(room.id) ? 'checked' : ''} style="width: 20px; height: 20px;">
+                        <div>
+                            <strong>${room.name}</strong>
+                            <div style="font-size: 0.8rem; color: var(--text-secondary);">
+                                ${room.max_guests || '?'} guests · ${room.bedrooms || '?'} bed · £${room.base_price || '?'}/night
+                            </div>
+                        </div>
+                    </label>
+                `).join('');
+                
+                // Show modal
+                const modalHtml = `
+                    <div id="manageRoomsModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 10000;">
+                        <div style="background: var(--bg-primary); border-radius: 12px; padding: 1.5rem; max-width: 500px; width: 90%; max-height: 80vh; overflow-y: auto;">
+                            <h3 style="margin: 0 0 1rem;">🛏️ Manage Rooms for ${siteName}</h3>
+                            <p style="color: var(--text-secondary); margin-bottom: 1rem;">Select which rooms to display on this website:</p>
+                            <div style="display: flex; flex-direction: column; gap: 0.5rem; margin-bottom: 1.5rem;">
+                                ${roomCheckboxes}
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; justify-content: flex-end;">
+                                <button onclick="document.getElementById('manageRoomsModal').remove()" class="btn btn-secondary">Cancel</button>
+                                <button onclick="saveWebsiteRooms(${siteId}, ${propertyId})" class="btn btn-primary">💾 Save Changes</button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+            } catch (error) {
+                showNotification('Failed to load rooms: ' + error.message, 'error');
+            }
+        }
+        
+        async function saveWebsiteRooms(siteId, propertyId) {
+            const checkboxes = document.querySelectorAll('input[name="website-room"]:checked');
+            const selectedRoomIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+            
+            try {
+                const response = await fetch(`/api/admin/deployed-sites/${siteId}/rooms`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ roomIds: selectedRoomIds })
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification(`✅ Updated! ${selectedRoomIds.length} room(s) now on website`, 'success');
+                    document.getElementById('manageRoomsModal').remove();
+                    loadDeployedSites();
+                } else {
+                    showNotification(data.error || 'Failed to update rooms', 'error');
+                }
+            } catch (error) {
+                showNotification('Failed to save: ' + error.message, 'error');
             }
         }
         
