@@ -16506,7 +16506,7 @@ Local honey and preserves"></textarea>
                     // Upload the image
                     const formData = new FormData();
                     formData.append('image', file);
-                    formData.append('client_id', getClientId() || localStorage.getItem('gas_selected_client_id') || selectedAccountId);
+                    formData.append('deployed_site_id', selectedDeployedSiteId || getClientId() || localStorage.getItem('gas_selected_client_id'));
                     formData.append('type', `page-${pageName}-${imageType}`);
                     
                     try {
@@ -16547,16 +16547,16 @@ Local honey and preserves"></textarea>
                 };
                 reader.readAsDataURL(file);
                 
-                // Upload to server
-                const clientId = getClientId() || localStorage.getItem('gas_selected_client_id');
-                if (!accountId) {
-                    alert('Please select a client/property first');
+                // Upload to server - use deployed_site_id from website editor
+                const siteId = selectedDeployedSiteId || getClientId() || localStorage.getItem('gas_selected_client_id');
+                if (!siteId) {
+                    alert('Please select a website first');
                     return;
                 }
                 
                 const formData = new FormData();
                 formData.append('image', file);
-                formData.append('client_id', clientId);
+                formData.append('deployed_site_id', siteId);
                 formData.append('section', section);
                 
                 try {
@@ -16634,18 +16634,18 @@ Local honey and preserves"></textarea>
                 formData.append('image', file);
                 formData.append('section', `hero-slide-${slot}`);
                 
-                // Server needs client_id - get from selected client
-                const clientId = localStorage.getItem('gas_selected_client_id') || getClientId() || selectedAccountId;
-                if (clientId) {
-                    formData.append('client_id', clientId);
+                // Server needs deployed_site_id - use the selected deployed site
+                const siteId = selectedDeployedSiteId || localStorage.getItem('gas_selected_client_id') || getClientId();
+                if (siteId) {
+                    formData.append('deployed_site_id', siteId);
                 } else {
-                    showNotification('No client selected - cannot upload', 'error');
+                    showNotification('No website selected - cannot upload', 'error');
                     return;
                 }
                 
                 // Don't set Content-Type header - browser sets it automatically for FormData
                 const token = localStorage.getItem('gas_token');
-                console.log(`Slider image ${slot}: Uploading to /api/admin/website-builder/upload-image with client_id:`, clientId);
+                console.log(`Slider image ${slot}: Uploading to /api/admin/website-builder/upload-image with deployed_site_id:`, siteId);
                 
                 const response = await fetch('/api/admin/website-builder/upload-image', {
                     method: 'POST',
@@ -16734,7 +16734,7 @@ Local honey and preserves"></textarea>
             
             const formData = new FormData();
             formData.append('video', file);
-            formData.append('client_id', getClientId() || localStorage.getItem('gas_selected_client_id') || selectedAccountId);
+            formData.append('deployed_site_id', selectedDeployedSiteId || getClientId() || localStorage.getItem('gas_selected_client_id'));
             formData.append('section', 'hero');
             
             try {
