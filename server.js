@@ -25190,6 +25190,8 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
         let daysUpdated = 0;
         let hasAnyPrices = calendarData.some(entry => entry.price1 || entry.price);
         
+        console.log(`    V2 calendar entries: ${calendarData.length}, hasAnyPrices: ${hasAnyPrices}, v1ApiKey: ${!!v1ApiKey}, prop_key: ${room.prop_key}`);
+        
         if (hasAnyPrices) {
           // V2 has prices - use them
           for (const entry of calendarData) {
