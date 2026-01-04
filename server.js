@@ -15532,12 +15532,25 @@ app.get('/api/admin/debug/room-details/:roomId', async (req, res) => {
       LIMIT 10
     `, [roomId]);
     
+    // Check gas_sync_room_types linkage
+    let syncRoomType = null;
+    if (room.rows[0]?.beds24_room_id) {
+      const syncRtResult = await pool.query(`
+        SELECT rt.*, sp.name as property_name, sp.connection_id
+        FROM gas_sync_room_types rt
+        JOIN gas_sync_properties sp ON rt.sync_property_id = sp.id
+        WHERE rt.external_id = $1
+      `, [String(room.rows[0].beds24_room_id)]);
+      syncRoomType = syncRtResult.rows[0] || null;
+    }
+    
     res.json({
       success: true,
       room: room.rows[0] || null,
       images: images.rows,
       syncImages: syncImages,
-      availability: availability.rows
+      availability: availability.rows,
+      syncRoomType: syncRoomType
     });
   } catch (error) {
     res.json({ success: false, error: error.message });
