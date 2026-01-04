@@ -22133,16 +22133,15 @@ Local honey and preserves"></textarea>
             }
             
             try {
-                // Get all rooms for this property
-                const roomsResp = await fetch(`/api/admin/properties/${propertyId}/rooms`, { headers: authHeaders() });
-                const roomsData = await roomsResp.json();
-                
-                // Get currently linked rooms for this website
+                // Get all rooms AND linked room IDs from the deployed-sites endpoint
                 const linkedResp = await fetch(`/api/admin/deployed-sites/${siteId}/rooms`, { headers: authHeaders() });
                 const linkedData = await linkedResp.json();
                 
-                const allRooms = roomsData.rooms || [];
-                const linkedRoomIds = new Set((linkedData.rooms || []).map(r => r.id));
+                const allRooms = linkedData.rooms || [];
+                // Use linkedRoomIds from response (the actual room_ids stored in deployed_sites)
+                const linkedRoomIds = new Set(linkedData.linkedRoomIds || []);
+                
+                console.log('All rooms:', allRooms.length, 'Linked IDs:', linkedData.linkedRoomIds);
                 
                 if (allRooms.length === 0) {
                     showNotification('No rooms found for this property', 'error');
