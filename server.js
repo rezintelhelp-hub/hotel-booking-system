@@ -25129,13 +25129,14 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
       return res.json({ success: false, error: 'Property ID is required. Select a property first.' });
     }
     
-    // Get the connection for this property
+    // Get the connection for this property via the room types
     const connQuery = await pool.query(`
-      SELECT c.id, c.credentials, c.access_token, c.refresh_token, c.token_expires_at, c.account_id
+      SELECT DISTINCT c.id, c.credentials, c.access_token, c.refresh_token, c.token_expires_at, c.account_id
       FROM gas_sync_connections c
       JOIN gas_sync_properties sp ON sp.connection_id = c.id
-      JOIN properties p ON p.id = sp.gas_property_id
-      WHERE p.id = $1 AND c.adapter_code = 'beds24' AND c.status = 'active'
+      JOIN gas_sync_room_types rt ON rt.sync_property_id = sp.id
+      JOIN bookable_units bu ON bu.id = rt.gas_room_id
+      WHERE bu.property_id = $1 AND c.adapter_code = 'beds24' AND c.status = 'active'
       LIMIT 1
     `, [propertyId]);
     
