@@ -2796,11 +2796,10 @@
                             <button class="btn btn-secondary" onclick="goToToday()">Today</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(1)">▶</button>
                             <button class="btn btn-secondary" onclick="shiftGridDays(7)">⏩</button>
-                            <select id="grid-month-select" class="form-input" style="padding: 0.5rem; min-width: 140px;" onchange="jumpToMonth(this.value)">
+                            <input type="date" id="grid-date-picker" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" onchange="jumpToDate(this.value)">
+                            <select id="grid-month-select" class="form-input" style="padding: 0.5rem 1rem; min-width: 160px; font-weight: 600; font-size: 1rem; background: #f0f9ff; border: 2px solid #0ea5e9;" onchange="jumpToMonth(this.value)">
                                 <!-- Populated by JS -->
                             </select>
-                            <input type="date" id="grid-date-picker" style="padding: 0.5rem; border: 1px solid #d1d5db; border-radius: 4px;" onchange="jumpToDate(this.value)">
-                            <span style="color: #6b7280;" id="grid-date-range"></span>
                         </div>
                     </div>
                 </div>
@@ -23597,27 +23596,35 @@ Local honey and preserves"></textarea>
         }
         
         async function syncBeds24FullInventory() {
-            if (!confirm('Run FULL inventory sync? This checks all dates for the next 365 days. Usually runs automatically every 6 hours.')) return;
+            if (!confirm('Run FULL Pricing & Availability sync? This syncs prices and availability for 365 days. May take 2-5 minutes.')) return;
             
-            const btn = document.getElementById('sync-beds24-btn');
+            const btn = event.target;
+            const originalText = btn.textContent;
             btn.disabled = true;
-            btn.textContent = ' Full sync (1-2 min)...';
+            btn.textContent = '⏳ Syncing 365 days...';
             
             try {
-                const response = await fetch('/api/admin/sync-beds24-inventory', { method: 'POST', headers: authHeaders() });
+                // Get selected property if filtering
+                const propertyId = document.getElementById('grid-property-filter')?.value || null;
+                
+                const response = await fetch('/api/admin/sync-beds24-full-pricing', { 
+                    method: 'POST', 
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ propertyId: propertyId ? parseInt(propertyId) : null })
+                });
                 const result = await response.json();
                 
                 if (result.success) {
-                    alert(` Full Inventory Sync Complete!\n\n ${result.roomsChecked || 0} rooms checked (365 days)\n ${result.inventoryBlocksFound || 0} blocked dates\n ${result.datesUnblocked || 0} dates unblocked`);
+                    alert(`✅ Full Pricing Sync Complete!\n\n📊 ${result.roomsSynced || 0} rooms synced\n📅 ${result.totalDaysUpdated || 0} days updated${result.errors?.length ? '\n\n⚠️ Some errors occurred' : ''}`);
                 } else {
-                    alert(` Sync failed: ${result.error}`);
+                    alert(`❌ Sync failed: ${result.error}`);
                 }
             } catch (error) {
-                alert(` Error: ${error.message}`);
+                alert(`❌ Error: ${error.message}`);
             }
             
             btn.disabled = false;
-            btn.textContent = ' Beds24';
+            btn.textContent = originalText;
             loadGridData();
         }
         
