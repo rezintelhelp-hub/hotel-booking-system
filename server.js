@@ -12788,6 +12788,9 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
   try {
     const { id } = req.params;
     
+    // Ensure website_id column exists
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_id INTEGER');
+    
     // Get the site to find property_id
     const siteResult = await pool.query('SELECT property_id FROM deployed_sites WHERE id = $1', [id]);
     if (siteResult.rows.length === 0) {
@@ -12799,18 +12802,22 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
       return res.json({ success: true, rooms: [] });
     }
     
-    // Get rooms that are linked to this website (via website_rooms table or room.website_id)
-    // For now, assume all rooms for the property are on the website unless explicitly excluded
-    // Check if we have a website_rooms linking table
+    // Get rooms that are linked to this website
+    // Rooms with website_id matching this site are linked
+    // Rooms with NULL website_id are also considered linked (default behavior)
     const roomsResult = await pool.query(`
-      SELECT bu.* FROM bookable_units bu
+      SELECT bu.*, 
+             CASE WHEN bu.website_id = $2 OR bu.website_id IS NULL THEN true ELSE false END as is_linked
+      FROM bookable_units bu
       WHERE bu.property_id = $1 
-      AND (bu.website_id = $2 OR bu.website_id IS NULL)
       AND bu.status = 'active'
       ORDER BY bu.name
     `, [propertyId, id]);
     
-    res.json({ success: true, rooms: roomsResult.rows });
+    // Return only linked rooms for this endpoint
+    const linkedRooms = roomsResult.rows.filter(r => r.is_linked);
+    
+    res.json({ success: true, rooms: linkedRooms });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
@@ -12821,6 +12828,9 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
   try {
     const { id } = req.params;
     const { roomIds } = req.body;
+    
+    // Ensure website_id column exists
+    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_id INTEGER');
     
     // Get the site to find property_id
     const siteResult = await pool.query('SELECT property_id FROM deployed_sites WHERE id = $1', [id]);
@@ -12833,12 +12843,12 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
       return res.json({ success: false, error: 'No property linked to this site' });
     }
     
-    // First, unlink all rooms from this website
+    // First, unlink all rooms from this website (set to -1 to mark as explicitly excluded)
     await pool.query(`
-      UPDATE bookable_units SET website_id = NULL WHERE property_id = $1
+      UPDATE bookable_units SET website_id = -1 WHERE property_id = $1
     `, [propertyId]);
     
-    // Then link the selected rooms
+    // Then link the selected rooms (set website_id to the site id)
     if (roomIds && roomIds.length > 0) {
       await pool.query(`
         UPDATE bookable_units SET website_id = $1 WHERE id = ANY($2::int[]) AND property_id = $3
