@@ -25133,7 +25133,7 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
     // Get V1 credentials for price fallback
     const connResult = await pool.query(`
       SELECT c.id, c.credentials FROM gas_sync_connections c 
-      WHERE c.cm_type = 'beds24' AND c.status = 'active' 
+      WHERE c.adapter_code = 'beds24' AND c.status = 'active' 
       LIMIT 1
     `);
     const credentials = connResult.rows[0]?.credentials || {};
