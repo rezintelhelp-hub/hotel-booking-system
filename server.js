@@ -15510,8 +15510,19 @@ app.get('/api/admin/debug/room-details/:roomId', async (req, res) => {
     // Get room
     const room = await pool.query('SELECT * FROM bookable_units WHERE id = $1', [roomId]);
     
-    // Get images
+    // Get images from room_images
     const images = await pool.query('SELECT * FROM room_images WHERE room_id = $1 ORDER BY display_order', [roomId]);
+    
+    // Get images from gas_sync_images (if beds24_room_id exists)
+    let syncImages = [];
+    if (room.rows[0]?.beds24_room_id) {
+      const syncImgResult = await pool.query(`
+        SELECT * FROM gas_sync_images 
+        WHERE room_type_external_id = $1 
+        ORDER BY sort_order
+      `, [String(room.rows[0].beds24_room_id)]);
+      syncImages = syncImgResult.rows;
+    }
     
     // Get recent availability
     const availability = await pool.query(`
@@ -15525,6 +15536,7 @@ app.get('/api/admin/debug/room-details/:roomId', async (req, res) => {
       success: true,
       room: room.rows[0] || null,
       images: images.rows,
+      syncImages: syncImages,
       availability: availability.rows
     });
   } catch (error) {
@@ -15540,6 +15552,73 @@ app.post('/api/admin/fix-room-images', async (req, res) => {
     `);
     res.json({ success: true, updated: result.rowCount });
   } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Copy images from gas_sync_images to room_images for a GAS property
+app.post('/api/admin/properties/:propertyId/copy-sync-images', async (req, res) => {
+  try {
+    const { propertyId } = req.params;
+    
+    // Get all rooms for this property
+    const roomsResult = await pool.query(`
+      SELECT id, name, beds24_room_id FROM bookable_units WHERE property_id = $1
+    `, [propertyId]);
+    
+    if (roomsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No rooms found for this property' });
+    }
+    
+    let totalCopied = 0;
+    let totalSkipped = 0;
+    const roomResults = [];
+    
+    for (const room of roomsResult.rows) {
+      // Find images in gas_sync_images matching this room's beds24_room_id
+      const syncImages = await pool.query(`
+        SELECT * FROM gas_sync_images 
+        WHERE room_type_external_id = $1
+        ORDER BY sort_order
+      `, [String(room.beds24_room_id)]);
+      
+      let copied = 0;
+      let skipped = 0;
+      
+      for (const img of syncImages.rows) {
+        // Check if already exists
+        const existing = await pool.query(`
+          SELECT id FROM room_images WHERE room_id = $1 AND image_url = $2
+        `, [room.id, img.original_url]);
+        
+        if (existing.rows.length > 0) {
+          skipped++;
+          continue;
+        }
+        
+        // Insert
+        await pool.query(`
+          INSERT INTO room_images (room_id, image_url, thumbnail_url, caption, display_order, upload_source, is_active, is_primary, created_at)
+          VALUES ($1, $2, $3, $4, $5, 'beds24_sync', true, $6, NOW())
+        `, [
+          room.id,
+          img.original_url,
+          img.thumbnail_url || img.original_url,
+          img.caption || '',
+          img.sort_order || 0,
+          img.sort_order === 0
+        ]);
+        copied++;
+      }
+      
+      totalCopied += copied;
+      totalSkipped += skipped;
+      roomResults.push({ roomId: room.id, name: room.name, copied, skipped, syncImagesFound: syncImages.rows.length });
+    }
+    
+    res.json({ success: true, totalCopied, totalSkipped, rooms: roomResults });
+  } catch (error) {
+    console.error('Copy sync images error:', error);
     res.json({ success: false, error: error.message });
   }
 });
