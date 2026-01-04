@@ -23599,21 +23599,28 @@ Local honey and preserves"></textarea>
         }
         
         async function syncBeds24FullInventory() {
-            if (!confirm('Run FULL Pricing & Availability sync? This syncs prices and availability for 365 days. May take 2-5 minutes.')) return;
+            // Get selected property
+            const propertyId = document.getElementById('grid-property-filter')?.value;
+            
+            if (!propertyId) {
+                alert('⚠️ Please select a property first.\n\nThe Full sync is property-specific to use the correct Beds24 credentials.');
+                return;
+            }
+            
+            const propertyName = document.getElementById('grid-property-filter')?.selectedOptions[0]?.text || 'Selected property';
+            
+            if (!confirm(`Run FULL Pricing & Availability sync for "${propertyName}"?\n\nThis syncs prices and availability for 365 days. May take 1-2 minutes.`)) return;
             
             const btn = event.target;
             const originalText = btn.textContent;
             btn.disabled = true;
-            btn.textContent = '⏳ Syncing 365 days...';
+            btn.textContent = '⏳ Syncing...';
             
             try {
-                // Get selected property if filtering
-                const propertyId = document.getElementById('grid-property-filter')?.value || null;
-                
                 const response = await fetch('/api/admin/sync-beds24-full-pricing', { 
                     method: 'POST', 
                     headers: { 'Content-Type': 'application/json', ...authHeaders() },
-                    body: JSON.stringify({ propertyId: propertyId ? parseInt(propertyId) : null })
+                    body: JSON.stringify({ propertyId: parseInt(propertyId) })
                 });
                 const result = await response.json();
                 
