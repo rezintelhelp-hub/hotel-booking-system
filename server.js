@@ -25222,46 +25222,32 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
             }
           }
         } else if (v1ApiKey && room.prop_key) {
-          // V2 has no prices - use V1 getPrice
-          console.log(`    V2 no prices, using V1 fallback...`);
+          // V2 has no prices - use V1 getRates (batch endpoint - one call for all days)
+          console.log(`    V2 no prices, using V1 getRates fallback...`);
           
-          // Batch dates into chunks to avoid rate limits
-          const dateChunks = [];
-          let currentChunk = [];
-          for (let d = new Date(today); d <= new Date(endDate); d.setDate(d.getDate() + 1)) {
-            currentChunk.push(new Date(d));
-            if (currentChunk.length >= 30) {
-              dateChunks.push(currentChunk);
-              currentChunk = [];
-            }
-          }
-          if (currentChunk.length > 0) dateChunks.push(currentChunk);
-          
-          for (const chunk of dateChunks) {
-            for (const d of chunk) {
-              const dateStr = d.toISOString().split('T')[0];
-              const nextDay = new Date(d);
-              nextDay.setDate(nextDay.getDate() + 1);
-              const departStr = nextDay.toISOString().split('T')[0];
-              
-              try {
-                const v1Response = await axios.post('https://api.beds24.com/json/getPrice', {
-                  authentication: {
-                    apiKey: v1ApiKey,
-                    propKey: room.prop_key
-                  },
-                  roomId: room.beds24_room_id,
-                  arrival: dateStr,
-                  departure: departStr,
-                  numAdult: 2
-                });
+          try {
+            // V1 getRates can fetch all days in one call
+            const v1Response = await axios.post('https://api.beds24.com/json/getRates', {
+              authentication: {
+                apiKey: v1ApiKey,
+                propKey: room.prop_key
+              },
+              roomId: String(room.beds24_room_id),
+              from: startDate,
+              to: endDate
+            });
+            
+            // getRates returns array of rates per day
+            const ratesData = v1Response.data;
+            
+            if (Array.isArray(ratesData)) {
+              for (const rate of ratesData) {
+                const dateStr = rate.date;
+                const price = parseFloat(rate.price1 || rate.price || 0);
+                const minStay = parseInt(rate.minStay) || 1;
+                const isAvailable = rate.numAvail > 0 || rate.available !== false;
                 
-                const priceData = v1Response.data;
-                const price = priceData?.price || priceData?.totalPrice || priceData?.[0]?.price || null;
-                const minStay = priceData?.minStay || 1;
-                const isAvailable = priceData?.available !== false;
-                
-                if (price !== null) {
+                if (dateStr && price > 0) {
                   await pool.query(`
                     INSERT INTO room_availability (room_id, date, cm_price, direct_price, standard_price, is_available, is_blocked, min_stay, cm_min_stay, source, updated_at)
                     VALUES ($1, $2, $3, $3, $3, $4, $5, $6, $6, 'beds24-v1-full', NOW())
@@ -25280,20 +25266,18 @@ app.post('/api/admin/sync-beds24-full-pricing', async (req, res) => {
                   
                   daysUpdated++;
                 }
-                
-                // Small delay between V1 calls
-                await new Promise(resolve => setTimeout(resolve, 200));
-                
-              } catch (dayErr) {
-                if (dayErr.response?.status === 429) {
-                  console.log('    Rate limited, waiting 30s...');
-                  await new Promise(resolve => setTimeout(resolve, 30000));
-                }
               }
             }
             
-            // Delay between chunks
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Delay after V1 call
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+          } catch (v1Error) {
+            console.log(`    V1 getRates failed: ${v1Error.message}`);
+            if (v1Error.response?.status === 429) {
+              console.log('    Rate limited, waiting 60s...');
+              await new Promise(resolve => setTimeout(resolve, 60000));
+            }
           }
         }
         
