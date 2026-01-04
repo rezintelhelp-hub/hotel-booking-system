@@ -12837,18 +12837,20 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     // Ensure website_id column exists
     await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_id INTEGER');
     
-    // Get the site to find property_id
-    const siteResult = await pool.query('SELECT property_id FROM deployed_sites WHERE id = $1', [id]);
+    // Get the site to find property_id and site_url
+    const siteResult = await pool.query('SELECT property_id, site_url FROM deployed_sites WHERE id = $1', [id]);
     if (siteResult.rows.length === 0) {
       return res.json({ success: false, error: 'Site not found' });
     }
     
     const propertyId = siteResult.rows[0].property_id;
+    const siteUrl = siteResult.rows[0].site_url;
+    
     if (!propertyId) {
       return res.json({ success: false, error: 'No property linked to this site' });
     }
     
-    // Update the room_ids in deployed_sites - THIS is what WordPress plugin uses
+    // Update the room_ids in deployed_sites
     await pool.query(`
       UPDATE deployed_sites SET room_ids = $1, updated_at = NOW() WHERE id = $2
     `, [JSON.stringify(roomIds || []), id]);
@@ -12868,7 +12870,32 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     
     console.log(`Updated website ${id} rooms: ${roomIds?.length || 0} rooms linked. room_ids updated in deployed_sites.`);
     
-    res.json({ success: true, linkedCount: roomIds?.length || 0 });
+    // Push room_ids to WordPress via gas-api.php
+    let wpUpdated = false;
+    if (siteUrl) {
+      try {
+        const wpResponse = await fetch('https://sites.gas.travel/gas-api.php', {
+          method: 'POST',
+          headers: {
+            'X-API-Key': VPS_DEPLOY_API_KEY,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            action: 'update_option',
+            site_url: siteUrl,
+            option_name: 'gas_room_ids',
+            option_value: JSON.stringify(roomIds || [])
+          })
+        });
+        const wpData = await wpResponse.json();
+        console.log('WordPress gas_room_ids update:', wpData);
+        wpUpdated = wpData.success;
+      } catch (wpError) {
+        console.log('WordPress gas_room_ids push failed:', wpError.message);
+      }
+    }
+    
+    res.json({ success: true, linkedCount: roomIds?.length || 0, wpUpdated });
   } catch (error) {
     res.json({ success: false, error: error.message });
   }
