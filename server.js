@@ -2333,12 +2333,16 @@ app.get('/api/gas-sync/connections/:id/properties-with-keys', async (req, res) =
   try {
     const { id } = req.params;
     
-    // Add gas_property_id column if not exists
+    // Add columns if not exist
     await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS gas_property_id INTEGER');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS prop_key_tested BOOLEAN DEFAULT FALSE');
+    await pool.query('ALTER TABLE gas_sync_properties ADD COLUMN IF NOT EXISTS webhook_tested BOOLEAN DEFAULT FALSE');
     
     const result = await pool.query(`
-      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id,
+      SELECT p.id, p.external_id, p.name, p.prop_key, p.gas_property_id, p.city, p.country,
+             p.prop_key_tested, p.webhook_tested,
              (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_count,
+             (SELECT COUNT(*) FROM gas_sync_room_types WHERE sync_property_id = p.id) as room_type_count,
              (SELECT COUNT(*) FROM gas_sync_images WHERE sync_property_id = p.id) as image_count,
              gp.name as gas_property_name,
              a.name as account_name
