@@ -12788,11 +12788,8 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
   try {
     const { id } = req.params;
     
-    // Ensure website_id column exists
-    await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS website_id INTEGER');
-    
-    // Get the site to find property_id
-    const siteResult = await pool.query('SELECT property_id FROM deployed_sites WHERE id = $1', [id]);
+    // Get the site to find property_id AND current room_ids
+    const siteResult = await pool.query('SELECT property_id, room_ids FROM deployed_sites WHERE id = $1', [id]);
     console.log('Site result for id', id, ':', siteResult.rows);
     
     if (siteResult.rows.length === 0) {
@@ -12800,13 +12797,21 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     }
     
     const propertyId = siteResult.rows[0].property_id;
-    console.log('Property ID:', propertyId);
+    const roomIdsJson = siteResult.rows[0].room_ids;
     
-    if (!propertyId) {
-      return res.json({ success: true, rooms: [], message: 'No property linked to site' });
+    // Parse room_ids - this is what WordPress actually uses
+    let linkedRoomIds = [];
+    if (roomIdsJson) {
+      linkedRoomIds = typeof roomIdsJson === 'string' ? JSON.parse(roomIdsJson) : roomIdsJson;
     }
     
-    // Get ALL rooms for this property (no status filter - matches /api/admin/units)
+    console.log('Property ID:', propertyId, 'Linked room_ids:', linkedRoomIds);
+    
+    if (!propertyId) {
+      return res.json({ success: true, rooms: [], linkedRoomIds: [], message: 'No property linked to site' });
+    }
+    
+    // Get ALL rooms for this property
     const roomsResult = await pool.query(`
       SELECT * FROM bookable_units
       WHERE property_id = $1
@@ -12815,7 +12820,8 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     
     console.log('Found rooms:', roomsResult.rows.length);
     
-    res.json({ success: true, rooms: roomsResult.rows });
+    // Return both all rooms AND which ones are currently linked
+    res.json({ success: true, rooms: roomsResult.rows, linkedRoomIds: linkedRoomIds });
   } catch (error) {
     console.error('Get deployed site rooms error:', error);
     res.json({ success: false, error: error.message });
@@ -12842,19 +12848,25 @@ app.put('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
       return res.json({ success: false, error: 'No property linked to this site' });
     }
     
-    // First, unlink all rooms from this website (set to -1 to mark as explicitly excluded)
+    // Update the room_ids in deployed_sites - THIS is what WordPress plugin uses
     await pool.query(`
-      UPDATE bookable_units SET website_id = -1 WHERE property_id = $1
+      UPDATE deployed_sites SET room_ids = $1, updated_at = NOW() WHERE id = $2
+    `, [JSON.stringify(roomIds || []), id]);
+    
+    // Also update bookable_units.website_id for tracking
+    // First, unlink all rooms from this website
+    await pool.query(`
+      UPDATE bookable_units SET website_id = NULL WHERE property_id = $1
     `, [propertyId]);
     
-    // Then link the selected rooms (set website_id to the site id)
+    // Then link the selected rooms
     if (roomIds && roomIds.length > 0) {
       await pool.query(`
         UPDATE bookable_units SET website_id = $1 WHERE id = ANY($2::int[]) AND property_id = $3
       `, [id, roomIds, propertyId]);
     }
     
-    console.log(`Updated website ${id} rooms: ${roomIds?.length || 0} rooms linked`);
+    console.log(`Updated website ${id} rooms: ${roomIds?.length || 0} rooms linked. room_ids updated in deployed_sites.`);
     
     res.json({ success: true, linkedCount: roomIds?.length || 0 });
   } catch (error) {
