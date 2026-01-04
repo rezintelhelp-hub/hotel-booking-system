@@ -15598,10 +15598,11 @@ app.post('/api/admin/properties/:propertyId/copy-sync-images', async (req, res) 
         
         // Insert
         await pool.query(`
-          INSERT INTO room_images (room_id, image_url, thumbnail_url, caption, display_order, upload_source, is_active, is_primary, created_at)
-          VALUES ($1, $2, $3, $4, $5, 'beds24_sync', true, $6, NOW())
+          INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, caption, display_order, upload_source, is_active, is_primary, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, 'beds24_sync', true, $7, NOW())
         `, [
           room.id,
+          img.external_id || `beds24-${room.beds24_room_id}-${img.sort_order || 0}`,
           img.original_url,
           img.thumbnail_url || img.original_url,
           img.caption || '',
