@@ -12793,32 +12793,31 @@ app.get('/api/admin/deployed-sites/:id/rooms', async (req, res) => {
     
     // Get the site to find property_id
     const siteResult = await pool.query('SELECT property_id FROM deployed_sites WHERE id = $1', [id]);
+    console.log('Site result for id', id, ':', siteResult.rows);
+    
     if (siteResult.rows.length === 0) {
       return res.json({ success: false, error: 'Site not found' });
     }
     
     const propertyId = siteResult.rows[0].property_id;
+    console.log('Property ID:', propertyId);
+    
     if (!propertyId) {
-      return res.json({ success: true, rooms: [] });
+      return res.json({ success: true, rooms: [], message: 'No property linked to site' });
     }
     
-    // Get rooms that are linked to this website
-    // Rooms with website_id matching this site are linked
-    // Rooms with NULL website_id are also considered linked (default behavior)
+    // Get ALL rooms for this property
     const roomsResult = await pool.query(`
-      SELECT bu.*, 
-             CASE WHEN bu.website_id = $2 OR bu.website_id IS NULL THEN true ELSE false END as is_linked
-      FROM bookable_units bu
-      WHERE bu.property_id = $1 
-      AND bu.status = 'active'
-      ORDER BY bu.name
-    `, [propertyId, id]);
+      SELECT * FROM bookable_units
+      WHERE property_id = $1 AND status = 'active'
+      ORDER BY name
+    `, [propertyId]);
     
-    // Return only linked rooms for this endpoint
-    const linkedRooms = roomsResult.rows.filter(r => r.is_linked);
+    console.log('Found rooms:', roomsResult.rows.length);
     
-    res.json({ success: true, rooms: linkedRooms });
+    res.json({ success: true, rooms: roomsResult.rows });
   } catch (error) {
+    console.error('Get deployed site rooms error:', error);
     res.json({ success: false, error: error.message });
   }
 });
