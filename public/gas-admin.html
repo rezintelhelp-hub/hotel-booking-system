@@ -36974,14 +36974,17 @@ Local honey and preserves"></textarea>
                                 </td>` : ''}
                                 <td style="text-align: center;">${p.room_type_count}</td>
                                 <td>
-                                    ${p.gas_property_id ? 
-                                        '<span style="color: #22c55e;"> Imported</span>' : 
-                                        `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : (!p.prop_key ? 'Enter Key' : (!webhookTested && !propKeyTested ? 'Run Tests' : (!webhookTested ? 'Test Webhook' : 'Test Key')))}</button>`
-                                    }
+                                    <div style="display: flex; gap: 6px; align-items: center;">
+                                        ${isBeds24 && p.prop_key && !p.gas_property_id ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="Download Images First">📷</button>` : ''}
+                                        ${p.gas_property_id ? 
+                                            '<span style="color: #22c55e;">✅ Imported</span>' : 
+                                            `<button id="import-btn-${p.id}" class="btn btn-sm btn-primary" onclick="importSyncedProperty(${p.id})" ${canImport ? '' : 'disabled'} style="${canImport ? '' : 'opacity: 0.5; cursor: not-allowed;'}">${canImport ? 'Import' : (!p.prop_key ? 'Enter Key' : (!webhookTested && !propKeyTested ? 'Run Tests' : (!webhookTested ? 'Test Webhook' : 'Test Key')))}</button>`
+                                        }
+                                    </div>
                                 </td>
                                 <td>
                                     <div style="display: flex; gap: 4px;">
-                                        ${isBeds24 && p.prop_key ? `<button onclick="downloadPropertyImages(${p.id})" class="btn btn-sm btn-secondary" title="Download Images">📷</button>` : ''}
+                                        ${p.gas_property_id ? `<button onclick="viewPropertyInGAS(${p.gas_property_id})" class="btn btn-sm btn-secondary" title="View in GAS">👁</button>` : ''}
                                     </div>
                                 </td>
                             </tr>`;
@@ -37089,12 +37092,12 @@ Local honey and preserves"></textarea>
                         importBtn.style.cursor = 'pointer';
                         importBtn.textContent = 'Import';
                     }
-                    // Update status light
+                    // Update status light to yellow (ready to import)
                     const row = document.getElementById(`prop-row-${syncPropertyId}`);
                     if (row) {
                         const statusCell = row.querySelector('td:first-child');
                         if (statusCell) {
-                            statusCell.innerHTML = '';
+                            statusCell.innerHTML = '🟡';
                             statusCell.title = 'Ready to import';
                         }
                     }
@@ -37140,12 +37143,12 @@ Local honey and preserves"></textarea>
                         propKeyTest.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalId}')" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 10px;">🧪 Test</button>`;
                     }
                     
-                    // Update status light to orange
+                    // Update status light to orange (needs tests)
                     const row = document.getElementById(`prop-row-${syncPropertyId}`);
                     if (row) {
                         const statusCell = row.querySelector('td:first-child');
                         if (statusCell) {
-                            statusCell.innerHTML = '';
+                            statusCell.innerHTML = '🟠';
                             statusCell.title = 'Test webhook and prop key';
                         }
                     }
@@ -37346,6 +37349,18 @@ Local honey and preserves"></textarea>
             } catch (error) {
                 showNotification('Failed to download images', 'error');
             }
+        }
+
+        function viewPropertyInGAS(propertyId) {
+            // Switch to Properties tab and show this property
+            showSection('properties');
+            setTimeout(() => {
+                const propertySelect = document.getElementById('propertySelect');
+                if (propertySelect) {
+                    propertySelect.value = propertyId;
+                    propertySelect.dispatchEvent(new Event('change'));
+                }
+            }, 100);
         }
 
         // Synced Properties View
