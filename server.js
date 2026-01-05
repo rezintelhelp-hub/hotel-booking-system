@@ -36863,7 +36863,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     `, [
       gasPropertyId,
       safeString(listing.internalListingName || listing.name || `Listing ${listing.id}`),
-      safeString(listing.name) || null,
+      toJsonText(listing.name),
       toJsonText(listing.externalListingName),
       toJsonText(listing.description),
       listing.personCapacity || listing.guestsIncluded || 2,
@@ -36895,7 +36895,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
         `, [
           gasPropertyId,
           safeString(listing.internalListingName || listing.name || `Listing ${listing.id}`),
-          safeString(listing.name) || null,
+          toJsonText(listing.name),
           toJsonText(listing.externalListingName),
           toJsonText(listing.description),
           listing.personCapacity || listing.guestsIncluded || 2,
