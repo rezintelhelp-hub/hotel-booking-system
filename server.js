@@ -36800,10 +36800,11 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       thumbnailUrl: listing.thumbnailUrl
     });
     
-    // If no listingImages, try to fetch them separately
+    // If no listingImages, try to fetch them from /listingImages endpoint
     if (!listing.listingImages || listing.listingImages.length === 0) {
       try {
-        const imagesResponse = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}/images`, {
+        // Try the listingImages endpoint with listingId filter
+        const imagesResponse = await axios.get(`https://api.hostaway.com/v1/listingImages?listingId=${listingId}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
@@ -36813,10 +36814,10 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
         const imagesData = imagesResponse.data?.result || imagesResponse.data || [];
         if (Array.isArray(imagesData) && imagesData.length > 0) {
           listing.listingImages = imagesData;
-          console.log('Fetched images separately:', imagesData.length);
+          console.log('Fetched images from /listingImages endpoint:', imagesData.length);
         }
       } catch (imgErr) {
-        console.log('Separate image fetch failed:', imgErr.message);
+        console.log('listingImages endpoint failed:', imgErr.response?.status, imgErr.message);
       }
     }
     
@@ -36848,9 +36849,13 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       if (importImages && gasRoomId) {
         const images = listing.listingImages || [];
         
-        // If no listingImages but has thumbnailUrl, use that
+        // If no listingImages but has thumbnailUrl, use that (larger version)
         if (images.length === 0 && listing.thumbnailUrl) {
-          images.push({ id: 'thumb', url: listing.thumbnailUrl, sortOrder: 1 });
+          let fullSizeUrl = listing.thumbnailUrl;
+          if (fullSizeUrl.includes('aki_policy=')) {
+            fullSizeUrl = fullSizeUrl.replace(/\?aki_policy=\w+/, '');
+          }
+          images.push({ id: 'thumb', url: fullSizeUrl, sortOrder: 1 });
         }
         
         for (let i = 0; i < images.length; i++) {
@@ -37023,13 +37028,19 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     if (importImages) {
       const images = listing.listingImages || [];
       
-      // If no listingImages but has thumbnailUrl, use that
+      // If no listingImages but has thumbnailUrl, use that (but try to get larger version)
       if (images.length === 0 && listing.thumbnailUrl) {
+        // Remove size restriction from Airbnb CDN URLs to get full size
+        let fullSizeUrl = listing.thumbnailUrl;
+        if (fullSizeUrl.includes('aki_policy=')) {
+          fullSizeUrl = fullSizeUrl.replace(/\?aki_policy=\w+/, '');
+        }
         images.push({
           id: 'thumb',
-          url: listing.thumbnailUrl,
+          url: fullSizeUrl,
           sortOrder: 1
         });
+        console.log('Using thumbnail as full image:', fullSizeUrl);
       }
       
       for (let i = 0; i < images.length; i++) {
@@ -37104,35 +37115,44 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     
     // Store property mapping in gas_sync_properties
     if (connectionId) {
-      await pool.query(`
+      // First, insert the sync property
+      const syncPropResult = await pool.query(`
         INSERT INTO gas_sync_properties (
-          connection_id, external_property_id, gas_property_id,
+          connection_id, external_id, gas_property_id,
           name, status, created_at
         ) VALUES ($1, $2, $3, $4, 'active', NOW())
-        ON CONFLICT (connection_id, external_property_id)
+        ON CONFLICT (connection_id, external_id)
         DO UPDATE SET gas_property_id = $3, status = 'active', updated_at = NOW()
+        RETURNING id
       `, [
         connectionId,
         String(listing.id),
         gasPropertyId,
         listing.name || listing.internalListingName
-      ]).catch(e => console.log('Property mapping save:', e.message));
+      ]).catch(e => {
+        console.log('Property mapping save:', e.message);
+        return { rows: [] };
+      });
       
-      // Store room type mapping
-      await pool.query(`
-        INSERT INTO gas_sync_room_types (
-          connection_id, property_id, external_id, gas_room_id,
-          name, status, created_at
-        ) VALUES ($1, $2, $3, $4, $5, 'active', NOW())
-        ON CONFLICT (connection_id, external_id)
-        DO UPDATE SET gas_room_id = $4, status = 'active', updated_at = NOW()
-      `, [
-        connectionId,
-        gasPropertyId,
-        String(listing.id),
-        gasRoomId,
-        listing.internalListingName || listing.name
-      ]).catch(e => console.log('Room type mapping save:', e.message));
+      const syncPropertyId = syncPropResult.rows[0]?.id;
+      
+      // Store room type mapping using sync_property_id
+      if (syncPropertyId) {
+        await pool.query(`
+          INSERT INTO gas_sync_room_types (
+            sync_property_id, external_id, gas_room_id,
+            name, max_guests, unit_count, synced_at
+          ) VALUES ($1, $2, $3, $4, $5, 1, NOW())
+          ON CONFLICT (sync_property_id, external_id)
+          DO UPDATE SET gas_room_id = $3, synced_at = NOW()
+        `, [
+          syncPropertyId,
+          String(listing.id),
+          gasRoomId,
+          listing.internalListingName || listing.name,
+          listing.personCapacity || 2
+        ]).catch(e => console.log('Room type mapping save:', e.message));
+      }
     }
     
     console.log(`Hostaway wizard: Imported listing ${listing.name} (ID ${listing.id}) -> GAS property ${gasPropertyId}`);
