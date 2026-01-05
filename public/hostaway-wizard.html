@@ -960,6 +960,21 @@
         nextStep();
       }
     });
+    
+    // Console command to delete all Hostaway properties
+    window.deleteHostawayProperties = async function() {
+      if (!confirm('Delete ALL Hostaway properties, rooms, and images?')) return;
+      
+      const response = await fetch('/api/hostaway-wizard/delete-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const data = await response.json();
+      console.log('Delete result:', data);
+      return data;
+    };
+    
+    console.log('🏠 Hostaway Wizard loaded. Run deleteHostawayProperties() to clear all Hostaway imports.');
   </script>
 </body>
 </html>
