@@ -36850,7 +36850,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
         
         // If no listingImages but has thumbnailUrl, use that
         if (images.length === 0 && listing.thumbnailUrl) {
-          images.push({ url: listing.thumbnailUrl, sortOrder: 1 });
+          images.push({ id: 'thumb', url: listing.thumbnailUrl, sortOrder: 1 });
         }
         
         for (let i = 0; i < images.length; i++) {
@@ -36858,12 +36858,18 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
           if (img.url) {
             try {
               const imageKey = `hostaway_${listing.id}_${img.id || i}`;
-              await pool.query(`
-                INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, display_order, upload_source, is_active, created_at)
-                VALUES ($1, $2, $3, $4, $5, 'hostaway', true, NOW())
-                ON CONFLICT (image_key) DO NOTHING
-              `, [gasRoomId, imageKey, img.url, img.url, img.sortOrder || i + 1]);
-              imagesCreated++;
+              // Check if already exists
+              const existing = await pool.query(
+                'SELECT id FROM room_images WHERE image_key = $1', [imageKey]
+              ).catch(() => ({ rows: [] }));
+              
+              if (existing.rows.length === 0) {
+                await pool.query(`
+                  INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, display_order, upload_source, is_active, created_at)
+                  VALUES ($1, $2, $3, $4, $5, 'hostaway', true, NOW())
+                `, [gasRoomId, imageKey, img.url, img.url, img.sortOrder || i + 1]);
+                imagesCreated++;
+              }
             } catch (imgErr) {
               console.log('Image insert error:', imgErr.message);
             }
@@ -37031,12 +37037,18 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
         if (img.url) {
           try {
             const imageKey = `hostaway_${listing.id}_${img.id || i}`;
-            await pool.query(`
-              INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, display_order, upload_source, is_active, created_at)
-              VALUES ($1, $2, $3, $4, $5, 'hostaway', true, NOW())
-              ON CONFLICT (image_key) DO NOTHING
-            `, [gasRoomId, imageKey, img.url, img.url, img.sortOrder || i + 1]);
-            imagesCreated++;
+            // Check if already exists
+            const existing = await pool.query(
+              'SELECT id FROM room_images WHERE image_key = $1', [imageKey]
+            ).catch(() => ({ rows: [] }));
+            
+            if (existing.rows.length === 0) {
+              await pool.query(`
+                INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, display_order, upload_source, is_active, created_at)
+                VALUES ($1, $2, $3, $4, $5, 'hostaway', true, NOW())
+              `, [gasRoomId, imageKey, img.url, img.url, img.sortOrder || i + 1]);
+              imagesCreated++;
+            }
           } catch (imgErr) {
             console.log('Image insert error:', imgErr.message);
           }
