@@ -37031,7 +37031,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     testSpan.innerHTML = '<span style="color: #22c55e; font-weight: bold;">✅</span>';
                     showNotification('Webhook URL test passed!', 'success');
-                    updateImportButton(syncPropertyId);
+                    loadConnectionPropertiesTab();
                 } else {
                     testSpan.innerHTML = `<button onclick="testWebhookForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
                     showNotification('Webhook test failed: ' + (data.error || 'Unknown error'), 'error');
@@ -37069,7 +37069,7 @@ Local honey and preserves"></textarea>
                 if (data.success) {
                     testSpan.innerHTML = '<span style="color: #22c55e; font-weight: bold;">✅</span>';
                     showNotification('Prop Key test passed! GAS can fetch data from Beds24.', 'success');
-                    updateImportButton(syncPropertyId);
+                    loadConnectionPropertiesTab();
                 } else {
                     testSpan.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalPropertyId}')" class="btn btn-sm" style="background: #ef4444; color: white; padding: 6px 10px;">❌ Retry</button>`;
                     showNotification('Prop Key test failed: ' + (data.error || 'Unknown error'), 'error');
@@ -37146,24 +37146,9 @@ Local honey and preserves"></textarea>
                 });
                 const data = await response.json();
                 if (data.success) {
-                    showNotification('Property key saved! Now test both webhook and prop key.', 'success');
-                    
-                    // Show the test button for prop key
-                    const propKeyTest = document.getElementById(`propkey-test-${syncPropertyId}`);
-                    if (propKeyTest) {
-                        const externalId = data.property?.external_id || '';
-                        propKeyTest.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalId}')" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 10px;">🧪 Test</button>`;
-                    }
-                    
-                    // Update status light to orange (needs tests)
-                    const row = document.getElementById(`prop-row-${syncPropertyId}`);
-                    if (row) {
-                        const statusCell = row.querySelector('td:first-child');
-                        if (statusCell) {
-                            statusCell.innerHTML = '🟠';
-                            statusCell.title = 'Test webhook and prop key';
-                        }
-                    }
+                    showNotification('Property key saved!', 'success');
+                    // Reload the table to show camera button and updated state
+                    loadConnectionPropertiesTab();
                 } else {
                     showNotification(data.error || 'Failed to save', 'error');
                 }
