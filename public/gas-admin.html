@@ -37086,8 +37086,17 @@ Local honey and preserves"></textarea>
             try {
                 const response = await fetch(`/api/gas-sync/property/${syncPropertyId}/status`, { headers: authHeaders() });
                 const data = await response.json();
+                console.log('updateImportButton status:', data);
                 
-                if (data.success && data.webhook_tested && data.prop_key_tested) {
+                // Check both database state AND visual state (checkmarks)
+                const webhookSpan = document.getElementById(`webhook-test-${syncPropertyId}`);
+                const propkeySpan = document.getElementById(`propkey-test-${syncPropertyId}`);
+                const webhookPassed = data.webhook_tested || (webhookSpan && webhookSpan.innerHTML.includes('✅'));
+                const propkeyPassed = data.prop_key_tested || (propkeySpan && propkeySpan.innerHTML.includes('✅'));
+                
+                console.log('Test states - webhook:', webhookPassed, 'propkey:', propkeyPassed);
+                
+                if (webhookPassed && propkeyPassed && !data.imported) {
                     const importBtn = document.getElementById(`import-btn-${syncPropertyId}`);
                     if (importBtn) {
                         importBtn.disabled = false;
