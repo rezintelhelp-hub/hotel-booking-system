@@ -891,8 +891,11 @@ class Beds24Adapter {
     
     // V1 returns data for the property matching propKey
     const content = response.data?.getPropertyContent?.[0];
-    if (!content?.images?.hosted) {
-      console.log(`Beds24 getImages: No images in response`);
+    const hasHosted = content?.images?.hosted && Object.keys(content.images.hosted).length > 0;
+    const hasExternal = content?.images?.external && Object.keys(content.images.external).length > 0;
+    
+    if (!hasHosted && !hasExternal) {
+      console.log(`Beds24 getImages: No images in response (hosted: ${hasHosted}, external: ${hasExternal})`);
       return { success: true, data: [] };
     }
     
@@ -903,51 +906,59 @@ class Beds24Adapter {
       return { success: true, data: [] };
     }
     
-    const hosted = content.images.hosted;
     const roomImages = [];      // Room pictures (no offerId or offerId=0)
     const offer1Images = [];    // Offer 1 pictures (offerId=1) mapped to rooms
     const propertyOffer1Images = []; // Offer 1 pictures at property level (no roomId)
     
-    // Extract images
-    for (const [key, img] of Object.entries(hosted)) {
-      if (!img.url) continue;
+    // Helper function to process images from either hosted or external
+    const processImages = (imageCollection, source) => {
+      if (!imageCollection) return;
       
-      // Check all mappings for this image
-      const mappings = img.map || [];
-      for (const mapping of mappings) {
-        const roomId = mapping.roomId;
-        const offerId = mapping.offerId;
-        const position = parseInt(mapping.position) || parseInt(key);
+      for (const [key, img] of Object.entries(imageCollection)) {
+        if (!img.url) continue;
         
-        const imageData = {
-          externalId: `${propertyExternalId}-img-${key}-${roomId || 'prop'}`,
-          originalUrl: img.url,
-          thumbnailUrl: img.url,
-          caption: '',
-          sortOrder: position,
-          imageType: roomId ? 'room' : 'property',
-          roomId: roomId ? String(roomId) : null,
-          offerId: offerId,
-          width: null,
-          height: null,
-          metadata: img
-        };
-        
-        // Categorize by type
-        if (roomId) {
-          // Room-level image
-          if (!offerId || offerId === 0) {
-            roomImages.push(imageData);
+        // Check all mappings for this image
+        const mappings = img.map || [];
+        for (const mapping of mappings) {
+          const roomId = mapping.roomId;
+          const offerId = mapping.offerId;
+          const position = parseInt(mapping.position) || parseInt(key);
+          
+          const imageData = {
+            externalId: `${propertyExternalId}-${source}-${key}-${roomId || 'prop'}`,
+            originalUrl: img.url,
+            thumbnailUrl: img.url,
+            caption: '',
+            sortOrder: position,
+            imageType: roomId ? 'room' : 'property',
+            roomId: roomId ? String(roomId) : null,
+            offerId: offerId,
+            width: null,
+            height: null,
+            metadata: img,
+            source: source
+          };
+          
+          // Categorize by type
+          if (roomId) {
+            // Room-level image
+            if (!offerId || offerId === 0) {
+              roomImages.push(imageData);
+            } else if (offerId === 1) {
+              offer1Images.push(imageData);
+            }
           } else if (offerId === 1) {
-            offer1Images.push(imageData);
+            // Property-level offer1 image (fallback)
+            propertyOffer1Images.push(imageData);
           }
-        } else if (offerId === 1) {
-          // Property-level offer1 image (fallback)
-          propertyOffer1Images.push(imageData);
+          // Skip offer 2+ images
         }
-        // Skip offer 2+ images
       }
-    }
+    };
+    
+    // Process both hosted and external images
+    processImages(content.images.hosted, 'hosted');
+    processImages(content.images.external, 'external');
     
     // Fallback hierarchy: room pics > room offer1 pics > property offer1 pics
     let images = roomImages.length > 0 ? roomImages : 
@@ -955,7 +966,9 @@ class Beds24Adapter {
     
     images.sort((a, b) => a.sortOrder - b.sortOrder);
     
-    console.log(`Beds24 getImages for property ${propertyExternalId}: ${roomImages.length} room pics, ${offer1Images.length} offer1 pics, ${propertyOffer1Images.length} prop offer1 pics, using ${images.length}`);
+    const hostedCount = content.images.hosted ? Object.keys(content.images.hosted).length : 0;
+    const externalCount = content.images.external ? Object.keys(content.images.external).length : 0;
+    console.log(`Beds24 getImages for property ${propertyExternalId}: ${hostedCount} hosted, ${externalCount} external, ${roomImages.length} room pics, ${offer1Images.length} offer1 pics, ${propertyOffer1Images.length} prop offer1 pics, using ${images.length}`);
     
     return {
       success: true,
