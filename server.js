@@ -36723,6 +36723,48 @@ app.post('/api/hostaway-wizard/property-details', async (req, res) => {
   }
 });
 
+// Delete all Hostaway properties (for reimport)
+app.post('/api/hostaway-wizard/delete-all', async (req, res) => {
+  try {
+    // Delete in correct order for foreign keys
+    const imgResult = await pool.query(`
+      DELETE FROM room_images WHERE room_id IN (SELECT id FROM bookable_units WHERE hostaway_listing_id IS NOT NULL)
+    `);
+    
+    const roomResult = await pool.query(`
+      DELETE FROM bookable_units WHERE hostaway_listing_id IS NOT NULL
+    `);
+    
+    const propResult = await pool.query(`
+      DELETE FROM properties WHERE hostaway_listing_id IS NOT NULL
+    `);
+    
+    const connResult = await pool.query(`
+      DELETE FROM gas_sync_connections WHERE adapter_code = 'hostaway'
+    `);
+    
+    console.log('Hostaway delete-all:', {
+      images: imgResult.rowCount,
+      rooms: roomResult.rowCount,
+      properties: propResult.rowCount,
+      connections: connResult.rowCount
+    });
+    
+    res.json({
+      success: true,
+      deleted: {
+        images: imgResult.rowCount,
+        rooms: roomResult.rowCount,
+        properties: propResult.rowCount,
+        connections: connResult.rowCount
+      }
+    });
+  } catch (error) {
+    console.error('Hostaway delete-all error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Import Hostaway property into GAS
 app.post('/api/hostaway-wizard/import', async (req, res) => {
   try {
@@ -36815,11 +36857,12 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
           const img = images[i];
           if (img.url) {
             try {
+              const imageKey = `hostaway_${listing.id}_${img.id || i}`;
               await pool.query(`
-                INSERT INTO room_images (room_id, image_url, display_order, is_active, created_at)
-                VALUES ($1, $2, $3, true, NOW())
-                ON CONFLICT DO NOTHING
-              `, [gasRoomId, img.url, img.sortOrder || i + 1]);
+                INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, display_order, upload_source, is_active, created_at)
+                VALUES ($1, $2, $3, $4, $5, 'hostaway', true, NOW())
+                ON CONFLICT (image_key) DO NOTHING
+              `, [gasRoomId, imageKey, img.url, img.url, img.sortOrder || i + 1]);
               imagesCreated++;
             } catch (imgErr) {
               console.log('Image insert error:', imgErr.message);
@@ -36977,6 +37020,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       // If no listingImages but has thumbnailUrl, use that
       if (images.length === 0 && listing.thumbnailUrl) {
         images.push({
+          id: 'thumb',
           url: listing.thumbnailUrl,
           sortOrder: 1
         });
@@ -36986,11 +37030,12 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
         const img = images[i];
         if (img.url) {
           try {
+            const imageKey = `hostaway_${listing.id}_${img.id || i}`;
             await pool.query(`
-              INSERT INTO room_images (room_id, image_url, display_order, is_active, created_at)
-              VALUES ($1, $2, $3, true, NOW())
-              ON CONFLICT DO NOTHING
-            `, [gasRoomId, img.url, img.sortOrder || i + 1]);
+              INSERT INTO room_images (room_id, image_key, image_url, thumbnail_url, display_order, upload_source, is_active, created_at)
+              VALUES ($1, $2, $3, $4, $5, 'hostaway', true, NOW())
+              ON CONFLICT (image_key) DO NOTHING
+            `, [gasRoomId, imageKey, img.url, img.url, img.sortOrder || i + 1]);
             imagesCreated++;
           } catch (imgErr) {
             console.log('Image insert error:', imgErr.message);
@@ -37023,20 +37068,19 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       // Insert new
       const connectionResult = await pool.query(`
         INSERT INTO gas_sync_connections (
-          account_id, adapter_code, name,
+          account_id, adapter_code,
           credentials, access_token,
           status, sync_enabled,
           created_at, updated_at
         ) VALUES (
-          $1, 'hostaway', $2,
-          $3, $4,
+          $1, 'hostaway',
+          $2, $3,
           'connected', true,
           NOW(), NOW()
         )
         RETURNING id
       `, [
         gasAccountId,
-        'Hostaway Connection',
         JSON.stringify({ accountId: accountId || '', apiKey: apiKey || '' }),
         token
       ]).catch(e => {
