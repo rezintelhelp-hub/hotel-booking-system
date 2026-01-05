@@ -36765,6 +36765,164 @@ app.post('/api/hostaway-wizard/delete-all', async (req, res) => {
   }
 });
 
+// Sync Hostaway pricing and availability
+app.post('/api/hostaway/sync-availability', async (req, res) => {
+  try {
+    const { connectionId, accountId } = req.body;
+    
+    // Get connection
+    let connection;
+    if (connectionId) {
+      const connResult = await pool.query(
+        'SELECT * FROM gas_sync_connections WHERE id = $1',
+        [connectionId]
+      );
+      connection = connResult.rows[0];
+    } else if (accountId) {
+      const connResult = await pool.query(
+        `SELECT * FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'hostaway'`,
+        [accountId]
+      );
+      connection = connResult.rows[0];
+    }
+    
+    if (!connection) {
+      return res.json({ success: false, error: 'Hostaway connection not found' });
+    }
+    
+    const credentials = typeof connection.credentials === 'string' 
+      ? JSON.parse(connection.credentials) 
+      : connection.credentials || {};
+    
+    const axios = require('axios');
+    
+    // Get fresh token
+    let token = connection.access_token;
+    if (!token && credentials.accountId && credentials.apiKey) {
+      const tokenResponse = await axios.post(
+        'https://api.hostaway.com/v1/accessTokens',
+        `grant_type=client_credentials&client_id=${credentials.accountId}&client_secret=${credentials.apiKey}`,
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      token = tokenResponse.data?.access_token;
+    }
+    
+    if (!token) {
+      return res.json({ success: false, error: 'Could not get Hostaway access token' });
+    }
+    
+    // Get all Hostaway rooms for this account
+    const roomsResult = await pool.query(`
+      SELECT bu.id as room_id, bu.hostaway_listing_id, bu.name, p.id as property_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1 AND bu.hostaway_listing_id IS NOT NULL
+    `, [connection.account_id]);
+    
+    if (roomsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No Hostaway rooms found for this account' });
+    }
+    
+    // Ensure room_availability table exists
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS room_availability (
+        id SERIAL PRIMARY KEY,
+        room_id INTEGER NOT NULL,
+        date DATE NOT NULL,
+        cm_price DECIMAL(10,2),
+        direct_price DECIMAL(10,2),
+        is_available BOOLEAN DEFAULT true,
+        is_blocked BOOLEAN DEFAULT false,
+        min_stay INTEGER DEFAULT 1,
+        max_stay INTEGER,
+        source VARCHAR(50),
+        created_at TIMESTAMP DEFAULT NOW(),
+        updated_at TIMESTAMP DEFAULT NOW(),
+        UNIQUE(room_id, date)
+      )
+    `);
+    
+    const today = new Date().toISOString().split('T')[0];
+    const endDate = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    let totalDaysUpdated = 0;
+    let roomsSynced = 0;
+    const errors = [];
+    
+    for (const room of roomsResult.rows) {
+      try {
+        console.log(`Syncing Hostaway availability for ${room.name} (Listing ID: ${room.hostaway_listing_id})`);
+        
+        // Fetch calendar from Hostaway
+        const calendarResponse = await axios.get(
+          `https://api.hostaway.com/v1/listings/${room.hostaway_listing_id}/calendar`,
+          {
+            headers: { 'Authorization': `Bearer ${token}` },
+            params: { startDate: today, endDate: endDate }
+          }
+        );
+        
+        const calendar = calendarResponse.data?.result || [];
+        
+        if (Array.isArray(calendar) && calendar.length > 0) {
+          for (const day of calendar) {
+            const isAvailable = day.status === 'available';
+            const isBlocked = day.status === 'blocked';
+            const price = day.price || null;
+            const minStay = day.minimumStay || 1;
+            
+            await pool.query(`
+              INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, cm_min_stay, source)
+              VALUES ($1, $2, $3, $3, $4, $5, $6, $6, 'hostaway')
+              ON CONFLICT (room_id, date) DO UPDATE SET
+                cm_price = COALESCE($3, room_availability.cm_price),
+                direct_price = COALESCE($3, room_availability.direct_price),
+                is_available = $4,
+                is_blocked = $5,
+                min_stay = $6,
+                cm_min_stay = $6,
+                source = 'hostaway',
+                updated_at = NOW()
+            `, [room.room_id, day.date, price, isAvailable, isBlocked, minStay]);
+            
+            totalDaysUpdated++;
+          }
+          roomsSynced++;
+          console.log(`  ✓ ${room.name}: ${calendar.length} days synced`);
+        } else {
+          console.log(`  - ${room.name}: No calendar data`);
+        }
+      } catch (roomErr) {
+        console.error(`  ✗ ${room.name}: ${roomErr.message}`);
+        errors.push({ room: room.name, error: roomErr.message });
+      }
+    }
+    
+    // Update connection last sync time
+    await pool.query(
+      'UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1',
+      [connection.id]
+    );
+    
+    console.log(`Hostaway sync complete: ${roomsSynced} rooms, ${totalDaysUpdated} days updated`);
+    
+    res.json({
+      success: true,
+      message: `Synced ${roomsSynced} rooms, ${totalDaysUpdated} days updated`,
+      stats: {
+        roomsSynced,
+        totalDaysUpdated,
+        errors: errors.length
+      },
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('Hostaway sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Import Hostaway property into GAS
 app.post('/api/hostaway-wizard/import', async (req, res) => {
   try {
