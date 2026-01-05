@@ -2287,7 +2287,7 @@
                                             <option value="cot">Cot/Crib</option>
                                         </select>
                                         <input type="number" class="form-input bed-qty" min="1" max="10" value="1" style="width: 80px;">
-                                        <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);"></button>
+                                        <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);">🗑️</button>
                                     </div>
                                 </div>
                                 <button class="btn btn-secondary btn-small" onclick="addBedRow()" style="margin-top: 0.5rem;">+ Add Bed</button>
@@ -2324,7 +2324,7 @@
                                             <option value="outdoor-shower">Outdoor Shower</option>
                                         </select>
                                         <input type="number" class="form-input bathroom-qty" min="1" max="10" value="1" style="width: 80px;">
-                                        <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);"></button>
+                                        <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);">🗑️</button>
                                     </div>
                                 </div>
                                 <button class="btn btn-secondary btn-small" onclick="addBathroomRow()" style="margin-top: 0.5rem;">+ Add Bathroom</button>
@@ -2917,11 +2917,11 @@
                             </select>
                         </div>
                         <div style="display: flex; gap: 0.5rem; align-items: flex-end;">
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(-7)"></button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(-1)"></button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(-7)">⏪</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(-1)">◀</button>
                             <button class="btn btn-secondary" onclick="offersGoToToday()">Today</button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(1)"></button>
-                            <button class="btn btn-secondary" onclick="shiftOffersDays(7)"></button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(1)">▶</button>
+                            <button class="btn btn-secondary" onclick="shiftOffersDays(7)">⏩</button>
                         </div>
                     </div>
                 </div>
@@ -5164,7 +5164,7 @@
                                 <div class="slider-image-slot" data-slot="1" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
                                     <div id="wb-hero-slide-1-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center; position: relative;">
                                         <span class="slide-placeholder" style="color: #94a3b8; font-size: 0.8rem;">Slide 1 (required)</span>
-                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(1)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;"></button>
+                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(1)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">✕</button>
                                     </div>
                                     <input type="file" accept="image/*" onchange="previewSliderImage(1, this)" style="font-size: 0.8rem; width: 100%;">
                                     <input type="hidden" id="wb-hero-slide-1-url" value="">
@@ -5173,7 +5173,7 @@
                                 <div class="slider-image-slot" data-slot="2" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
                                     <div id="wb-hero-slide-2-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center; position: relative;">
                                         <span class="slide-placeholder" style="color: #94a3b8; font-size: 0.8rem;">Slide 2 (optional)</span>
-                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(2)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;"></button>
+                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(2)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">✕</button>
                                     </div>
                                     <input type="file" accept="image/*" onchange="previewSliderImage(2, this)" style="font-size: 0.8rem; width: 100%;">
                                     <input type="hidden" id="wb-hero-slide-2-url" value="">
@@ -5182,7 +5182,7 @@
                                 <div class="slider-image-slot" data-slot="3" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
                                     <div id="wb-hero-slide-3-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center; position: relative;">
                                         <span class="slide-placeholder" style="color: #94a3b8; font-size: 0.8rem;">Slide 3 (optional)</span>
-                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(3)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;"></button>
+                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(3)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">✕</button>
                                     </div>
                                     <input type="file" accept="image/*" onchange="previewSliderImage(3, this)" style="font-size: 0.8rem; width: 100%;">
                                     <input type="hidden" id="wb-hero-slide-3-url" value="">
@@ -5191,7 +5191,7 @@
                                 <div class="slider-image-slot" data-slot="4" style="border: 2px dashed #e2e8f0; border-radius: 8px; padding: 0.5rem;">
                                     <div id="wb-hero-slide-4-preview" style="width: 100%; height: 120px; background: #f1f5f9; border-radius: 6px; display: flex; align-items: center; justify-content: center; margin-bottom: 8px; background-size: cover; background-position: center; position: relative;">
                                         <span class="slide-placeholder" style="color: #94a3b8; font-size: 0.8rem;">Slide 4 (optional)</span>
-                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(4)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;"></button>
+                                        <button type="button" class="remove-slide-btn" onclick="removeSliderImage(4)" style="display: none; position: absolute; top: 4px; right: 4px; background: #ef4444; color: white; border: none; border-radius: 50%; width: 24px; height: 24px; cursor: pointer; font-size: 14px;">✕</button>
                                     </div>
                                     <input type="file" accept="image/*" onchange="previewSliderImage(4, this)" style="font-size: 0.8rem; width: 100%;">
                                     <input type="hidden" id="wb-hero-slide-4-url" value="">
@@ -7801,7 +7801,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                 <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
                     <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                         <h3 id="apiKeyModalTitle" style="margin: 0;"> Create API Key</h3>
-                        <button class="modal-close" onclick="closeApiKeyModal()" style="color: white;"></button>
+                        <button class="modal-close" onclick="closeApiKeyModal()" style="color: white;">✕</button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group">
@@ -7985,7 +7985,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <label class="form-label">Password</label>
                             <div style="position: relative;">
                                 <input type="password" class="form-input" id="credential-password" placeholder="" style="padding-right: 40px;">
-                                <button type="button" onclick="toggleCredentialPassword()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;"></button>
+                                <button type="button" onclick="toggleCredentialPassword()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">👁</button>
                             </div>
                         </div>
                         
@@ -7993,7 +7993,7 @@ const promo = await fetch('/api/v1/offers/validate', {
                             <label class="form-label">API Key / Secret</label>
                             <div style="position: relative;">
                                 <input type="password" class="form-input" id="credential-api-key" placeholder="sk_live_..." style="padding-right: 40px;">
-                                <button type="button" onclick="toggleCredentialApiKey()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;"></button>
+                                <button type="button" onclick="toggleCredentialApiKey()" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); background: none; border: none; cursor: pointer; font-size: 1.2rem;">👁</button>
                             </div>
                         </div>
                         
@@ -13158,7 +13158,7 @@ Local honey and preserves"></textarea>
         <div class="modal-content" style="max-width: 800px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 class="modal-title" style="margin: 0;"> Edit Property</h3>
-                <button class="modal-close" onclick="closeModal('editPropertyModal')" style="color: white;"></button>
+                <button class="modal-close" onclick="closeModal('editPropertyModal')" style="color: white;">✕</button>
             </div>
             <form id="editPropertyForm" onsubmit="return saveProperty(event)">
                 <input type="hidden" id="edit-property-id">
@@ -13507,7 +13507,7 @@ Local honey and preserves"></textarea>
         <div class="modal-content" style="border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 class="modal-title" style="margin: 0;"> Edit Room</h3>
-                <button class="modal-close" onclick="closeModal('editRoomModal')" style="color: white;"></button>
+                <button class="modal-close" onclick="closeModal('editRoomModal')" style="color: white;">✕</button>
             </div>
             <form id="editRoomForm" onsubmit="return saveRoom(event)">
                 <input type="hidden" id="edit-room-id">
@@ -13744,7 +13744,7 @@ Local honey and preserves"></textarea>
         <div class="modal-content" style="max-width: 900px; border-radius: 16px;">
             <div class="modal-header" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                 <h3 class="modal-title" style="margin: 0;"> Manage Amenities</h3>
-                <button class="modal-close" onclick="closeModal('addAmenityModal')" style="color: white;"></button>
+                <button class="modal-close" onclick="closeModal('addAmenityModal')" style="color: white;">✕</button>
             </div>
             <div class="modal-body">
                 <!-- Category Selection -->
@@ -14198,7 +14198,7 @@ Local honey and preserves"></textarea>
                                         <button type="button" onclick="formatBlogText('h2')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Heading">H2</button>
                                         <button type="button" onclick="formatBlogText('h3')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Subheading">H3</button>
                                         <button type="button" onclick="formatBlogText('ul')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Bullet List"> List</button>
-                                        <button type="button" onclick="formatBlogText('link')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Link"></button>
+                                        <button type="button" onclick="formatBlogText('link')" style="padding: 0.25rem 0.5rem; border: 1px solid #ddd; background: white; border-radius: 4px; cursor: pointer;" title="Link">🔗</button>
                                     </div>
                                     <textarea class="form-input" id="blog-content" rows="12" required placeholder="Write your blog post content here... Use the formatting buttons above or write HTML directly." style="border: none; border-radius: 0; font-family: monospace;"></textarea>
                                 </div>
@@ -17397,9 +17397,9 @@ Local honey and preserves"></textarea>
                                             <td>
                                                 ${req.status === 'pending' ? `
                                                     <div style="display: flex; gap: 0.5rem;">
-                                                        <button class="btn btn-small" onclick="respondToRequest(${req.id}, 'approved')" style="background: #10b981;"></button>
-                                                        <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')"></button>
-                                                        <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;"></button>
+                                                        <button class="btn btn-small" onclick="respondToRequest(${req.id}, 'approved')" style="background: #10b981;">✓</button>
+                                                        <button class="btn btn-secondary btn-small" onclick="respondToRequest(${req.id}, 'rejected')">✗</button>
+                                                        <button class="btn btn-small" onclick="deleteManagementRequest(${req.id})" style="background: #ef4444;">🗑️</button>
                                                     </div>
                                                 ` : req.status === 'approved' ? `
                                                     <div style="display: flex; gap: 0.5rem;">
@@ -19805,7 +19805,7 @@ Local honey and preserves"></textarea>
                                             <td>
                                                 <div style="display: flex; gap: 0.25rem;">
                                                     <button class="btn btn-secondary btn-small" onclick="editProperty(${prop.id})">Edit</button>
-                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings"></button>
+                                                    <button class="btn btn-secondary btn-small" onclick="openPaymentSettings(${prop.id}, '${(prop.name || '').replace(/'/g, "\\'")}')" title="Payment Settings">💳</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -20275,7 +20275,7 @@ Local honey and preserves"></textarea>
                     <option value="cot">Cot/Crib</option>
                 </select>
                 <input type="number" class="form-input bed-qty" min="1" max="10" value="1" style="width: 80px;">
-                <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);"></button>
+                <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);">🗑️</button>
             `;
             container.appendChild(newRow);
         }
@@ -20309,7 +20309,7 @@ Local honey and preserves"></textarea>
                     <option value="outdoor-shower">Outdoor Shower</option>
                 </select>
                 <input type="number" class="form-input bathroom-qty" min="1" max="10" value="1" style="width: 80px;">
-                <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);"></button>
+                <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);">🗑️</button>
             `;
             container.appendChild(newRow);
         }
@@ -20562,7 +20562,7 @@ Local honey and preserves"></textarea>
                                     <option value="cot" ${bedType === 'cot' ? 'selected' : ''}>Cot/Crib</option>
                                 </select>
                                 <input type="number" class="form-input bed-qty" min="1" max="10" value="${bed.quantity || 1}" style="width: 80px;">
-                                <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);"></button>
+                                <button class="btn btn-secondary btn-small" onclick="removeBedRow(this)" style="color: var(--error);">🗑️</button>
                             `;
                             container.appendChild(row);
                         });
@@ -20588,7 +20588,7 @@ Local honey and preserves"></textarea>
                                     <option value="outdoor-shower" ${bathroomType === 'outdoor-shower' ? 'selected' : ''}>Outdoor Shower</option>
                                 </select>
                                 <input type="number" class="form-input bathroom-qty" min="1" max="10" value="${bathroom.quantity || 1}" style="width: 80px;">
-                                <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);"></button>
+                                <button class="btn btn-secondary btn-small" onclick="removeBathroomRow(this)" style="color: var(--error);">🗑️</button>
                             `;
                             container.appendChild(row);
                         });
@@ -21084,7 +21084,7 @@ Local honey and preserves"></textarea>
                             <div class="upload-preview-item" id="${previewId}">
                                 <img src="${e.target.result}">
                                 ${!isLandscape ? '<div class="error">Ratio too narrow - Min 1.2:1</div>' : ''}
-                                <button class="remove" onclick="removePreview('${previewId}', '${file.name}')"></button>
+                                <button class="remove" onclick="removePreview('${previewId}', '${file.name}')">✕</button>
                             </div>
                         `;
                         preview.insertAdjacentHTML('beforeend', previewHtml);
@@ -22616,7 +22616,7 @@ Local honey and preserves"></textarea>
                     <div class="modal-content" style="max-width: 500px; border-radius: 16px;">
                         <div class="modal-header" style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                             <h3 style="margin: 0;"> ${cmName} Property Comparison</h3>
-                            <button class="modal-close" onclick="closeRefreshResultsModal()" style="color: white;"></button>
+                            <button class="modal-close" onclick="closeRefreshResultsModal()" style="color: white;">✕</button>
                         </div>
                         <div class="modal-body">
             `;
@@ -22889,7 +22889,7 @@ Local honey and preserves"></textarea>
                 return `
                     <span style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.5rem 0.75rem; background: var(--bg-card); border-radius: 6px; font-size: 0.9rem;">
                         ${a.icon || ''} ${name}
-                        <button onclick="deleteSingleAmenity(${a.id}, '${name.replace(/'/g, "\\'")}')" style="background: none; border: none; color: var(--error); cursor: pointer; padding: 0; margin-left: 0.25rem; font-size: 1.1rem; line-height: 1;"></button>
+                        <button onclick="deleteSingleAmenity(${a.id}, '${name.replace(/'/g, "\\'")}')" style="background: none; border: none; color: var(--error); cursor: pointer; padding: 0; margin-left: 0.25rem; font-size: 1.1rem; line-height: 1;">✕</button>
                     </span>
                 `;
             }).join('');
@@ -25623,8 +25623,8 @@ Local honey and preserves"></textarea>
                         </td>
                         <td style="text-align: right; padding: 0.75rem;">
                             ${!isStandard ? `
-                                <button onclick="editOffer(${offer.id})" style="background: none; border: none; cursor: pointer;"></button>
-                                <button onclick="deleteOffer(${offer.id})" style="background: none; border: none; cursor: pointer;"></button>
+                                <button onclick="editOffer(${offer.id})" style="background: none; border: none; cursor: pointer;">✏️</button>
+                                <button onclick="deleteOffer(${offer.id})" style="background: none; border: none; cursor: pointer;">🗑️</button>
                             ` : '<span style="color: #9ca3af; font-size: 0.8rem;">Default</span>'}
                         </td>
                     </tr>
@@ -26216,9 +26216,9 @@ Local honey and preserves"></textarea>
                             </span>
                         </td>
                         <td style="padding: 0.75rem; text-align: right;">
-                            <button onclick="viewBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;" title="View Details"></button>
-                            <button onclick="editBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;" title="Edit"></button>
-                            <button onclick="deleteBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;" title="Delete"></button>
+                            <button onclick="viewBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;" title="View Details">👁</button>
+                            <button onclick="editBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;" title="Edit">✏️</button>
+                            <button onclick="deleteBooking(${booking.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;" title="Delete">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -26949,8 +26949,8 @@ Local honey and preserves"></textarea>
                             </span>
                         </td>
                         <td style="padding: 0.75rem; text-align: right;">
-                            <button onclick="editVoucher(${voucher.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;"></button>
-                            <button onclick="deleteVoucher(${voucher.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;"></button>
+                            <button onclick="editVoucher(${voucher.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">✏️</button>
+                            <button onclick="deleteVoucher(${voucher.id})" style="background: none; border: none; cursor: pointer; padding: 0.25rem;">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -27364,8 +27364,8 @@ Local honey and preserves"></textarea>
                             <span class="badge ${upsell.active ? 'badge-success' : 'badge-secondary'}">${upsell.active ? 'Active' : 'Inactive'}</span>
                         </td>
                         <td style="padding: 0.75rem; text-align: right;">
-                            <button onclick="editUpsell(${upsell.id})" style="background: none; border: none; cursor: pointer;"></button>
-                            <button onclick="deleteUpsell(${upsell.id})" style="background: none; border: none; cursor: pointer;"></button>
+                            <button onclick="editUpsell(${upsell.id})" style="background: none; border: none; cursor: pointer;">✏️</button>
+                            <button onclick="deleteUpsell(${upsell.id})" style="background: none; border: none; cursor: pointer;">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -27705,8 +27705,8 @@ Local honey and preserves"></textarea>
                                     </td>
                                     <td>
                                         <button class="btn btn-secondary btn-small" onclick="editVendor(${v.id})">Edit</button>
-                                        <button class="btn btn-secondary btn-small" onclick="resetVendorPassword(${v.id})" title="Reset password"></button>
-                                        <button class="btn btn-secondary btn-small" onclick="deleteVendor(${v.id})" title="Delete"></button>
+                                        <button class="btn btn-secondary btn-small" onclick="resetVendorPassword(${v.id})" title="Reset password">🔑</button>
+                                        <button class="btn btn-secondary btn-small" onclick="deleteVendor(${v.id})" title="Delete">🗑️</button>
                                     </td>
                                 </tr>
                             `).join('')}
@@ -28110,8 +28110,8 @@ Local honey and preserves"></textarea>
                             <span class="badge ${fee.active ? 'badge-success' : 'badge-secondary'}">${fee.active ? 'Active' : 'Inactive'}</span>
                         </td>
                         <td style="padding: 0.75rem; text-align: right;">
-                            <button onclick="editFee(${fee.id})" style="background: none; border: none; cursor: pointer;"></button>
-                            <button onclick="deleteFee(${fee.id})" style="background: none; border: none; cursor: pointer;"></button>
+                            <button onclick="editFee(${fee.id})" style="background: none; border: none; cursor: pointer;">✏️</button>
+                            <button onclick="deleteFee(${fee.id})" style="background: none; border: none; cursor: pointer;">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -28576,7 +28576,7 @@ Local honey and preserves"></textarea>
                         <div class="modal-content" style="max-width: 600px; border-radius: 16px;">
                             <div class="modal-header" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); color: white; border-radius: 16px 16px 0 0; padding: 1.5rem;">
                                 <h3 style="margin: 0;"> Payment Details</h3>
-                                <button class="close-btn" onclick="this.closest('.modal').remove()" style="color: white; background: none; border: none; font-size: 1.5rem; cursor: pointer;"></button>
+                                <button class="close-btn" onclick="this.closest('.modal').remove()" style="color: white; background: none; border: none; font-size: 1.5rem; cursor: pointer;">✕</button>
                             </div>
                             <div class="modal-body">
                                 ${html}
@@ -29062,8 +29062,8 @@ Local honey and preserves"></textarea>
                             <span class="badge ${tax.active ? 'badge-success' : 'badge-secondary'}">${tax.active ? 'Active' : 'Inactive'}</span>
                         </td>
                         <td style="padding: 0.75rem; text-align: right;">
-                            <button onclick="editTax(${tax.id})" style="background: none; border: none; cursor: pointer;"></button>
-                            <button onclick="deleteTax(${tax.id})" style="background: none; border: none; cursor: pointer;"></button>
+                            <button onclick="editTax(${tax.id})" style="background: none; border: none; cursor: pointer;">✏️</button>
+                            <button onclick="deleteTax(${tax.id})" style="background: none; border: none; cursor: pointer;">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -33915,7 +33915,7 @@ Local honey and preserves"></textarea>
                                                 <code style="background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
                                                     ${key.api_key.substring(0, 12)}...
                                                 </code>
-                                                <button onclick="copyToClipboard('${key.api_key}')" style="background: none; border: none; cursor: pointer; margin-left: 0.25rem;"></button>
+                                                <button onclick="copyToClipboard('${key.api_key}')" style="background: none; border: none; cursor: pointer; margin-left: 0.25rem;">📋</button>
                                             </td>
                                             <td style="font-size: 0.85rem; color: var(--text-secondary);">
                                                 ${key.last_used_at ? new Date(key.last_used_at).toLocaleDateString() : 'Never'}
@@ -35442,7 +35442,7 @@ Local honey and preserves"></textarea>
                         <div class="card" style="position: relative; ${!plan.is_active ? 'opacity: 0.6;' : ''}">
                             <div style="position: absolute; top: 1rem; right: 1rem; display: flex; gap: 0.5rem;">
                                 <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem;" onclick="editPlan(${plan.id})">Edit</button>
-                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error);" onclick="deletePlan(${plan.id})"></button>
+                                <button class="btn btn-secondary" style="padding: 0.25rem 0.5rem; font-size: 0.75rem; color: var(--error);" onclick="deletePlan(${plan.id})">🗑️</button>
                             </div>
                             <h3 style="margin: 0 0 0.5rem 0; font-size: 1.25rem;">${plan.name}</h3>
                             <p style="color: var(--text-secondary); font-size: 0.9rem; margin-bottom: 1rem;">${plan.description || ''}</p>
@@ -36152,9 +36152,9 @@ Local honey and preserves"></textarea>
                                                 ${cred.url ? `<a href="${escapeHtml(cred.url)}" target="_blank" style="color: var(--primary); font-size: 0.85rem;"> Open Dashboard</a>` : '<span style="color: var(--text-muted); font-size: 0.85rem;">No URL</span>'}
                                             </td>
                                             <td style="padding: 1rem; text-align: right;">
-                                                <button class="btn btn-small" onclick="viewCredential(${cred.id})" style="margin-right: 0.5rem;"> View</button>
-                                                <button class="btn btn-small btn-secondary" onclick="editCredential(${cred.id})"></button>
-                                                <button class="btn btn-small" onclick="deleteCredential(${cred.id})" style="background: #ef4444; margin-left: 0.5rem;"></button>
+                                                <button class="btn btn-small" onclick="viewCredential(${cred.id})" style="margin-right: 0.5rem;">👁 View</button>
+                                                <button class="btn btn-small btn-secondary" onclick="editCredential(${cred.id})">✏️</button>
+                                                <button class="btn btn-small" onclick="deleteCredential(${cred.id})" style="background: #ef4444; margin-left: 0.5rem;">🗑️</button>
                                             </td>
                                         </tr>
                                     `).join('')}
@@ -36208,9 +36208,9 @@ Local honey and preserves"></textarea>
             let content = `<div style="text-align: left;">`;
             content += `<p><strong>Service:</strong> ${escapeHtml(cred.name)}</p>`;
             if (cred.url) content += `<p><strong>URL:</strong> <a href="${escapeHtml(cred.url)}" target="_blank">${escapeHtml(cred.url)}</a></p>`;
-            if (cred.username) content += `<p><strong>Username:</strong> ${escapeHtml(cred.username)} <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.username)}')"></button></p>`;
-            if (cred.password) content += `<p><strong>Password:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px;">${escapeHtml(cred.password)}</code> <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.password)}')"></button></p>`;
-            if (cred.api_key) content += `<p><strong>API Key:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; word-break: break-all;">${escapeHtml(cred.api_key)}</code> <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.api_key)}')"></button></p>`;
+            if (cred.username) content += `<p><strong>Username:</strong> ${escapeHtml(cred.username)} <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.username)}')">📋</button></p>`;
+            if (cred.password) content += `<p><strong>Password:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px;">${escapeHtml(cred.password)}</code> <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.password)}')">📋</button></p>`;
+            if (cred.api_key) content += `<p><strong>API Key:</strong> <code style="background: #f3f4f6; padding: 2px 6px; border-radius: 4px; word-break: break-all;">${escapeHtml(cred.api_key)}</code> <button class="btn btn-small" onclick="copyToClipboard('${escapeHtml(cred.api_key)}')">📋</button></p>`;
             if (cred.notes) content += `<p><strong>Notes:</strong><br>${escapeHtml(cred.notes).replace(/\n/g, '<br>')}</p>`;
             content += `</div>`;
             
@@ -36391,7 +36391,7 @@ Local honey and preserves"></textarea>
                             <div style="text-align: right; font-size: 12px; color: #6b7280;">
                                 ${conn.last_sync_at ? 'Synced ' + formatTimeAgo(conn.last_sync_at) : 'Never synced'}
                             </div>
-                            <button class="btn btn-sm btn-secondary" onclick="triggerSync(${conn.id})"></button>
+                            <button class="btn btn-sm btn-secondary" onclick="triggerSync(${conn.id})">🔄</button>
                         </div>
                     `).join('');
                 } else {
@@ -36892,7 +36892,7 @@ Local honey and preserves"></textarea>
                                 <strong style="color: #1e293b;">1. Booking Webhook</strong>
                                 <table style="width: 100%; margin-top: 8px; font-size: 0.85rem;">
                                     <tr><td style="color: #64748b; width: 120px;">Webhook Version:</td><td><code>2 - no personal data</code></td></tr>
-                                    <tr><td style="color: #64748b;">URL:</td><td><code>https://admin.gas.travel/api/webhooks/beds24?propertyId=<span style="color: #dc2626;">{PROPERTY_ID}</span></code> <button onclick="copyWebhookUrl()" class="btn btn-sm" style="padding: 2px 8px; font-size: 0.75rem; margin-left: 5px;"></button></td></tr>
+                                    <tr><td style="color: #64748b;">URL:</td><td><code>https://admin.gas.travel/api/webhooks/beds24?propertyId=<span style="color: #dc2626;">{PROPERTY_ID}</span></code> <button onclick="copyWebhookUrl()" class="btn btn-sm" style="padding: 2px 8px; font-size: 0.75rem; margin-left: 5px;">📋</button></td></tr>
                                     <tr><td style="color: #64748b;">Additional Data:</td><td><code>CVC and Token</code></td></tr>
                                 </table>
                             </div>
@@ -36960,7 +36960,7 @@ Local honey and preserves"></textarea>
                                         <input type="text" id="propKey-${p.id}" value="${p.prop_key || ''}" placeholder="Enter key" 
                                             style="width: 90px; padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 0.85rem;"
                                             ${p.gas_property_id ? 'disabled' : ''}>
-                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 6px 8px;" ${p.gas_property_id ? 'disabled' : ''} title="Save"></button>
+                                        <button onclick="savePropKey(${p.id})" class="btn btn-sm" style="padding: 6px 8px;" ${p.gas_property_id ? 'disabled' : ''} title="Save">💾</button>
                                         <span id="propkey-test-${p.id}">
                                             ${propKeyTested ? 
                                                 '<span style="color: #22c55e; font-weight: bold;">✅</span>' : 
@@ -38325,7 +38325,7 @@ Local honey and preserves"></textarea>
         
         <div class="ai-chat-input-area">
             <input type="text" id="ai-chat-input" placeholder="Ask Gus anything..." onkeypress="handleAIChatKeypress(event)">
-            <button class="ai-chat-send" onclick="sendAIChatMessage()"></button>
+            <button class="ai-chat-send" onclick="sendAIChatMessage()">➤</button>
         </div>
     </div>
 </body>
