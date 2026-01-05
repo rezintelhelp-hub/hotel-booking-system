@@ -720,7 +720,7 @@
       showStatus('step1-status', 'Creating account...', 'info');
       
       try {
-        const response = await fetch('/api/accounts/register', {
+        const response = await fetch('/api/accounts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ name, email, password })
@@ -729,7 +729,7 @@
         const data = await response.json();
         
         if (data.success) {
-          gasAccountId = data.accountId;
+          gasAccountId = data.account?.id;
           gasAccountName = name;
           showStatus('step1-status', '✓ Account created successfully', 'success');
           return true;
