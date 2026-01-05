@@ -36499,6 +36499,517 @@ app.post('/api/beds24-wizard/import', async (req, res) => {
   }
 });
 
+// ============================================
+// HOSTAWAY WIZARD ENDPOINTS
+// ============================================
+
+// Serve Hostaway wizard HTML
+app.get('/hostaway-wizard', (req, res) => {
+  const wizardPath = path.join(__dirname, 'public', 'hostaway-wizard.html');
+  if (fs.existsSync(wizardPath)) {
+    res.sendFile(wizardPath);
+  } else {
+    res.status(404).send('Hostaway wizard file not found');
+  }
+});
+
+// Test Hostaway connection with credentials
+app.post('/api/hostaway-wizard/test-connection', async (req, res) => {
+  try {
+    const { accountId, apiKey } = req.body;
+    
+    if (!accountId || !apiKey) {
+      return res.json({ success: false, error: 'Account ID and API Key are required' });
+    }
+    
+    const axios = require('axios');
+    
+    // Get access token using OAuth client credentials flow
+    const tokenResponse = await axios.post(
+      'https://api.hostaway.com/v1/accessTokens',
+      `grant_type=client_credentials&client_id=${accountId}&client_secret=${apiKey}`,
+      {
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          'Cache-control': 'no-cache'
+        },
+        timeout: 30000
+      }
+    );
+    
+    if (!tokenResponse.data?.access_token) {
+      return res.json({ success: false, error: 'Failed to get access token' });
+    }
+    
+    const token = tokenResponse.data.access_token;
+    
+    // Test by fetching listings count
+    const listingsResponse = await axios.get('https://api.hostaway.com/v1/listings?limit=1', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+    
+    res.json({
+      success: true,
+      message: 'Connection successful',
+      token: token,
+      expiresIn: tokenResponse.data.expires_in
+    });
+    
+  } catch (error) {
+    console.error('Hostaway connection test error:', error.response?.data || error.message);
+    res.json({
+      success: false,
+      error: error.response?.data?.message || error.message
+    });
+  }
+});
+
+// Get Hostaway properties (listings)
+app.post('/api/hostaway-wizard/properties', async (req, res) => {
+  try {
+    const { token } = req.body;
+    
+    if (!token) {
+      return res.json({ success: false, error: 'Access token required' });
+    }
+    
+    const axios = require('axios');
+    
+    // Fetch all listings (paginated)
+    let allListings = [];
+    let offset = 0;
+    const limit = 100;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const response = await axios.get(`https://api.hostaway.com/v1/listings?limit=${limit}&offset=${offset}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        },
+        timeout: 60000
+      });
+      
+      const listings = response.data?.result || [];
+      allListings = allListings.concat(listings);
+      
+      hasMore = listings.length >= limit;
+      offset += limit;
+      
+      // Safety limit
+      if (allListings.length >= 1000) break;
+    }
+    
+    // Map to simplified format for wizard
+    const properties = allListings.map(listing => ({
+      id: listing.id,
+      name: listing.name || listing.internalListingName || `Listing ${listing.id}`,
+      internalName: listing.internalListingName || '',
+      externalName: listing.externalListingName || '',
+      address: listing.address || listing.street || '',
+      city: listing.city || '',
+      state: listing.state || '',
+      country: listing.countryCode || listing.country || '',
+      isActive: listing.isActive,
+      propertyType: listing.propertyTypeId,
+      thumbnailUrl: listing.thumbnailUrl || '',
+      bedrooms: listing.bedroomsNumber || 0,
+      bathrooms: listing.bathroomsNumber || 0,
+      maxGuests: listing.personCapacity || listing.guestsIncluded || 2
+    }));
+    
+    res.json({
+      success: true,
+      properties: properties,
+      total: properties.length
+    });
+    
+  } catch (error) {
+    console.error('Hostaway properties error:', error.response?.data || error.message);
+    res.json({
+      success: false,
+      error: error.response?.data?.message || error.message
+    });
+  }
+});
+
+// Get single Hostaway property with full details
+app.post('/api/hostaway-wizard/property-details', async (req, res) => {
+  try {
+    const { token, listingId } = req.body;
+    
+    if (!token || !listingId) {
+      return res.json({ success: false, error: 'Token and listing ID required' });
+    }
+    
+    const axios = require('axios');
+    
+    const response = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+    
+    const listing = response.data?.result || response.data;
+    
+    // Extract images
+    const images = (listing.listingImages || []).map((img, idx) => ({
+      id: img.id,
+      url: img.url,
+      caption: img.airbnbCaption || img.caption || img.vrboCaption || '',
+      sortOrder: img.sortOrder || idx + 1
+    }));
+    
+    // If no listingImages but has thumbnailUrl, use that
+    if (images.length === 0 && listing.thumbnailUrl) {
+      images.push({
+        id: null,
+        url: listing.thumbnailUrl,
+        caption: 'Thumbnail',
+        sortOrder: 1
+      });
+    }
+    
+    res.json({
+      success: true,
+      property: {
+        id: listing.id,
+        name: listing.name,
+        internalListingName: listing.internalListingName,
+        externalListingName: listing.externalListingName,
+        description: listing.description,
+        houseRules: listing.houseRules,
+        address: listing.address || listing.street,
+        city: listing.city,
+        state: listing.state,
+        country: listing.countryCode || listing.country,
+        postalCode: listing.zipcode,
+        latitude: listing.lat,
+        longitude: listing.lng,
+        checkInTimeStart: listing.checkInTimeStart,
+        checkInTimeEnd: listing.checkInTimeEnd,
+        checkOutTime: listing.checkOutTime,
+        currencyCode: listing.currencyCode,
+        contactEmail: listing.contactEmail,
+        contactPhone: listing.contactPhone,
+        personCapacity: listing.personCapacity,
+        bedroomsNumber: listing.bedroomsNumber,
+        bathroomsNumber: listing.bathroomsNumber,
+        bedsNumber: listing.bedsNumber,
+        price: listing.price,
+        cleaningFee: listing.cleaningFee,
+        minNights: listing.minNights,
+        maxNights: listing.maxNights,
+        propertyTypeId: listing.propertyTypeId,
+        isActive: listing.isActive,
+        images: images,
+        amenities: listing.amenities || [],
+        raw: listing
+      }
+    });
+    
+  } catch (error) {
+    console.error('Hostaway property details error:', error.response?.data || error.message);
+    res.json({
+      success: false,
+      error: error.response?.data?.message || error.message
+    });
+  }
+});
+
+// Import Hostaway property into GAS
+app.post('/api/hostaway-wizard/import', async (req, res) => {
+  try {
+    const { accountId, apiKey, token, listingId, importImages, gasAccountId } = req.body;
+    
+    if (!token || !listingId || !gasAccountId) {
+      return res.json({ success: false, error: 'Token, listing ID, and GAS account ID required' });
+    }
+    
+    const axios = require('axios');
+    
+    // Fetch full listing details
+    const response = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}`, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json'
+      },
+      timeout: 30000
+    });
+    
+    const listing = response.data?.result || response.data;
+    
+    if (!listing || !listing.id) {
+      return res.json({ success: false, error: 'Listing not found' });
+    }
+    
+    // Check if property already exists
+    const existingProp = await pool.query(
+      `SELECT id FROM properties WHERE hostaway_listing_id = $1`,
+      [String(listing.id)]
+    ).catch(() => ({ rows: [] }));
+    
+    if (existingProp.rows.length > 0) {
+      return res.json({
+        success: false,
+        error: 'This property has already been imported',
+        existingPropertyId: existingProp.rows[0].id
+      });
+    }
+    
+    // Ensure hostaway_listing_id column exists
+    await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id VARCHAR(50)').catch(() => {});
+    
+    // Map property type
+    const propertyTypes = {
+      1: 'apartment',
+      2: 'house',
+      3: 'secondary_unit',
+      4: 'unique_space',
+      5: 'bed_and_breakfast',
+      6: 'boutique_hotel'
+    };
+    const propertyType = propertyTypes[listing.propertyTypeId] || 'vacation_rental';
+    
+    // Create property in GAS
+    const propertyResult = await pool.query(`
+      INSERT INTO properties (
+        account_id, name, property_type,
+        address, city, state, country, postcode,
+        latitude, longitude,
+        check_in_time, check_out_time,
+        currency, phone, email,
+        short_description, full_description,
+        house_rules,
+        hostaway_listing_id, cm_source,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3,
+        $4, $5, $6, $7, $8,
+        $9, $10,
+        $11, $12,
+        $13, $14, $15,
+        $16, $17,
+        $18,
+        $19, 'hostaway',
+        NOW(), NOW()
+      )
+      RETURNING id
+    `, [
+      gasAccountId,
+      listing.name || listing.internalListingName || `Listing ${listing.id}`,
+      propertyType,
+      listing.address || listing.street || '',
+      listing.city || '',
+      listing.state || '',
+      listing.countryCode || listing.country || '',
+      listing.zipcode || '',
+      listing.lat || null,
+      listing.lng || null,
+      listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '15:00',
+      listing.checkOutTime ? `${listing.checkOutTime}:00` : '11:00',
+      listing.currencyCode || 'USD',
+      listing.contactPhone || '',
+      listing.contactEmail || '',
+      listing.externalListingName || '', // Use as short description
+      listing.description || '',
+      listing.houseRules || '',
+      String(listing.id)
+    ]);
+    
+    const gasPropertyId = propertyResult.rows[0].id;
+    
+    // For Hostaway, the listing IS the bookable unit (no separate room types)
+    // Create one bookable unit for the listing
+    const roomResult = await pool.query(`
+      INSERT INTO bookable_units (
+        property_id, name, display_name,
+        short_description, full_description,
+        max_guests, base_price,
+        room_type,
+        cm_room_id, hostaway_listing_id,
+        created_at, updated_at
+      ) VALUES (
+        $1, $2, $3,
+        $4, $5,
+        $6, $7,
+        $8,
+        $9, $10,
+        NOW(), NOW()
+      )
+      RETURNING id
+    `, [
+      gasPropertyId,
+      listing.internalListingName || listing.name || `Listing ${listing.id}`,
+      listing.name || null,
+      listing.externalListingName || null,
+      listing.description || null,
+      listing.personCapacity || listing.guestsIncluded || 2,
+      listing.price || null,
+      'entire_place',
+      String(listing.id),
+      String(listing.id)
+    ]).catch(async (e) => {
+      // If hostaway_listing_id column doesn't exist, add it and retry
+      if (e.message.includes('hostaway_listing_id')) {
+        await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id VARCHAR(50)');
+        return pool.query(`
+          INSERT INTO bookable_units (
+            property_id, name, display_name,
+            short_description, full_description,
+            max_guests, base_price,
+            room_type,
+            cm_room_id, hostaway_listing_id,
+            created_at, updated_at
+          ) VALUES (
+            $1, $2, $3,
+            $4, $5,
+            $6, $7,
+            $8,
+            $9, $10,
+            NOW(), NOW()
+          )
+          RETURNING id
+        `, [
+          gasPropertyId,
+          listing.internalListingName || listing.name || `Listing ${listing.id}`,
+          listing.name || null,
+          listing.externalListingName || null,
+          listing.description || null,
+          listing.personCapacity || listing.guestsIncluded || 2,
+          listing.price || null,
+          'entire_place',
+          String(listing.id),
+          String(listing.id)
+        ]);
+      }
+      throw e;
+    });
+    
+    const gasRoomId = roomResult.rows[0].id;
+    let imagesCreated = 0;
+    
+    // Import images if requested
+    if (importImages) {
+      const images = listing.listingImages || [];
+      
+      // If no listingImages but has thumbnailUrl, use that
+      if (images.length === 0 && listing.thumbnailUrl) {
+        images.push({
+          url: listing.thumbnailUrl,
+          sortOrder: 1
+        });
+      }
+      
+      for (let i = 0; i < images.length; i++) {
+        const img = images[i];
+        if (img.url) {
+          try {
+            await pool.query(`
+              INSERT INTO room_images (room_id, image_url, display_order, is_active, created_at)
+              VALUES ($1, $2, $3, true, NOW())
+              ON CONFLICT DO NOTHING
+            `, [gasRoomId, img.url, img.sortOrder || i + 1]);
+            imagesCreated++;
+          } catch (imgErr) {
+            console.log('Image insert error:', imgErr.message);
+          }
+        }
+      }
+    }
+    
+    // Create or update GasSync connection
+    const connectionResult = await pool.query(`
+      INSERT INTO gas_sync_connections (
+        account_id, adapter_code, name,
+        credentials, access_token,
+        status, sync_enabled,
+        created_at, updated_at
+      ) VALUES (
+        $1, 'hostaway', $2,
+        $3, $4,
+        'connected', true,
+        NOW(), NOW()
+      )
+      ON CONFLICT (account_id, adapter_code)
+      DO UPDATE SET
+        access_token = $4,
+        credentials = $3,
+        status = 'connected',
+        updated_at = NOW()
+      RETURNING id
+    `, [
+      gasAccountId,
+      'Hostaway Connection',
+      JSON.stringify({ accountId: accountId || '', apiKey: apiKey || '' }),
+      token
+    ]).catch(e => {
+      console.log('Connection save warning:', e.message);
+      return { rows: [] };
+    });
+    
+    const connectionId = connectionResult.rows[0]?.id;
+    
+    // Store property mapping in gas_sync_properties
+    if (connectionId) {
+      await pool.query(`
+        INSERT INTO gas_sync_properties (
+          connection_id, external_property_id, gas_property_id,
+          name, status, created_at
+        ) VALUES ($1, $2, $3, $4, 'active', NOW())
+        ON CONFLICT (connection_id, external_property_id)
+        DO UPDATE SET gas_property_id = $3, status = 'active', updated_at = NOW()
+      `, [
+        connectionId,
+        String(listing.id),
+        gasPropertyId,
+        listing.name || listing.internalListingName
+      ]).catch(e => console.log('Property mapping save:', e.message));
+      
+      // Store room type mapping
+      await pool.query(`
+        INSERT INTO gas_sync_room_types (
+          connection_id, property_id, external_id, gas_room_id,
+          name, status, created_at
+        ) VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+        ON CONFLICT (connection_id, external_id)
+        DO UPDATE SET gas_room_id = $4, status = 'active', updated_at = NOW()
+      `, [
+        connectionId,
+        gasPropertyId,
+        String(listing.id),
+        gasRoomId,
+        listing.internalListingName || listing.name
+      ]).catch(e => console.log('Room type mapping save:', e.message));
+    }
+    
+    console.log(`Hostaway wizard: Imported listing ${listing.name} (ID ${listing.id}) -> GAS property ${gasPropertyId}`);
+    console.log(`  - Bookable unit created: ${gasRoomId}`);
+    console.log(`  - Images: ${imagesCreated}`);
+    
+    res.json({
+      success: true,
+      message: 'Property imported successfully',
+      gasPropertyId,
+      gasRoomId,
+      stats: {
+        roomsCreated: 1,
+        imagesCreated
+      }
+    });
+    
+  } catch (error) {
+    console.error('Hostaway wizard import error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Serve frontend - MUST BE LAST (after all API routes)
 app.get('*', (req, res) => {
   // Don't serve index.html for API routes - return 404 instead
