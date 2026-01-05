@@ -37009,7 +37009,7 @@ Local honey and preserves"></textarea>
         // Test that the webhook URL is correctly configured in Beds24
         async function testWebhookForProperty(syncPropertyId, externalPropertyId) {
             const testSpan = document.getElementById(`webhook-test-${syncPropertyId}`);
-            testSpan.innerHTML = '<span style="color: #f59e0b;"></span>';
+            testSpan.innerHTML = '<span style="color: #f59e0b;">⏳</span>';
             
             try {
                 const response = await fetch('/api/gas-sync/test-webhook-url', {
@@ -37046,7 +37046,7 @@ Local honey and preserves"></textarea>
                 return;
             }
             
-            testSpan.innerHTML = '<span style="color: #f59e0b;"></span>';
+            testSpan.innerHTML = '<span style="color: #f59e0b;">⏳</span>';
             
             try {
                 const response = await fetch('/api/gas-sync/test-prop-key', {
@@ -37089,12 +37089,12 @@ Local honey and preserves"></textarea>
                         importBtn.style.cursor = 'pointer';
                         importBtn.textContent = 'Import';
                     }
-                    // Update status light
+                    // Update status light to yellow (ready to import)
                     const row = document.getElementById(`prop-row-${syncPropertyId}`);
                     if (row) {
                         const statusCell = row.querySelector('td:first-child');
                         if (statusCell) {
-                            statusCell.innerHTML = '';
+                            statusCell.innerHTML = '🟡';
                             statusCell.title = 'Ready to import';
                         }
                     }
