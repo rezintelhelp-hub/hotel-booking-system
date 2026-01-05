@@ -37142,7 +37142,7 @@ Local honey and preserves"></textarea>
                     // Show the test button for prop key
                     const propKeyTest = document.getElementById(`propkey-test-${syncPropertyId}`);
                     if (propKeyTest) {
-                        const externalId = data.external_id || '';
+                        const externalId = data.property?.external_id || '';
                         propKeyTest.innerHTML = `<button onclick="testPropKeyForProperty(${syncPropertyId}, '${externalId}')" class="btn btn-sm" style="background: #3b82f6; color: white; padding: 6px 10px;">🧪 Test</button>`;
                     }
                     
