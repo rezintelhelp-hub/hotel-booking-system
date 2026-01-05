@@ -36751,31 +36751,67 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     
     // Check if property already exists
     const existingProp = await pool.query(
-      `SELECT id FROM properties WHERE hostaway_listing_id = $1`,
+      `SELECT p.id as property_id, bu.id as room_id 
+       FROM properties p 
+       LEFT JOIN bookable_units bu ON bu.property_id = p.id 
+       WHERE p.hostaway_listing_id = $1`,
       [String(listing.id)]
     ).catch(() => ({ rows: [] }));
     
-    if (existingProp.rows.length > 0) {
+    // If exists and not updating, return error
+    const updateExisting = req.body.updateExisting;
+    if (existingProp.rows.length > 0 && !updateExisting) {
       return res.json({
         success: false,
         error: 'This property has already been imported',
-        existingPropertyId: existingProp.rows[0].id
+        existingPropertyId: existingProp.rows[0].property_id
+      });
+    }
+    
+    // If updating existing, just import images
+    if (existingProp.rows.length > 0 && updateExisting) {
+      const gasPropertyId = existingProp.rows[0].property_id;
+      const gasRoomId = existingProp.rows[0].room_id;
+      let imagesCreated = 0;
+      
+      if (importImages && gasRoomId) {
+        const images = listing.listingImages || [];
+        
+        // If no listingImages but has thumbnailUrl, use that
+        if (images.length === 0 && listing.thumbnailUrl) {
+          images.push({ url: listing.thumbnailUrl, sortOrder: 1 });
+        }
+        
+        for (let i = 0; i < images.length; i++) {
+          const img = images[i];
+          if (img.url) {
+            try {
+              await pool.query(`
+                INSERT INTO room_images (room_id, image_url, display_order, is_active, created_at)
+                VALUES ($1, $2, $3, true, NOW())
+                ON CONFLICT DO NOTHING
+              `, [gasRoomId, img.url, img.sortOrder || i + 1]);
+              imagesCreated++;
+            } catch (imgErr) {
+              console.log('Image insert error:', imgErr.message);
+            }
+          }
+        }
+      }
+      
+      console.log(`Hostaway wizard: Updated existing property ${listing.name} with ${imagesCreated} images`);
+      
+      return res.json({
+        success: true,
+        message: 'Property updated with images',
+        gasPropertyId,
+        gasRoomId,
+        stats: { roomsCreated: 0, imagesCreated }
       });
     }
     
     // Ensure hostaway_listing_id column exists
     await pool.query('ALTER TABLE properties ADD COLUMN IF NOT EXISTS hostaway_listing_id VARCHAR(50)').catch(() => {});
-    
-    // Map property type
-    const propertyTypes = {
-      1: 'apartment',
-      2: 'house',
-      3: 'secondary_unit',
-      4: 'unique_space',
-      5: 'bed_and_breakfast',
-      6: 'boutique_hotel'
-    };
-    const propertyType = propertyTypes[listing.propertyTypeId] || 'vacation_rental';
     
     // Helper to safely convert to string
     const safeString = (val) => {
@@ -36793,34 +36829,27 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       return JSON.stringify({ en: text });
     };
     
-    // Create property in GAS
+    // Create property in GAS - only location/contact info
     const propertyResult = await pool.query(`
       INSERT INTO properties (
-        user_id, account_id, name, property_type,
+        user_id, account_id, name,
         address, city, state, country, postcode,
         latitude, longitude,
-        check_in_time, check_out_time,
         currency, phone, email,
-        short_description, full_description,
-        house_rules,
         hostaway_listing_id, cm_source,
         created_at, updated_at
       ) VALUES (
-        1, $1, $2, $3,
-        $4, $5, $6, $7, $8,
-        $9, $10,
-        $11, $12,
-        $13, $14, $15,
-        $16, $17,
-        $18,
-        $19, 'hostaway',
+        1, $1, $2,
+        $3, $4, $5, $6, $7,
+        $8, $9,
+        $10, $11, $12,
+        $13, 'hostaway',
         NOW(), NOW()
       )
       RETURNING id
     `, [
       gasAccountId,
       safeString(listing.name || listing.internalListingName || `Listing ${listing.id}`),
-      propertyType,
       safeString(listing.address || listing.street || ''),
       safeString(listing.city || ''),
       safeString(listing.state || ''),
@@ -36828,35 +36857,30 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       safeString(listing.zipcode || ''),
       listing.lat || null,
       listing.lng || null,
-      listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '15:00',
-      listing.checkOutTime ? `${listing.checkOutTime}:00` : '11:00',
       safeString(listing.currencyCode || 'USD'),
       safeString(listing.contactPhone || ''),
       safeString(listing.contactEmail || ''),
-      toJsonText(listing.externalListingName),
-      toJsonText(listing.description),
-      toJsonText(listing.houseRules),
       String(listing.id)
     ]);
     
     const gasPropertyId = propertyResult.rows[0].id;
     
     // For Hostaway, the listing IS the bookable unit (no separate room types)
-    // Create one bookable unit for the listing
+    // Create one bookable unit with all the bookable data
     const roomResult = await pool.query(`
       INSERT INTO bookable_units (
         property_id, name, display_name,
         short_description, full_description,
         max_guests, base_price,
-        room_type,
+        room_type, check_in_time, check_out_time,
         cm_room_id, hostaway_listing_id,
         created_at, updated_at
       ) VALUES (
         $1, $2, $3,
         $4, $5,
         $6, $7,
-        $8,
-        $9, $10,
+        $8, $9, $10,
+        $11, $12,
         NOW(), NOW()
       )
       RETURNING id
@@ -36869,26 +36893,30 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       listing.personCapacity || listing.guestsIncluded || 2,
       listing.price || null,
       'entire_place',
+      listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '15:00',
+      listing.checkOutTime ? `${listing.checkOutTime}:00` : '11:00',
       String(listing.id),
       String(listing.id)
     ]).catch(async (e) => {
-      // If hostaway_listing_id column doesn't exist, add it and retry
-      if (e.message.includes('hostaway_listing_id')) {
-        await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id VARCHAR(50)');
+      // If hostaway_listing_id or check_in_time columns don't exist, add them and retry
+      if (e.message.includes('hostaway_listing_id') || e.message.includes('check_in_time')) {
+        await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS hostaway_listing_id VARCHAR(50)').catch(() => {});
+        await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS check_in_time VARCHAR(10)').catch(() => {});
+        await pool.query('ALTER TABLE bookable_units ADD COLUMN IF NOT EXISTS check_out_time VARCHAR(10)').catch(() => {});
         return pool.query(`
           INSERT INTO bookable_units (
             property_id, name, display_name,
             short_description, full_description,
             max_guests, base_price,
-            room_type,
+            room_type, check_in_time, check_out_time,
             cm_room_id, hostaway_listing_id,
             created_at, updated_at
           ) VALUES (
             $1, $2, $3,
             $4, $5,
             $6, $7,
-            $8,
-            $9, $10,
+            $8, $9, $10,
+            $11, $12,
             NOW(), NOW()
           )
           RETURNING id
@@ -36901,6 +36929,8 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
           listing.personCapacity || listing.guestsIncluded || 2,
           listing.price || null,
           'entire_place',
+          listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '15:00',
+          listing.checkOutTime ? `${listing.checkOutTime}:00` : '11:00',
           String(listing.id),
           String(listing.id)
         ]);
