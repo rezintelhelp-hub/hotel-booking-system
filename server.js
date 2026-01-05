@@ -36777,6 +36777,14 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     };
     const propertyType = propertyTypes[listing.propertyTypeId] || 'vacation_rental';
     
+    // Helper to safely convert to string
+    const safeString = (val) => {
+      if (val === null || val === undefined) return '';
+      if (typeof val === 'string') return val;
+      if (typeof val === 'object') return JSON.stringify(val);
+      return String(val);
+    };
+    
     // Create property in GAS
     const propertyResult = await pool.query(`
       INSERT INTO properties (
@@ -36803,23 +36811,23 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       RETURNING id
     `, [
       gasAccountId,
-      listing.name || listing.internalListingName || `Listing ${listing.id}`,
+      safeString(listing.name || listing.internalListingName || `Listing ${listing.id}`),
       propertyType,
-      listing.address || listing.street || '',
-      listing.city || '',
-      listing.state || '',
-      listing.countryCode || listing.country || '',
-      listing.zipcode || '',
+      safeString(listing.address || listing.street || ''),
+      safeString(listing.city || ''),
+      safeString(listing.state || ''),
+      safeString(listing.countryCode || listing.country || ''),
+      safeString(listing.zipcode || ''),
       listing.lat || null,
       listing.lng || null,
       listing.checkInTimeStart ? `${listing.checkInTimeStart}:00` : '15:00',
       listing.checkOutTime ? `${listing.checkOutTime}:00` : '11:00',
-      listing.currencyCode || 'USD',
-      listing.contactPhone || '',
-      listing.contactEmail || '',
-      listing.externalListingName || '', // Use as short description
-      listing.description || '',
-      listing.houseRules || '',
+      safeString(listing.currencyCode || 'USD'),
+      safeString(listing.contactPhone || ''),
+      safeString(listing.contactEmail || ''),
+      safeString(listing.externalListingName || ''),
+      safeString(listing.description || ''),
+      safeString(listing.houseRules || ''),
       String(listing.id)
     ]);
     
@@ -36846,10 +36854,10 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       RETURNING id
     `, [
       gasPropertyId,
-      listing.internalListingName || listing.name || `Listing ${listing.id}`,
-      listing.name || null,
-      listing.externalListingName || null,
-      listing.description || null,
+      safeString(listing.internalListingName || listing.name || `Listing ${listing.id}`),
+      safeString(listing.name) || null,
+      safeString(listing.externalListingName) || null,
+      safeString(listing.description) || null,
       listing.personCapacity || listing.guestsIncluded || 2,
       listing.price || null,
       'entire_place',
@@ -36878,10 +36886,10 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
           RETURNING id
         `, [
           gasPropertyId,
-          listing.internalListingName || listing.name || `Listing ${listing.id}`,
-          listing.name || null,
-          listing.externalListingName || null,
-          listing.description || null,
+          safeString(listing.internalListingName || listing.name || `Listing ${listing.id}`),
+          safeString(listing.name) || null,
+          safeString(listing.externalListingName) || null,
+          safeString(listing.description) || null,
           listing.personCapacity || listing.guestsIncluded || 2,
           listing.price || null,
           'entire_place',
