@@ -36796,7 +36796,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     // Create property in GAS
     const propertyResult = await pool.query(`
       INSERT INTO properties (
-        account_id, name, property_type,
+        user_id, account_id, name, property_type,
         address, city, state, country, postcode,
         latitude, longitude,
         check_in_time, check_out_time,
@@ -36806,7 +36806,7 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
         hostaway_listing_id, cm_source,
         created_at, updated_at
       ) VALUES (
-        $1, $2, $3,
+        1, $1, $2, $3,
         $4, $5, $6, $7, $8,
         $9, $10,
         $11, $12,
