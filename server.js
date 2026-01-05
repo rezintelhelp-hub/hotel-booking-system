@@ -36785,10 +36785,11 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       return String(val);
     };
     
-    // Helper for JSONB text columns (short_description, full_description)
+    // Helper for JSONB text columns (short_description, full_description, house_rules, etc)
     const toJsonText = (val) => {
       if (val === null || val === undefined || val === '') return null;
       const text = safeString(val);
+      if (!text) return null;
       return JSON.stringify({ en: text });
     };
     
@@ -36832,9 +36833,9 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       safeString(listing.currencyCode || 'USD'),
       safeString(listing.contactPhone || ''),
       safeString(listing.contactEmail || ''),
-      toJsonText(listing.externalListingName || ''),
-      toJsonText(listing.description || ''),
-      safeString(listing.houseRules || ''),
+      toJsonText(listing.externalListingName),
+      toJsonText(listing.description),
+      toJsonText(listing.houseRules),
       String(listing.id)
     ]);
     
