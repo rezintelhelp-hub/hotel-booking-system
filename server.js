@@ -36785,6 +36785,13 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       return String(val);
     };
     
+    // Helper for JSONB text columns (short_description, full_description)
+    const toJsonText = (val) => {
+      if (val === null || val === undefined || val === '') return null;
+      const text = safeString(val);
+      return JSON.stringify({ en: text });
+    };
+    
     // Create property in GAS
     const propertyResult = await pool.query(`
       INSERT INTO properties (
@@ -36825,8 +36832,8 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       safeString(listing.currencyCode || 'USD'),
       safeString(listing.contactPhone || ''),
       safeString(listing.contactEmail || ''),
-      safeString(listing.externalListingName || ''),
-      safeString(listing.description || ''),
+      toJsonText(listing.externalListingName || ''),
+      toJsonText(listing.description || ''),
       safeString(listing.houseRules || ''),
       String(listing.id)
     ]);
@@ -36856,8 +36863,8 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       gasPropertyId,
       safeString(listing.internalListingName || listing.name || `Listing ${listing.id}`),
       safeString(listing.name) || null,
-      safeString(listing.externalListingName) || null,
-      safeString(listing.description) || null,
+      toJsonText(listing.externalListingName),
+      toJsonText(listing.description),
       listing.personCapacity || listing.guestsIncluded || 2,
       listing.price || null,
       'entire_place',
@@ -36888,8 +36895,8 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
           gasPropertyId,
           safeString(listing.internalListingName || listing.name || `Listing ${listing.id}`),
           safeString(listing.name) || null,
-          safeString(listing.externalListingName) || null,
-          safeString(listing.description) || null,
+          toJsonText(listing.externalListingName),
+          toJsonText(listing.description),
           listing.personCapacity || listing.guestsIncluded || 2,
           listing.price || null,
           'entire_place',
