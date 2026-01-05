@@ -3627,6 +3627,19 @@ app.post('/api/gas-sync/connections/:connectionId/full-sync', async (req, res) =
   try {
     const { connectionId } = req.params;
     
+    // Get connection's account_id for proper ownership
+    const connResult = await pool.query(
+      'SELECT account_id FROM gas_sync_connections WHERE id = $1', 
+      [connectionId]
+    );
+    
+    if (connResult.rows.length === 0) {
+      return res.status(404).json({ success: false, error: 'Connection not found' });
+    }
+    
+    const connectionAccountId = connResult.rows[0].account_id;
+    console.log(`Full sync for connection ${connectionId}, account_id: ${connectionAccountId}`);
+    
     // Run the regular sync (properties, rooms, images)
     const syncResponse = await axios.post(`http://localhost:${process.env.PORT || 3001}/api/gas-sync/connections/${connectionId}/sync`, {
       syncType: 'full'
@@ -3642,9 +3655,10 @@ app.post('/api/gas-sync/connections/:connectionId/full-sync', async (req, res) =
     for (const prop of propsResult.rows) {
       try {
         // Re-link with skipImages to just update property/room data
+        // Don't pass accountId - link-to-gas will use connection's account_id automatically
         const linkResponse = await axios.post(
           `http://localhost:${process.env.PORT || 3001}/api/gas-sync/properties/${prop.id}/link-to-gas`,
-          { accountId: 1, skipImages: true }, // TODO: Get accountId from property
+          { skipImages: true },
           { headers: { 'Content-Type': 'application/json' } }
         );
         linkResults.push({ propertyId: prop.id, success: true, stats: linkResponse.data.stats });
@@ -3657,7 +3671,8 @@ app.post('/api/gas-sync/connections/:connectionId/full-sync', async (req, res) =
       success: true,
       message: 'Full sync complete',
       syncResult: syncResponse.data,
-      linkResults
+      linkResults,
+      account_id: connectionAccountId
     });
     
   } catch (error) {
