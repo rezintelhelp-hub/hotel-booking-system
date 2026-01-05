@@ -540,6 +540,11 @@
           <label for="import-images">Import property images</label>
         </div>
         
+        <div class="checkbox-option">
+          <input type="checkbox" id="update-existing">
+          <label for="update-existing">Update existing properties (re-import images)</label>
+        </div>
+        
         <div class="summary-table">
           <div class="summary-row">
             <span class="summary-label">Properties to import</span>
@@ -862,6 +867,7 @@
     // Step 4: Import
     async function importProperties() {
       const importImages = document.getElementById('import-images').checked;
+      const updateExisting = document.getElementById('update-existing').checked;
       
       showStatus('step4-status', 'Importing properties...', 'info');
       document.getElementById('btn-next').disabled = true;
@@ -884,6 +890,7 @@
               token: hostawayToken,
               listingId: propId,
               importImages,
+              updateExisting,
               gasAccountId
             })
           });
