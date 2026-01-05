@@ -173,7 +173,7 @@ class SyncManager {
     return getAdapter(connection.adapter_code, {
       token: connection.access_token || credentials.token,
       refreshToken: connection.refresh_token || credentials.refreshToken,
-      apiKey: credentials.apiKey,
+      apiKey: credentials.v1ApiKey || credentials.apiKey,
       propKey: credentials.propKey,
       workspaceId: credentials.workspaceId,
       integrationAccountId: credentials.integrationAccountId,
