@@ -34408,7 +34408,7 @@ app.get('/api/gas-sync/connections', async (req, res) => {
       result = await pool.query(`
         SELECT c.id, c.account_id, c.adapter_code, c.status, c.credentials,
                c.external_account_id, c.external_account_name,
-               COALESCE(c.external_account_name, acc.name, 'Unnamed') as connection_name,
+               COALESCE(c.external_account_name, (SELECT name FROM gas_sync_properties WHERE connection_id = c.id ORDER BY id LIMIT 1), 'Unnamed') as connection_name,
                c.sync_enabled, c.sync_interval_minutes,
                c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
                c.webhook_registered, c.created_at, c.updated_at,
@@ -34429,7 +34429,7 @@ app.get('/api/gas-sync/connections', async (req, res) => {
       result = await pool.query(`
         SELECT c.id, c.account_id, c.adapter_code, c.status, c.credentials,
                c.external_account_id, c.external_account_name,
-               COALESCE(c.external_account_name, acc.name, 'Unnamed') as connection_name,
+               COALESCE(c.external_account_name, (SELECT name FROM gas_sync_properties WHERE connection_id = c.id ORDER BY id LIMIT 1), 'Unnamed') as connection_name,
                c.sync_enabled, c.sync_interval_minutes,
                c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
                c.webhook_registered, c.created_at, c.updated_at,
@@ -34476,7 +34476,7 @@ app.get('/api/admin/gas-sync/connections', async (req, res) => {
     const result = await pool.query(`
       SELECT c.id, c.account_id, c.adapter_code, c.status, 
              c.external_account_id, c.external_account_name,
-             COALESCE(c.external_account_name, acc.name, 'Unnamed') as connection_name,
+             COALESCE(c.external_account_name, (SELECT name FROM gas_sync_properties WHERE connection_id = c.id ORDER BY id LIMIT 1), 'Unnamed') as connection_name,
              c.sync_enabled, c.sync_interval_minutes,
              c.last_sync_at, c.next_sync_at, c.last_error, c.last_error_at,
              c.webhook_registered, c.created_at, c.updated_at,
@@ -35259,7 +35259,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
     const { propertyId } = req.params;
     
     const propResult = await pool.query(`
-      SELECT p.connection_id, p.external_id, p.prop_key, c.adapter_code, c.credentials
+      SELECT p.connection_id, p.external_id, p.prop_key, c.adapter_code
       FROM gas_sync_properties p
       JOIN gas_sync_connections c ON p.connection_id = c.id
       WHERE p.id = $1
@@ -35269,7 +35269,7 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       return res.status(404).json({ success: false, error: 'Property not found' });
     }
     
-    const { connection_id, external_id, prop_key, adapter_code, credentials } = propResult.rows[0];
+    const { connection_id, external_id, prop_key, adapter_code } = propResult.rows[0];
     
     if (adapter_code !== 'beds24') {
       return res.status(400).json({ 
@@ -35285,74 +35285,30 @@ app.post('/api/gas-sync/properties/:propertyId/download-images', async (req, res
       });
     }
     
-    // Call Beds24 V1 API directly for getPictures
-    const v1ApiKey = credentials?.v1ApiKey;
+    const adapter = await syncManager.getAdapterForConnection(connection_id);
     
-    console.log('Fetching images from Beds24 V1 API:', {
-      propertyId: external_id,
-      hasPropKey: !!prop_key,
-      hasV1ApiKey: !!v1ApiKey
-    });
+    // Set the property-specific propKey on the adapter
+    adapter.propKey = prop_key;
     
-    const picturesResponse = await axios.post('https://api.beds24.com/json/getPictures', {
-      apiKey: v1ApiKey,
-      propKey: prop_key,
-      propId: external_id
-    });
+    const imagesResult = await adapter.getImages(external_id);
     
-    const pictures = picturesResponse.data;
-    
-    if (!pictures || typeof pictures !== 'object') {
-      return res.status(400).json({ 
-        success: false, 
-        error: 'Invalid response from Beds24 getPictures API' 
-      });
+    if (!imagesResult.success) {
+      return res.status(400).json({ success: false, error: imagesResult.error });
     }
     
-    // Pictures come back as { propId: { roomId: [...images] } } or { roomId: [...images] }
     let downloadedCount = 0;
-    const processedImages = [];
-    
-    // Handle both formats
-    const roomsData = pictures[external_id] || pictures;
-    
-    for (const [roomId, images] of Object.entries(roomsData)) {
-      if (!Array.isArray(images)) continue;
-      
-      for (let i = 0; i < images.length; i++) {
-        const img = images[i];
-        if (!img.url && !img.image) continue;
-        
-        const imageUrl = img.url || img.image;
-        const imageData = {
-          url: imageUrl,
-          room_type_external_id: roomId === 'property' ? null : roomId,
-          property_external_id: external_id,
-          caption: img.caption || img.description || null,
-          sort_order: img.position || i
-        };
-        
-        // Save to gas_sync_images
-        await pool.query(`
-          INSERT INTO gas_sync_images (connection_id, property_external_id, room_type_external_id, url, caption, sort_order, created_at, updated_at)
-          VALUES ($1, $2, $3, $4, $5, $6, NOW(), NOW())
-          ON CONFLICT (connection_id, property_external_id, COALESCE(room_type_external_id, ''), url) 
-          DO UPDATE SET caption = $5, sort_order = $6, updated_at = NOW()
-        `, [connection_id, external_id, imageData.room_type_external_id, imageUrl, imageData.caption, imageData.sort_order]);
-        
-        downloadedCount++;
-        processedImages.push(imageData);
-      }
+    for (const image of imagesResult.data) {
+      // Use adapter's method to properly save room_type_external_id
+      await adapter.syncImageToDatabase(image, external_id);
+      downloadedCount++;
     }
     
     res.json({ 
       success: true, 
       message: `Downloaded ${downloadedCount} images`,
-      count: downloadedCount,
-      images: processedImages
+      images: imagesResult.data
     });
   } catch (error) {
-    console.error('Error downloading images:', error);
     res.status(500).json({ success: false, error: error.message });
   }
 });
