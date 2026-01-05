@@ -36749,6 +36749,35 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       return res.json({ success: false, error: 'Listing not found' });
     }
     
+    // Debug: log what we got for images
+    console.log('Hostaway listing images:', {
+      listingId: listing.id,
+      hasListingImages: !!listing.listingImages,
+      listingImagesCount: listing.listingImages?.length || 0,
+      hasThumbnail: !!listing.thumbnailUrl,
+      thumbnailUrl: listing.thumbnailUrl
+    });
+    
+    // If no listingImages, try to fetch them separately
+    if (!listing.listingImages || listing.listingImages.length === 0) {
+      try {
+        const imagesResponse = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}/images`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          timeout: 30000
+        });
+        const imagesData = imagesResponse.data?.result || imagesResponse.data || [];
+        if (Array.isArray(imagesData) && imagesData.length > 0) {
+          listing.listingImages = imagesData;
+          console.log('Fetched images separately:', imagesData.length);
+        }
+      } catch (imgErr) {
+        console.log('Separate image fetch failed:', imgErr.message);
+      }
+    }
+    
     // Check if property already exists
     const existingProp = await pool.query(
       `SELECT p.id as property_id, bu.id as room_id 
@@ -36971,36 +37000,51 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     }
     
     // Create or update GasSync connection
-    const connectionResult = await pool.query(`
-      INSERT INTO gas_sync_connections (
-        account_id, adapter_code, name,
-        credentials, access_token,
-        status, sync_enabled,
-        created_at, updated_at
-      ) VALUES (
-        $1, 'hostaway', $2,
-        $3, $4,
-        'connected', true,
-        NOW(), NOW()
-      )
-      ON CONFLICT (account_id, adapter_code)
-      DO UPDATE SET
-        access_token = $4,
-        credentials = $3,
-        status = 'connected',
-        updated_at = NOW()
-      RETURNING id
-    `, [
-      gasAccountId,
-      'Hostaway Connection',
-      JSON.stringify({ accountId: accountId || '', apiKey: apiKey || '' }),
-      token
-    ]).catch(e => {
-      console.log('Connection save warning:', e.message);
-      return { rows: [] };
-    });
+    // First check if connection exists
+    let connectionId = null;
+    const existingConn = await pool.query(`
+      SELECT id FROM gas_sync_connections 
+      WHERE account_id = $1 AND adapter_code = 'hostaway'
+    `, [gasAccountId]).catch(() => ({ rows: [] }));
     
-    const connectionId = connectionResult.rows[0]?.id;
+    if (existingConn.rows.length > 0) {
+      // Update existing
+      connectionId = existingConn.rows[0].id;
+      await pool.query(`
+        UPDATE gas_sync_connections SET
+          access_token = $1,
+          credentials = $2,
+          status = 'connected',
+          updated_at = NOW()
+        WHERE id = $3
+      `, [token, JSON.stringify({ accountId: accountId || '', apiKey: apiKey || '' }), connectionId])
+        .catch(e => console.log('Connection update warning:', e.message));
+    } else {
+      // Insert new
+      const connectionResult = await pool.query(`
+        INSERT INTO gas_sync_connections (
+          account_id, adapter_code, name,
+          credentials, access_token,
+          status, sync_enabled,
+          created_at, updated_at
+        ) VALUES (
+          $1, 'hostaway', $2,
+          $3, $4,
+          'connected', true,
+          NOW(), NOW()
+        )
+        RETURNING id
+      `, [
+        gasAccountId,
+        'Hostaway Connection',
+        JSON.stringify({ accountId: accountId || '', apiKey: apiKey || '' }),
+        token
+      ]).catch(e => {
+        console.log('Connection save warning:', e.message);
+        return { rows: [] };
+      });
+      connectionId = connectionResult.rows[0]?.id;
+    }
     
     // Store property mapping in gas_sync_properties
     if (connectionId) {
