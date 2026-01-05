@@ -1,824 +1,958 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Connect Hostaway - GAS Booking</title>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        
-        .wizard-container {
-            background: white;
-            border-radius: 24px;
-            box-shadow: 0 25px 80px rgba(0,0,0,0.15);
-            max-width: 600px;
-            width: 100%;
-            overflow: hidden;
-        }
-        
-        .wizard-header {
-            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-            padding: 40px;
-            text-align: center;
-            color: white;
-        }
-        
-        .wizard-header h1 {
-            font-size: 1.75rem;
-            font-weight: 700;
-            margin-bottom: 8px;
-        }
-        
-        .wizard-header p {
-            opacity: 0.9;
-            font-size: 1rem;
-        }
-        
-        .channel-logo {
-            width: 80px;
-            height: 80px;
-            background: white;
-            border-radius: 20px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 20px;
-            font-weight: bold;
-            font-size: 0.8rem;
-            color: #7c3aed;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.2);
-        }
-        
-        .wizard-body {
-            padding: 40px;
-        }
-        
-        .step {
-            display: none;
-        }
-        
-        .step.active {
-            display: block;
-        }
-        
-        .step-indicators {
-            display: flex;
-            justify-content: center;
-            gap: 12px;
-            margin-bottom: 32px;
-        }
-        
-        .step-dot {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: #e2e8f0;
-            transition: all 0.3s;
-        }
-        
-        .step-dot.active {
-            background: #7c3aed;
-            transform: scale(1.2);
-        }
-        
-        .step-dot.completed {
-            background: #22c55e;
-        }
-        
-        .step-title {
-            font-size: 1.25rem;
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 8px;
-        }
-        
-        .step-description {
-            color: #64748b;
-            margin-bottom: 24px;
-            line-height: 1.6;
-        }
-        
-        .form-group {
-            margin-bottom: 20px;
-        }
-        
-        .form-group label {
-            display: block;
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: 8px;
-            font-size: 0.9rem;
-        }
-        
-        .form-group input {
-            width: 100%;
-            padding: 14px 16px;
-            border: 2px solid #e5e7eb;
-            border-radius: 12px;
-            font-size: 1rem;
-            transition: all 0.2s;
-        }
-        
-        .form-group input:focus {
-            outline: none;
-            border-color: #7c3aed;
-            box-shadow: 0 0 0 4px rgba(124, 58, 237, 0.1);
-        }
-        
-        .help-text {
-            background: #f5f3ff;
-            border: 1px solid #c4b5fd;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 24px;
-            font-size: 0.9rem;
-            color: #5b21b6;
-        }
-        
-        .help-text a {
-            color: #7c3aed;
-            font-weight: 600;
-        }
-        
-        .btn {
-            display: inline-flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            padding: 14px 28px;
-            border-radius: 12px;
-            font-weight: 600;
-            font-size: 1rem;
-            cursor: pointer;
-            transition: all 0.2s;
-            border: none;
-        }
-        
-        .btn-primary {
-            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-            color: white;
-            width: 100%;
-        }
-        
-        .btn-primary:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(124, 58, 237, 0.4);
-        }
-        
-        .btn-primary:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-            transform: none;
-            box-shadow: none;
-        }
-        
-        .btn-secondary {
-            background: #f1f5f9;
-            color: #475569;
-        }
-        
-        .btn-secondary:hover {
-            background: #e2e8f0;
-        }
-        
-        .error-message {
-            background: #fef2f2;
-            border: 1px solid #fecaca;
-            color: #dc2626;
-            padding: 14px 16px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            display: none;
-        }
-        
-        .success-message {
-            background: #f0fdf4;
-            border: 1px solid #bbf7d0;
-            color: #16a34a;
-            padding: 14px 16px;
-            border-radius: 12px;
-            margin-bottom: 20px;
-            font-size: 0.9rem;
-            display: none;
-        }
-        
-        .property-list {
-            max-height: 400px;
-            overflow-y: auto;
-            border: 2px solid #e5e7eb;
-            border-radius: 16px;
-            margin-bottom: 24px;
-        }
-        
-        .property-item {
-            display: flex;
-            align-items: center;
-            gap: 16px;
-            padding: 16px 20px;
-            border-bottom: 1px solid #f1f5f9;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .property-item:last-child {
-            border-bottom: none;
-        }
-        
-        .property-item:hover {
-            background: #f8fafc;
-        }
-        
-        .property-item.selected {
-            background: #f5f3ff;
-            border-color: #c4b5fd;
-        }
-        
-        .property-checkbox {
-            width: 22px;
-            height: 22px;
-            border: 2px solid #d1d5db;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            flex-shrink: 0;
-            transition: all 0.2s;
-        }
-        
-        .property-item.selected .property-checkbox {
-            background: #7c3aed;
-            border-color: #7c3aed;
-        }
-        
-        .property-checkbox svg {
-            width: 14px;
-            height: 14px;
-            stroke: white;
-            stroke-width: 3;
-            opacity: 0;
-            transition: opacity 0.2s;
-        }
-        
-        .property-item.selected .property-checkbox svg {
-            opacity: 1;
-        }
-        
-        .property-info {
-            flex: 1;
-            min-width: 0;
-        }
-        
-        .property-name {
-            font-weight: 600;
-            color: #1e293b;
-            margin-bottom: 4px;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis;
-        }
-        
-        .property-details {
-            font-size: 0.85rem;
-            color: #64748b;
-        }
-        
-        .selection-controls {
-            display: flex;
-            gap: 12px;
-            margin-bottom: 16px;
-        }
-        
-        .selection-controls button {
-            padding: 8px 16px;
-            font-size: 0.85rem;
-            background: #f1f5f9;
-            border: none;
-            border-radius: 8px;
-            color: #475569;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        
-        .selection-controls button:hover {
-            background: #e2e8f0;
-        }
-        
-        .progress-container {
-            margin-bottom: 32px;
-        }
-        
-        .progress-bar {
-            height: 12px;
-            background: #e5e7eb;
-            border-radius: 100px;
-            overflow: hidden;
-            margin-bottom: 12px;
-        }
-        
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
-            border-radius: 100px;
-            transition: width 0.3s ease;
-            width: 0%;
-        }
-        
-        .progress-text {
-            text-align: center;
-            color: #64748b;
-            font-size: 0.9rem;
-        }
-        
-        .completion-icon {
-            width: 80px;
-            height: 80px;
-            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            margin: 0 auto 24px;
-        }
-        
-        .completion-icon svg {
-            width: 40px;
-            height: 40px;
-            stroke: white;
-            stroke-width: 3;
-        }
-        
-        .completion-title {
-            font-size: 1.5rem;
-            font-weight: 700;
-            color: #1e293b;
-            text-align: center;
-            margin-bottom: 8px;
-        }
-        
-        .completion-description {
-            color: #64748b;
-            text-align: center;
-            margin-bottom: 32px;
-        }
-        
-        .back-link {
-            display: block;
-            text-align: center;
-            margin-top: 20px;
-            color: #64748b;
-            text-decoration: none;
-            font-size: 0.9rem;
-        }
-        
-        .back-link:hover {
-            color: #7c3aed;
-        }
-        
-        .spinner {
-            width: 20px;
-            height: 20px;
-            border: 2px solid rgba(255,255,255,0.3);
-            border-top-color: white;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-        }
-        
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-        
-        .loading-overlay {
-            position: fixed;
-            inset: 0;
-            background: rgba(0,0,0,0.5);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            z-index: 1000;
-            display: none;
-        }
-        
-        .loading-card {
-            background: white;
-            padding: 40px;
-            border-radius: 16px;
-            text-align: center;
-        }
-        
-        .loading-spinner {
-            width: 48px;
-            height: 48px;
-            border: 4px solid #e5e7eb;
-            border-top-color: #7c3aed;
-            border-radius: 50%;
-            animation: spin 0.8s linear infinite;
-            margin: 0 auto 16px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Connect to Hostaway - GAS</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #a8b5f7 0%, #c9b8ea 50%, #e8d0e0 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .wizard-container {
+      background: #fff;
+      border-radius: 20px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.15);
+      width: 100%;
+      max-width: 650px;
+      overflow: hidden;
+    }
+    .wizard-header {
+      background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
+      color: #fff;
+      padding: 30px;
+      text-align: center;
+    }
+    .wizard-header h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .wizard-header p {
+      opacity: 0.9;
+      font-size: 0.95rem;
+    }
+    .version-tag {
+      font-size: 0.75rem;
+      opacity: 0.7;
+    }
+    .step-dots {
+      display: flex;
+      justify-content: center;
+      gap: 10px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #eee;
+    }
+    .step-dot {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #ddd;
+      transition: all 0.3s;
+    }
+    .step-dot.active {
+      background: #3498db;
+    }
+    .step-dot.completed {
+      background: #27ae60;
+    }
+    .wizard-content {
+      padding: 30px 40px;
+    }
+    .step {
+      display: none;
+    }
+    .step.active {
+      display: block;
+    }
+    .step-title {
+      font-size: 1.4rem;
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 8px;
+    }
+    .step-subtitle {
+      color: #7f8c8d;
+      margin-bottom: 25px;
+      font-size: 0.95rem;
+    }
+    .tab-buttons {
+      display: flex;
+      gap: 0;
+      margin-bottom: 25px;
+    }
+    .tab-btn {
+      flex: 1;
+      padding: 14px 20px;
+      border: 2px solid #e0e0e0;
+      background: #fff;
+      font-size: 1rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      color: #666;
+    }
+    .tab-btn:first-child {
+      border-radius: 8px 0 0 8px;
+      border-right: 1px solid #e0e0e0;
+    }
+    .tab-btn:last-child {
+      border-radius: 0 8px 8px 0;
+      border-left: 1px solid #e0e0e0;
+    }
+    .tab-btn.active {
+      background: #f0f7ff;
+      border-color: #3498db;
+      color: #2c3e50;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    .form-group label {
+      display: block;
+      font-weight: 500;
+      color: #2c3e50;
+      margin-bottom: 8px;
+      font-size: 0.95rem;
+    }
+    .form-group input, .form-group select {
+      width: 100%;
+      padding: 14px 16px;
+      border: 2px solid #e0e0e0;
+      border-radius: 8px;
+      font-size: 1rem;
+      transition: all 0.2s;
+      background: #f8fafc;
+    }
+    .form-group input:focus, .form-group select:focus {
+      outline: none;
+      border-color: #3498db;
+      background: #fff;
+    }
+    .form-group input::placeholder {
+      color: #aaa;
+    }
+    .help-text {
+      font-size: 0.85rem;
+      color: #95a5a6;
+      margin-top: 6px;
+    }
+    .wizard-footer {
+      padding: 20px 40px 30px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-top: 1px solid #eee;
+    }
+    .btn {
+      padding: 14px 28px;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(52,152,219,0.4);
+    }
+    .btn-primary:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+    .btn-secondary {
+      background: #f0f0f0;
+      color: #666;
+    }
+    .btn-secondary:hover {
+      background: #e0e0e0;
+    }
+    .btn-link {
+      background: none;
+      color: #3498db;
+      padding: 14px 0;
+    }
+    .btn-link:hover {
+      text-decoration: underline;
+    }
+    .status-message {
+      padding: 12px 16px;
+      border-radius: 8px;
+      margin-top: 15px;
+      font-size: 0.9rem;
+      display: none;
+    }
+    .status-message.show {
+      display: block;
+    }
+    .status-message.success {
+      background: #d4edda;
+      color: #155724;
+      border: 1px solid #c3e6cb;
+    }
+    .status-message.error {
+      background: #f8d7da;
+      color: #721c24;
+      border: 1px solid #f5c6cb;
+    }
+    .status-message.info {
+      background: #e7f3ff;
+      color: #004085;
+      border: 1px solid #b8daff;
+    }
+    .instructions-box {
+      background: #f8f9fa;
+      border: 1px solid #e9ecef;
+      border-radius: 10px;
+      padding: 20px;
+      margin-bottom: 25px;
+    }
+    .instructions-box h3 {
+      font-size: 1rem;
+      color: #2c3e50;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .instructions-box ol {
+      margin: 0;
+      padding-left: 20px;
+      color: #5a6c7d;
+      font-size: 0.9rem;
+      line-height: 1.7;
+    }
+    .property-list {
+      max-height: 350px;
+      overflow-y: auto;
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+    .property-item {
+      display: flex;
+      align-items: center;
+      gap: 15px;
+      padding: 15px;
+      border-bottom: 1px solid #f0f0f0;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .property-item:last-child {
+      border-bottom: none;
+    }
+    .property-item:hover {
+      background: #f8f9fa;
+    }
+    .property-item.selected {
+      background: #e7f3ff;
+    }
+    .property-checkbox {
+      width: 22px;
+      height: 22px;
+      border: 2px solid #ddd;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .property-item.selected .property-checkbox {
+      background: #3498db;
+      border-color: #3498db;
+      color: #fff;
+    }
+    .property-thumb {
+      width: 70px;
+      height: 50px;
+      border-radius: 6px;
+      object-fit: cover;
+      background: #f0f0f0;
+      flex-shrink: 0;
+    }
+    .property-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .property-name {
+      font-weight: 600;
+      color: #2c3e50;
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .property-location {
+      font-size: 0.85rem;
+      color: #7f8c8d;
+    }
+    .property-meta {
+      font-size: 0.8rem;
+      color: #95a5a6;
+      margin-top: 2px;
+    }
+    .property-status {
+      padding: 4px 10px;
+      border-radius: 20px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      flex-shrink: 0;
+    }
+    .property-status.active {
+      background: #d4edda;
+      color: #155724;
+    }
+    .property-status.inactive {
+      background: #fff3cd;
+      color: #856404;
+    }
+    .checkbox-option {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 12px 0;
+    }
+    .checkbox-option input[type="checkbox"] {
+      width: 20px;
+      height: 20px;
+      accent-color: #3498db;
+    }
+    .checkbox-option label {
+      color: #2c3e50;
+      font-size: 0.95rem;
+      cursor: pointer;
+    }
+    .loading-spinner {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 40px;
+      color: #7f8c8d;
+    }
+    .spinner {
+      width: 24px;
+      height: 24px;
+      border: 3px solid #e0e0e0;
+      border-top-color: #3498db;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    .success-box {
+      text-align: center;
+      padding: 20px;
+    }
+    .success-icon {
+      width: 80px;
+      height: 80px;
+      background: #d4edda;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 2.5rem;
+    }
+    .summary-table {
+      background: #f8f9fa;
+      border-radius: 10px;
+      padding: 20px;
+      margin: 20px 0;
+      text-align: left;
+    }
+    .summary-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #e9ecef;
+    }
+    .summary-row:last-child {
+      border-bottom: none;
+    }
+    .summary-label {
+      color: #7f8c8d;
+    }
+    .summary-value {
+      font-weight: 600;
+      color: #2c3e50;
+    }
+    .select-actions {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 15px;
+      font-size: 0.9rem;
+    }
+    .select-actions a {
+      color: #3498db;
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .select-actions a:hover {
+      text-decoration: underline;
+    }
+    .hidden {
+      display: none !important;
+    }
+  </style>
 </head>
 <body>
-    <div class="wizard-container">
-        <div class="wizard-header">
-            <div class="channel-logo">Hostaway</div>
-            <h1>Connect Hostaway</h1>
-            <p>Import your properties from Hostaway</p>
-        </div>
-        
-        <div class="wizard-body">
-            <div class="step-indicators">
-                <div class="step-dot active" data-step="1"></div>
-                <div class="step-dot" data-step="2"></div>
-                <div class="step-dot" data-step="3"></div>
-            </div>
-            
-            <!-- Step 1: Enter API Credentials -->
-            <div class="step active" id="step1">
-                <h2 class="step-title">Enter Your API Credentials</h2>
-                <p class="step-description">Connect your Hostaway account using your API credentials.</p>
-                
-                <div class="help-text">
-                    <strong>How to get your API credentials:</strong><br>
-                    1. Log in to <a href="https://dashboard.hostaway.com" target="_blank">Hostaway Dashboard</a><br>
-                    2. Go to Settings → API<br>
-                    3. Copy your Account ID and API Key
-                </div>
-                
-                <div class="error-message" id="error1"></div>
-                <div class="success-message" id="success1"></div>
-                
-                <div class="form-group">
-                    <label for="accountId">Account ID</label>
-                    <input type="text" id="accountId" placeholder="Enter your Hostaway Account ID">
-                </div>
-                
-                <div class="form-group">
-                    <label for="apiKey">API Key</label>
-                    <input type="text" id="apiKey" placeholder="Enter your Hostaway API Key">
-                </div>
-                
-                <button class="btn btn-primary" id="connectBtn" onclick="connectHostaway()">
-                    <span>Connect to Hostaway</span>
-                </button>
-                
-                <a href="/gas-admin.html" class="back-link">← Back to Dashboard</a>
-            </div>
-            
-            <!-- Step 2: Select Properties -->
-            <div class="step" id="step2">
-                <h2 class="step-title">Select Properties to Import</h2>
-                <p class="step-description">Choose which listings you want to import from Hostaway.</p>
-                
-                <div class="error-message" id="error2"></div>
-                
-                <div class="selection-controls">
-                    <button onclick="selectAll()">Select All</button>
-                    <button onclick="deselectAll()">Deselect All</button>
-                </div>
-                
-                <div class="property-list" id="propertyList">
-                    <!-- Properties will be loaded here -->
-                </div>
-                
-                <button class="btn btn-primary" id="importBtn" onclick="importProperties()" disabled>
-                    <span>Import Selected Properties</span>
-                </button>
-                
-                <a href="#" class="back-link" onclick="goToStep(1); return false;">← Back to Credentials</a>
-            </div>
-            
-            <!-- Step 3: Import Progress / Complete -->
-            <div class="step" id="step3">
-                <div id="importProgress">
-                    <h2 class="step-title">Importing Properties</h2>
-                    <p class="step-description">Please wait while we import your properties...</p>
-                    
-                    <div class="progress-container">
-                        <div class="progress-bar">
-                            <div class="progress-fill" id="progressFill"></div>
-                        </div>
-                        <div class="progress-text" id="progressText">Preparing import...</div>
-                    </div>
-                </div>
-                
-                <div id="importComplete" style="display: none;">
-                    <div class="completion-icon">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </div>
-                    <h2 class="completion-title">Import Complete!</h2>
-                    <p class="completion-description" id="completionText">Your properties have been imported successfully.</p>
-                    
-                    <button class="btn btn-primary" onclick="window.location.href='/gas-admin.html'">
-                        Go to Dashboard
-                    </button>
-                </div>
-            </div>
-        </div>
+  <div class="wizard-container">
+    <div class="wizard-header">
+      <h1>🏠 Connect to Hostaway</h1>
+      <p>Set up your channel manager integration in minutes <span class="version-tag">(v1)</span></p>
     </div>
     
-    <div class="loading-overlay" id="loadingOverlay">
-        <div class="loading-card">
-            <div class="loading-spinner"></div>
-            <p>Connecting to Hostaway...</p>
-        </div>
+    <div class="step-dots">
+      <div class="step-dot active" data-step="1"></div>
+      <div class="step-dot" data-step="2"></div>
+      <div class="step-dot" data-step="3"></div>
+      <div class="step-dot" data-step="4"></div>
+      <div class="step-dot" data-step="5"></div>
     </div>
     
-    <script>
-        let accountId = '';
-        let apiKey = '';
-        let accessToken = '';
-        let properties = [];
-        let selectedProperties = [];
+    <div class="wizard-content">
+      <!-- Step 1: Login/Register -->
+      <div class="step active" data-step="1">
+        <h2 class="step-title">Welcome to GAS</h2>
+        <p class="step-subtitle">Login or create an account to get started</p>
         
-        // Get client ID from URL if present
-        const urlParams = new URLSearchParams(window.location.search);
-        const clientPublicId = urlParams.get('c');
-        
-        function showError(stepNum, message) {
-            const errorEl = document.getElementById('error' + stepNum);
-            errorEl.textContent = message;
-            errorEl.style.display = 'block';
-        }
-        
-        function hideError(stepNum) {
-            document.getElementById('error' + stepNum).style.display = 'none';
-        }
-        
-        function showSuccess(stepNum, message) {
-            const successEl = document.getElementById('success' + stepNum);
-            successEl.textContent = message;
-            successEl.style.display = 'block';
-        }
-        
-        function showLoading(show) {
-            document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none';
-        }
-        
-        function goToStep(step) {
-            document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-            document.getElementById('step' + step).classList.add('active');
-            
-            document.querySelectorAll('.step-dot').forEach((dot, i) => {
-                dot.classList.remove('active', 'completed');
-                if (i + 1 < step) dot.classList.add('completed');
-                if (i + 1 === step) dot.classList.add('active');
-            });
-        }
-        
-        async function connectHostaway() {
-            accountId = document.getElementById('accountId').value.trim();
-            apiKey = document.getElementById('apiKey').value.trim();
-            
-            if (!accountId || !apiKey) {
-                showError(1, 'Please enter both Account ID and API Key');
-                return;
-            }
-            
-            hideError(1);
-            showLoading(true);
-            
-            try {
-                const response = await fetch('/api/hostaway/setup-connection', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ accountId, apiKey })
-                });
-                
-                const data = await response.json();
-                
-                if (!data.success) {
-                    throw new Error(data.error || 'Failed to connect');
-                }
-                
-                accessToken = data.accessToken;
-                
-                showSuccess(1, 'Connected to Hostaway successfully!');
-                
-                // Load properties
-                await loadProperties();
-                
-                setTimeout(() => {
-                    showLoading(false);
-                    goToStep(2);
-                }, 500);
-                
-            } catch (error) {
-                showLoading(false);
-                showError(1, error.message || 'Failed to connect to Hostaway');
-            }
-        }
-        
-        async function loadProperties() {
-            const response = await fetch('/api/hostaway/list-properties', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ accessToken })
-            });
-            
-            const data = await response.json();
-            
-            if (!data.success) {
-                throw new Error(data.error || 'Failed to load properties');
-            }
-            
-            properties = data.properties;
-            renderPropertyList();
-        }
-        
-        function renderPropertyList() {
-            const listEl = document.getElementById('propertyList');
-            
-            if (properties.length === 0) {
-                listEl.innerHTML = '<div style="padding: 40px; text-align: center; color: #64748b;">No listings found in your Hostaway account.</div>';
-                return;
-            }
-            
-            listEl.innerHTML = properties.map(prop => `
-                <div class="property-item" data-id="${prop.id}" onclick="toggleProperty(${prop.id})">
-                    <div class="property-checkbox">
-                        <svg fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-                        </svg>
-                    </div>
-                    <div class="property-info">
-                        <div class="property-name">${prop.name}</div>
-                        <div class="property-details">
-                            ${prop.city || ''} ${prop.countryName || ''}
-                            ${prop.personCapacity ? '· ' + prop.personCapacity + ' guests' : ''}
-                            ${prop.bedrooms ? '· ' + prop.bedrooms + ' bed' : ''}
-                        </div>
-                    </div>
-                </div>
-            `).join('');
-            
-            updateImportButton();
-        }
-        
-        function toggleProperty(id) {
-            const item = document.querySelector(`.property-item[data-id="${id}"]`);
-            item.classList.toggle('selected');
-            
-            if (item.classList.contains('selected')) {
-                selectedProperties.push(id);
-            } else {
-                selectedProperties = selectedProperties.filter(p => p !== id);
-            }
-            
-            updateImportButton();
-        }
-        
-        function selectAll() {
-            document.querySelectorAll('.property-item').forEach(item => {
-                item.classList.add('selected');
-            });
-            selectedProperties = properties.map(p => p.id);
-            updateImportButton();
-        }
-        
-        function deselectAll() {
-            document.querySelectorAll('.property-item').forEach(item => {
-                item.classList.remove('selected');
-            });
-            selectedProperties = [];
-            updateImportButton();
-        }
-        
-        function updateImportButton() {
-            const btn = document.getElementById('importBtn');
-            const count = selectedProperties.length;
-            btn.disabled = count === 0;
-            btn.querySelector('span').textContent = count === 0 ? 'Select Properties to Import' : `Import ${count} Propert${count === 1 ? 'y' : 'ies'}`;
-        }
-        
-        async function importProperties() {
-            goToStep(3);
-            
-            const progressFill = document.getElementById('progressFill');
-            const progressText = document.getElementById('progressText');
-            
-            let imported = 0;
-            let failed = 0;
-            
-            for (let i = 0; i < selectedProperties.length; i++) {
-                const listingId = selectedProperties[i];
-                const prop = properties.find(p => p.id === listingId);
-                
-                progressText.textContent = `Importing "${prop.name}"...`;
-                
-                try {
-                    const response = await fetch('/api/hostaway/import-property', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ accessToken, listingId })
-                    });
-                    
-                    const data = await response.json();
-                    
-                    if (data.success) {
-                        imported++;
-                    } else {
-                        failed++;
-                    }
-                } catch (error) {
-                    failed++;
-                }
-                
-                const progress = ((i + 1) / selectedProperties.length) * 100;
-                progressFill.style.width = progress + '%';
-            }
-            
-            // Show completion
-            document.getElementById('importProgress').style.display = 'none';
-            document.getElementById('importComplete').style.display = 'block';
-            document.getElementById('completionText').textContent = `Successfully imported ${imported} propert${imported === 1 ? 'y' : 'ies'}${failed > 0 ? ` (${failed} failed)` : ''}.`;
-        }
-    </script>
-
-    <!-- Chat Widget -->
-    <style>
-        .chat-widget { position: fixed; bottom: 20px; right: 20px; z-index: 1000; }
-        .chat-widget-window { display: none; width: 340px; max-height: 420px; background: white; border-radius: 16px; box-shadow: 0 10px 40px rgba(0,0,0,0.2); overflow: hidden; margin-bottom: 10px; flex-direction: column; }
-        .chat-widget-window.open { display: flex; }
-        .chat-widget-header { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; padding: 12px 16px; display: flex; align-items: center; gap: 10px; }
-        .chat-widget-header h4 { font-size: 0.95rem; font-weight: 600; margin: 0; }
-        .chat-widget-header p { font-size: 0.75rem; opacity: 0.9; margin: 0; }
-        .chat-widget-body { flex: 1; padding: 14px; overflow-y: auto; max-height: 260px; background: #f8fafc; }
-        .chat-widget-msg { margin-bottom: 10px; max-width: 85%; font-size: 0.85rem; line-height: 1.4; }
-        .chat-widget-msg.bot { background: white; border-radius: 12px 12px 12px 4px; padding: 10px 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .chat-widget-msg.user { background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border-radius: 12px 12px 4px 12px; padding: 10px 12px; margin-left: auto; }
-        .chat-widget-input { padding: 10px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px; background: white; }
-        .chat-widget-input input { flex: 1; padding: 8px 12px; border: 1px solid #e2e8f0; border-radius: 20px; font-size: 0.85rem; outline: none; }
-        .chat-widget-input input:focus { border-color: #6366f1; }
-        .chat-widget-input button { padding: 8px 14px; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border: none; border-radius: 20px; font-size: 0.85rem; cursor: pointer; }
-        .chat-widget-toggle { width: 54px; height: 54px; border-radius: 50%; background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%); color: white; border: none; font-size: 1.4rem; cursor: pointer; box-shadow: 0 4px 15px rgba(99, 102, 241, 0.4); }
-        .chat-widget-toggle:hover { transform: scale(1.1); }
-        .chat-typing { display: flex; gap: 4px; padding: 10px 12px; background: white; border-radius: 12px; width: fit-content; margin-bottom: 10px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .chat-typing span { width: 6px; height: 6px; background: #94a3b8; border-radius: 50%; animation: typing 1.4s infinite ease-in-out; }
-        .chat-typing span:nth-child(2) { animation-delay: 0.2s; }
-        .chat-typing span:nth-child(3) { animation-delay: 0.4s; }
-        @keyframes typing { 0%, 60%, 100% { transform: translateY(0); } 30% { transform: translateY(-4px); } }
-        .chat-quick-btn { display: block; width: 100%; padding: 8px 10px; margin-top: 6px; background: white; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 0.8rem; cursor: pointer; text-align: left; }
-        .chat-quick-btn:hover { border-color: #6366f1; background: #f8f7ff; }
-    </style>
-
-    <div class="chat-widget">
-        <div class="chat-widget-window" id="chatWindow">
-            <div class="chat-widget-header">
-                <span style="font-size: 1.2rem;">🤖</span>
-                <div><h4>GAS Assistant</h4><p>Here to help</p></div>
-            </div>
-            <div class="chat-widget-body" id="chatBody">
-                <div class="chat-widget-msg bot">
-                    👋 Need help with Hostaway setup?
-                    <button class="chat-quick-btn" onclick="sendQuick('Where do I find my Hostaway API key?')">🔑 Where's my API key?</button>
-                    <button class="chat-quick-btn" onclick="sendQuick('What gets imported from Hostaway?')">📦 What gets imported?</button>
-                    <button class="chat-quick-btn" onclick="sendQuick('I got an error connecting')">⚠️ Connection error help</button>
-                </div>
-            </div>
-            <div class="chat-widget-input">
-                <input type="text" id="chatInput" placeholder="Ask a question..." onkeypress="if(event.key==='Enter')sendChat()">
-                <button onclick="sendChat()">Send</button>
-            </div>
+        <div class="tab-buttons">
+          <button class="tab-btn active" onclick="showTab('login')">Login</button>
+          <button class="tab-btn" onclick="showTab('register')">Register</button>
         </div>
-        <button class="chat-widget-toggle" id="chatToggle" onclick="toggleChat()">💬</button>
+        
+        <div id="login-form">
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="login-email" placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="login-password" placeholder="Your password">
+          </div>
+        </div>
+        
+        <div id="register-form" class="hidden">
+          <div class="form-group">
+            <label>Account Name</label>
+            <input type="text" id="register-name" placeholder="Your property or company name">
+          </div>
+          <div class="form-group">
+            <label>Email</label>
+            <input type="email" id="register-email" placeholder="your@email.com">
+          </div>
+          <div class="form-group">
+            <label>Password</label>
+            <input type="password" id="register-password" placeholder="Choose a password">
+          </div>
+        </div>
+        
+        <div id="step1-status" class="status-message"></div>
+      </div>
+      
+      <!-- Step 2: Hostaway Credentials -->
+      <div class="step" data-step="2">
+        <h2 class="step-title">Hostaway API Credentials</h2>
+        <p class="step-subtitle">Enter your Hostaway API credentials</p>
+        
+        <div class="instructions-box">
+          <h3>📋 How to get your credentials:</h3>
+          <ol>
+            <li>Log in to your <strong>Hostaway Dashboard</strong></li>
+            <li>Go to <strong>Settings → API</strong></li>
+            <li>Copy your <strong>Account ID</strong> and <strong>API Key</strong></li>
+          </ol>
+        </div>
+        
+        <div class="form-group">
+          <label>Account ID (Client ID)</label>
+          <input type="text" id="hostaway-account-id" placeholder="Your Hostaway Account ID">
+        </div>
+        <div class="form-group">
+          <label>API Key (Client Secret)</label>
+          <input type="password" id="hostaway-api-key" placeholder="Your Hostaway API Key">
+          <p class="help-text">Your credentials are encrypted and stored securely</p>
+        </div>
+        
+        <div id="step2-status" class="status-message"></div>
+      </div>
+      
+      <!-- Step 3: Select Properties -->
+      <div class="step" data-step="3">
+        <h2 class="step-title">Select Properties</h2>
+        <p class="step-subtitle">Choose which properties to import into GAS</p>
+        
+        <div id="properties-loading" class="loading-spinner">
+          <div class="spinner"></div>
+          <span>Loading your properties...</span>
+        </div>
+        
+        <div id="properties-container" class="hidden">
+          <div class="select-actions">
+            <a onclick="selectAll()">Select All</a>
+            <a onclick="selectNone()">Select None</a>
+            <span style="color: #95a5a6;">|</span>
+            <span id="selected-count">0 selected</span>
+          </div>
+          
+          <div class="property-list" id="property-list"></div>
+        </div>
+        
+        <div id="step3-status" class="status-message"></div>
+      </div>
+      
+      <!-- Step 4: Import Options -->
+      <div class="step" data-step="4">
+        <h2 class="step-title">Import Options</h2>
+        <p class="step-subtitle">Configure how your properties will be imported</p>
+        
+        <div class="checkbox-option">
+          <input type="checkbox" id="import-images" checked>
+          <label for="import-images">Import property images</label>
+        </div>
+        
+        <div class="summary-table">
+          <div class="summary-row">
+            <span class="summary-label">Properties to import</span>
+            <span class="summary-value" id="summary-properties">0</span>
+          </div>
+          <div class="summary-row">
+            <span class="summary-label">GAS Account</span>
+            <span class="summary-value" id="summary-account">-</span>
+          </div>
+        </div>
+        
+        <div id="step4-status" class="status-message"></div>
+      </div>
+      
+      <!-- Step 5: Complete -->
+      <div class="step" data-step="5">
+        <div class="success-box">
+          <div class="success-icon">✓</div>
+          <h2 class="step-title">Import Complete!</h2>
+          <p class="step-subtitle">Your properties have been imported successfully</p>
+        </div>
+        
+        <div class="summary-table" id="final-summary"></div>
+        
+        <div id="step5-status" class="status-message"></div>
+      </div>
     </div>
+    
+    <div class="wizard-footer">
+      <button class="btn btn-link hidden" id="btn-back" onclick="prevStep()">← Back</button>
+      <div></div>
+      <button class="btn btn-primary" id="btn-next" onclick="nextStep()">Next →</button>
+    </div>
+  </div>
 
-    <script>
-        let chatOpen = false, chatHistory = [], sending = false;
-        function toggleChat() { chatOpen = !chatOpen; document.getElementById('chatWindow').classList.toggle('open', chatOpen); document.getElementById('chatToggle').textContent = chatOpen ? '✕' : '💬'; }
-        function sendQuick(msg) { document.getElementById('chatInput').value = msg; sendChat(); }
-        async function sendChat() {
-            const input = document.getElementById('chatInput'), msg = input.value.trim();
-            if (!msg || sending) return;
-            sending = true; input.value = ''; addMsg(msg, 'user'); chatHistory.push({ role: 'user', content: msg });
-            const typing = document.createElement('div'); typing.className = 'chat-typing'; typing.id = 'typing'; typing.innerHTML = '<span></span><span></span><span></span>'; document.getElementById('chatBody').appendChild(typing); scrollChat();
-            try {
-                const res = await fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: msg, conversationHistory: chatHistory.slice(-10) }) });
-                const data = await res.json(); document.getElementById('typing')?.remove();
-                if (data.success) { addMsg(data.message, 'bot'); chatHistory.push({ role: 'assistant', content: data.message }); } 
-                else { addMsg(data.error || 'Sorry, something went wrong.', 'bot'); }
-            } catch (e) { document.getElementById('typing')?.remove(); addMsg('Connection error. Please try again.', 'bot'); }
-            sending = false;
+  <script>
+    // State
+    let currentStep = 1;
+    let gasAccountId = null;
+    let gasAccountName = null;
+    let hostawayToken = null;
+    let hostawayAccountId = null;
+    let hostawayApiKey = null;
+    let properties = [];
+    let selectedProperties = new Set();
+    let isLoginMode = true;
+
+    // Tab switching
+    function showTab(tab) {
+      isLoginMode = tab === 'login';
+      document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+      event.target.classList.add('active');
+      document.getElementById('login-form').classList.toggle('hidden', !isLoginMode);
+      document.getElementById('register-form').classList.toggle('hidden', isLoginMode);
+    }
+
+    // Navigation
+    function updateStepDots() {
+      document.querySelectorAll('.step-dot').forEach((dot, idx) => {
+        dot.classList.remove('active', 'completed');
+        if (idx + 1 === currentStep) {
+          dot.classList.add('active');
+        } else if (idx + 1 < currentStep) {
+          dot.classList.add('completed');
         }
-        function addMsg(text, type) { const body = document.getElementById('chatBody'), div = document.createElement('div'); div.className = 'chat-widget-msg ' + type; div.innerHTML = text.replace(/\n/g, '<br>').replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>').replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" style="color: #6366f1;">$1</a>'); body.appendChild(div); scrollChat(); }
-        function scrollChat() { const body = document.getElementById('chatBody'); body.scrollTop = body.scrollHeight; }
-    </script>
+      });
+    }
+
+    function showStep(step) {
+      document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+      document.querySelector(`.step[data-step="${step}"]`).classList.add('active');
+      
+      // Update buttons
+      document.getElementById('btn-back').classList.toggle('hidden', step === 1);
+      
+      if (step === 4) {
+        document.getElementById('btn-next').textContent = 'Import →';
+      } else if (step === 5) {
+        document.getElementById('btn-next').textContent = 'Go to Dashboard';
+      } else {
+        document.getElementById('btn-next').textContent = 'Next →';
+      }
+      
+      updateStepDots();
+    }
+
+    async function nextStep() {
+      clearStatus();
+      
+      if (currentStep === 1) {
+        if (await handleAuth()) {
+          currentStep = 2;
+          showStep(currentStep);
+        }
+      } else if (currentStep === 2) {
+        if (await testConnection()) {
+          currentStep = 3;
+          showStep(currentStep);
+          loadProperties();
+        }
+      } else if (currentStep === 3) {
+        if (selectedProperties.size === 0) {
+          showStatus('step3-status', 'Please select at least one property', 'error');
+          return;
+        }
+        currentStep = 4;
+        document.getElementById('summary-properties').textContent = selectedProperties.size;
+        document.getElementById('summary-account').textContent = gasAccountName;
+        showStep(currentStep);
+      } else if (currentStep === 4) {
+        await importProperties();
+      } else if (currentStep === 5) {
+        window.location.href = '/admin';
+      }
+    }
+
+    function prevStep() {
+      if (currentStep > 1) {
+        currentStep--;
+        showStep(currentStep);
+      }
+    }
+
+    // Step 1: Authentication
+    async function handleAuth() {
+      if (isLoginMode) {
+        return await login();
+      } else {
+        return await register();
+      }
+    }
+
+    async function login() {
+      const email = document.getElementById('login-email').value.trim();
+      const password = document.getElementById('login-password').value;
+      
+      if (!email || !password) {
+        showStatus('step1-status', 'Please enter email and password', 'error');
+        return false;
+      }
+      
+      showStatus('step1-status', 'Logging in...', 'info');
+      
+      try {
+        const response = await fetch('/api/accounts/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          gasAccountId = data.accountId;
+          gasAccountName = data.accountName || email;
+          showStatus('step1-status', '✓ Logged in successfully', 'success');
+          return true;
+        } else {
+          showStatus('step1-status', data.error || 'Login failed', 'error');
+          return false;
+        }
+      } catch (error) {
+        showStatus('step1-status', 'Connection error: ' + error.message, 'error');
+        return false;
+      }
+    }
+
+    async function register() {
+      const name = document.getElementById('register-name').value.trim();
+      const email = document.getElementById('register-email').value.trim();
+      const password = document.getElementById('register-password').value;
+      
+      if (!name || !email || !password) {
+        showStatus('step1-status', 'Please fill in all fields', 'error');
+        return false;
+      }
+      
+      showStatus('step1-status', 'Creating account...', 'info');
+      
+      try {
+        const response = await fetch('/api/accounts/register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          gasAccountId = data.accountId;
+          gasAccountName = name;
+          showStatus('step1-status', '✓ Account created successfully', 'success');
+          return true;
+        } else {
+          showStatus('step1-status', data.error || 'Registration failed', 'error');
+          return false;
+        }
+      } catch (error) {
+        showStatus('step1-status', 'Connection error: ' + error.message, 'error');
+        return false;
+      }
+    }
+
+    // Step 2: Test Hostaway Connection
+    async function testConnection() {
+      const accountId = document.getElementById('hostaway-account-id').value.trim();
+      const apiKey = document.getElementById('hostaway-api-key').value.trim();
+      
+      if (!accountId || !apiKey) {
+        showStatus('step2-status', 'Please enter both Account ID and API Key', 'error');
+        return false;
+      }
+      
+      showStatus('step2-status', 'Testing connection...', 'info');
+      
+      try {
+        const response = await fetch('/api/hostaway-wizard/test-connection', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountId, apiKey })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+          hostawayToken = data.token;
+          hostawayAccountId = accountId;
+          hostawayApiKey = apiKey;
+          showStatus('step2-status', '✓ Connection successful', 'success');
+          return true;
+        } else {
+          showStatus('step2-status', data.error || 'Connection failed', 'error');
+          return false;
+        }
+      } catch (error) {
+        showStatus('step2-status', 'Connection error: ' + error.message, 'error');
+        return false;
+      }
+    }
+
+    // Step 3: Load Properties
+    async function loadProperties() {
+      document.getElementById('properties-loading').classList.remove('hidden');
+      document.getElementById('properties-container').classList.add('hidden');
+      
+      try {
+        const response = await fetch('/api/hostaway-wizard/properties', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token: hostawayToken })
+        });
+        
+        const data = await response.json();
+        
+        document.getElementById('properties-loading').classList.add('hidden');
+        
+        if (data.success) {
+          properties = data.properties;
+          document.getElementById('properties-container').classList.remove('hidden');
+          renderProperties();
+        } else {
+          showStatus('step3-status', data.error || 'Failed to load properties', 'error');
+        }
+      } catch (error) {
+        document.getElementById('properties-loading').classList.add('hidden');
+        showStatus('step3-status', 'Error loading properties: ' + error.message, 'error');
+      }
+    }
+
+    function renderProperties() {
+      const listEl = document.getElementById('property-list');
+      
+      if (properties.length === 0) {
+        listEl.innerHTML = '<div style="padding: 40px; text-align: center; color: #7f8c8d;">No properties found in your Hostaway account</div>';
+        return;
+      }
+      
+      listEl.innerHTML = properties.map(prop => `
+        <div class="property-item ${selectedProperties.has(prop.id) ? 'selected' : ''}" onclick="toggleProperty(${prop.id})">
+          <div class="property-checkbox">${selectedProperties.has(prop.id) ? '✓' : ''}</div>
+          <img class="property-thumb" 
+               src="${prop.thumbnailUrl || ''}" 
+               alt=""
+               onerror="this.style.display='none'">
+          <div class="property-info">
+            <div class="property-name">${escapeHtml(prop.name)}</div>
+            <div class="property-location">${escapeHtml([prop.city, prop.state, prop.country].filter(Boolean).join(', ') || 'No location')}</div>
+            <div class="property-meta">${prop.bedrooms || 0} bed • ${prop.bathrooms || 0} bath • ${prop.maxGuests || 0} guests</div>
+          </div>
+          <span class="property-status ${prop.isActive ? 'active' : 'inactive'}">${prop.isActive ? 'Active' : 'Inactive'}</span>
+        </div>
+      `).join('');
+      
+      updateSelectedCount();
+    }
+
+    function toggleProperty(id) {
+      if (selectedProperties.has(id)) {
+        selectedProperties.delete(id);
+      } else {
+        selectedProperties.add(id);
+      }
+      renderProperties();
+    }
+
+    function selectAll() {
+      properties.forEach(p => selectedProperties.add(p.id));
+      renderProperties();
+    }
+
+    function selectNone() {
+      selectedProperties.clear();
+      renderProperties();
+    }
+
+    function updateSelectedCount() {
+      document.getElementById('selected-count').textContent = `${selectedProperties.size} selected`;
+    }
+
+    // Step 4: Import
+    async function importProperties() {
+      const importImages = document.getElementById('import-images').checked;
+      
+      showStatus('step4-status', 'Importing properties...', 'info');
+      document.getElementById('btn-next').disabled = true;
+      
+      const results = [];
+      let successCount = 0;
+      let totalImages = 0;
+      
+      for (const propId of selectedProperties) {
+        const prop = properties.find(p => p.id === propId);
+        showStatus('step4-status', `Importing: ${prop?.name || propId}...`, 'info');
+        
+        try {
+          const response = await fetch('/api/hostaway-wizard/import', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              accountId: hostawayAccountId,
+              apiKey: hostawayApiKey,
+              token: hostawayToken,
+              listingId: propId,
+              importImages,
+              gasAccountId
+            })
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            successCount++;
+            totalImages += data.stats?.imagesCreated || 0;
+            results.push({ name: prop?.name, success: true });
+          } else {
+            results.push({ name: prop?.name, success: false, error: data.error });
+          }
+        } catch (error) {
+          results.push({ name: prop?.name, success: false, error: error.message });
+        }
+      }
+      
+      // Show results
+      document.getElementById('final-summary').innerHTML = `
+        <div class="summary-row">
+          <span class="summary-label">Properties Imported</span>
+          <span class="summary-value">${successCount} of ${selectedProperties.size}</span>
+        </div>
+        <div class="summary-row">
+          <span class="summary-label">Images Imported</span>
+          <span class="summary-value">${totalImages}</span>
+        </div>
+        <div style="margin-top: 15px; font-size: 0.9rem;">
+          ${results.map(r => `
+            <div style="padding: 5px 0; color: ${r.success ? '#155724' : '#721c24'};">
+              ${r.success ? '✓' : '✗'} ${escapeHtml(r.name)}
+              ${r.error ? ` - ${escapeHtml(r.error)}` : ''}
+            </div>
+          `).join('')}
+        </div>
+      `;
+      
+      currentStep = 5;
+      showStep(currentStep);
+      document.getElementById('btn-next').disabled = false;
+    }
+
+    // Utilities
+    function showStatus(elementId, message, type) {
+      const el = document.getElementById(elementId);
+      el.textContent = message;
+      el.className = `status-message show ${type}`;
+    }
+
+    function clearStatus() {
+      document.querySelectorAll('.status-message').forEach(el => {
+        el.classList.remove('show');
+      });
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Enter key handling
+    document.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        nextStep();
+      }
+    });
+  </script>
 </body>
 </html>
