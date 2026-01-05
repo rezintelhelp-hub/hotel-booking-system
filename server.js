@@ -36800,11 +36800,11 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       thumbnailUrl: listing.thumbnailUrl
     });
     
-    // If no listingImages, try to fetch them from /listingImages endpoint
+    // If no listingImages, fetch from the dedicated listingImages endpoint
     if (!listing.listingImages || listing.listingImages.length === 0) {
       try {
-        // Try the listingImages endpoint with listingId filter
-        const imagesResponse = await axios.get(`https://api.hostaway.com/v1/listingImages?listingId=${listingId}`, {
+        // Correct endpoint: /v1/listings/{id}/listingImages
+        const imagesResponse = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}/listingImages`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json'
