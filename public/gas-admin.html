@@ -36918,8 +36918,10 @@ Local honey and preserves"></textarea>
                         ${data.properties.map(p => {
                             let statusLight = '🟢';
                             let statusTitle = 'Fully configured';
-                            const webhookTested = p.webhook_tested || false;
-                            const propKeyTested = p.prop_key_tested || false;
+                            // If already imported, consider tests passed
+                            const isImported = !!p.gas_property_id;
+                            const webhookTested = isImported || p.webhook_tested || false;
+                            const propKeyTested = isImported || p.prop_key_tested || false;
                             if (isBeds24) {
                                 if (!p.prop_key) {
                                     statusLight = '🔴';
@@ -36931,6 +36933,7 @@ Local honey and preserves"></textarea>
                                     statusLight = '🟡';
                                     statusTitle = 'Ready to import';
                                 }
+                                // If imported, stays green (default)
                             } else {
                                 if (!p.gas_property_id) {
                                     statusLight = '🟡';
