@@ -37273,43 +37273,56 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     
     // Store property mapping in gas_sync_properties
     if (connectionId) {
-      // First, insert the sync property
-      const syncPropResult = await pool.query(`
-        INSERT INTO gas_sync_properties (
-          connection_id, external_id, gas_property_id,
-          name, status, created_at
-        ) VALUES ($1, $2, $3, $4, 'active', NOW())
-        ON CONFLICT (connection_id, external_id)
-        DO UPDATE SET gas_property_id = $3, status = 'active', updated_at = NOW()
-        RETURNING id
-      `, [
-        connectionId,
-        String(listing.id),
-        gasPropertyId,
-        listing.name || listing.internalListingName
-      ]).catch(e => {
-        console.log('Property mapping save:', e.message);
-        return { rows: [] };
-      });
+      // First check if exists
+      const existingSyncProp = await pool.query(`
+        SELECT id FROM gas_sync_properties WHERE connection_id = $1 AND external_id = $2
+      `, [connectionId, String(listing.id)]).catch(() => ({ rows: [] }));
       
-      const syncPropertyId = syncPropResult.rows[0]?.id;
+      let syncPropertyId;
       
-      // Store room type mapping using sync_property_id
-      if (syncPropertyId) {
+      if (existingSyncProp.rows.length > 0) {
+        // Update existing
+        syncPropertyId = existingSyncProp.rows[0].id;
         await pool.query(`
-          INSERT INTO gas_sync_room_types (
-            sync_property_id, external_id, gas_room_id,
-            name, max_guests, unit_count, synced_at
-          ) VALUES ($1, $2, $3, $4, $5, 1, NOW())
-          ON CONFLICT (sync_property_id, external_id)
-          DO UPDATE SET gas_room_id = $3, synced_at = NOW()
-        `, [
-          syncPropertyId,
-          String(listing.id),
-          gasRoomId,
-          listing.internalListingName || listing.name,
-          listing.personCapacity || 2
-        ]).catch(e => console.log('Room type mapping save:', e.message));
+          UPDATE gas_sync_properties SET gas_property_id = $1, name = $2, updated_at = NOW()
+          WHERE id = $3
+        `, [gasPropertyId, listing.name || listing.internalListingName, syncPropertyId])
+          .catch(e => console.log('Property mapping update error:', e.message));
+      } else {
+        // Insert new
+        const syncPropResult = await pool.query(`
+          INSERT INTO gas_sync_properties (connection_id, external_id, gas_property_id, name, created_at)
+          VALUES ($1, $2, $3, $4, NOW())
+          RETURNING id
+        `, [connectionId, String(listing.id), gasPropertyId, listing.name || listing.internalListingName])
+          .catch(e => {
+            console.log('Property mapping insert error:', e.message);
+            return { rows: [] };
+          });
+        syncPropertyId = syncPropResult.rows[0]?.id;
+      }
+      
+      console.log('Property mapping result:', { connectionId, syncPropertyId, gasPropertyId });
+      
+      // Store room type mapping
+      if (syncPropertyId) {
+        const existingRoomType = await pool.query(`
+          SELECT id FROM gas_sync_room_types WHERE sync_property_id = $1 AND external_id = $2
+        `, [syncPropertyId, String(listing.id)]).catch(() => ({ rows: [] }));
+        
+        if (existingRoomType.rows.length > 0) {
+          await pool.query(`
+            UPDATE gas_sync_room_types SET gas_room_id = $1, name = $2, synced_at = NOW()
+            WHERE id = $3
+          `, [gasRoomId, listing.internalListingName || listing.name, existingRoomType.rows[0].id])
+            .catch(e => console.log('Room type mapping update error:', e.message));
+        } else {
+          await pool.query(`
+            INSERT INTO gas_sync_room_types (sync_property_id, external_id, gas_room_id, name, max_guests, unit_count, synced_at)
+            VALUES ($1, $2, $3, $4, $5, 1, NOW())
+          `, [syncPropertyId, String(listing.id), gasRoomId, listing.internalListingName || listing.name, listing.personCapacity || 2])
+            .catch(e => console.log('Room type mapping insert error:', e.message));
+        }
       }
     }
     
