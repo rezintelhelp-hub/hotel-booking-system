@@ -37145,9 +37145,24 @@ Local honey and preserves"></textarea>
                     if (row) {
                         const statusCell = row.querySelector('td:first-child');
                         if (statusCell) {
-                            statusCell.innerHTML = '';
+                            statusCell.innerHTML = '🟠';
                             statusCell.title = 'Test webhook and prop key';
                         }
+                    }
+                    
+                    // Update import button to show "Run Tests"
+                    const importBtn = document.getElementById(`import-btn-${syncPropertyId}`);
+                    if (importBtn) {
+                        importBtn.textContent = 'Run Tests';
+                        importBtn.disabled = true;
+                        importBtn.style.opacity = '0.5';
+                        importBtn.style.cursor = 'not-allowed';
+                    }
+                    
+                    // Show camera button in actions
+                    const actionsCell = row?.querySelector('td:last-child div');
+                    if (actionsCell && !actionsCell.querySelector('button[title="Download Images"]')) {
+                        actionsCell.innerHTML = `<button onclick="downloadPropertyImages(${syncPropertyId})" class="btn btn-sm btn-secondary" title="Download Images">📷</button>`;
                     }
                 } else {
                     showNotification(data.error || 'Failed to save', 'error');
