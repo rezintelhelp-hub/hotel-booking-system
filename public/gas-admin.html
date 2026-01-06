@@ -11220,62 +11220,42 @@ Local honey and preserves"></textarea>
                 <!-- Template Selection -->
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Select Product Type *</label>
-                    <div id="deploy-template-container" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
-                        <!-- Plugin Only -->
-                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
-                            <input type="radio" name="deploy-template" value="plugin-only" style="display: none;">
-                            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); padding: 2rem; text-align: center; border-bottom: 1px solid #7c3aed;">
-                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔌</div>
-                                <div style="width: 60px; height: 40px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; margin: 0 auto;"></div>
-                            </div>
-                            <div style="padding: 1rem; background: white;">
-                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Plugin Only</div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Download for your own WordPress site</div>
-                                <div style="font-size: 0.75rem; color: #8b5cf6; font-weight: 600; margin-top: 0.25rem;">From $19.99/mo</div>
-                            </div>
-                        </label>
-                        
-                        <!-- Custom Bespoke -->
-                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
-                            <input type="radio" name="deploy-template" value="custom-bespoke" style="display: none;">
-                            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 2rem; text-align: center; border-bottom: 1px solid #b45309;">
-                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">✨</div>
-                                <div style="width: 60px; height: 40px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; margin: 0 auto;"></div>
-                            </div>
-                            <div style="padding: 1rem; background: white;">
-                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Custom Bespoke</div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Fully custom design on premium hosting</div>
-                                <div style="font-size: 0.75rem; color: #f59e0b; font-weight: 600; margin-top: 0.25rem;">From $199/mo</div>
-                            </div>
-                        </label>
-                        
-                        <!-- Light Template -->
-                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; min-height: 220px;">
+                        <!-- Instant Website - Big Button Left -->
+                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s; display: flex; flex-direction: column;">
                             <input type="radio" name="deploy-template" value="developer-light" checked style="display: none;">
-                            <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); padding: 2rem; text-align: center; border-bottom: 1px solid var(--border);">
-                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">☀️</div>
-                                <div style="width: 60px; height: 40px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; margin: 0 auto;"></div>
-                            </div>
-                            <div style="padding: 1rem; background: white;">
-                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Developer Light</div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Clean, bright white backgrounds</div>
-                                <div style="font-size: 0.75rem; color: #10b981; font-weight: 600; margin-top: 0.25rem;">From $49/mo</div>
+                            <div style="background: linear-gradient(135deg, #10b981 0%, #059669 100%); padding: 2rem; text-align: center; flex: 1; display: flex; flex-direction: column; justify-content: center;">
+                                <div style="font-size: 3rem; margin-bottom: 0.5rem;">🌐</div>
+                                <div style="font-size: 1.25rem; font-weight: 700; color: white; margin-bottom: 0.25rem;">Instant Website</div>
+                                <div style="font-size: 0.9rem; color: rgba(255,255,255,0.9); margin-bottom: 0.75rem;">Get a complete booking website in minutes</div>
+                                <div style="font-size: 1.1rem; font-weight: 600; color: #fef3c7;">From $29/mo</div>
                             </div>
                         </label>
                         
-                        <!-- Dark Template -->
-                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
-                            <input type="radio" name="deploy-template" value="developer-dark" style="display: none;">
-                            <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 2rem; text-align: center; border-bottom: 1px solid #334155;">
-                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🌙</div>
-                                <div style="width: 60px; height: 40px; background: #0f172a; border: 1px solid #334155; border-radius: 4px; margin: 0 auto;"></div>
-                            </div>
-                            <div style="padding: 1rem; background: white;">
-                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Developer Dark</div>
-                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Elegant dark grey/black theme</div>
-                                <div style="font-size: 0.75rem; color: #10b981; font-weight: 600; margin-top: 0.25rem;">From $49/mo</div>
-                            </div>
-                        </label>
+                        <!-- Right Column - Two Stacked -->
+                        <div style="display: flex; flex-direction: column; gap: 1rem;">
+                            <!-- Plugin Only -->
+                            <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s; flex: 1;">
+                                <input type="radio" name="deploy-template" value="plugin-only" style="display: none;">
+                                <div style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); padding: 1rem; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                                    <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">🔌</div>
+                                    <div style="font-size: 1rem; font-weight: 700; color: white;">Plugin Only</div>
+                                    <div style="font-size: 0.8rem; color: rgba(255,255,255,0.9);">For your own WordPress site</div>
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: #fef3c7; margin-top: 0.25rem;">From $19.99/mo</div>
+                                </div>
+                            </label>
+                            
+                            <!-- Custom Bespoke -->
+                            <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s; flex: 1;">
+                                <input type="radio" name="deploy-template" value="custom-bespoke" style="display: none;">
+                                <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 1rem; text-align: center; height: 100%; display: flex; flex-direction: column; justify-content: center;">
+                                    <div style="font-size: 1.5rem; margin-bottom: 0.25rem;">✨</div>
+                                    <div style="font-size: 1rem; font-weight: 700; color: white;">Custom Bespoke</div>
+                                    <div style="font-size: 0.8rem; color: rgba(255,255,255,0.9);">Fully custom premium design</div>
+                                    <div style="font-size: 0.9rem; font-weight: 600; color: #fef3c7; margin-top: 0.25rem;">From $199/mo</div>
+                                </div>
+                            </label>
+                        </div>
                     </div>
                 </div>
                 
