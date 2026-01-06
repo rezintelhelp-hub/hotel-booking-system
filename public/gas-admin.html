@@ -22801,7 +22801,6 @@ Local honey and preserves"></textarea>
             const usePlugin = document.getElementById('deploy-use-plugin').checked;
             const enableBlog = document.getElementById('deploy-enable-blog').checked;
             const enableAttractions = document.getElementById('deploy-enable-attractions').checked;
-            const selectedTemplate = document.querySelector('input[name="deploy-template"]:checked')?.value || 'developer-light';
             
             try {
                 const response = await fetch('/api/deploy/create', {
