@@ -12538,9 +12538,14 @@ app.get('/api/custom-site/requests', async (req, res) => {
 app.delete('/api/custom-site/requests/:id', async (req, res) => {
   try {
     const { id } = req.params;
-    await pool.query('DELETE FROM custom_site_requests WHERE id = $1', [id]);
-    res.json({ success: true });
+    const result = await pool.query('DELETE FROM custom_site_requests WHERE id = $1 RETURNING id', [id]);
+    if (result.rowCount > 0) {
+      res.json({ success: true });
+    } else {
+      res.json({ success: false, error: 'Request not found' });
+    }
   } catch (error) {
+    console.error('Delete error:', error);
     res.json({ success: false, error: error.message });
   }
 });
@@ -12554,8 +12559,61 @@ app.get('/api/custom-site/provisioned', async (req, res) => {
     `);
     res.json({ success: true, sites: result.rows });
   } catch (error) {
-    // Table might not exist yet
+    // Table might not exist yet - create it
+    if (error.code === '42P01') {
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS custom_sites (
+          id SERIAL PRIMARY KEY,
+          slug VARCHAR(100) UNIQUE NOT NULL,
+          domain VARCHAR(255) NOT NULL,
+          site_name VARCHAR(255),
+          admin_email VARCHAR(255),
+          credentials TEXT,
+          created_at TIMESTAMP DEFAULT NOW()
+        )
+      `);
+    }
     res.json({ success: true, sites: [] });
+  }
+});
+
+// Manually register an existing bespoke site
+app.post('/api/custom-site/register', async (req, res) => {
+  try {
+    const { slug, site_name, admin_email, wp_user, wp_pass } = req.body;
+    
+    if (!slug) {
+      return res.json({ success: false, error: 'slug is required' });
+    }
+    
+    const domain = `${slug}.custom.gas.travel`;
+    const credentials = JSON.stringify({ wp_user: wp_user || 'admin', wp_pass: wp_pass || '' });
+    
+    // Create table if needed
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS custom_sites (
+        id SERIAL PRIMARY KEY,
+        slug VARCHAR(100) UNIQUE NOT NULL,
+        domain VARCHAR(255) NOT NULL,
+        site_name VARCHAR(255),
+        admin_email VARCHAR(255),
+        credentials TEXT,
+        created_at TIMESTAMP DEFAULT NOW()
+      )
+    `);
+    
+    await pool.query(`
+      INSERT INTO custom_sites (slug, domain, site_name, admin_email, credentials, created_at)
+      VALUES ($1, $2, $3, $4, $5, NOW())
+      ON CONFLICT (slug) DO UPDATE SET
+        site_name = EXCLUDED.site_name,
+        admin_email = EXCLUDED.admin_email,
+        credentials = EXCLUDED.credentials
+    `, [slug, domain, site_name || slug, admin_email || '', credentials]);
+    
+    res.json({ success: true, message: 'Site registered' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
   }
 });
 
