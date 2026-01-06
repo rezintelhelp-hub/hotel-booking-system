@@ -12442,6 +12442,71 @@ app.post('/api/plugin-license/create', async (req, res) => {
   }
 });
 
+// Premium VPS Provision API Config
+const PROVISION_API_URL = 'https://provision.custom.gas.travel';
+const PROVISION_API_KEY = process.env.PROVISION_API_KEY || 'GAS-PROVISION-1df6d2558a1f45c0e6325690524432ca';
+
+// Provision a custom bespoke site (called after DNS is set up)
+app.post('/api/custom-site/provision', async (req, res) => {
+  try {
+    const { request_id, slug, site_name, admin_email } = req.body;
+    
+    if (!slug || !admin_email) {
+      return res.json({ success: false, error: 'slug and admin_email required' });
+    }
+    
+    // Call the provision API on premium VPS
+    const response = await fetch(`${PROVISION_API_URL}/api/provision-site`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': PROVISION_API_KEY
+      },
+      body: JSON.stringify({ slug, site_name, admin_email })
+    });
+    
+    const data = await response.json();
+    
+    if (data.success) {
+      // Update the request status if request_id provided
+      if (request_id) {
+        await pool.query(`
+          UPDATE custom_site_requests 
+          SET status = 'provisioned', 
+              notes = $1,
+              updated_at = NOW()
+          WHERE id = $2
+        `, [JSON.stringify(data), request_id]);
+      }
+      
+      res.json({
+        success: true,
+        site: data.site,
+        credentials: data.credentials,
+        message: 'Site provisioned successfully'
+      });
+    } else {
+      res.json({ success: false, error: data.error || 'Provisioning failed' });
+    }
+  } catch (error) {
+    console.error('Error provisioning site:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get custom site requests (for admin to review)
+app.get('/api/custom-site/requests', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM custom_site_requests 
+      ORDER BY created_at DESC
+    `);
+    res.json({ success: true, requests: result.rows });
+  } catch (error) {
+    res.json({ success: true, requests: [] });
+  }
+});
+
 // Custom Site Request
 app.post('/api/custom-site/request', async (req, res) => {
   try {
