@@ -1,5 +1,5 @@
 {
-  "updated": "2025-12-30",
+  "updated": "2026-01-06",
   "plan_summary": "Migrating 100 legacy clients is priority. Build migration essentials first, then new revenue channels, then polish.",
   "categories": [
     {
@@ -29,30 +29,12 @@
   ],
   "tasks": [
     {
-      "id": "p1-001",
-      "title": "Beds24 Wizard - Large Property Support",
-      "description": "Allow users to connect with V2 key only, add V1 key and property codes later",
-      "priority": "critical",
-      "category": "phase1",
-      "status": "next",
-      "subtasks": [
-        "V2 API key only at initial signup",
-        "Pull properties list from V2",
-        "Add V1 API key later (account level setting)",
-        "Add property codes per property (not all at once)",
-        "Webhook installation wizard per property",
-        "Refresh button to pull/sync data",
-        "Per-property connection status (traffic light)"
-      ],
-      "notes": "Current wizard asks for everything upfront - overwhelming for users with 20+ properties"
-    },
-    {
       "id": "p1-002",
       "title": "Payment Systems by Region",
       "description": "Support multiple payment providers for different regions",
       "priority": "critical",
       "category": "phase1",
-      "status": "todo",
+      "status": "next",
       "subtasks": [
         "Stripe (existing - UK/US/EU)",
         "Airwallex integration (Asia/Pacific)",
@@ -202,19 +184,30 @@
       "category": "fixes",
       "status": "todo",
       "notes": "Workaround: Use WP Customiser directly"
-    },
-    {
-      "id": "fix-002",
-      "title": "Blog/Attractions Plan Unlock",
-      "description": "Unlock Blog and Attractions pages based on subscription plan",
-      "priority": "high",
-      "category": "fixes",
-      "status": "done",
-      "completed": "2025-12-30",
-      "notes": "Shows upgrade prompt if feature not in plan"
     }
   ],
   "completed": [
+    {
+      "id": "done-058",
+      "title": "Hostaway Integration",
+      "description": "Full Hostaway channel manager integration with OAuth wizard, property import, images, availability sync, reservations sync (bidirectional), webhook support, and scheduled auto-sync every 15 minutes",
+      "category": "phase1",
+      "completed": "2026-01-06"
+    },
+    {
+      "id": "done-057",
+      "title": "Beds24 Wizard - Large Property Support",
+      "description": "V6 wizard allows V2 key only at signup, pull properties from V2, add V1 key and property codes per property later, webhook per property, refresh button, per-property traffic light status",
+      "category": "phase1",
+      "completed": "2026-01-06"
+    },
+    {
+      "id": "done-056",
+      "title": "Image Reordering with Drag & Drop",
+      "description": "Fixed image gallery reordering - arrows now left/right for horizontal layout, added drag-and-drop support",
+      "category": "fixes",
+      "completed": "2026-01-06"
+    },
     {
       "id": "done-055",
       "title": "FAQ Schema with AI Generation",
