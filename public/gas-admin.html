@@ -937,6 +937,22 @@
             font-size: 0.75rem;
         }
 
+        /* Drag and drop for images */
+        .image-card[draggable="true"] {
+            cursor: grab;
+        }
+        .image-card[draggable="true"]:active {
+            cursor: grabbing;
+        }
+        .image-card.dragging {
+            opacity: 0.5;
+            transform: scale(0.95);
+        }
+        .image-card.drag-over {
+            border: 2px dashed var(--accent);
+            background: var(--accent-light);
+        }
+
         /* Upload Modal Specific */
         .upload-zone {
             border: 2px dashed var(--border);
@@ -21034,20 +21050,22 @@ Local honey and preserves"></textarea>
                                 const isLast = idx === group.images.length - 1;
                                 
                                 return `
-                                <div class="image-card" data-id="${img.id}" data-image-id="${img.id}" data-type="${img.type}" data-entity="${img.entityId}">
+                                <div class="image-card" draggable="true" data-id="${img.id}" data-image-id="${img.id}" data-type="${img.type}" data-entity="${img.entityId}" data-order="${idx}"
+                                     ondragstart="handleImageDragStart(event)" ondragend="handleImageDragEnd(event)" 
+                                     ondragover="handleImageDragOver(event)" ondragleave="handleImageDragLeave(event)" ondrop="handleImageDrop(event)">
                                     <img src="${img.thumbnail_url || img.image_url}" alt="${img.alt_text || ''}" loading="lazy">
                                     <div class="image-card-info">
                                         <div class="image-tags">
-                                            ${img.is_primary ? '<span class="image-tag" style="background: gold; color: #000;"> Primary</span>' : ''}
+                                            ${img.is_primary ? '<span class="image-tag" style="background: gold; color: #000;">⭐ Primary</span>' : ''}
                                         </div>
                                         <div style="font-size: 0.75rem; color: var(--text-secondary); margin-bottom: 0.5rem;">
                                             ${img.width && img.height ? `${img.width} × ${img.height} px · ` : ""}Order: ${idx + 1}
                                         </div>
-                                        <div class="image-actions">
-                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''}>⬆️</button>
-                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''}>⬇️</button>
-                                            ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})">⭐</button>` : ''}
-                                            <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;">🗑️</button>
+                                        <div class="image-actions" style="display: flex; gap: 4px; flex-wrap: wrap; justify-content: center;">
+                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, -1)" ${isFirst ? 'disabled style="opacity:0.3"' : ''} title="Move Left">◀️</button>
+                                            <button class="btn btn-small" onclick="moveImage('${img.type}', ${img.entityId}, ${img.id}, 1)" ${isLast ? 'disabled style="opacity:0.3"' : ''} title="Move Right">▶️</button>
+                                            ${!img.is_primary ? `<button class="btn btn-small" onclick="setPrimaryImage('${img.type}', ${img.entityId}, ${img.id})" title="Set as Primary">⭐</button>` : ''}
+                                            <button class="btn btn-secondary btn-small" onclick="deleteImage('${img.type}', ${img.id})" style="color: #ef4444;" title="Delete">🗑️</button>
                                         </div>
                                     </div>
                                 </div>
@@ -21423,6 +21441,103 @@ Local honey and preserves"></textarea>
                     imgCard.style.opacity = '1';
                     imgCard.style.pointerEvents = 'auto';
                 }
+            }
+        }
+
+        // =====================================================
+        // IMAGE DRAG AND DROP
+        // =====================================================
+        let draggedImage = null;
+        
+        function handleImageDragStart(e) {
+            draggedImage = e.target.closest('.image-card');
+            if (draggedImage) {
+                draggedImage.classList.add('dragging');
+                e.dataTransfer.effectAllowed = 'move';
+                e.dataTransfer.setData('text/plain', draggedImage.dataset.imageId);
+            }
+        }
+        
+        function handleImageDragEnd(e) {
+            if (draggedImage) {
+                draggedImage.classList.remove('dragging');
+            }
+            document.querySelectorAll('.image-card.drag-over').forEach(el => el.classList.remove('drag-over'));
+            draggedImage = null;
+        }
+        
+        function handleImageDragOver(e) {
+            e.preventDefault();
+            const card = e.target.closest('.image-card');
+            if (card && card !== draggedImage && card.dataset.type === draggedImage?.dataset.type && card.dataset.entity === draggedImage?.dataset.entity) {
+                card.classList.add('drag-over');
+                e.dataTransfer.dropEffect = 'move';
+            }
+        }
+        
+        function handleImageDragLeave(e) {
+            const card = e.target.closest('.image-card');
+            if (card) {
+                card.classList.remove('drag-over');
+            }
+        }
+        
+        async function handleImageDrop(e) {
+            e.preventDefault();
+            const targetCard = e.target.closest('.image-card');
+            targetCard?.classList.remove('drag-over');
+            
+            if (!draggedImage || !targetCard || draggedImage === targetCard) return;
+            
+            // Must be same type and entity
+            if (draggedImage.dataset.type !== targetCard.dataset.type || 
+                draggedImage.dataset.entity !== targetCard.dataset.entity) {
+                return;
+            }
+            
+            const type = draggedImage.dataset.type;
+            const entityId = parseInt(draggedImage.dataset.entity);
+            const draggedId = parseInt(draggedImage.dataset.imageId);
+            const targetId = parseInt(targetCard.dataset.imageId);
+            
+            // Get all cards in this group and build new order
+            const gallery = targetCard.closest('.image-gallery');
+            const cards = Array.from(gallery.querySelectorAll('.image-card'));
+            const imageIds = cards.map(c => parseInt(c.dataset.imageId));
+            
+            // Remove dragged from current position and insert at target position
+            const draggedIdx = imageIds.indexOf(draggedId);
+            const targetIdx = imageIds.indexOf(targetId);
+            
+            imageIds.splice(draggedIdx, 1);
+            imageIds.splice(targetIdx, 0, draggedId);
+            
+            // Show loading
+            gallery.style.opacity = '0.5';
+            
+            try {
+                const endpoint = type === 'property'
+                    ? `/api/admin/properties/${entityId}/images/reorder`
+                    : `/api/admin/rooms/${entityId}/images/reorder`;
+                
+                const response = await fetch(endpoint, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ imageIds })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    await loadImagesForProperty();
+                } else {
+                    alert('Error: ' + result.error);
+                    gallery.style.opacity = '1';
+                }
+            } catch (error) {
+                console.error('Error reordering:', error);
+                alert('Error reordering images');
+                gallery.style.opacity = '1';
             }
         }
 
