@@ -37175,8 +37175,8 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
     
     const axios = require('axios');
     
-    // Fetch full listing details
-    const response = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}`, {
+    // Fetch full listing details WITH images (includeResources=1 is required for listingImages)
+    const response = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}?includeResources=1`, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json'
@@ -37198,27 +37198,6 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
       hasThumbnail: !!listing.thumbnailUrl,
       thumbnailUrl: listing.thumbnailUrl
     });
-    
-    // If no listingImages, fetch from the dedicated listingImages endpoint
-    if (!listing.listingImages || listing.listingImages.length === 0) {
-      try {
-        // Correct endpoint: /v1/listings/{id}/listingImages
-        const imagesResponse = await axios.get(`https://api.hostaway.com/v1/listings/${listingId}/listingImages`, {
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type': 'application/json'
-          },
-          timeout: 30000
-        });
-        const imagesData = imagesResponse.data?.result || imagesResponse.data || [];
-        if (Array.isArray(imagesData) && imagesData.length > 0) {
-          listing.listingImages = imagesData;
-          console.log('Fetched images from /listingImages endpoint:', imagesData.length);
-        }
-      } catch (imgErr) {
-        console.log('listingImages endpoint failed:', imgErr.response?.status, imgErr.message);
-      }
-    }
     
     // Check if property already exists
     const existingProp = await pool.query(
