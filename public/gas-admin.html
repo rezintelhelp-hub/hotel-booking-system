@@ -36973,6 +36973,7 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 const conn = gasSyncConnections.find(c => c.id === selectedConnectionId);
                 const isBeds24 = conn && conn.adapter_code === 'beds24';
+                const isHostaway = conn && conn.adapter_code === 'hostaway';
                 
                 if (data.success && data.properties.length > 0) {
                     container.innerHTML = `
@@ -36995,6 +36996,39 @@ Local honey and preserves"></textarea>
                                 <table style="width: 100%; margin-top: 8px; font-size: 0.85rem;">
                                     <tr><td style="color: #64748b; width: 120px;">propKey:</td><td>Create a random key in Beds24 for each property  Enter in Prop Key field  Test Webhook  Import</td></tr>
                                 </table>
+                            </div>
+                        </div>
+                        ` : ''}
+                        ${isHostaway ? `
+                        <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 16px; margin-bottom: 15px;">
+                            <h4 style="margin: 0 0 12px 0; color: #1e40af;">📡 Hostaway Webhook Setup (Recommended)</h4>
+                            <p style="margin: 0 0 12px 0; font-size: 0.9rem; color: #1e40af;">For real-time booking updates from Airbnb, VRBO, Booking.com, etc., add this webhook in Hostaway:</p>
+                            
+                            <div style="background: white; border-radius: 6px; padding: 12px; margin-bottom: 10px;">
+                                <strong style="color: #1e293b;">Webhook URL:</strong>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                                    <code style="flex: 1; background: #1e293b; color: #22c55e; padding: 8px 12px; border-radius: 4px; font-size: 0.85rem;">https://admin.gas.travel/api/webhooks/hostaway</code>
+                                    <button onclick="copyHostawayWebhookUrl()" class="btn btn-sm" style="padding: 6px 10px;">📋 Copy</button>
+                                    <button onclick="testHostawayWebhook()" class="btn btn-sm" style="background: #22c55e; color: white; padding: 6px 10px;">🧪 Test</button>
+                                </div>
+                            </div>
+                            
+                            <div style="background: white; border-radius: 6px; padding: 12px;">
+                                <strong style="color: #1e293b;">Setup Steps:</strong>
+                                <ol style="margin: 8px 0 0 0; padding-left: 20px; font-size: 0.85rem; color: #374151; line-height: 1.7;">
+                                    <li>Go to <strong>Hostaway Dashboard → Settings → Integrations</strong></li>
+                                    <li>Find <strong>"Unified Webhooks"</strong> section</li>
+                                    <li>Click <strong>"Add Webhook"</strong></li>
+                                    <li>Paste the URL above</li>
+                                    <li>Enable reservation events (created, updated, cancelled)</li>
+                                    <li>Save</li>
+                                </ol>
+                            </div>
+                            
+                            <div style="background: #fef3c7; border-radius: 6px; padding: 10px; margin-top: 10px;">
+                                <p style="margin: 0; font-size: 0.8rem; color: #92400e;">
+                                    <strong>⏰ Without webhook:</strong> Bookings sync automatically every 15 minutes via polling.
+                                </p>
                             </div>
                         </div>
                         ` : ''}
