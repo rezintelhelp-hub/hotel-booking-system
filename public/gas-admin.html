@@ -6737,6 +6737,47 @@
                     </div>
                 </div>
 
+                <!-- Hostaway Webhook Section -->
+                <div class="card" id="hostaway-webhook-section" style="display: none;">
+                    <div class="card-header">
+                        <h3 class="card-title">📡 Real-time Booking Sync (Hostaway Webhook)</h3>
+                        <button class="btn btn-secondary btn-small" onclick="testHostawayWebhook()">🔄 Test Endpoint</button>
+                    </div>
+                    <p style="color: var(--text-secondary); margin-bottom: 1rem;">
+                        <strong>Recommended:</strong> For instant updates when bookings arrive from Airbnb, VRBO, Booking.com, etc., add this webhook URL in Hostaway:
+                    </p>
+                    <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; margin: 0 0 0.5rem 0; color: #64748b;"><strong>Webhook URL:</strong></p>
+                        <code id="hostaway-webhook-url" style="display: block; background: #1e293b; color: #22c55e; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; word-break: break-all;">https://admin.gas.travel/api/webhooks/hostaway</code>
+                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                            <button onclick="copyHostawayWebhookUrl()" class="btn btn-secondary btn-small">📋 Copy URL</button>
+                            <span id="hostaway-webhook-status" style="font-size: 0.8rem; color: #6b7280; display: flex; align-items: center;"></span>
+                        </div>
+                    </div>
+                    
+                    <div style="background: #eff6ff; border: 1px solid #3b82f6; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                        <p style="font-size: 0.85rem; margin: 0 0 0.5rem 0; color: #1e40af;"><strong>📝 Setup Steps (one time only):</strong></p>
+                        <ol style="font-size: 0.85rem; color: #1e40af; margin: 0; padding-left: 1.25rem; line-height: 1.8;">
+                            <li>Log into your <strong>Hostaway Dashboard</strong></li>
+                            <li>Go to <strong>Settings → Integrations</strong></li>
+                            <li>Find <strong>"Unified Webhooks"</strong> section</li>
+                            <li>Click <strong>"Add Webhook"</strong></li>
+                            <li>Paste the webhook URL above</li>
+                            <li>Enable all reservation events (created, updated, cancelled)</li>
+                            <li>Click <strong>Save</strong></li>
+                        </ol>
+                    </div>
+                    
+                    <div style="background: #f0fdf4; border: 1px solid #22c55e; border-radius: 8px; padding: 0.75rem; margin-top: 1rem;">
+                        <p style="font-size: 0.85rem; margin: 0; color: #166534;">
+                            <strong>✅ Sync Strategy:</strong><br>
+                            📡 <strong>Webhook</strong> = Instant updates from all channels<br>
+                            🔄 <strong>Hostaway button</strong> = Manual quick sync<br><br>
+                            <strong>⏰ Automatic Backup:</strong> Every 15 min (bookings + availability)
+                        </p>
+                    </div>
+                </div>
+
                 <div class="card">
                     <div class="card-header">
                         <h3 class="card-title">Review Apps</h3>
@@ -19597,6 +19638,55 @@ Local honey and preserves"></textarea>
             }
         }
 
+        // Hostaway webhook functions
+        function copyHostawayWebhookUrl() {
+            const webhookUrl = 'https://admin.gas.travel/api/webhooks/hostaway';
+            navigator.clipboard.writeText(webhookUrl).then(() => {
+                const notification = document.createElement('div');
+                notification.textContent = '✅ Hostaway Webhook URL copied!';
+                notification.style.cssText = 'position: fixed; bottom: 20px; right: 20px; background: var(--success); color: white; padding: 0.75rem 1.5rem; border-radius: 8px; font-weight: 500; z-index: 9999; animation: fadeIn 0.2s;';
+                document.body.appendChild(notification);
+                setTimeout(() => notification.remove(), 2000);
+            });
+        }
+        
+        async function testHostawayWebhook() {
+            const statusEl = document.getElementById('hostaway-webhook-status');
+            statusEl.innerHTML = '⏳ Testing...';
+            
+            try {
+                const getResponse = await fetch('/api/webhooks/hostaway');
+                const getData = await getResponse.json();
+                
+                if (getData.status === 'active') {
+                    statusEl.innerHTML = '<span style="color: #10b981;">✅ Endpoint active and reachable</span>';
+                } else {
+                    statusEl.innerHTML = '<span style="color: #ef4444;">❌ Endpoint not responding correctly</span>';
+                }
+            } catch (error) {
+                console.error('Hostaway webhook test error:', error);
+                statusEl.innerHTML = '<span style="color: #ef4444;">❌ Failed to reach endpoint</span>';
+            }
+        }
+        
+        // Show/hide Hostaway webhook section based on connections
+        async function checkHostawayConnection() {
+            try {
+                const response = await fetch('/api/gas-sync/connections?account_id=' + currentAccountId, { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.connections) {
+                    const hasHostaway = data.connections.some(c => c.adapter_code === 'hostaway');
+                    const hostawaySection = document.getElementById('hostaway-webhook-section');
+                    if (hostawaySection) {
+                        hostawaySection.style.display = hasHostaway ? 'block' : 'none';
+                    }
+                }
+            } catch (error) {
+                console.log('Could not check Hostaway connection:', error);
+            }
+        }
+
         // Load WordPress view data
         async function loadWordPressView() {
             // Load account website status first
@@ -22562,6 +22652,9 @@ Local honey and preserves"></textarea>
             
             // Initialize webhook URL display
             initWebhookUrl();
+            
+            // Check if Hostaway connection exists to show webhook section
+            checkHostawayConnection();
         }
         
         // Refresh properties from Channel Manager
