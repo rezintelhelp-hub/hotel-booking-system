@@ -22411,6 +22411,11 @@ Local honey and preserves"></textarea>
                             <code>Username: ${data.credentials.wp_user}</code><br>
                             <code>Password: ${data.credentials.wp_pass}</code>
                         </div>
+                        <div style="margin-top: 1rem; padding: 1rem; background: #1e293b; border-radius: 8px;">
+                            <strong style="color: #f59e0b;">🔒 SSL Setup (run in SSH):</strong><br>
+                            <code style="color: #22c55e; cursor: pointer; display: block; margin-top: 0.5rem;" onclick="navigator.clipboard.writeText('certbot --apache -d ${slug}.custom.gas.travel --non-interactive --agree-tos -m steve@gas.travel'); showNotification('SSL command copied!', 'success');">certbot --apache -d ${slug}.custom.gas.travel --non-interactive --agree-tos -m steve@gas.travel</code>
+                            <small style="color: #64748b; display: block; margin-top: 0.5rem;">Click to copy</small>
+                        </div>
                         <p style="margin-top: 1rem; font-size: 0.85rem; color: #64748b;">
                             ⚠️ Make sure DNS A record is set: <strong>${slug}.custom</strong> → <strong>31.97.119.90</strong>
                         </p>
