@@ -569,6 +569,25 @@
         
         <div class="summary-table" id="final-summary"></div>
         
+        <!-- Webhook Setup Instructions -->
+        <div class="webhook-setup" style="margin-top: 24px; padding: 20px; background: #f0f9ff; border-radius: 12px; border-left: 4px solid #3498db;">
+          <h3 style="margin-bottom: 12px; color: #2c3e50; font-size: 1.1rem;">📡 Enable Real-Time Sync (Recommended)</h3>
+          <p style="margin-bottom: 12px; color: #555; font-size: 0.9rem;">
+            To receive instant booking updates from Airbnb, VRBO, etc., add this webhook URL in Hostaway:
+          </p>
+          <div style="display: flex; gap: 8px; margin-bottom: 12px;">
+            <input type="text" id="webhook-url" value="https://admin.gas.travel/api/webhooks/hostaway" readonly 
+              style="flex: 1; padding: 10px 12px; border: 1px solid #ddd; border-radius: 8px; font-family: monospace; font-size: 0.85rem; background: #fff;">
+            <button onclick="copyWebhookUrl()" style="padding: 10px 16px; background: #3498db; color: #fff; border: none; border-radius: 8px; cursor: pointer; font-weight: 500;">Copy</button>
+          </div>
+          <p style="color: #666; font-size: 0.85rem; margin-bottom: 8px;">
+            <strong>Steps:</strong> Hostaway Dashboard → Settings → Integrations → Unified Webhooks → Add Webhook
+          </p>
+          <p style="color: #888; font-size: 0.8rem;">
+            Without webhook: Bookings sync every 15 minutes via polling.
+          </p>
+        </div>
+        
         <div id="step5-status" class="status-message"></div>
       </div>
     </div>
@@ -952,6 +971,21 @@
       const div = document.createElement('div');
       div.textContent = text;
       return div.innerHTML;
+    }
+
+    function copyWebhookUrl() {
+      const input = document.getElementById('webhook-url');
+      input.select();
+      document.execCommand('copy');
+      
+      const btn = event.target;
+      const originalText = btn.textContent;
+      btn.textContent = 'Copied!';
+      btn.style.background = '#27ae60';
+      setTimeout(() => {
+        btn.textContent = originalText;
+        btn.style.background = '#3498db';
+      }, 2000);
     }
 
     // Enter key handling
