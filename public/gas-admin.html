@@ -6246,6 +6246,10 @@
                         <h3 style="margin: 0; color: #065f46;">🚀 Provision New Site</h3>
                     </div>
                     <div class="card-body">
+                        <div style="background: #fef3c7; border: 1px solid #f59e0b; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                            <strong>⚠️ Before provisioning:</strong> Add DNS A record in GoDaddy<br>
+                            <code style="background: #1e293b; color: #22c55e; padding: 0.25rem 0.5rem; border-radius: 4px; margin-top: 0.5rem; display: inline-block;">[slug].custom → 31.97.119.90</code>
+                        </div>
                         <p style="color: var(--text-secondary); margin-bottom: 1rem;">Manually provision a custom site (after DNS A record is added)</p>
                         <form id="provision-site-form" onsubmit="provisionCustomSite(event)">
                             <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
