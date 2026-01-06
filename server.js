@@ -12468,6 +12468,33 @@ app.post('/api/custom-site/provision', async (req, res) => {
     const data = await response.json();
     
     if (data.success) {
+      // Save to custom_sites table
+      try {
+        await pool.query(`
+          INSERT INTO custom_sites (slug, domain, site_name, admin_email, credentials, created_at)
+          VALUES ($1, $2, $3, $4, $5, NOW())
+        `, [slug, data.site.domain, site_name, admin_email, JSON.stringify(data.credentials)]);
+      } catch (dbError) {
+        // Create table if it doesn't exist
+        if (dbError.code === '42P01') {
+          await pool.query(`
+            CREATE TABLE IF NOT EXISTS custom_sites (
+              id SERIAL PRIMARY KEY,
+              slug VARCHAR(100) UNIQUE NOT NULL,
+              domain VARCHAR(255) NOT NULL,
+              site_name VARCHAR(255),
+              admin_email VARCHAR(255),
+              credentials TEXT,
+              created_at TIMESTAMP DEFAULT NOW()
+            )
+          `);
+          await pool.query(`
+            INSERT INTO custom_sites (slug, domain, site_name, admin_email, credentials, created_at)
+            VALUES ($1, $2, $3, $4, $5, NOW())
+          `, [slug, data.site.domain, site_name, admin_email, JSON.stringify(data.credentials)]);
+        }
+      }
+      
       // Update the request status if request_id provided
       if (request_id) {
         await pool.query(`
@@ -12504,6 +12531,31 @@ app.get('/api/custom-site/requests', async (req, res) => {
     res.json({ success: true, requests: result.rows });
   } catch (error) {
     res.json({ success: true, requests: [] });
+  }
+});
+
+// Delete a custom site request
+app.delete('/api/custom-site/requests/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await pool.query('DELETE FROM custom_site_requests WHERE id = $1', [id]);
+    res.json({ success: true });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get provisioned sites list
+app.get('/api/custom-site/provisioned', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT * FROM custom_sites 
+      ORDER BY created_at DESC
+    `);
+    res.json({ success: true, sites: result.rows });
+  } catch (error) {
+    // Table might not exist yet
+    res.json({ success: true, sites: [] });
   }
 });
 
