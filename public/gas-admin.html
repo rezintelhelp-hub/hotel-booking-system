@@ -21573,16 +21573,16 @@ Local honey and preserves"></textarea>
                         tasks: tasksArray.filter(t => t.status !== 'done'),
                         completed: tasksArray.filter(t => t.status === 'done'),
                         categories: [
-                            { id: 'critical', name: 'Critical - Must Work', icon: '' },
-                            { id: 'billing', name: 'Billing & Payments', icon: '' },
-                            { id: 'booking-flow', name: 'Booking Flow', icon: '' },
-                            { id: 'ui', name: 'UI/UX', icon: '' },
-                            { id: 'website-builder', name: 'Website Builder', icon: '' },
-                            { id: 'apps', name: 'Apps', icon: '' },
-                            { id: 'integrations', name: 'Integrations', icon: '' },
-                            { id: 'wordpress', name: 'WordPress', icon: '' },
-                            { id: 'bugs', name: 'Bug Fixes', icon: '' },
-                            { id: 'ideas', name: 'Ideas', icon: '' }
+                            { id: 'critical', name: 'Critical - Must Work', icon: '🚨' },
+                            { id: 'billing', name: 'Billing & Payments', icon: '💳' },
+                            { id: 'booking-flow', name: 'Booking Flow', icon: '📅' },
+                            { id: 'ui', name: 'UI/UX', icon: '🎨' },
+                            { id: 'website-builder', name: 'Website Builder', icon: '🌐' },
+                            { id: 'apps', name: 'Apps', icon: '📱' },
+                            { id: 'integrations', name: 'Integrations', icon: '🔗' },
+                            { id: 'wordpress', name: 'WordPress', icon: '📝' },
+                            { id: 'bugs', name: 'Bug Fixes', icon: '🔧' },
+                            { id: 'ideas', name: 'Ideas', icon: '💡' }
                         ]
                     };
                 } catch (apiError) {
@@ -21591,9 +21591,9 @@ Local honey and preserves"></textarea>
                         tasks: [],
                         completed: [],
                         categories: [
-                            { id: 'critical', name: 'Critical - Must Work', icon: '' },
-                            { id: 'billing', name: 'Billing & Payments', icon: '' },
-                            { id: 'ideas', name: 'Ideas', icon: '' }
+                            { id: 'critical', name: 'Critical - Must Work', icon: '🚨' },
+                            { id: 'billing', name: 'Billing & Payments', icon: '💳' },
+                            { id: 'ideas', name: 'Ideas', icon: '💡' }
                         ]
                     };
                 }
@@ -22080,14 +22080,14 @@ Local honey and preserves"></textarea>
                     
                     // Status configuration
                     const statusConfig = {
-                        'development': { color: '#f59e0b', icon: '', label: 'Development' },
-                        'deployed': { color: '#7c3aed', icon: '', label: 'Deployed' },
-                        'live': { color: '#10b981', icon: '', label: 'Live' },
-                        'on-hold': { color: '#6b7280', icon: '', label: 'On Hold' },
+                        'development': { color: '#f59e0b', icon: '🔨', label: 'Development' },
+                        'deployed': { color: '#7c3aed', icon: '🚀', label: 'Deployed' },
+                        'live': { color: '#10b981', icon: '✅', label: 'Live' },
+                        'on-hold': { color: '#6b7280', icon: '⏸️', label: 'On Hold' },
                         // Legacy status mappings
-                        'active': { color: '#10b981', icon: '', label: 'Live' },
-                        'pending': { color: '#f59e0b', icon: '', label: 'Development' },
-                        'creating': { color: '#f59e0b', icon: '', label: 'Creating...' }
+                        'active': { color: '#10b981', icon: '✅', label: 'Live' },
+                        'pending': { color: '#f59e0b', icon: '🔨', label: 'Development' },
+                        'creating': { color: '#f59e0b', icon: '⏳', label: 'Creating...' }
                     };
                     
                     const status = statusConfig[effectiveStatus] || statusConfig['development'];
@@ -26575,17 +26575,17 @@ Local honey and preserves"></textarea>
                 
                 // Status badges
                 const statusColors = {
-                    'confirmed': { bg: '#dcfce7', color: '#166534', icon: '' },
-                    'pending': { bg: '#fef3c7', color: '#92400e', icon: '' },
-                    'cancelled': { bg: '#fee2e2', color: '#991b1b', icon: '' },
-                    'completed': { bg: '#e0f2fe', color: '#0369a1', icon: '' }
+                    'confirmed': { bg: '#dcfce7', color: '#166534', icon: '✅' },
+                    'pending': { bg: '#fef3c7', color: '#92400e', icon: '⏳' },
+                    'cancelled': { bg: '#fee2e2', color: '#991b1b', icon: '❌' },
+                    'completed': { bg: '#e0f2fe', color: '#0369a1', icon: '🏁' }
                 };
                 const paymentColors = {
-                    'pending': { bg: '#fef3c7', color: '#92400e', label: 'Payment Pending', icon: '' },
-                    'deposit_paid': { bg: '#dbeafe', color: '#1e40af', label: 'Deposit Paid', icon: '' },
-                    'fully_paid': { bg: '#dcfce7', color: '#166534', label: 'Fully Paid', icon: '' },
-                    'overdue': { bg: '#fee2e2', color: '#991b1b', label: 'Overdue', icon: '' },
-                    'refunded': { bg: '#f3f4f6', color: '#374151', label: 'Refunded', icon: '' }
+                    'pending': { bg: '#fef3c7', color: '#92400e', label: 'Payment Pending', icon: '⏳' },
+                    'deposit_paid': { bg: '#dbeafe', color: '#1e40af', label: 'Deposit Paid', icon: '💵' },
+                    'fully_paid': { bg: '#dcfce7', color: '#166534', label: 'Fully Paid', icon: '💰' },
+                    'overdue': { bg: '#fee2e2', color: '#991b1b', label: 'Overdue', icon: '⚠️' },
+                    'refunded': { bg: '#f3f4f6', color: '#374151', label: 'Refunded', icon: '↩️' }
                 };
                 
                 const bStatus = statusColors[b.status] || statusColors['pending'];
@@ -31605,9 +31605,9 @@ Local honey and preserves"></textarea>
             
             if (!filtered.length) {
                 const messages = {
-                    drafts: { icon: '', title: 'No drafts', desc: 'Posts you\'re working on will appear here' },
-                    scheduled: { icon: '', title: 'Nothing scheduled', desc: 'Schedule posts to publish automatically' },
-                    published: { icon: '', title: 'No published posts', desc: 'Your live posts will appear here' }
+                    drafts: { icon: '📝', title: 'No drafts', desc: 'Posts you\'re working on will appear here' },
+                    scheduled: { icon: '📅', title: 'Nothing scheduled', desc: 'Schedule posts to publish automatically' },
+                    published: { icon: '✅', title: 'No published posts', desc: 'Your live posts will appear here' }
                 };
                 const msg = messages[currentBlogTab] || messages.drafts;
                 container.innerHTML = `
@@ -32207,9 +32207,9 @@ Local honey and preserves"></textarea>
             
             if (!filtered.length) {
                 const messages = {
-                    drafts: { icon: '', title: 'No drafts', desc: 'Attractions you\'re working on will appear here' },
-                    scheduled: { icon: '', title: 'Nothing scheduled', desc: 'Schedule attractions to publish automatically' },
-                    published: { icon: '', title: 'No published attractions', desc: 'Your live attractions will appear here' }
+                    drafts: { icon: '📝', title: 'No drafts', desc: 'Attractions you\'re working on will appear here' },
+                    scheduled: { icon: '📅', title: 'Nothing scheduled', desc: 'Schedule attractions to publish automatically' },
+                    published: { icon: '✅', title: 'No published attractions', desc: 'Your live attractions will appear here' }
                 };
                 const msg = messages[currentAttractionTab] || messages.drafts;
                 container.innerHTML = `
