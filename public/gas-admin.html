@@ -11259,8 +11259,8 @@ Local honey and preserves"></textarea>
                     </div>
                 </div>
                 
-                <!-- Standard Site Fields (hidden for Plugin Only and Custom) -->
-                <div id="standard-site-fields">
+                <!-- Room Selection - Shown for ALL templates except Custom Bespoke -->
+                <div id="room-selection-section">
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                         <span style="font-weight: 600;"> Select Rooms to Display *</span>
@@ -11279,6 +11279,10 @@ Local honey and preserves"></textarea>
                         <small id="deploy-room-count" style="color: var(--primary); font-weight: 500;">0 rooms selected</small>
                     </div>
                 </div>
+                </div>
+                
+                <!-- Standard Site Fields (hidden for Plugin Only and Custom) -->
+                <div id="standard-site-fields">
                 
                 <!-- Template Options -->
                 <div class="form-group" style="margin-bottom: 1.5rem;">
@@ -22941,6 +22945,7 @@ Local honey and preserves"></textarea>
             const submitBtn = document.getElementById('deploy-submit-btn');
             const siteDetailsFields = document.getElementById('site-details-fields');
             const adminEmailField = document.getElementById('admin-email-field');
+            const roomSelectionSection = document.getElementById('room-selection-section');
             
             // Hide all optional sections first
             if (standardFields) standardFields.style.display = 'none';
@@ -22961,17 +22966,19 @@ Local honey and preserves"></textarea>
             
             switch(templateValue) {
                 case 'plugin-only':
-                    // Hide site name/slug for plugin only, keep email
+                    // Hide site name/slug for plugin only, keep email and room selection
                     if (siteDetailsFields) siteDetailsFields.style.display = 'none';
                     if (pluginOnlyFields) pluginOnlyFields.style.display = 'block';
+                    if (roomSelectionSection) roomSelectionSection.style.display = 'block';
                     submitBtn.textContent = '🔌 Get Plugin License';
                     submitBtn.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)';
                     break;
                     
                 case 'custom-bespoke':
-                    // Hide site name/slug, show contact form
+                    // Hide site name/slug and room selection, show contact form
                     if (siteDetailsFields) siteDetailsFields.style.display = 'none';
                     if (customBespokeFields) customBespokeFields.style.display = 'block';
+                    if (roomSelectionSection) roomSelectionSection.style.display = 'none';
                     submitBtn.textContent = '✨ Request Custom Quote';
                     submitBtn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
                     break;
@@ -22982,6 +22989,7 @@ Local honey and preserves"></textarea>
                     // Show all standard fields
                     if (siteDetailsFields) siteDetailsFields.style.display = 'grid';
                     if (standardFields) standardFields.style.display = 'block';
+                    if (roomSelectionSection) roomSelectionSection.style.display = 'block';
                     submitBtn.textContent = '🚀 Deploy Site';
                     submitBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
                     break;
@@ -23179,16 +23187,6 @@ Local honey and preserves"></textarea>
             }
         }
 
-        async function handlePluginOnlyRequest(email) {
-            const submitBtn = document.getElementById('deploy-submit-btn');
-            const progressDiv = document.getElementById('deploy-progress');
-            const resultDiv = document.getElementById('deploy-result');
-            
-            if (!email) {
-                showNotification('Please enter your email address', 'error');
-                return;
-            }
-        
         // Copy license key to clipboard
         function copyLicenseKey() {
             const licenseKey = document.getElementById('plugin-license-key');
@@ -23208,6 +23206,25 @@ Local honey and preserves"></textarea>
             }
         }
         window.copyLicenseKey = copyLicenseKey;
+
+        async function handlePluginOnlyRequest(email) {
+            const submitBtn = document.getElementById('deploy-submit-btn');
+            const progressDiv = document.getElementById('deploy-progress');
+            const resultDiv = document.getElementById('deploy-result');
+            
+            if (!email) {
+                showNotification('Please enter your email address', 'error');
+                return;
+            }
+            
+            // Get selected rooms
+            const selectedRooms = getSelectedRooms();
+            if (selectedRooms.length === 0) {
+                showNotification('Please select at least one room', 'error');
+                return;
+            }
+            
+            const roomIds = selectedRooms.map(r => r.room_id);
             
             submitBtn.disabled = true;
             progressDiv.style.display = 'block';
@@ -23220,6 +23237,7 @@ Local honey and preserves"></textarea>
                     body: JSON.stringify({
                         email: email,
                         account_id: selectedAccountId,
+                        room_ids: roomIds,
                         product: 'gas-booking-plugin'
                     })
                 });
