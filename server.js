@@ -12374,6 +12374,139 @@ app.get('/api/deploy/sites', async (req, res) => {
   }
 });
 
+// Plugin License Creation
+app.post('/api/plugin-license/create', async (req, res) => {
+  try {
+    const { email, account_id, product } = req.body;
+    
+    if (!email) {
+      return res.json({ success: false, error: 'Email is required' });
+    }
+    
+    // Generate a license key
+    const licenseKey = 'GAS-' + require('crypto').randomBytes(16).toString('hex').toUpperCase();
+    
+    // Store the license
+    const result = await pool.query(`
+      INSERT INTO plugin_licenses (account_id, email, license_key, product, status, created_at)
+      VALUES ($1, $2, $3, $4, 'active', NOW())
+      RETURNING id, license_key
+    `, [account_id || null, email, licenseKey, product || 'gas-booking-plugin']);
+    
+    // TODO: Send email with license key and download link
+    // TODO: Integrate with payment system
+    
+    res.json({ 
+      success: true, 
+      license_key: licenseKey,
+      download_url: '/downloads/gas-booking-plugin.zip',
+      message: 'License created successfully'
+    });
+  } catch (error) {
+    console.error('Error creating plugin license:', error);
+    // If table doesn't exist, create it
+    if (error.code === '42P01') {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS plugin_licenses (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER,
+            email VARCHAR(255) NOT NULL,
+            license_key VARCHAR(100) UNIQUE NOT NULL,
+            product VARCHAR(100) DEFAULT 'gas-booking-plugin',
+            status VARCHAR(50) DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT NOW(),
+            expires_at TIMESTAMP,
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+          )
+        `);
+        // Retry the insert
+        const licenseKey = 'GAS-' + require('crypto').randomBytes(16).toString('hex').toUpperCase();
+        const result = await pool.query(`
+          INSERT INTO plugin_licenses (account_id, email, license_key, product, status, created_at)
+          VALUES ($1, $2, $3, $4, 'active', NOW())
+          RETURNING id, license_key
+        `, [req.body.account_id || null, req.body.email, licenseKey, req.body.product || 'gas-booking-plugin']);
+        
+        return res.json({ 
+          success: true, 
+          license_key: licenseKey,
+          download_url: '/downloads/gas-booking-plugin.zip',
+          message: 'License created successfully'
+        });
+      } catch (retryError) {
+        return res.json({ success: false, error: retryError.message });
+      }
+    }
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Custom Site Request
+app.post('/api/custom-site/request', async (req, res) => {
+  try {
+    const { email, phone, account_id, project_description, reference_url } = req.body;
+    
+    if (!email || !project_description) {
+      return res.json({ success: false, error: 'Email and project description are required' });
+    }
+    
+    // Store the request
+    const result = await pool.query(`
+      INSERT INTO custom_site_requests (account_id, email, phone, project_description, reference_url, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+      RETURNING id
+    `, [account_id || null, email, phone || null, project_description, reference_url || null]);
+    
+    // TODO: Send notification email to admin
+    // TODO: Send confirmation email to customer
+    
+    res.json({ 
+      success: true, 
+      request_id: result.rows[0].id,
+      message: 'Request submitted successfully'
+    });
+  } catch (error) {
+    console.error('Error submitting custom site request:', error);
+    // If table doesn't exist, create it
+    if (error.code === '42P01') {
+      try {
+        await pool.query(`
+          CREATE TABLE IF NOT EXISTS custom_site_requests (
+            id SERIAL PRIMARY KEY,
+            account_id INTEGER,
+            email VARCHAR(255) NOT NULL,
+            phone VARCHAR(50),
+            project_description TEXT NOT NULL,
+            reference_url VARCHAR(500),
+            status VARCHAR(50) DEFAULT 'pending',
+            quoted_price DECIMAL(10,2),
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW(),
+            FOREIGN KEY (account_id) REFERENCES accounts(id)
+          )
+        `);
+        // Retry the insert
+        const result = await pool.query(`
+          INSERT INTO custom_site_requests (account_id, email, phone, project_description, reference_url, status, created_at)
+          VALUES ($1, $2, $3, $4, $5, 'pending', NOW())
+          RETURNING id
+        `, [req.body.account_id || null, req.body.email, req.body.phone || null, req.body.project_description, req.body.reference_url || null]);
+        
+        return res.json({ 
+          success: true, 
+          request_id: result.rows[0].id,
+          message: 'Request submitted successfully'
+        });
+      } catch (retryError) {
+        return res.json({ success: false, error: retryError.message });
+      }
+    }
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Deploy a new site (room-level selection)
 app.post('/api/deploy/create', async (req, res) => {
   try {
