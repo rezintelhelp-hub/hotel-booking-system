@@ -1610,6 +1610,10 @@
                         <span class="nav-icon">📋</span>
                         <span>Create Sites</span>
                     </a>
+                    <a class="nav-item master-only" data-view="custom-sites" href="#" onclick="navClick(this, 'custom-sites'); return false;" style="display: none;">
+                        <span class="nav-icon">✨</span>
+                        <span>Custom Sites</span>
+                    </a>
                     </div>
                 </div>
 
@@ -6207,6 +6211,67 @@
                                 <label class="form-label">TripAdvisor</label>
                                 <input type="text" class="form-input" id="wb-footer-social-tripadvisor" placeholder="https://tripadvisor.com/...">
                             </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Custom Sites (Bespoke) - Master Only -->
+            <div id="custom-sites" class="view">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>✨ Custom Bespoke Sites</h2>
+                            <p class="subtitle">Manage custom site requests and provision premium websites</p>
+                        </div>
+                        <button class="btn" onclick="refreshCustomSiteRequests()" style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-bottom: 1px solid #f59e0b;">
+                        <h3 style="margin: 0; color: #92400e;">📋 Pending Requests</h3>
+                    </div>
+                    <div class="card-body" id="custom-site-requests-container">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            Loading requests...
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-header" style="background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%); border-bottom: 1px solid #10b981;">
+                        <h3 style="margin: 0; color: #065f46;">🚀 Provision New Site</h3>
+                    </div>
+                    <div class="card-body">
+                        <p style="color: var(--text-secondary); margin-bottom: 1rem;">Manually provision a custom site (after DNS A record is added)</p>
+                        <form id="provision-site-form" onsubmit="provisionCustomSite(event)">
+                            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin-bottom: 1rem;">
+                                <div class="form-group">
+                                    <label>Site Slug *</label>
+                                    <input type="text" id="provision-slug" class="form-input" placeholder="synergy" required pattern="[a-z0-9-]+">
+                                    <small style="color: var(--text-secondary);">Will create: [slug].custom.gas.travel</small>
+                                </div>
+                                <div class="form-group">
+                                    <label>Site Name *</label>
+                                    <input type="text" id="provision-site-name" class="form-input" placeholder="Synergy Rentals" required>
+                                </div>
+                                <div class="form-group">
+                                    <label>Admin Email *</label>
+                                    <input type="email" id="provision-admin-email" class="form-input" placeholder="client@example.com" required>
+                                </div>
+                            </div>
+                            <div style="display: flex; gap: 1rem; align-items: center;">
+                                <button type="submit" class="btn" id="provision-btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">
+                                    🚀 Provision Site
+                                </button>
+                                <span id="provision-status" style="color: var(--text-secondary);"></span>
+                            </div>
+                        </form>
+                        
+                        <div id="provision-result" style="display: none; margin-top: 1.5rem; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem;">
                         </div>
                     </div>
                 </div>
@@ -15758,6 +15823,9 @@ Local honey and preserves"></textarea>
                 checkVpsStatus();
                 loadDeployedSites();
             }
+            if (viewName === 'custom-sites') {
+                loadCustomSiteRequests();
+            }
             if (viewName === 'integrations') loadIntegrations();
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
@@ -22128,6 +22196,128 @@ Local honey and preserves"></textarea>
             }
         }
         
+        // Custom Sites Functions
+        async function loadCustomSiteRequests() {
+            const container = document.getElementById('custom-site-requests-container');
+            if (!container) return;
+            
+            container.innerHTML = '<div style="text-align: center; padding: 2rem;"><div class="spinner"></div></div>';
+            
+            try {
+                const response = await fetch('/api/custom-site/requests', { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.requests && data.requests.length > 0) {
+                    let html = '<div class="table-container"><table><thead><tr><th>Date</th><th>Email</th><th>Description</th><th>Reference</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+                    
+                    for (const req of data.requests) {
+                        const date = new Date(req.created_at).toLocaleDateString();
+                        const statusBadge = req.status === 'pending' ? 
+                            '<span class="badge badge-warning">Pending</span>' :
+                            req.status === 'provisioned' ? 
+                            '<span class="badge badge-success">Provisioned</span>' :
+                            '<span class="badge">' + req.status + '</span>';
+                        
+                        html += `<tr>
+                            <td>${date}</td>
+                            <td>${req.email}</td>
+                            <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${req.project_description || '-'}</td>
+                            <td>${req.reference_url ? '<a href="' + req.reference_url + '" target="_blank">View</a>' : '-'}</td>
+                            <td>${statusBadge}</td>
+                            <td>
+                                ${req.status === 'pending' ? '<button class="btn btn-small" onclick="fillProvisionForm(\'' + req.email + '\')">Provision</button>' : ''}
+                            </td>
+                        </tr>`;
+                    }
+                    
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No custom site requests yet</div>';
+                }
+            } catch (error) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #ef4444;">Error loading requests</div>';
+            }
+        }
+        
+        function refreshCustomSiteRequests() {
+            loadCustomSiteRequests();
+        }
+        
+        function fillProvisionForm(email) {
+            document.getElementById('provision-admin-email').value = email;
+            document.getElementById('provision-slug').focus();
+        }
+        
+        async function provisionCustomSite(event) {
+            event.preventDefault();
+            
+            const slug = document.getElementById('provision-slug').value.toLowerCase().trim();
+            const siteName = document.getElementById('provision-site-name').value.trim();
+            const adminEmail = document.getElementById('provision-admin-email').value.trim();
+            const btn = document.getElementById('provision-btn');
+            const statusEl = document.getElementById('provision-status');
+            const resultEl = document.getElementById('provision-result');
+            
+            if (!slug || !siteName || !adminEmail) {
+                showNotification('Please fill in all fields', 'error');
+                return;
+            }
+            
+            btn.disabled = true;
+            statusEl.textContent = '⏳ Provisioning site... (this may take 30-60 seconds)';
+            resultEl.style.display = 'none';
+            
+            try {
+                const response = await fetch('/api/custom-site/provision', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ slug, site_name: siteName, admin_email: adminEmail })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    statusEl.textContent = '✅ Site provisioned!';
+                    resultEl.style.display = 'block';
+                    resultEl.innerHTML = `
+                        <h4 style="margin: 0 0 1rem 0; color: #166534;">🎉 Site Created Successfully!</h4>
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <div>
+                                <strong>Site URL:</strong><br>
+                                <a href="${data.site.url}" target="_blank">${data.site.url}</a>
+                            </div>
+                            <div>
+                                <strong>Admin URL:</strong><br>
+                                <a href="${data.site.admin_url}" target="_blank">${data.site.admin_url}</a>
+                            </div>
+                        </div>
+                        <div style="margin-top: 1rem; padding: 1rem; background: #fef3c7; border-radius: 8px;">
+                            <strong>🔑 WordPress Credentials:</strong><br>
+                            <code>Username: ${data.credentials.wp_user}</code><br>
+                            <code>Password: ${data.credentials.wp_pass}</code>
+                        </div>
+                        <p style="margin-top: 1rem; font-size: 0.85rem; color: #64748b;">
+                            ⚠️ Make sure DNS A record is set: <strong>${slug}.custom</strong> → <strong>31.97.119.90</strong>
+                        </p>
+                    `;
+                    
+                    // Clear form
+                    document.getElementById('provision-site-form').reset();
+                    loadCustomSiteRequests();
+                    showNotification('Site provisioned successfully!', 'success');
+                } else {
+                    statusEl.textContent = '❌ Failed: ' + (data.error || 'Unknown error');
+                    showNotification(data.error || 'Provisioning failed', 'error');
+                }
+            } catch (error) {
+                statusEl.textContent = '❌ Error: ' + error.message;
+                showNotification('Error: ' + error.message, 'error');
+            }
+            
+            btn.disabled = false;
+        }
+
         async function loadDeployedSites() {
             const container = document.getElementById('deployed-sites-list');
             if (!container) return;
