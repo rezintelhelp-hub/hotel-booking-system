@@ -12386,6 +12386,9 @@ app.post('/api/plugin-license/create', async (req, res) => {
     // Generate a license key
     const licenseKey = 'GAS-' + require('crypto').randomBytes(16).toString('hex').toUpperCase();
     
+    // GitHub download URL
+    const downloadUrl = 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.141/gas-booking-v1.0.141.zip';
+    
     // Store the license
     const result = await pool.query(`
       INSERT INTO plugin_licenses (account_id, email, license_key, product, status, created_at)
@@ -12399,7 +12402,7 @@ app.post('/api/plugin-license/create', async (req, res) => {
     res.json({ 
       success: true, 
       license_key: licenseKey,
-      download_url: '/downloads/gas-booking-plugin.zip',
+      download_url: downloadUrl,
       message: 'License created successfully'
     });
   } catch (error) {
@@ -12415,13 +12418,16 @@ app.post('/api/plugin-license/create', async (req, res) => {
             license_key VARCHAR(100) UNIQUE NOT NULL,
             product VARCHAR(100) DEFAULT 'gas-booking-plugin',
             status VARCHAR(50) DEFAULT 'active',
+            plan VARCHAR(50) DEFAULT 'plugin',
             created_at TIMESTAMP DEFAULT NOW(),
             expires_at TIMESTAMP,
+            last_used_at TIMESTAMP,
             FOREIGN KEY (account_id) REFERENCES accounts(id)
           )
         `);
         // Retry the insert
         const licenseKey = 'GAS-' + require('crypto').randomBytes(16).toString('hex').toUpperCase();
+        const downloadUrl = 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.141/gas-booking-v1.0.141.zip';
         const result = await pool.query(`
           INSERT INTO plugin_licenses (account_id, email, license_key, product, status, created_at)
           VALUES ($1, $2, $3, $4, 'active', NOW())
@@ -12431,7 +12437,7 @@ app.post('/api/plugin-license/create', async (req, res) => {
         return res.json({ 
           success: true, 
           license_key: licenseKey,
-          download_url: '/downloads/gas-booking-plugin.zip',
+          download_url: downloadUrl,
           message: 'License created successfully'
         });
       } catch (retryError) {
@@ -38534,6 +38540,468 @@ async function runTieredSync() {
     console.error('⏰ [Tiered Sync] Error:', error.message);
   }
 }
+
+// ============================================
+// PLUGIN API ENDPOINTS
+// ============================================
+
+// Validate plugin license key
+app.post('/api/plugin/validate-license', async (req, res) => {
+  try {
+    const { license_key } = req.body;
+    
+    if (!license_key) {
+      return res.json({ success: false, error: 'License key required' });
+    }
+    
+    // Look up license in plugin_licenses table
+    const licenseResult = await pool.query(`
+      SELECT pl.*, a.name as account_name, a.email as account_email
+      FROM plugin_licenses pl
+      JOIN accounts a ON pl.account_id = a.id
+      WHERE pl.license_key = $1 AND pl.status = 'active'
+    `, [license_key]);
+    
+    if (licenseResult.rows.length === 0) {
+      // Also check if license_key matches an account's api_key (legacy support)
+      const accountResult = await pool.query(`
+        SELECT id, name, email FROM accounts WHERE api_key = $1 AND status = 'active'
+      `, [license_key]);
+      
+      if (accountResult.rows.length === 0) {
+        return res.json({ success: false, error: 'Invalid or expired license key' });
+      }
+      
+      const account = accountResult.rows[0];
+      return res.json({
+        success: true,
+        account_id: account.id,
+        account_name: account.name,
+        account_email: account.email
+      });
+    }
+    
+    const license = licenseResult.rows[0];
+    
+    // Update last_used timestamp
+    await pool.query(`UPDATE plugin_licenses SET last_used_at = NOW() WHERE id = $1`, [license.id]);
+    
+    res.json({
+      success: true,
+      account_id: license.account_id,
+      account_name: license.account_name,
+      account_email: license.account_email,
+      plan: license.plan || 'plugin'
+    });
+    
+  } catch (error) {
+    console.error('Plugin license validation error:', error);
+    res.json({ success: false, error: 'Validation failed' });
+  }
+});
+
+// Get properties for plugin (requires license key in Authorization header)
+app.get('/api/plugin/properties', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Authorization required' });
+    }
+    
+    const licenseKey = authHeader.replace('Bearer ', '');
+    
+    // Get account from license key
+    const accountResult = await pool.query(`
+      SELECT a.id FROM accounts a
+      LEFT JOIN plugin_licenses pl ON pl.account_id = a.id
+      WHERE pl.license_key = $1 OR a.api_key = $1
+      LIMIT 1
+    `, [licenseKey]);
+    
+    if (accountResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid license key' });
+    }
+    
+    const accountId = accountResult.rows[0].id;
+    
+    // Get properties for this account
+    const propertiesResult = await pool.query(`
+      SELECT 
+        p.id,
+        p.name,
+        p.description,
+        p.bedrooms,
+        p.bathrooms,
+        p.max_guests,
+        p.address,
+        p.city,
+        p.state,
+        p.country,
+        p.latitude,
+        p.longitude,
+        p.base_price as price,
+        p.currency,
+        p.property_type,
+        p.amenities,
+        p.images,
+        p.status,
+        COALESCE(
+          (SELECT AVG(rating) FROM reviews WHERE property_id = p.id),
+          0
+        ) as rating,
+        COALESCE(
+          (SELECT COUNT(*) FROM reviews WHERE property_id = p.id),
+          0
+        ) as review_count
+      FROM properties p
+      WHERE p.account_id = $1 AND p.status = 'active'
+      ORDER BY p.name
+    `, [accountId]);
+    
+    // Format properties for plugin
+    const properties = propertiesResult.rows.map(p => ({
+      id: p.id,
+      name: p.name,
+      description: p.description,
+      bedrooms: p.bedrooms,
+      bathrooms: p.bathrooms,
+      max_guests: p.max_guests,
+      location: [p.city, p.state].filter(Boolean).join(', '),
+      address: p.address,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      price: parseFloat(p.price) || 0,
+      currency: p.currency || 'USD',
+      property_type: p.property_type,
+      amenities: p.amenities || [],
+      images: p.images || [],
+      rating: parseFloat(p.rating) || 0,
+      review_count: parseInt(p.review_count) || 0,
+      status: p.status
+    }));
+    
+    res.json({ success: true, properties });
+    
+  } catch (error) {
+    console.error('Plugin properties error:', error);
+    res.json({ success: false, error: 'Failed to fetch properties' });
+  }
+});
+
+// Sync properties from channel manager
+app.post('/api/plugin/sync', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return res.json({ success: false, error: 'Authorization required' });
+    }
+    
+    const licenseKey = authHeader.replace('Bearer ', '');
+    
+    // Get account from license key
+    const accountResult = await pool.query(`
+      SELECT a.id FROM accounts a
+      LEFT JOIN plugin_licenses pl ON pl.account_id = a.id
+      WHERE pl.license_key = $1 OR a.api_key = $1
+      LIMIT 1
+    `, [licenseKey]);
+    
+    if (accountResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid license key' });
+    }
+    
+    const accountId = accountResult.rows[0].id;
+    
+    // Check for channel manager connection
+    const connectionResult = await pool.query(`
+      SELECT * FROM gas_sync_connections WHERE account_id = $1 AND status = 'active' LIMIT 1
+    `, [accountId]);
+    
+    if (connectionResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No channel manager connected. Please connect Hostaway or Beds24 first.' });
+    }
+    
+    const connection = connectionResult.rows[0];
+    
+    // Trigger sync based on adapter type
+    try {
+      const adapter = getAdapter(connection.adapter_code);
+      const credentials = connection.credentials;
+      
+      // Fetch properties from channel manager
+      const cmProperties = await adapter.getProperties(credentials);
+      
+      let synced = 0;
+      for (const cmProp of cmProperties) {
+        // Upsert property
+        await pool.query(`
+          INSERT INTO properties (
+            account_id, external_id, name, description, bedrooms, bathrooms, 
+            max_guests, address, city, state, country, latitude, longitude,
+            base_price, currency, property_type, amenities, images, status, updated_at
+          ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, 'active', NOW())
+          ON CONFLICT (account_id, external_id) DO UPDATE SET
+            name = EXCLUDED.name,
+            description = EXCLUDED.description,
+            bedrooms = EXCLUDED.bedrooms,
+            bathrooms = EXCLUDED.bathrooms,
+            max_guests = EXCLUDED.max_guests,
+            address = EXCLUDED.address,
+            city = EXCLUDED.city,
+            state = EXCLUDED.state,
+            country = EXCLUDED.country,
+            latitude = EXCLUDED.latitude,
+            longitude = EXCLUDED.longitude,
+            base_price = EXCLUDED.base_price,
+            currency = EXCLUDED.currency,
+            amenities = EXCLUDED.amenities,
+            images = EXCLUDED.images,
+            updated_at = NOW()
+        `, [
+          accountId,
+          cmProp.id,
+          cmProp.name,
+          cmProp.description,
+          cmProp.bedrooms,
+          cmProp.bathrooms,
+          cmProp.maxGuests,
+          cmProp.address,
+          cmProp.city,
+          cmProp.state,
+          cmProp.country,
+          cmProp.latitude,
+          cmProp.longitude,
+          cmProp.price,
+          cmProp.currency || 'USD',
+          cmProp.propertyType,
+          JSON.stringify(cmProp.amenities || []),
+          JSON.stringify(cmProp.images || [])
+        ]);
+        synced++;
+      }
+      
+      // Update connection last sync time
+      await pool.query(`UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1`, [connection.id]);
+      
+      // Return updated properties list
+      const propertiesResult = await pool.query(`
+        SELECT * FROM properties WHERE account_id = $1 AND status = 'active' ORDER BY name
+      `, [accountId]);
+      
+      res.json({ 
+        success: true, 
+        message: `Synced ${synced} properties from ${connection.adapter_code}`,
+        properties: propertiesResult.rows 
+      });
+      
+    } catch (syncError) {
+      console.error('Sync error:', syncError);
+      res.json({ success: false, error: 'Sync failed: ' + syncError.message });
+    }
+    
+  } catch (error) {
+    console.error('Plugin sync error:', error);
+    res.json({ success: false, error: 'Sync failed' });
+  }
+});
+
+// Get availability for a property
+app.get('/api/plugin/availability', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const licenseKey = authHeader?.replace('Bearer ', '');
+    
+    const { property_id, start_date, end_date } = req.query;
+    
+    if (!property_id || !start_date || !end_date) {
+      return res.json({ success: false, error: 'property_id, start_date, and end_date required' });
+    }
+    
+    // Get property with pricing
+    const propertyResult = await pool.query(`
+      SELECT p.*, c.adapter_code, c.credentials
+      FROM properties p
+      LEFT JOIN gas_sync_connections c ON c.account_id = p.account_id AND c.status = 'active'
+      WHERE p.id = $1
+    `, [property_id]);
+    
+    if (propertyResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const property = propertyResult.rows[0];
+    
+    // Try to get real-time availability from channel manager
+    let availability = { available: true, nightly_rate: property.base_price || 100 };
+    
+    if (property.adapter_code && property.credentials) {
+      try {
+        const adapter = getAdapter(property.adapter_code);
+        const realAvailability = await adapter.getAvailability(
+          property.credentials,
+          property.external_id,
+          start_date,
+          end_date
+        );
+        availability = realAvailability;
+      } catch (e) {
+        console.log('Could not fetch real-time availability:', e.message);
+      }
+    }
+    
+    // Calculate total
+    const nights = Math.ceil((new Date(end_date) - new Date(start_date)) / (1000 * 60 * 60 * 24));
+    const total = availability.nightly_rate * nights;
+    
+    res.json({
+      success: true,
+      available: availability.available,
+      nightly_rate: availability.nightly_rate,
+      nights: nights,
+      total: total,
+      currency: property.currency || 'USD'
+    });
+    
+  } catch (error) {
+    console.error('Plugin availability error:', error);
+    res.json({ success: false, error: 'Failed to check availability' });
+  }
+});
+
+// Create booking from plugin
+app.post('/api/plugin/booking', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const licenseKey = authHeader?.replace('Bearer ', '');
+    
+    const { property_id, start_date, end_date, guests, guest_name, guest_email, guest_phone, notes } = req.body;
+    
+    if (!property_id || !start_date || !end_date || !guest_name || !guest_email) {
+      return res.json({ success: false, error: 'Missing required fields' });
+    }
+    
+    // Get property
+    const propertyResult = await pool.query(`SELECT * FROM properties WHERE id = $1`, [property_id]);
+    if (propertyResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Property not found' });
+    }
+    
+    const property = propertyResult.rows[0];
+    
+    // Calculate pricing
+    const nights = Math.ceil((new Date(end_date) - new Date(start_date)) / (1000 * 60 * 60 * 24));
+    const total = (property.base_price || 100) * nights;
+    
+    // Generate confirmation number
+    const confirmationNumber = 'GAS-' + Date.now().toString(36).toUpperCase();
+    
+    // Create booking record
+    const bookingResult = await pool.query(`
+      INSERT INTO bookings (
+        account_id, property_id, confirmation_number,
+        check_in_date, check_out_date, nights,
+        guest_name, guest_email, guest_phone,
+        num_guests, total_amount, currency,
+        notes, status, source, created_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, 'pending', 'plugin', NOW())
+      RETURNING *
+    `, [
+      property.account_id,
+      property_id,
+      confirmationNumber,
+      start_date,
+      end_date,
+      nights,
+      guest_name,
+      guest_email,
+      guest_phone,
+      guests || 1,
+      total,
+      property.currency || 'USD',
+      notes
+    ]);
+    
+    const booking = bookingResult.rows[0];
+    
+    // TODO: Push booking to channel manager
+    // TODO: Send confirmation email
+    
+    res.json({
+      success: true,
+      booking_id: booking.id,
+      confirmation_number: confirmationNumber,
+      total: total,
+      currency: property.currency || 'USD'
+    });
+    
+  } catch (error) {
+    console.error('Plugin booking error:', error);
+    res.json({ success: false, error: 'Booking failed' });
+  }
+});
+
+// Get reviews for plugin
+app.get('/api/plugin/reviews', async (req, res) => {
+  try {
+    const authHeader = req.headers.authorization;
+    const licenseKey = authHeader?.replace('Bearer ', '');
+    const { property_id } = req.query;
+    
+    // Get account from license
+    const accountResult = await pool.query(`
+      SELECT a.id FROM accounts a
+      LEFT JOIN plugin_licenses pl ON pl.account_id = a.id
+      WHERE pl.license_key = $1 OR a.api_key = $1
+      LIMIT 1
+    `, [licenseKey]);
+    
+    if (accountResult.rows.length === 0) {
+      return res.json({ success: false, error: 'Invalid license key' });
+    }
+    
+    const accountId = accountResult.rows[0].id;
+    
+    let query = `
+      SELECT r.*, p.name as property_name
+      FROM reviews r
+      JOIN properties p ON r.property_id = p.id
+      WHERE p.account_id = $1
+    `;
+    const params = [accountId];
+    
+    if (property_id) {
+      query += ` AND r.property_id = $2`;
+      params.push(property_id);
+    }
+    
+    query += ` ORDER BY r.created_at DESC LIMIT 50`;
+    
+    const reviewsResult = await pool.query(query, params);
+    
+    res.json({
+      success: true,
+      reviews: reviewsResult.rows.map(r => ({
+        id: r.id,
+        property_id: r.property_id,
+        property_name: r.property_name,
+        guest_name: r.guest_name,
+        guest_avatar: r.guest_avatar,
+        rating: r.rating,
+        comment: r.comment,
+        date: r.created_at,
+        source: r.source
+      }))
+    });
+    
+  } catch (error) {
+    console.error('Plugin reviews error:', error);
+    res.json({ success: false, error: 'Failed to fetch reviews' });
+  }
+});
+
+// ============================================
+// END PLUGIN API ENDPOINTS
+// ============================================
 
 function startTieredSyncScheduler() {
   // Run every 15 minutes (900000ms)
