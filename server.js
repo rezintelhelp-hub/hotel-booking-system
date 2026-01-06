@@ -34785,7 +34785,16 @@ app.get('/api/gas-sync/connections', async (req, res) => {
         }
       }
       delete conn.credentials; // Don't send full credentials
-      return { ...conn, v1_key_masked: v1KeyMasked };
+      
+      // Add webhook URL for Hostaway connections
+      let webhook_url = null;
+      let webhook_instructions = null;
+      if (conn.adapter_code === 'hostaway') {
+        webhook_url = 'https://admin.gas.travel/api/webhooks/hostaway';
+        webhook_instructions = 'Add this URL in Hostaway Dashboard → Settings → Integrations → Unified Webhooks';
+      }
+      
+      return { ...conn, v1_key_masked: v1KeyMasked, webhook_url, webhook_instructions };
     });
     
     res.json({ success: true, connections });
@@ -34816,7 +34825,16 @@ app.get('/api/admin/gas-sync/connections', async (req, res) => {
       ORDER BY c.created_at DESC
     `);
     
-    res.json({ success: true, connections: result.rows });
+    // Add webhook URL for Hostaway connections
+    const connections = result.rows.map(conn => {
+      if (conn.adapter_code === 'hostaway') {
+        conn.webhook_url = 'https://admin.gas.travel/api/webhooks/hostaway';
+        conn.webhook_instructions = 'Add this URL in Hostaway Dashboard → Settings → Integrations → Unified Webhooks';
+      }
+      return conn;
+    });
+    
+    res.json({ success: true, connections });
   } catch (error) {
     console.error('Error fetching all connections:', error);
     res.json({ success: false, error: error.message });
@@ -34980,6 +34998,12 @@ app.get('/api/gas-sync/connections/:id', async (req, res) => {
       }
     }
     connection.v1_key_masked = v1KeyMasked;
+    
+    // Add webhook URL for Hostaway connections
+    if (connection.adapter_code === 'hostaway') {
+      connection.webhook_url = 'https://admin.gas.travel/api/webhooks/hostaway';
+      connection.webhook_instructions = 'Add this URL in Hostaway Dashboard → Settings → Integrations → Unified Webhooks';
+    }
     
     delete connection.credentials;
     delete connection.access_token;
