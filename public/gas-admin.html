@@ -23188,6 +23188,26 @@ Local honey and preserves"></textarea>
                 showNotification('Please enter your email address', 'error');
                 return;
             }
+        
+        // Copy license key to clipboard
+        function copyLicenseKey() {
+            const licenseKey = document.getElementById('plugin-license-key');
+            if (licenseKey) {
+                navigator.clipboard.writeText(licenseKey.textContent).then(() => {
+                    showNotification('License key copied!', 'success');
+                }).catch(() => {
+                    // Fallback
+                    const range = document.createRange();
+                    range.selectNode(licenseKey);
+                    window.getSelection().removeAllRanges();
+                    window.getSelection().addRange(range);
+                    document.execCommand('copy');
+                    window.getSelection().removeAllRanges();
+                    showNotification('License key copied!', 'success');
+                });
+            }
+        }
+        window.copyLicenseKey = copyLicenseKey;
             
             submitBtn.disabled = true;
             progressDiv.style.display = 'block';
@@ -23216,10 +23236,26 @@ Local honey and preserves"></textarea>
                         <p style="color: #6b21a8; margin: 0 0 1rem 0;">Your GAS Booking Plugin license is now active.</p>
                         <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
                             <div style="margin-bottom: 0.5rem;"><strong>License Key:</strong></div>
-                            <code style="display: block; background: #1e293b; color: #22c55e; padding: 0.75rem; border-radius: 4px; word-break: break-all;">${data.license_key || 'Will be emailed to you'}</code>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <code id="plugin-license-key" style="flex: 1; background: #1e293b; color: #22c55e; padding: 0.75rem; border-radius: 4px; word-break: break-all; font-size: 0.9rem;">${data.license_key || 'Error generating key'}</code>
+                                <button onclick="copyLicenseKey()" style="background: #7c3aed; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; white-space: nowrap;">📋 Copy</button>
+                            </div>
                         </div>
-                        <a href="${data.download_url || '#'}" class="btn" style="background: #8b5cf6; display: inline-block;">📥 Download Plugin</a>
-                        <p style="font-size: 0.8rem; color: #64748b; margin: 1rem 0 0 0;">Installation instructions have been sent to ${email}</p>
+                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
+                            <a href="${data.download_url || '#'}" class="btn" style="background: #10b981; display: inline-block;" target="_blank">📥 Download Plugin</a>
+                        </div>
+                        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem; margin-top: 1rem;">
+                            <strong style="color: #92400e;">📋 Installation Steps:</strong>
+                            <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0; color: #92400e; font-size: 0.9rem;">
+                                <li>Download the plugin ZIP file</li>
+                                <li>In WordPress, go to Plugins → Add New → Upload Plugin</li>
+                                <li>Upload the ZIP and activate</li>
+                                <li>Go to Settings → GAS Booking</li>
+                                <li>Enter your license key above</li>
+                                <li>Save - your account will be configured automatically</li>
+                            </ol>
+                        </div>
+                        <p style="font-size: 0.8rem; color: #64748b; margin: 1rem 0 0 0;">A copy of these instructions has been sent to ${email}</p>
                     `;
                     submitBtn.textContent = '✅ Done';
                     submitBtn.disabled = false;
