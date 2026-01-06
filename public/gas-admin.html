@@ -6230,6 +6230,18 @@
                     </div>
                 </div>
                 
+                <!-- Provisioned Sites List -->
+                <div class="card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%); border-bottom: 1px solid #3b82f6;">
+                        <h3 style="margin: 0; color: #1e40af;">🌐 Provisioned Sites</h3>
+                    </div>
+                    <div class="card-body" id="provisioned-sites-container">
+                        <div style="text-align: center; padding: 2rem; color: var(--text-secondary);">
+                            Loading sites...
+                        </div>
+                    </div>
+                </div>
+                
                 <div class="card" style="margin-bottom: 1.5rem;">
                     <div class="card-header" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-bottom: 1px solid #f59e0b;">
                         <h3 style="margin: 0; color: #92400e;">📋 Pending Requests</h3>
@@ -22211,25 +22223,23 @@ Local honey and preserves"></textarea>
                 const response = await fetch('/api/custom-site/requests', { headers: authHeaders() });
                 const data = await response.json();
                 
-                if (data.success && data.requests && data.requests.length > 0) {
-                    let html = '<div class="table-container"><table><thead><tr><th>Date</th><th>Email</th><th>Description</th><th>Reference</th><th>Status</th><th>Actions</th></tr></thead><tbody>';
+                // Filter to only pending requests
+                const pendingRequests = (data.requests || []).filter(r => r.status === 'pending');
+                
+                if (data.success && pendingRequests.length > 0) {
+                    let html = '<div class="table-container"><table><thead><tr><th>Date</th><th>Email</th><th>Description</th><th>Reference</th><th>Actions</th></tr></thead><tbody>';
                     
-                    for (const req of data.requests) {
+                    for (const req of pendingRequests) {
                         const date = new Date(req.created_at).toLocaleDateString();
-                        const statusBadge = req.status === 'pending' ? 
-                            '<span class="badge badge-warning">Pending</span>' :
-                            req.status === 'provisioned' ? 
-                            '<span class="badge badge-success">Provisioned</span>' :
-                            '<span class="badge">' + req.status + '</span>';
                         
                         html += `<tr>
                             <td>${date}</td>
                             <td>${req.email}</td>
                             <td style="max-width: 300px; overflow: hidden; text-overflow: ellipsis;">${req.project_description || '-'}</td>
                             <td>${req.reference_url ? '<a href="' + req.reference_url + '" target="_blank">View</a>' : '-'}</td>
-                            <td>${statusBadge}</td>
                             <td>
-                                ${req.status === 'pending' ? '<button class="btn btn-small" onclick="fillProvisionForm(\'' + req.email + '\')">Provision</button>' : ''}
+                                <button class="btn btn-small" onclick="fillProvisionForm('${req.email}')" style="margin-right: 0.5rem;">Provision</button>
+                                <button class="btn btn-small btn-secondary" onclick="deleteCustomSiteRequest(${req.id})" style="background: #fee2e2; color: #991b1b;">Delete</button>
                             </td>
                         </tr>`;
                     }
@@ -22237,10 +22247,80 @@ Local honey and preserves"></textarea>
                     html += '</tbody></table></div>';
                     container.innerHTML = html;
                 } else {
-                    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No custom site requests yet</div>';
+                    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No pending requests</div>';
                 }
             } catch (error) {
                 container.innerHTML = '<div style="text-align: center; padding: 2rem; color: #ef4444;">Error loading requests</div>';
+            }
+            
+            // Also load provisioned sites
+            loadProvisionedSites();
+        }
+        
+        async function loadProvisionedSites() {
+            const container = document.getElementById('provisioned-sites-container');
+            if (!container) return;
+            
+            try {
+                const response = await fetch('/api/custom-site/provisioned', { headers: authHeaders() });
+                const data = await response.json();
+                
+                if (data.success && data.sites && data.sites.length > 0) {
+                    let html = '<div class="table-container"><table><thead><tr><th>Site</th><th>Admin Email</th><th>Created</th><th>Links</th><th>Credentials</th></tr></thead><tbody>';
+                    
+                    for (const site of data.sites) {
+                        const date = new Date(site.created_at).toLocaleDateString();
+                        const creds = site.credentials ? JSON.parse(site.credentials) : {};
+                        
+                        html += `<tr>
+                            <td>
+                                <strong>${site.site_name}</strong><br>
+                                <small style="color: var(--text-secondary);">${site.domain}</small>
+                            </td>
+                            <td>${site.admin_email}</td>
+                            <td>${date}</td>
+                            <td>
+                                <a href="https://${site.domain}" target="_blank" class="btn btn-small" style="margin-right: 0.25rem;">🌐 Site</a>
+                                <a href="https://${site.domain}/wp-admin" target="_blank" class="btn btn-small">⚙️ Admin</a>
+                            </td>
+                            <td>
+                                <button class="btn btn-small btn-secondary" onclick="showCredentials('${creds.wp_user || 'admin'}', '${creds.wp_pass || ''}')">🔑 Show</button>
+                            </td>
+                        </tr>`;
+                    }
+                    
+                    html += '</tbody></table></div>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No provisioned sites yet</div>';
+                }
+            } catch (error) {
+                container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">No provisioned sites yet</div>';
+            }
+        }
+        
+        function showCredentials(username, password) {
+            showNotification(`Username: ${username} | Password: ${password}`, 'success', 10000);
+        }
+        
+        async function deleteCustomSiteRequest(id) {
+            if (!confirm('Delete this request?')) return;
+            
+            try {
+                const response = await fetch(`/api/custom-site/requests/${id}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Request deleted', 'success');
+                    loadCustomSiteRequests();
+                } else {
+                    showNotification(data.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                showNotification('Error: ' + error.message, 'error');
             }
         }
         
