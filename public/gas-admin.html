@@ -11081,39 +11081,68 @@ Local honey and preserves"></textarea>
             <form id="deployForm" onsubmit="deployNewSite(event)" style="padding: 1.5rem;">
                 
                 <!-- Site Details -->
-                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
+                <div id="site-details-fields" style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem;">
                     <div class="form-group">
                         <label>Site Name *</label>
-                        <input type="text" id="deploy-site-name" class="form-input" placeholder="e.g. Elevate Stays" required>
+                        <input type="text" id="deploy-site-name" class="form-input" placeholder="e.g. Elevate Stays">
                     </div>
                     <div class="form-group">
                         <label>URL Slug *</label>
                         <div style="display: flex; align-items: center; gap: 0;">
                             <span style="background: #f1f5f9; padding: 0.5rem 0.5rem; border: 1px solid var(--border); border-right: none; border-radius: 8px 0 0 8px; color: var(--text-secondary); font-size: 0.8rem; white-space: nowrap;">sites.gas.travel/</span>
-                            <input type="text" id="deploy-slug" class="form-input" style="border-radius: 0 8px 8px 0; flex: 1;" placeholder="elevate" required pattern="[a-z0-9-]+">
+                            <input type="text" id="deploy-slug" class="form-input" style="border-radius: 0 8px 8px 0; flex: 1;" placeholder="elevate" pattern="[a-z0-9-]+">
                         </div>
                     </div>
                 </div>
                 
-                <div class="form-group" style="margin-bottom: 1.5rem;">
+                <div id="admin-email-field" class="form-group" style="margin-bottom: 1.5rem;">
                     <label>Admin Email *</label>
                     <input type="email" id="deploy-admin-email" class="form-input" placeholder="admin@example.com" required>
                 </div>
                 
                 <!-- Template Selection -->
                 <div class="form-group" style="margin-bottom: 1.5rem;">
-                    <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;"> Select Template *</label>
+                    <label style="font-weight: 600; margin-bottom: 0.75rem; display: block;">Select Product Type *</label>
                     <div id="deploy-template-container" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem;">
+                        <!-- Plugin Only -->
+                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
+                            <input type="radio" name="deploy-template" value="plugin-only" style="display: none;">
+                            <div style="background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%); padding: 2rem; text-align: center; border-bottom: 1px solid #7c3aed;">
+                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🔌</div>
+                                <div style="width: 60px; height: 40px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; margin: 0 auto;"></div>
+                            </div>
+                            <div style="padding: 1rem; background: white;">
+                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Plugin Only</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Download for your own WordPress site</div>
+                                <div style="font-size: 0.75rem; color: #8b5cf6; font-weight: 600; margin-top: 0.25rem;">From $19.99/mo</div>
+                            </div>
+                        </label>
+                        
+                        <!-- Custom Bespoke -->
+                        <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
+                            <input type="radio" name="deploy-template" value="custom-bespoke" style="display: none;">
+                            <div style="background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%); padding: 2rem; text-align: center; border-bottom: 1px solid #b45309;">
+                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">✨</div>
+                                <div style="width: 60px; height: 40px; background: rgba(255,255,255,0.2); border: 1px solid rgba(255,255,255,0.3); border-radius: 4px; margin: 0 auto;"></div>
+                            </div>
+                            <div style="padding: 1rem; background: white;">
+                                <div style="font-weight: 600; margin-bottom: 0.25rem;">Custom Bespoke</div>
+                                <div style="font-size: 0.8rem; color: var(--text-secondary);">Fully custom design on premium hosting</div>
+                                <div style="font-size: 0.75rem; color: #f59e0b; font-weight: 600; margin-top: 0.25rem;">From $199/mo</div>
+                            </div>
+                        </label>
+                        
                         <!-- Light Template -->
                         <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
                             <input type="radio" name="deploy-template" value="developer-light" checked style="display: none;">
                             <div style="background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%); padding: 2rem; text-align: center; border-bottom: 1px solid var(--border);">
-                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;"></div>
+                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">☀️</div>
                                 <div style="width: 60px; height: 40px; background: #ffffff; border: 1px solid #e2e8f0; border-radius: 4px; margin: 0 auto;"></div>
                             </div>
                             <div style="padding: 1rem; background: white;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem;">Developer Light</div>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Clean, bright white backgrounds</div>
+                                <div style="font-size: 0.75rem; color: #10b981; font-weight: 600; margin-top: 0.25rem;">From $49/mo</div>
                             </div>
                         </label>
                         
@@ -11121,18 +11150,20 @@ Local honey and preserves"></textarea>
                         <label class="template-option" style="cursor: pointer; border: 2px solid var(--border); border-radius: 12px; overflow: hidden; transition: all 0.2s;">
                             <input type="radio" name="deploy-template" value="developer-dark" style="display: none;">
                             <div style="background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%); padding: 2rem; text-align: center; border-bottom: 1px solid #334155;">
-                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;"></div>
+                                <div style="font-size: 2.5rem; margin-bottom: 0.5rem;">🌙</div>
                                 <div style="width: 60px; height: 40px; background: #0f172a; border: 1px solid #334155; border-radius: 4px; margin: 0 auto;"></div>
                             </div>
                             <div style="padding: 1rem; background: white;">
                                 <div style="font-weight: 600; margin-bottom: 0.25rem;">Developer Dark</div>
                                 <div style="font-size: 0.8rem; color: var(--text-secondary);">Elegant dark grey/black theme</div>
+                                <div style="font-size: 0.75rem; color: #10b981; font-weight: 600; margin-top: 0.25rem;">From $49/mo</div>
                             </div>
                         </label>
                     </div>
                 </div>
                 
-                <!-- Room Selection -->
+                <!-- Standard Site Fields (hidden for Plugin Only and Custom) -->
+                <div id="standard-site-fields">
                 <div class="form-group" style="margin-bottom: 1.5rem;">
                     <label style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                         <span style="font-weight: 600;"> Select Rooms to Display *</span>
@@ -11200,6 +11231,77 @@ Local honey and preserves"></textarea>
                         <li>Connected to GAS booking system</li>
                     </ul>
                 </div>
+                </div><!-- End standard-site-fields -->
+                
+                <!-- Plugin Only Content -->
+                <div id="plugin-only-fields" style="display: none;">
+                    <div style="background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%); border: 2px solid #c084fc; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: #7c3aed; display: flex; align-items: center; gap: 0.5rem;">
+                            🔌 GAS Booking Plugin
+                        </h4>
+                        <p style="color: #6b21a8; margin: 0 0 1rem 0; font-size: 0.95rem;">
+                            Download our powerful booking plugin and install it on your own WordPress site. Perfect if you already have a website and just need the booking functionality.
+                        </p>
+                        <ul style="margin: 0 0 1.5rem 0; padding-left: 1.25rem; color: #6b21a8; font-size: 0.9rem;">
+                            <li>Booking calendar & availability</li>
+                            <li>Room/property shortcodes</li>
+                            <li>Payment integration (Stripe)</li>
+                            <li>Channel manager sync</li>
+                            <li>Works with any WordPress theme</li>
+                        </ul>
+                        <div style="background: white; border-radius: 8px; padding: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                                <span style="font-weight: 600; color: #1e293b;">Plugin License</span>
+                                <span style="font-size: 1.5rem; font-weight: 700; color: #7c3aed;">$19.99<span style="font-size: 0.9rem; font-weight: 400;">/mo</span></span>
+                            </div>
+                            <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Includes updates, support, and API access</p>
+                        </div>
+                    </div>
+                    <div id="plugin-download-section" style="display: none; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 0.5rem 0; color: #166534;">✅ Plugin Ready!</h4>
+                        <p style="color: #166534; margin: 0 0 1rem 0; font-size: 0.9rem;">Your plugin license is active. Download and install on your WordPress site.</p>
+                        <a href="#" id="plugin-download-link" class="btn" style="background: #10b981; display: inline-block;">📥 Download Plugin (.zip)</a>
+                    </div>
+                </div>
+                
+                <!-- Custom Bespoke Content -->
+                <div id="custom-bespoke-fields" style="display: none;">
+                    <div style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: #b45309; display: flex; align-items: center; gap: 0.5rem;">
+                            ✨ Custom Bespoke Website
+                        </h4>
+                        <p style="color: #92400e; margin: 0 0 1rem 0; font-size: 0.95rem;">
+                            Get a fully custom-designed website tailored to your brand. Hosted on our premium servers with full WordPress access, Elementor Pro, and dedicated support.
+                        </p>
+                        <ul style="margin: 0 0 1.5rem 0; padding-left: 1.25rem; color: #92400e; font-size: 0.9rem;">
+                            <li>Unique custom design</li>
+                            <li>Premium hosting on custom.gas.travel</li>
+                            <li>Full WordPress admin access</li>
+                            <li>Elementor Pro included</li>
+                            <li>GAS Booking Plugin included</li>
+                            <li>Priority support</li>
+                        </ul>
+                        <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                                <span style="font-weight: 600; color: #1e293b;">Custom Website</span>
+                                <span style="font-size: 1.5rem; font-weight: 700; color: #f59e0b;">From $199<span style="font-size: 0.9rem; font-weight: 400;">/mo</span></span>
+                            </div>
+                            <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Setup fee may apply depending on complexity</p>
+                        </div>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Tell us about your project</label>
+                        <textarea id="custom-project-description" rows="4" class="form-input" placeholder="Describe your ideal website - style, features, inspiration sites, etc." style="width: 100%; resize: vertical;"></textarea>
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Reference Website (optional)</label>
+                        <input type="url" id="custom-reference-url" class="form-input" placeholder="https://example.com - A site style you like">
+                    </div>
+                    <div class="form-group" style="margin-bottom: 1.5rem;">
+                        <label style="font-weight: 600; margin-bottom: 0.5rem; display: block;">Best contact number</label>
+                        <input type="tel" id="custom-phone" class="form-input" placeholder="+1 234 567 8900">
+                    </div>
+                </div>
                 
                 <div id="deploy-progress" style="display: none; background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem; margin-bottom: 1rem; text-align: center;">
                     <div style="font-size: 1.5rem; margin-bottom: 0.5rem;"></div>
@@ -11213,7 +11315,7 @@ Local honey and preserves"></textarea>
                 
                 <div style="display: flex; gap: 1rem; justify-content: flex-end; margin-top: 1.5rem; padding-top: 1.5rem; border-top: 1px solid var(--border);">
                     <button type="button" class="btn btn-secondary" onclick="closeModal('deployModal')">Cancel</button>
-                    <button type="submit" class="btn" id="deploy-submit-btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);"> Deploy Site</button>
+                    <button type="submit" class="btn" id="deploy-submit-btn" style="background: linear-gradient(135deg, #10b981 0%, #059669 100%);">🚀 Deploy Site</button>
                 </div>
             </form>
         </div>
@@ -22421,7 +22523,17 @@ Local honey and preserves"></textarea>
             document.getElementById('deploy-progress').style.display = 'none';
             document.getElementById('deploy-result').style.display = 'none';
             document.getElementById('deploy-submit-btn').disabled = false;
-            document.getElementById('deploy-submit-btn').textContent = ' Deploy Site';
+            document.getElementById('deploy-submit-btn').textContent = '🚀 Deploy Site';
+            
+            // Reset to show standard fields by default
+            handleTemplateChange('developer-light');
+            
+            // Add template change listeners
+            document.querySelectorAll('input[name="deploy-template"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    handleTemplateChange(this.value);
+                });
+            });
             
             const container = document.getElementById('deploy-rooms-container');
             container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);">Loading rooms...</div>';
@@ -22521,6 +22633,60 @@ Local honey and preserves"></textarea>
             openModal('deployModal');
         }
         
+        function handleTemplateChange(templateValue) {
+            const standardFields = document.getElementById('standard-site-fields');
+            const pluginOnlyFields = document.getElementById('plugin-only-fields');
+            const customBespokeFields = document.getElementById('custom-bespoke-fields');
+            const submitBtn = document.getElementById('deploy-submit-btn');
+            const siteDetailsFields = document.getElementById('site-details-fields');
+            const adminEmailField = document.getElementById('admin-email-field');
+            
+            // Hide all optional sections first
+            if (standardFields) standardFields.style.display = 'none';
+            if (pluginOnlyFields) pluginOnlyFields.style.display = 'none';
+            if (customBespokeFields) customBespokeFields.style.display = 'none';
+            
+            // Update visual selection on template cards
+            document.querySelectorAll('.template-option').forEach(opt => {
+                const radio = opt.querySelector('input[type="radio"]');
+                if (radio && radio.value === templateValue) {
+                    opt.style.borderColor = '#10b981';
+                    opt.style.boxShadow = '0 0 0 3px rgba(16, 185, 129, 0.2)';
+                } else {
+                    opt.style.borderColor = 'var(--border)';
+                    opt.style.boxShadow = 'none';
+                }
+            });
+            
+            switch(templateValue) {
+                case 'plugin-only':
+                    // Hide site name/slug for plugin only, keep email
+                    if (siteDetailsFields) siteDetailsFields.style.display = 'none';
+                    if (pluginOnlyFields) pluginOnlyFields.style.display = 'block';
+                    submitBtn.textContent = '🔌 Get Plugin License';
+                    submitBtn.style.background = 'linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%)';
+                    break;
+                    
+                case 'custom-bespoke':
+                    // Hide site name/slug, show contact form
+                    if (siteDetailsFields) siteDetailsFields.style.display = 'none';
+                    if (customBespokeFields) customBespokeFields.style.display = 'block';
+                    submitBtn.textContent = '✨ Request Custom Quote';
+                    submitBtn.style.background = 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)';
+                    break;
+                    
+                case 'developer-light':
+                case 'developer-dark':
+                default:
+                    // Show all standard fields
+                    if (siteDetailsFields) siteDetailsFields.style.display = 'grid';
+                    if (standardFields) standardFields.style.display = 'block';
+                    submitBtn.textContent = '🚀 Deploy Site';
+                    submitBtn.style.background = 'linear-gradient(135deg, #10b981 0%, #059669 100%)';
+                    break;
+            }
+        }
+        
         function toggleDeployPropertyGroup(groupIdx) {
             const roomsList = document.getElementById(`deploy-rooms-${groupIdx}`);
             const arrow = document.getElementById(`deploy-arrow-${groupIdx}`);
@@ -22589,9 +22755,24 @@ Local honey and preserves"></textarea>
         async function deployNewSite(event) {
             event.preventDefault();
             
+            const selectedTemplate = document.querySelector('input[name="deploy-template"]:checked')?.value || 'developer-light';
+            const adminEmail = document.getElementById('deploy-admin-email').value;
+            
+            // Handle Plugin Only
+            if (selectedTemplate === 'plugin-only') {
+                await handlePluginOnlyRequest(adminEmail);
+                return;
+            }
+            
+            // Handle Custom Bespoke
+            if (selectedTemplate === 'custom-bespoke') {
+                await handleCustomBespokeRequest(adminEmail);
+                return;
+            }
+            
+            // Standard site deployment
             const siteName = document.getElementById('deploy-site-name').value;
             const slug = document.getElementById('deploy-slug').value;
-            const adminEmail = document.getElementById('deploy-admin-email').value;
             const selectedRooms = getSelectedRooms();
             
             // Validation
@@ -22695,6 +22876,132 @@ Local honey and preserves"></textarea>
                 document.getElementById('deploy-progress').style.display = 'none';
                 document.getElementById('deploy-submit-btn').disabled = false;
                 showNotification('Deployment failed: ' + error.message, 'error');
+            }
+        }
+
+        async function handlePluginOnlyRequest(email) {
+            const submitBtn = document.getElementById('deploy-submit-btn');
+            const progressDiv = document.getElementById('deploy-progress');
+            const resultDiv = document.getElementById('deploy-result');
+            
+            if (!email) {
+                showNotification('Please enter your email address', 'error');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            progressDiv.style.display = 'block';
+            document.getElementById('deploy-progress-text').textContent = 'Setting up your plugin license...';
+            
+            try {
+                const response = await fetch('/api/plugin-license/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        email: email,
+                        account_id: selectedAccountId,
+                        product: 'gas-booking-plugin'
+                    })
+                });
+                
+                const data = await response.json();
+                progressDiv.style.display = 'none';
+                
+                if (data.success) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.background = '#f3e8ff';
+                    resultDiv.style.borderColor = '#c084fc';
+                    document.getElementById('deploy-result-content').innerHTML = `
+                        <h4 style="margin: 0 0 0.75rem 0; color: #7c3aed;">🔌 Plugin License Created!</h4>
+                        <p style="color: #6b21a8; margin: 0 0 1rem 0;">Your GAS Booking Plugin license is now active.</p>
+                        <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
+                            <div style="margin-bottom: 0.5rem;"><strong>License Key:</strong></div>
+                            <code style="display: block; background: #1e293b; color: #22c55e; padding: 0.75rem; border-radius: 4px; word-break: break-all;">${data.license_key || 'Will be emailed to you'}</code>
+                        </div>
+                        <a href="${data.download_url || '#'}" class="btn" style="background: #8b5cf6; display: inline-block;">📥 Download Plugin</a>
+                        <p style="font-size: 0.8rem; color: #64748b; margin: 1rem 0 0 0;">Installation instructions have been sent to ${email}</p>
+                    `;
+                    submitBtn.textContent = '✅ Done';
+                    submitBtn.disabled = false;
+                    submitBtn.onclick = () => closeModal('deployModal');
+                } else {
+                    submitBtn.disabled = false;
+                    showNotification(data.error || 'Failed to create license', 'error');
+                }
+            } catch (error) {
+                progressDiv.style.display = 'none';
+                submitBtn.disabled = false;
+                showNotification('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function handleCustomBespokeRequest(email) {
+            const submitBtn = document.getElementById('deploy-submit-btn');
+            const progressDiv = document.getElementById('deploy-progress');
+            const resultDiv = document.getElementById('deploy-result');
+            
+            const projectDescription = document.getElementById('custom-project-description')?.value || '';
+            const referenceUrl = document.getElementById('custom-reference-url')?.value || '';
+            const phone = document.getElementById('custom-phone')?.value || '';
+            
+            if (!email) {
+                showNotification('Please enter your email address', 'error');
+                return;
+            }
+            
+            if (!projectDescription) {
+                showNotification('Please describe your project', 'error');
+                return;
+            }
+            
+            submitBtn.disabled = true;
+            progressDiv.style.display = 'block';
+            document.getElementById('deploy-progress-text').textContent = 'Submitting your request...';
+            
+            try {
+                const response = await fetch('/api/custom-site/request', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({
+                        email: email,
+                        phone: phone,
+                        account_id: selectedAccountId,
+                        project_description: projectDescription,
+                        reference_url: referenceUrl
+                    })
+                });
+                
+                const data = await response.json();
+                progressDiv.style.display = 'none';
+                
+                if (data.success) {
+                    resultDiv.style.display = 'block';
+                    resultDiv.style.background = '#fef3c7';
+                    resultDiv.style.borderColor = '#f59e0b';
+                    document.getElementById('deploy-result-content').innerHTML = `
+                        <h4 style="margin: 0 0 0.75rem 0; color: #b45309;">✨ Custom Request Submitted!</h4>
+                        <p style="color: #92400e; margin: 0 0 1rem 0;">Thank you for your interest in a custom bespoke website.</p>
+                        <div style="background: white; border-radius: 8px; padding: 1rem;">
+                            <p style="margin: 0 0 0.5rem 0;"><strong>What happens next:</strong></p>
+                            <ol style="margin: 0; padding-left: 1.25rem; color: #92400e; font-size: 0.9rem;">
+                                <li>We'll review your project requirements</li>
+                                <li>You'll receive a custom quote within 24-48 hours</li>
+                                <li>Once approved, we'll schedule a kickoff call</li>
+                            </ol>
+                        </div>
+                        <p style="font-size: 0.8rem; color: #64748b; margin: 1rem 0 0 0;">Confirmation sent to ${email}</p>
+                    `;
+                    submitBtn.textContent = '✅ Done';
+                    submitBtn.disabled = false;
+                    submitBtn.onclick = () => closeModal('deployModal');
+                } else {
+                    submitBtn.disabled = false;
+                    showNotification(data.error || 'Failed to submit request', 'error');
+                }
+            } catch (error) {
+                progressDiv.style.display = 'none';
+                submitBtn.disabled = false;
+                showNotification('Error: ' + error.message, 'error');
             }
         }
 
