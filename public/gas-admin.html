@@ -6301,7 +6301,7 @@
                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem;">
                             <div>
                                 <h4 style="color: #f59e0b; margin: 0 0 0.5rem 0; font-size: 0.9rem;">Connect to Premium VPS</h4>
-                                <code style="display: block; background: #0f172a; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer;" onclick="navigator.clipboard.writeText('ssh root@31.97.119.90'); showNotification('Copied!', 'success');">ssh root@31.97.119.90</code>
+                                <code style="display: block; background: #0f172a; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer;" onclick="navigator.clipboard.writeText('ssh root@31.97.119.90'); showNotification('Copied!', 'success');">ssh <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="8bf9e4e4ffcbb8baa5b2bca5babab2a5b2bb">[email&#160;protected]</a></code>
                             </div>
                             <div>
                                 <h4 style="color: #f59e0b; margin: 0 0 0.5rem 0; font-size: 0.9rem;">VPS IP Address</h4>
@@ -6319,7 +6319,7 @@
                         
                         <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #334155;">
                             <h4 style="color: #22c55e; margin: 0 0 0.5rem 0; font-size: 0.9rem;">🔒 SSL Certificate Command (replace [slug])</h4>
-                            <code style="display: block; background: #0f172a; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer; word-break: break-all;" onclick="navigator.clipboard.writeText('certbot --apache -d [slug].custom.gas.travel --non-interactive --agree-tos -m steve@gas.travel'); showNotification('Copied! Remember to replace [slug]', 'success');">certbot --apache -d [slug].custom.gas.travel --non-interactive --agree-tos -m steve@gas.travel</code>
+                            <code style="display: block; background: #0f172a; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer; word-break: break-all;" onclick="navigator.clipboard.writeText('certbot --apache -d [slug].custom.gas.travel --non-interactive --agree-tos -m steve@gas.travel'); showNotification('Copied! Remember to replace [slug]', 'success');">certbot --apache -d [slug].custom.gas.travel --non-interactive --agree-tos -m <a href="/cdn-cgi/l/email-protection" class="__cf_email__" data-cfemail="116265746774517670623f65637067747d">[email&#160;protected]</a></code>
                         </div>
                         
                         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155;">
@@ -14717,7 +14717,7 @@ Local honey and preserves"></textarea>
         </div>
     </div>
 
-    <script>
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
         // =====================================================
         // AUTHENTICATION
         // =====================================================
@@ -18039,6 +18039,7 @@ Local honey and preserves"></textarea>
                     <table>
                         <thead>
                             <tr>
+                                <th>ID</th>
                                 <th>Account</th>
                                 <th>Code</th>
                                 <th>Role</th>
@@ -18053,6 +18054,7 @@ Local honey and preserves"></textarea>
                         <tbody>
                             ${accounts.map(account => `
                                 <tr>
+                                    <td><code style="background: var(--bg-secondary); padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.8rem; cursor: pointer;" onclick="navigator.clipboard.writeText('${account.id}'); showNotification('Account ID copied!', 'success');" title="Click to copy">${account.id}</code></td>
                                     <td>
                                         <div style="display: flex; align-items: center; gap: 0.75rem;">
                                             <div style="width: 40px; height: 40px; border-radius: 8px; background: linear-gradient(135deg, ${account.primary_color || '#6366f1'} 0%, ${account.secondary_color || '#8b5cf6'} 100%); display: flex; align-items: center; justify-content: center; color: white; font-weight: 700;">
@@ -39179,13 +39181,4 @@ Local honey and preserves"></textarea>
         <div class="ai-chat-quick" id="ai-chat-quick-buttons">
             <button onclick="askQuickQuestion('How do I create a blog post?')">Create blog</button>
             <button onclick="askQuickQuestion('How do I add attractions?')">Add attractions</button>
-            <button onclick="askQuickQuestion('How do pricing tiers work?')">Pricing help</button>
-        </div>
-        
-        <div class="ai-chat-input-area">
-            <input type="text" id="ai-chat-input" placeholder="Ask Gus anything..." onkeypress="handleAIChatKeypress(event)">
-            <button class="ai-chat-send" onclick="sendAIChatMessage()"></button>
-        </div>
-    </div>
-</body>
-</html>
+            <button onclick="askQuickQuestion('How do pricing tier
