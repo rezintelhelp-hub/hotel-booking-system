@@ -22296,11 +22296,12 @@ Local honey and preserves"></textarea>
                 const data = await response.json();
                 
                 if (data.success && data.sites && data.sites.length > 0) {
-                    let html = '<div class="table-container"><table><thead><tr><th>Site</th><th>Admin Email</th><th>Created</th><th>Links</th><th>Credentials</th></tr></thead><tbody>';
+                    let html = '<div class="table-container"><table><thead><tr><th>Site</th><th>Admin Email</th><th>Created</th><th>Links</th><th>Credentials</th><th>SSL Command</th></tr></thead><tbody>';
                     
                     for (const site of data.sites) {
                         const date = new Date(site.created_at).toLocaleDateString();
                         const creds = site.credentials ? JSON.parse(site.credentials) : {};
+                        const sslCmd = `certbot --apache -d ${site.domain} --non-interactive --agree-tos -m steve@gas.travel`;
                         
                         html += `<tr>
                             <td>
@@ -22314,7 +22315,10 @@ Local honey and preserves"></textarea>
                                 <a href="https://${site.domain}/wp-admin" target="_blank" class="btn btn-small">⚙️ Admin</a>
                             </td>
                             <td>
-                                <button class="btn btn-small btn-secondary" onclick="showCredentials('${creds.wp_user || 'admin'}', '${creds.wp_pass || ''}')">🔑 Show</button>
+                                <button class="btn btn-small btn-secondary" onclick="showCredentials('${creds.wp_user || 'admin'}', '${creds.wp_pass || 'Check VPS'}')">🔑 Show</button>
+                            </td>
+                            <td>
+                                <button class="btn btn-small" style="background: #1e293b; font-size: 0.7rem;" onclick="navigator.clipboard.writeText('${sslCmd}'); showNotification('SSL command copied!', 'success');">📋 Copy SSL</button>
                             </td>
                         </tr>`;
                     }
