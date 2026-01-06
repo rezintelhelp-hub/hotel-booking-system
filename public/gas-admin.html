@@ -6316,6 +6316,12 @@
                                 <code style="display: block; background: #0f172a; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer;" onclick="navigator.clipboard.writeText('systemctl restart apache2'); showNotification('Copied!', 'success');">systemctl restart apache2</code>
                             </div>
                         </div>
+                        
+                        <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid #334155;">
+                            <h4 style="color: #22c55e; margin: 0 0 0.5rem 0; font-size: 0.9rem;">🔒 SSL Certificate Command (replace [slug])</h4>
+                            <code style="display: block; background: #0f172a; padding: 0.75rem; border-radius: 4px; font-size: 0.85rem; cursor: pointer; word-break: break-all;" onclick="navigator.clipboard.writeText('certbot --apache -d [slug].custom.gas.travel --non-interactive --agree-tos -m steve@gas.travel'); showNotification('Copied! Remember to replace [slug]', 'success');">certbot --apache -d [slug].custom.gas.travel --non-interactive --agree-tos -m steve@gas.travel</code>
+                        </div>
+                        
                         <div style="margin-top: 1rem; padding-top: 1rem; border-top: 1px solid #334155;">
                             <small style="color: #64748b;">Click any command to copy to clipboard</small>
                         </div>
