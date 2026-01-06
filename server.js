@@ -18147,21 +18147,100 @@ app.post('/api/webhooks/hostaway', async (req, res) => {
       const arrival = reservation.arrivalDate;
       const departure = reservation.departureDate;
       const status = reservation.status;
+      const reservationId = reservation.id;
       
-      // Find our room by hostaway_listing_id
+      // Find our room and property by hostaway_listing_id
       const roomResult = await client.query(`
-        SELECT id FROM bookable_units WHERE hostaway_listing_id = $1
-      `, [listingId]);
+        SELECT bu.id as room_id, bu.property_id, p.account_id
+        FROM bookable_units bu
+        JOIN properties p ON bu.property_id = p.id
+        WHERE bu.hostaway_listing_id = $1
+      `, [String(listingId)]);
       
       if (roomResult.rows.length > 0) {
-        const ourRoomId = roomResult.rows[0].id;
+        const room = roomResult.rows[0];
         
+        await client.query('BEGIN');
+        
+        // Map status
+        const statusMap = {
+          'new': 'confirmed', 'confirmed': 'confirmed', 'modified': 'confirmed',
+          'cancelled': 'cancelled', 'declined': 'cancelled', 'expired': 'cancelled'
+        };
+        const gasStatus = statusMap[status] || 'confirmed';
+        
+        // Check if booking already exists
+        const existingBooking = await client.query(
+          'SELECT id FROM bookings WHERE hostaway_reservation_id = $1',
+          [String(reservationId)]
+        );
+        
+        if (existingBooking.rows.length > 0) {
+          // Update existing booking
+          await client.query(`
+            UPDATE bookings SET
+              status = $1,
+              check_in = $2,
+              check_out = $3,
+              guest_first_name = $4,
+              guest_last_name = $5,
+              guest_email = $6,
+              num_adults = $7,
+              total_price = $8,
+              updated_at = NOW()
+            WHERE id = $9
+          `, [
+            gasStatus,
+            arrival,
+            departure,
+            reservation.guestFirstName || 'Guest',
+            reservation.guestLastName || '',
+            reservation.guestEmail || '',
+            reservation.adults || reservation.numberOfGuests || 1,
+            reservation.totalPrice || 0,
+            existingBooking.rows[0].id
+          ]);
+          console.log(`Hostaway webhook: Updated booking ${existingBooking.rows[0].id}`);
+        } else if (gasStatus !== 'cancelled') {
+          // Create new booking
+          const newBooking = await client.query(`
+            INSERT INTO bookings (
+              property_id, room_id, account_id,
+              check_in, check_out,
+              guest_first_name, guest_last_name, guest_email, guest_phone,
+              num_adults, total_price, currency, status,
+              hostaway_reservation_id, channel_name, source,
+              created_at, updated_at
+            ) VALUES (
+              $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'hostaway_webhook',
+              NOW(), NOW()
+            )
+            RETURNING id
+          `, [
+            room.property_id,
+            room.room_id,
+            room.account_id,
+            arrival,
+            departure,
+            reservation.guestFirstName || 'Guest',
+            reservation.guestLastName || '',
+            reservation.guestEmail || '',
+            reservation.guestPhone || '',
+            reservation.adults || reservation.numberOfGuests || 1,
+            reservation.totalPrice || 0,
+            reservation.currency || 'USD',
+            gasStatus,
+            String(reservationId),
+            reservation.channelName || 'Hostaway'
+          ]);
+          console.log(`Hostaway webhook: Created booking ${newBooking.rows[0].id}`);
+        }
+        
+        // Update availability for booked dates
         if (arrival && departure) {
-          await client.query('BEGIN');
-          
           const startDate = new Date(arrival);
           const endDate = new Date(departure);
-          const isAvailable = status === 'cancelled';
+          const isAvailable = gasStatus === 'cancelled';
           
           for (let d = new Date(startDate); d < endDate; d.setDate(d.getDate() + 1)) {
             const dateStr = d.toISOString().split('T')[0];
@@ -18170,18 +18249,22 @@ app.post('/api/webhooks/hostaway', async (req, res) => {
               VALUES ($1, $2, $3, false, 'hostaway_webhook')
               ON CONFLICT (room_id, date) 
               DO UPDATE SET is_available = $3, source = 'hostaway_webhook', updated_at = NOW()
-            `, [ourRoomId, dateStr, isAvailable]);
+            `, [room.room_id, dateStr, isAvailable]);
           }
           
-          await client.query('COMMIT');
-          console.log(`Updated availability for room ${ourRoomId}: ${arrival} to ${departure}, available: ${isAvailable}`);
+          console.log(`Hostaway webhook: Updated availability for room ${room.room_id}: ${arrival} to ${departure}, available: ${isAvailable}`);
         }
+        
+        await client.query('COMMIT');
+      } else {
+        console.log(`Hostaway webhook: No room found for listing ${listingId}`);
       }
     }
     
     res.status(200).json({ success: true, received: true });
     
   } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
     console.error('Hostaway webhook error:', error);
     res.status(200).json({ success: false, error: error.message });
   } finally {
@@ -34165,6 +34248,108 @@ async function syncAllChannelManagers() {
       }
     }
     
+    // =====================================================
+    // NEW: Sync Hostaway via gas_sync_connections
+    // =====================================================
+    try {
+      const hostawayConnections = await pool.query(`
+        SELECT * FROM gas_sync_connections 
+        WHERE adapter_code = 'hostaway' AND sync_enabled = true AND status = 'connected'
+      `);
+      
+      for (const conn of hostawayConnections.rows) {
+        try {
+          console.log(`  🔄 Syncing Hostaway for account ${conn.account_id}...`);
+          
+          const credentials = typeof conn.credentials === 'string' 
+            ? JSON.parse(conn.credentials) 
+            : conn.credentials || {};
+          
+          // Get fresh token
+          let token = conn.access_token;
+          if (!token && credentials.accountId && credentials.apiKey) {
+            const tokenResponse = await axios.post(
+              'https://api.hostaway.com/v1/accessTokens',
+              `grant_type=client_credentials&client_id=${credentials.accountId}&client_secret=${credentials.apiKey}`,
+              { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+            );
+            token = tokenResponse.data?.access_token;
+            if (token) {
+              await pool.query('UPDATE gas_sync_connections SET access_token = $1 WHERE id = $2', [token, conn.id]);
+            }
+          }
+          
+          if (!token) {
+            console.log(`    ❌ Could not get Hostaway token for account ${conn.account_id}`);
+            continue;
+          }
+          
+          // Get Hostaway rooms for this connection
+          const roomsResult = await pool.query(`
+            SELECT bu.id as room_id, bu.hostaway_listing_id, bu.name
+            FROM bookable_units bu
+            JOIN properties p ON bu.property_id = p.id
+            WHERE p.account_id = $1 AND bu.hostaway_listing_id IS NOT NULL
+          `, [conn.account_id]);
+          
+          if (roomsResult.rows.length === 0) {
+            console.log(`    ⚠️ No Hostaway rooms for account ${conn.account_id}`);
+            continue;
+          }
+          
+          // Sync availability for next 90 days
+          const today = new Date().toISOString().split('T')[0];
+          const endDate = new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+          let totalDays = 0;
+          
+          for (const room of roomsResult.rows) {
+            try {
+              const calResponse = await axios.get(
+                `https://api.hostaway.com/v1/listings/${room.hostaway_listing_id}/calendar`,
+                {
+                  headers: { 'Authorization': `Bearer ${token}` },
+                  params: { startDate: today, endDate: endDate }
+                }
+              );
+              
+              const calendar = calResponse.data?.result || [];
+              
+              for (const day of calendar) {
+                const isAvailable = day.status === 'available';
+                const isBlocked = day.status === 'blocked';
+                
+                await pool.query(`
+                  INSERT INTO room_availability (room_id, date, cm_price, direct_price, is_available, is_blocked, min_stay, source)
+                  VALUES ($1, $2, $3, $3, $4, $5, $6, 'hostaway')
+                  ON CONFLICT (room_id, date) DO UPDATE SET
+                    cm_price = COALESCE($3, room_availability.cm_price),
+                    direct_price = COALESCE($3, room_availability.direct_price),
+                    is_available = $4, is_blocked = $5, min_stay = $6,
+                    source = 'hostaway', updated_at = NOW()
+                `, [room.room_id, day.date, day.price || null, isAvailable, isBlocked, day.minimumStay || 1]);
+                
+                totalDays++;
+              }
+              
+              // Rate limit
+              await new Promise(r => setTimeout(r, 700));
+            } catch (roomErr) {
+              console.log(`    ⚠️ Failed to sync ${room.name}: ${roomErr.message}`);
+            }
+          }
+          
+          // Update last sync time
+          await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [conn.id]);
+          
+          console.log(`  ✅ Synced Hostaway account ${conn.account_id}: ${roomsResult.rows.length} rooms, ${totalDays} days`);
+        } catch (connErr) {
+          console.log(`  ❌ Hostaway sync failed for connection ${conn.id}: ${connErr.message}`);
+        }
+      }
+    } catch (hostawayErr) {
+      console.log(`  ❌ Hostaway scheduled sync error: ${hostawayErr.message}`);
+    }
+    
     console.log('🔄 Scheduled sync complete');
   } catch (error) {
     console.error('Scheduled sync error:', error.message);
@@ -34346,6 +34531,132 @@ setInterval(runBeds24BookingsSync, 15 * 60 * 1000);
 
 // Schedule Beds24 full inventory sync every 6 hours
 setInterval(runBeds24InventorySync, 6 * 60 * 60 * 1000);
+
+// =========================================================
+// HOSTAWAY SCHEDULED RESERVATIONS SYNC
+// =========================================================
+
+async function runHostawayReservationsSync() {
+  try {
+    console.log('⏰ [Scheduled] Starting Hostaway reservations sync...');
+    
+    const connections = await pool.query(`
+      SELECT * FROM gas_sync_connections 
+      WHERE adapter_code = 'hostaway' AND sync_enabled = true AND status = 'connected'
+    `);
+    
+    if (connections.rows.length === 0) {
+      console.log('⏰ [Scheduled] No active Hostaway connections');
+      return;
+    }
+    
+    let totalCreated = 0;
+    let totalUpdated = 0;
+    
+    for (const conn of connections.rows) {
+      try {
+        const credentials = typeof conn.credentials === 'string' 
+          ? JSON.parse(conn.credentials) 
+          : conn.credentials || {};
+        
+        // Get fresh token
+        let token = conn.access_token;
+        if (!token && credentials.accountId && credentials.apiKey) {
+          const tokenResponse = await axios.post(
+            'https://api.hostaway.com/v1/accessTokens',
+            `grant_type=client_credentials&client_id=${credentials.accountId}&client_secret=${credentials.apiKey}`,
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+          );
+          token = tokenResponse.data?.access_token;
+        }
+        
+        if (!token) continue;
+        
+        // Get room mapping
+        const roomsResult = await pool.query(`
+          SELECT bu.id as room_id, bu.hostaway_listing_id, p.id as property_id, p.account_id
+          FROM bookable_units bu
+          JOIN properties p ON bu.property_id = p.id
+          WHERE p.account_id = $1 AND bu.hostaway_listing_id IS NOT NULL
+        `, [conn.account_id]);
+        
+        const roomsByListingId = {};
+        roomsResult.rows.forEach(r => { roomsByListingId[r.hostaway_listing_id] = r; });
+        
+        // Fetch reservations (last 30 days + future)
+        const startDate = new Date();
+        startDate.setDate(startDate.getDate() - 30);
+        
+        const reservationsResponse = await axios.get('https://api.hostaway.com/v1/reservations', {
+          headers: { 'Authorization': `Bearer ${token}` },
+          params: {
+            limit: 200,
+            arrivalStartDate: startDate.toISOString().split('T')[0]
+          }
+        });
+        
+        const reservations = reservationsResponse.data?.result || [];
+        
+        for (const res of reservations) {
+          const room = roomsByListingId[String(res.listingMapId)];
+          if (!room) continue;
+          
+          // Check if exists
+          const existing = await pool.query(
+            'SELECT id FROM bookings WHERE hostaway_reservation_id = $1',
+            [String(res.id)]
+          );
+          
+          const statusMap = {
+            'new': 'confirmed', 'confirmed': 'confirmed', 'modified': 'confirmed',
+            'cancelled': 'cancelled', 'declined': 'cancelled', 'expired': 'cancelled'
+          };
+          const gasStatus = statusMap[res.status] || 'confirmed';
+          
+          if (existing.rows.length > 0) {
+            await pool.query(`
+              UPDATE bookings SET status = $1, updated_at = NOW() WHERE id = $2
+            `, [gasStatus, existing.rows[0].id]);
+            totalUpdated++;
+          } else if (gasStatus !== 'cancelled') {
+            await pool.query(`
+              INSERT INTO bookings (
+                property_id, room_id, account_id, check_in, check_out,
+                guest_first_name, guest_last_name, guest_email, guest_phone,
+                num_adults, total_price, currency, status,
+                hostaway_reservation_id, channel_name, source, created_at, updated_at
+              ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, 'hostaway', NOW(), NOW())
+            `, [
+              room.property_id, room.room_id, room.account_id,
+              res.arrivalDate, res.departureDate,
+              res.guestFirstName || 'Guest', res.guestLastName || '',
+              res.guestEmail || '', res.guestPhone || '',
+              res.adults || res.numberOfGuests || 1,
+              res.totalPrice || 0, res.currency || 'USD', gasStatus,
+              String(res.id), res.channelName || 'Hostaway'
+            ]);
+            totalCreated++;
+          }
+        }
+        
+        await pool.query('UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1', [conn.id]);
+        
+      } catch (connErr) {
+        console.log(`⏰ [Scheduled] Hostaway reservations error for connection ${conn.id}: ${connErr.message}`);
+      }
+    }
+    
+    console.log(`⏰ [Scheduled] Hostaway reservations sync complete: ${totalCreated} created, ${totalUpdated} updated`);
+  } catch (error) {
+    console.error('⏰ [Scheduled] Hostaway reservations sync error:', error.message);
+  }
+}
+
+// Schedule Hostaway reservations sync every 15 minutes
+setInterval(runHostawayReservationsSync, 15 * 60 * 1000);
+
+// Run initial Hostaway sync 90 seconds after startup
+setTimeout(runHostawayReservationsSync, 90 * 1000);
 
 // OLD GasSync availability sync - DISABLED (replaced by tiered sync)
 // This was causing "column name does not exist" error
