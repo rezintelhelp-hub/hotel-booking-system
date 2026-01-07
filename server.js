@@ -38590,8 +38590,8 @@ app.post('/api/plugin/validate-license', async (req, res) => {
     
     const license = licenseResult.rows[0];
     
-    // Update last_used timestamp
-    await pool.query(`UPDATE plugin_licenses SET last_used_at = NOW() WHERE id = $1`, [license.id]);
+    // Update last_used timestamp (ignore if column doesn't exist)
+    await pool.query(`UPDATE plugin_licenses SET last_used_at = NOW() WHERE id = $1`, [license.id]).catch(() => {});
     
     res.json({
       success: true,
