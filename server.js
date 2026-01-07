@@ -38224,6 +38224,15 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
   }
 });
 
+// Serve frontend - MUST BE LAST (after all API routes)
+app.get('*', (req, res) => {
+  // Don't serve index.html for API routes - return 404 instead
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // ============================================
 // BEDS24 WIZARD ENDPOINTS
 // ============================================
@@ -38722,6 +38731,24 @@ app.delete('/api/plugin-licenses/:id', async (req, res) => {
   }
 });
 
+// Permanently delete license
+app.delete('/api/plugin-licenses/:id/delete', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      DELETE FROM plugin_licenses WHERE id = $1 RETURNING *
+    `, [req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'License not found' });
+    }
+    
+    res.json({ success: true, message: 'License permanently deleted' });
+  } catch (error) {
+    console.error('Error deleting license:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get properties for plugin (requires license key in Authorization header)
 app.get('/api/plugin/properties', async (req, res) => {
   try {
@@ -39124,15 +39151,6 @@ app.get('/api/plugin/reviews', async (req, res) => {
 // ============================================
 // END PLUGIN API ENDPOINTS
 // ============================================
-
-// Serve frontend - MUST BE LAST (after all API routes)
-app.get('*', (req, res) => {
-  // Don't serve index.html for API routes - return 404 instead
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 function startTieredSyncScheduler() {
   // Run every 15 minutes (900000ms)
