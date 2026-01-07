@@ -38560,11 +38560,11 @@ app.post('/api/plugin/validate-license', async (req, res) => {
       return res.json({ success: false, error: 'License key required' });
     }
     
-    // Look up license in plugin_licenses table
+    // Look up license in plugin_licenses table (LEFT JOIN in case account_id is null)
     const licenseResult = await pool.query(`
       SELECT pl.*, a.name as account_name, a.email as account_email
       FROM plugin_licenses pl
-      JOIN accounts a ON pl.account_id = a.id
+      LEFT JOIN accounts a ON pl.account_id = a.id
       WHERE pl.license_key = $1 AND pl.status = 'active'
     `, [license_key]);
     
@@ -38596,15 +38596,15 @@ app.post('/api/plugin/validate-license', async (req, res) => {
     res.json({
       success: true,
       account_id: license.account_id,
-      account_name: license.account_name,
-      account_email: license.account_email,
+      account_name: license.account_name || license.email,
+      account_email: license.account_email || license.email,
       plan: license.plan || 'plugin',
       room_ids: license.room_ids || []
     });
     
   } catch (error) {
     console.error('Plugin license validation error:', error);
-    res.json({ success: false, error: 'Validation failed' });
+    res.json({ success: false, error: 'Validation failed: ' + error.message });
   }
 });
 
