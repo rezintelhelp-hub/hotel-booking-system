@@ -38612,6 +38612,125 @@ app.post('/api/plugin/validate-license', async (req, res) => {
   }
 });
 
+// List all plugin licenses for an account
+app.get('/api/plugin-licenses', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    
+    let query = `
+      SELECT pl.*, a.name as account_name
+      FROM plugin_licenses pl
+      LEFT JOIN accounts a ON pl.account_id = a.id
+      ORDER BY pl.created_at DESC
+    `;
+    let params = [];
+    
+    if (accountId) {
+      query = `
+        SELECT pl.*, a.name as account_name
+        FROM plugin_licenses pl
+        LEFT JOIN accounts a ON pl.account_id = a.id
+        WHERE pl.account_id = $1
+        ORDER BY pl.created_at DESC
+      `;
+      params = [accountId];
+    }
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, licenses: result.rows });
+  } catch (error) {
+    console.error('Error fetching licenses:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single license details
+app.get('/api/plugin-licenses/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT pl.*, a.name as account_name
+      FROM plugin_licenses pl
+      LEFT JOIN accounts a ON pl.account_id = a.id
+      WHERE pl.id = $1
+    `, [req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'License not found' });
+    }
+    
+    res.json({ success: true, license: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching license:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Update license display settings
+app.put('/api/plugin-licenses/:id', async (req, res) => {
+  try {
+    const { display_settings, room_ids, status } = req.body;
+    
+    const updates = [];
+    const values = [];
+    let paramIndex = 1;
+    
+    if (display_settings !== undefined) {
+      updates.push(`display_settings = $${paramIndex++}`);
+      values.push(JSON.stringify(display_settings));
+    }
+    
+    if (room_ids !== undefined) {
+      updates.push(`room_ids = $${paramIndex++}`);
+      values.push(JSON.stringify(room_ids));
+    }
+    
+    if (status !== undefined) {
+      updates.push(`status = $${paramIndex++}`);
+      values.push(status);
+    }
+    
+    if (updates.length === 0) {
+      return res.json({ success: false, error: 'No updates provided' });
+    }
+    
+    values.push(req.params.id);
+    
+    const result = await pool.query(`
+      UPDATE plugin_licenses 
+      SET ${updates.join(', ')}
+      WHERE id = $${paramIndex}
+      RETURNING *
+    `, values);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'License not found' });
+    }
+    
+    res.json({ success: true, license: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating license:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Delete/deactivate license
+app.delete('/api/plugin-licenses/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      UPDATE plugin_licenses SET status = 'inactive' WHERE id = $1 RETURNING *
+    `, [req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'License not found' });
+    }
+    
+    res.json({ success: true, message: 'License deactivated' });
+  } catch (error) {
+    console.error('Error deactivating license:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get properties for plugin (requires license key in Authorization header)
 app.get('/api/plugin/properties', async (req, res) => {
   try {
