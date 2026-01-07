@@ -1614,6 +1614,10 @@
                         <span class="nav-icon">✨</span>
                         <span>Custom Sites</span>
                     </a>
+                    <a class="nav-item master-only" data-view="plugin-licenses" href="#" onclick="navClick(this, 'plugin-licenses'); return false;" style="display: none;">
+                        <span class="nav-icon">🔑</span>
+                        <span>Plugin Licenses</span>
+                    </a>
                     </div>
                 </div>
 
@@ -6369,6 +6373,33 @@
                         <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                             <div style="font-size: 3rem; margin-bottom: 1rem;"></div>
                             <p>Loading deployed sites...</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Plugin Licenses Management -->
+            <div id="plugin-licenses" class="view" style="display: none;">
+                <div class="header">
+                    <div class="header-top">
+                        <div>
+                            <h2>🔑 Plugin Licenses</h2>
+                            <p class="subtitle">Manage plugin licenses and display settings</p>
+                        </div>
+                        <button class="btn" onclick="loadPluginLicenses()" style="background: var(--primary);">
+                            🔄 Refresh
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <div class="card-header">
+                        <h3>Active Licenses</h3>
+                    </div>
+                    <div id="plugin-licenses-list" style="padding: 1rem;">
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🔑</div>
+                            <p>Loading licenses...</p>
                         </div>
                     </div>
                 </div>
@@ -15958,6 +15989,9 @@ Local honey and preserves"></textarea>
             if (viewName === 'custom-sites') {
                 loadCustomSiteRequests();
             }
+            if (viewName === 'plugin-licenses') {
+                loadPluginLicenses();
+            }
             if (viewName === 'integrations') loadIntegrations();
             if (viewName === 'offers') loadOffers();
             if (viewName === 'vouchers') loadVouchers();
@@ -22707,6 +22741,279 @@ Local honey and preserves"></textarea>
             if (activeEl) activeEl.textContent = sites.filter(s => s.status === 'live' || s.status === 'active' || (s.status === 'deployed' && s.custom_domain)).length;
             // Count 'development', 'deployed' (without domain), and 'pending' (legacy) 
             if (pendingEl) pendingEl.textContent = sites.filter(s => s.status === 'development' || s.status === 'pending' || (s.status === 'deployed' && !s.custom_domain)).length;
+        }
+        
+        // Plugin Licenses Management
+        async function loadPluginLicenses() {
+            const container = document.getElementById('plugin-licenses-list');
+            if (!container) return;
+            
+            container.innerHTML = '<div style="text-align: center; padding: 2rem;"><p>Loading licenses...</p></div>';
+            
+            try {
+                const response = await fetch('/api/plugin-licenses', {
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (!data.success || !data.licenses || data.licenses.length === 0) {
+                    container.innerHTML = `
+                        <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
+                            <div style="font-size: 3rem; margin-bottom: 1rem;">🔑</div>
+                            <p>No plugin licenses found</p>
+                            <p style="font-size: 0.85rem;">Create a license in Custom Sites → Plugin Only</p>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '<div style="display: flex; flex-direction: column; gap: 1rem;">';
+                
+                data.licenses.forEach(license => {
+                    const displaySettings = license.display_settings || {};
+                    const roomIds = license.room_ids || [];
+                    const statusColor = license.status === 'active' ? '#10b981' : '#ef4444';
+                    const statusBg = license.status === 'active' ? '#f0fdf4' : '#fef2f2';
+                    
+                    html += `
+                        <div class="license-card" style="border: 1px solid var(--border); border-radius: 12px; padding: 1.25rem; background: white;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1rem;">
+                                <div>
+                                    <div style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem;">
+                                        <span style="font-weight: 600; font-size: 1.1rem;">${license.account_name || license.email}</span>
+                                        <span style="background: ${statusBg}; color: ${statusColor}; padding: 0.2rem 0.5rem; border-radius: 4px; font-size: 0.75rem; font-weight: 500;">${license.status}</span>
+                                    </div>
+                                    <div style="font-family: monospace; font-size: 0.85rem; color: var(--text-secondary); background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; display: inline-block;">
+                                        ${license.license_key}
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem;">
+                                    <button class="btn btn-small" onclick="editLicenseSettings(${license.id})" style="padding: 0.4rem 0.75rem; font-size: 0.85rem;">
+                                        ⚙️ Edit Settings
+                                    </button>
+                                    ${license.status === 'active' ? `
+                                        <button class="btn btn-small btn-secondary" onclick="deactivateLicense(${license.id})" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; color: #ef4444;">
+                                            ✕ Deactivate
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1rem; font-size: 0.85rem;">
+                                <div>
+                                    <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.25rem;">Email</div>
+                                    <div>${license.email}</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.25rem;">Rooms</div>
+                                    <div>${roomIds.length} rooms selected</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.25rem;">Layout</div>
+                                    <div>${displaySettings.columns || 3} columns, ${displaySettings.layout || 'auto'}</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.25rem;">Created</div>
+                                    <div>${license.created_at ? new Date(license.created_at).toLocaleDateString() : 'N/A'}</div>
+                                </div>
+                                <div>
+                                    <div style="color: var(--text-secondary); font-size: 0.75rem; text-transform: uppercase; margin-bottom: 0.25rem;">Last Used</div>
+                                    <div>${license.last_used_at ? new Date(license.last_used_at).toLocaleString() : 'Never'}</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                container.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error loading licenses:', error);
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 2rem; color: #991b1b;">
+                        <p>Error loading licenses</p>
+                        <button class="btn btn-secondary" onclick="loadPluginLicenses()">Try Again</button>
+                    </div>
+                `;
+            }
+        }
+        
+        async function editLicenseSettings(licenseId) {
+            try {
+                const response = await fetch(`/api/plugin-licenses/${licenseId}`, {
+                    headers: authHeaders()
+                });
+                const data = await response.json();
+                
+                if (!data.success || !data.license) {
+                    showNotification('Could not load license', 'error');
+                    return;
+                }
+                
+                const license = data.license;
+                const ds = license.display_settings || {};
+                
+                // Create modal for editing
+                const modalHtml = `
+                    <div id="edit-license-modal" class="modal" style="display: flex;">
+                        <div class="modal-backdrop" onclick="closeModal('edit-license-modal')"></div>
+                        <div class="modal-content" style="max-width: 600px; max-height: 90vh; overflow-y: auto;">
+                            <div class="modal-header">
+                                <h3>⚙️ Edit License Settings</h3>
+                                <button class="modal-close" onclick="closeModal('edit-license-modal')">×</button>
+                            </div>
+                            <div class="modal-body">
+                                <div style="margin-bottom: 1rem; padding: 0.75rem; background: #f1f5f9; border-radius: 8px;">
+                                    <div style="font-size: 0.85rem; color: var(--text-secondary);">License Key</div>
+                                    <div style="font-family: monospace;">${license.license_key}</div>
+                                </div>
+                                
+                                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                                    <div class="form-group">
+                                        <label style="font-weight: 500; font-size: 0.85rem;">Columns</label>
+                                        <select id="edit-display-columns" class="form-input">
+                                            <option value="2" ${ds.columns == 2 ? 'selected' : ''}>2 Columns</option>
+                                            <option value="3" ${ds.columns == 3 || !ds.columns ? 'selected' : ''}>3 Columns</option>
+                                            <option value="4" ${ds.columns == 4 ? 'selected' : ''}>4 Columns</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 500; font-size: 0.85rem;">Layout Style</label>
+                                        <select id="edit-display-layout" class="form-input">
+                                            <option value="auto" ${ds.layout === 'auto' || !ds.layout ? 'selected' : ''}>Auto</option>
+                                            <option value="grid" ${ds.layout === 'grid' ? 'selected' : ''}>Grid</option>
+                                            <option value="row" ${ds.layout === 'row' ? 'selected' : ''}>Row</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 500; font-size: 0.85rem;">Featured Count</label>
+                                        <select id="edit-display-limit" class="form-input">
+                                            <option value="0" ${ds.limit == 0 || !ds.limit ? 'selected' : ''}>Show All</option>
+                                            <option value="3" ${ds.limit == 3 ? 'selected' : ''}>3 Rooms</option>
+                                            <option value="4" ${ds.limit == 4 ? 'selected' : ''}>4 Rooms</option>
+                                            <option value="6" ${ds.limit == 6 ? 'selected' : ''}>6 Rooms</option>
+                                            <option value="8" ${ds.limit == 8 ? 'selected' : ''}>8 Rooms</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 500; font-size: 0.85rem;">Background</label>
+                                        <select id="edit-display-bg" class="form-input">
+                                            <option value="light" ${ds.background === 'light' ? 'selected' : ''}>Light</option>
+                                            <option value="dark" ${ds.background === 'dark' || !ds.background ? 'selected' : ''}>Dark</option>
+                                            <option value="gray" ${ds.background === 'gray' ? 'selected' : ''}>Gray</option>
+                                            <option value="custom" ${ds.background === 'custom' ? 'selected' : ''}>Custom</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 500; font-size: 0.85rem;">Button Color</label>
+                                        <input type="color" id="edit-display-primary" value="${ds.primary_color || '#2563eb'}" style="width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 8px;">
+                                    </div>
+                                    <div class="form-group">
+                                        <label style="font-weight: 500; font-size: 0.85rem;">Card Style</label>
+                                        <select id="edit-display-card-style" class="form-input">
+                                            <option value="default" ${ds.card_style === 'default' || !ds.card_style ? 'selected' : ''}>Default</option>
+                                            <option value="bordered" ${ds.card_style === 'bordered' ? 'selected' : ''}>Bordered</option>
+                                            <option value="minimal" ${ds.card_style === 'minimal' ? 'selected' : ''}>Minimal</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                
+                                <div style="margin-top: 1rem; display: flex; gap: 1.5rem;">
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="edit-display-random" ${ds.random ? 'checked' : ''} style="width: 18px; height: 18px;">
+                                        <span style="font-size: 0.85rem;">Randomize order</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="edit-display-show-map" ${ds.show_map ? 'checked' : ''} style="width: 18px; height: 18px;">
+                                        <span style="font-size: 0.85rem;">Show map</span>
+                                    </label>
+                                    <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                        <input type="checkbox" id="edit-display-show-filters" ${ds.show_filters !== false ? 'checked' : ''} style="width: 18px; height: 18px;">
+                                        <span style="font-size: 0.85rem;">Show filters</span>
+                                    </label>
+                                </div>
+                                
+                                <div style="margin-top: 1.5rem; padding-top: 1rem; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 0.75rem;">
+                                    <button class="btn btn-secondary" onclick="closeModal('edit-license-modal')">Cancel</button>
+                                    <button class="btn" onclick="saveLicenseSettings(${licenseId})">💾 Save Changes</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                // Remove existing modal if any
+                const existingModal = document.getElementById('edit-license-modal');
+                if (existingModal) existingModal.remove();
+                
+                // Add modal to page
+                document.body.insertAdjacentHTML('beforeend', modalHtml);
+                
+            } catch (error) {
+                console.error('Error loading license:', error);
+                showNotification('Error loading license: ' + error.message, 'error');
+            }
+        }
+        
+        async function saveLicenseSettings(licenseId) {
+            const displaySettings = {
+                columns: parseInt(document.getElementById('edit-display-columns')?.value || '3'),
+                layout: document.getElementById('edit-display-layout')?.value || 'auto',
+                limit: parseInt(document.getElementById('edit-display-limit')?.value || '0'),
+                background: document.getElementById('edit-display-bg')?.value || 'dark',
+                primary_color: document.getElementById('edit-display-primary')?.value || '#2563eb',
+                card_style: document.getElementById('edit-display-card-style')?.value || 'default',
+                random: document.getElementById('edit-display-random')?.checked || false,
+                show_map: document.getElementById('edit-display-show-map')?.checked || false,
+                show_filters: document.getElementById('edit-display-show-filters')?.checked !== false
+            };
+            
+            try {
+                const response = await fetch(`/api/plugin-licenses/${licenseId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json', ...authHeaders() },
+                    body: JSON.stringify({ display_settings: displaySettings })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Settings saved! Changes will apply on next page load on the customer site.', 'success');
+                    closeModal('edit-license-modal');
+                    loadPluginLicenses();
+                } else {
+                    showNotification(data.error || 'Failed to save settings', 'error');
+                }
+            } catch (error) {
+                console.error('Error saving settings:', error);
+                showNotification('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function deactivateLicense(licenseId) {
+            if (!confirm('Are you sure you want to deactivate this license? The plugin will stop working on the customer site.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/plugin-licenses/${licenseId}`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('License deactivated', 'success');
+                    loadPluginLicenses();
+                } else {
+                    showNotification(data.error || 'Failed to deactivate', 'error');
+                }
+            } catch (error) {
+                console.error('Error deactivating license:', error);
+                showNotification('Error: ' + error.message, 'error');
+            }
         }
         
         // Master override - update site status
