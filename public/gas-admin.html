@@ -11358,6 +11358,102 @@ Local honey and preserves"></textarea>
                             <p style="font-size: 0.8rem; color: #64748b; margin: 0;">Includes updates, support, and API access</p>
                         </div>
                     </div>
+                    
+                    <!-- Display Settings -->
+                    <div style="background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 1.5rem; margin-bottom: 1.5rem;">
+                        <h4 style="margin: 0 0 1rem 0; color: #1e293b; display: flex; align-items: center; gap: 0.5rem;">
+                            🎨 Display Settings
+                        </h4>
+                        <p style="color: #64748b; margin: 0 0 1rem 0; font-size: 0.85rem;">
+                            Configure how rooms display on the customer's website. These settings are fetched when the plugin loads.
+                        </p>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem;">
+                            <!-- Columns -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Columns</label>
+                                <select id="plugin-display-columns" class="form-input" style="width: 100%;">
+                                    <option value="2">2 Columns</option>
+                                    <option value="3" selected>3 Columns</option>
+                                    <option value="4">4 Columns</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Layout Style -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Layout Style</label>
+                                <select id="plugin-display-layout" class="form-input" style="width: 100%;">
+                                    <option value="auto" selected>Auto (adapts to count)</option>
+                                    <option value="grid">Grid</option>
+                                    <option value="row">Row (horizontal)</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Featured Count -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Featured Count</label>
+                                <select id="plugin-display-limit" class="form-input" style="width: 100%;">
+                                    <option value="0">Show All</option>
+                                    <option value="3">3 Rooms</option>
+                                    <option value="4" selected>4 Rooms</option>
+                                    <option value="6">6 Rooms</option>
+                                    <option value="8">8 Rooms</option>
+                                    <option value="12">12 Rooms</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Background Color -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Section Background</label>
+                                <select id="plugin-display-bg" class="form-input" style="width: 100%;">
+                                    <option value="light">Light (#ffffff)</option>
+                                    <option value="dark" selected>Dark (#0f172a)</option>
+                                    <option value="gray">Gray (#f1f5f9)</option>
+                                    <option value="custom">Custom Color</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Custom Background Color (hidden by default) -->
+                        <div id="plugin-custom-bg-wrapper" style="display: none; margin-top: 1rem;">
+                            <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Custom Background Color</label>
+                            <input type="color" id="plugin-display-bg-custom" value="#0f172a" style="width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;">
+                        </div>
+                        
+                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                            <!-- Primary Color -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Button Color</label>
+                                <input type="color" id="plugin-display-primary" value="#2563eb" style="width: 100%; height: 40px; border: 1px solid var(--border); border-radius: 8px; cursor: pointer;">
+                            </div>
+                            
+                            <!-- Card Style -->
+                            <div class="form-group" style="margin-bottom: 0;">
+                                <label style="font-weight: 500; font-size: 0.85rem; margin-bottom: 0.25rem; display: block;">Card Style</label>
+                                <select id="plugin-display-card-style" class="form-input" style="width: 100%;">
+                                    <option value="default" selected>Default (shadow)</option>
+                                    <option value="bordered">Bordered</option>
+                                    <option value="minimal">Minimal</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div style="margin-top: 1rem; display: flex; gap: 1.5rem;">
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="plugin-display-random" style="width: 18px; height: 18px;">
+                                <span style="font-size: 0.85rem;">Randomize order</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="plugin-display-show-map" style="width: 18px; height: 18px;">
+                                <span style="font-size: 0.85rem;">Show map</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 0.5rem; cursor: pointer;">
+                                <input type="checkbox" id="plugin-display-show-filters" checked style="width: 18px; height: 18px;">
+                                <span style="font-size: 0.85rem;">Show filters</span>
+                            </label>
+                        </div>
+                    </div>
+                    
                     <div id="plugin-download-section" style="display: none; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 8px; padding: 1rem; margin-bottom: 1.5rem;">
                         <h4 style="margin: 0 0 0.5rem 0; color: #166534;">✅ Plugin Ready!</h4>
                         <p style="color: #166534; margin: 0 0 1rem 0; font-size: 0.9rem;">Your plugin license is active. Download and install on your WordPress site.</p>
@@ -23226,6 +23322,20 @@ Local honey and preserves"></textarea>
             
             const roomIds = selectedRooms.map(r => r.room_id);
             
+            // Get display settings
+            const displaySettings = {
+                columns: parseInt(document.getElementById('plugin-display-columns')?.value || '3'),
+                layout: document.getElementById('plugin-display-layout')?.value || 'auto',
+                limit: parseInt(document.getElementById('plugin-display-limit')?.value || '0'),
+                background: document.getElementById('plugin-display-bg')?.value || 'dark',
+                background_custom: document.getElementById('plugin-display-bg-custom')?.value || '#0f172a',
+                primary_color: document.getElementById('plugin-display-primary')?.value || '#2563eb',
+                card_style: document.getElementById('plugin-display-card-style')?.value || 'default',
+                random: document.getElementById('plugin-display-random')?.checked || false,
+                show_map: document.getElementById('plugin-display-show-map')?.checked || false,
+                show_filters: document.getElementById('plugin-display-show-filters')?.checked !== false
+            };
+            
             submitBtn.disabled = true;
             progressDiv.style.display = 'block';
             document.getElementById('deploy-progress-text').textContent = 'Setting up your plugin license...';
@@ -23238,6 +23348,7 @@ Local honey and preserves"></textarea>
                         email: email,
                         account_id: selectedAccountId,
                         room_ids: roomIds,
+                        display_settings: displaySettings,
                         product: 'gas-booking-plugin'
                     })
                 });
@@ -23288,6 +23399,14 @@ Local honey and preserves"></textarea>
                 showNotification('Error: ' + error.message, 'error');
             }
         }
+        
+        // Toggle custom background color field
+        document.getElementById('plugin-display-bg')?.addEventListener('change', function() {
+            const customWrapper = document.getElementById('plugin-custom-bg-wrapper');
+            if (customWrapper) {
+                customWrapper.style.display = this.value === 'custom' ? 'block' : 'none';
+            }
+        });
         
         async function handleCustomBespokeRequest(email) {
             const submitBtn = document.getElementById('deploy-submit-btn');
