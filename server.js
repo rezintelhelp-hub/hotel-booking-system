@@ -26857,6 +26857,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
     let images = await pool.query(`
       SELECT id, image_url as url, alt_text
       FROM room_images WHERE room_id = $1
+      ORDER BY is_primary DESC, display_order ASC, id ASC
     `, [unitId]);
     
     // If no images in room_images, try bookable_unit_images
@@ -26865,6 +26866,7 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
         images = await pool.query(`
           SELECT id, url, alt_text
           FROM bookable_unit_images WHERE bookable_unit_id = $1
+          ORDER BY is_primary DESC, display_order ASC, id ASC
         `, [unitId]);
       } catch (e) {
         // Table doesn't exist, that's fine
@@ -38224,6 +38226,15 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
   }
 });
 
+// Serve frontend - MUST BE LAST (after all API routes)
+app.get('*', (req, res) => {
+  // Don't serve index.html for API routes - return 404 instead
+  if (req.path.startsWith('/api')) {
+    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
+  }
+  res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
 // ============================================
 // BEDS24 WIZARD ENDPOINTS
 // ============================================
@@ -38543,29 +38554,6 @@ async function runTieredSync() {
 // ============================================
 // PLUGIN API ENDPOINTS
 // ============================================
-
-// Plugin update check - returns latest version info
-app.get('/api/plugin/check-update', async (req, res) => {
-  try {
-    // You can store this in database later for easy updates
-    // For now, hardcoded - update these values when releasing new versions
-    const latestVersion = {
-      version: '1.0.145',
-      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.145/gas-booking-v1.0.145.zip',
-      requires: '5.8',
-      tested: '6.4',
-      requires_php: '7.4',
-      last_updated: new Date().toISOString().split('T')[0],
-      description: 'Complete booking system for Guest Accommodation System. Display rooms, handle bookings, and integrate with channel managers.',
-      changelog: '<h4>v1.0.145</h4><ul><li>Added automatic update system</li><li>Fixed license validation display</li></ul><h4>v1.0.144</h4><ul><li>Various bug fixes and improvements</li></ul>'
-    };
-    
-    res.json(latestVersion);
-  } catch (error) {
-    console.error('Plugin update check error:', error);
-    res.status(500).json({ error: 'Failed to check for updates' });
-  }
-});
 
 // Validate plugin license key
 app.post('/api/plugin/validate-license', async (req, res) => {
@@ -39165,15 +39153,6 @@ app.get('/api/plugin/reviews', async (req, res) => {
 // ============================================
 // END PLUGIN API ENDPOINTS
 // ============================================
-
-// Serve frontend - MUST BE LAST (after all API routes)
-app.get('*', (req, res) => {
-  // Don't serve index.html for API routes - return 404 instead
-  if (req.path.startsWith('/api')) {
-    return res.status(404).json({ error: 'API endpoint not found', path: req.path });
-  }
-  res.sendFile(path.join(__dirname, 'public', 'index.html'));
-});
 
 function startTieredSyncScheduler() {
   // Run every 15 minutes (900000ms)
