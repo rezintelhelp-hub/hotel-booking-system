@@ -12377,7 +12377,7 @@ app.get('/api/deploy/sites', async (req, res) => {
 // Plugin License Creation
 app.post('/api/plugin-license/create', async (req, res) => {
   try {
-    const { email, account_id, product, room_ids } = req.body;
+    const { email, account_id, product, room_ids, display_settings } = req.body;
     
     if (!email) {
       return res.json({ success: false, error: 'Email is required' });
@@ -12389,12 +12389,12 @@ app.post('/api/plugin-license/create', async (req, res) => {
     // GitHub download URL
     const downloadUrl = 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.141/gas-booking-v1.0.141.zip';
     
-    // Store the license with room_ids
+    // Store the license with room_ids and display_settings
     const result = await pool.query(`
-      INSERT INTO plugin_licenses (account_id, email, license_key, product, room_ids, status, created_at)
-      VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+      INSERT INTO plugin_licenses (account_id, email, license_key, product, room_ids, display_settings, status, created_at)
+      VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
       RETURNING id, license_key
-    `, [account_id || null, email, licenseKey, product || 'gas-booking-plugin', JSON.stringify(room_ids || [])]);
+    `, [account_id || null, email, licenseKey, product || 'gas-booking-plugin', JSON.stringify(room_ids || []), JSON.stringify(display_settings || {})]);
     
     // TODO: Send email with license key and download link
     // TODO: Integrate with payment system
@@ -12421,23 +12421,25 @@ app.post('/api/plugin-license/create', async (req, res) => {
             status VARCHAR(50) DEFAULT 'active',
             plan VARCHAR(50) DEFAULT 'plugin',
             room_ids JSONB DEFAULT '[]',
+            display_settings JSONB DEFAULT '{}',
             created_at TIMESTAMP DEFAULT NOW(),
             expires_at TIMESTAMP,
             last_used_at TIMESTAMP,
             FOREIGN KEY (account_id) REFERENCES accounts(id)
           )
         `);
-        // Try adding column if table exists but column doesn't
+        // Try adding columns if table exists but columns don't
         await pool.query(`ALTER TABLE plugin_licenses ADD COLUMN IF NOT EXISTS room_ids JSONB DEFAULT '[]'`).catch(() => {});
+        await pool.query(`ALTER TABLE plugin_licenses ADD COLUMN IF NOT EXISTS display_settings JSONB DEFAULT '{}'`).catch(() => {});
         
         // Retry the insert
         const licenseKey = 'GAS-' + require('crypto').randomBytes(16).toString('hex').toUpperCase();
         const downloadUrl = 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.141/gas-booking-v1.0.141.zip';
         const result = await pool.query(`
-          INSERT INTO plugin_licenses (account_id, email, license_key, product, room_ids, status, created_at)
-          VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+          INSERT INTO plugin_licenses (account_id, email, license_key, product, room_ids, display_settings, status, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, 'active', NOW())
           RETURNING id, license_key
-        `, [req.body.account_id || null, req.body.email, licenseKey, req.body.product || 'gas-booking-plugin', JSON.stringify(req.body.room_ids || [])]);
+        `, [req.body.account_id || null, req.body.email, licenseKey, req.body.product || 'gas-booking-plugin', JSON.stringify(req.body.room_ids || []), JSON.stringify(req.body.display_settings || {})]);
         
         return res.json({ 
           success: true, 
@@ -38584,7 +38586,8 @@ app.post('/api/plugin/validate-license', async (req, res) => {
         account_id: account.id,
         account_name: account.name,
         account_email: account.email,
-        room_ids: [] // All rooms for legacy
+        room_ids: [], // All rooms for legacy
+        display_settings: {} // Default settings for legacy
       });
     }
     
@@ -38599,7 +38602,8 @@ app.post('/api/plugin/validate-license', async (req, res) => {
       account_name: license.account_name || license.email,
       account_email: license.account_email || license.email,
       plan: license.plan || 'plugin',
-      room_ids: license.room_ids || []
+      room_ids: license.room_ids || [],
+      display_settings: license.display_settings || {}
     });
     
   } catch (error) {
