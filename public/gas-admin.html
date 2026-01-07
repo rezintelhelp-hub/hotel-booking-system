@@ -6379,7 +6379,7 @@
             </div>
 
             <!-- Plugin Licenses Management -->
-            <div id="plugin-licenses" class="view">
+            <div id="plugin-licenses" class="view" style="display: none;">
                 <div class="header">
                     <div class="header-top">
                         <div>
@@ -22792,10 +22792,13 @@ Local honey and preserves"></textarea>
                                         ⚙️ Edit Settings
                                     </button>
                                     ${license.status === 'active' ? `
-                                        <button class="btn btn-small btn-secondary" onclick="deactivateLicense(${license.id})" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; color: #ef4444;">
+                                        <button class="btn btn-small btn-secondary" onclick="deactivateLicense(${license.id})" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; color: #f59e0b;">
                                             ✕ Deactivate
                                         </button>
                                     ` : ''}
+                                    <button class="btn btn-small btn-secondary" onclick="deleteLicense(${license.id})" style="padding: 0.4rem 0.75rem; font-size: 0.85rem; color: #ef4444;">
+                                        🗑️ Delete
+                                    </button>
                                 </div>
                             </div>
                             
@@ -23012,6 +23015,31 @@ Local honey and preserves"></textarea>
                 }
             } catch (error) {
                 console.error('Error deactivating license:', error);
+                showNotification('Error: ' + error.message, 'error');
+            }
+        }
+        
+        async function deleteLicense(licenseId) {
+            if (!confirm('Are you sure you want to PERMANENTLY DELETE this license? This cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`/api/plugin-licenses/${licenseId}/delete`, {
+                    method: 'DELETE',
+                    headers: authHeaders()
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('License deleted permanently', 'success');
+                    loadPluginLicenses();
+                } else {
+                    showNotification(data.error || 'Failed to delete', 'error');
+                }
+            } catch (error) {
+                console.error('Error deleting license:', error);
                 showNotification('Error: ' + error.message, 'error');
             }
         }
