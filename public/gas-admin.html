@@ -1614,7 +1614,7 @@
                         <span class="nav-icon">✨</span>
                         <span>Custom Sites</span>
                     </a>
-                    <a class="nav-item master-only" data-view="plugin-licenses" href="#" onclick="navClick(this, 'plugin-licenses'); return false;" style="display: none;">
+                    <a class="nav-item" data-view="plugin-licenses" href="#" onclick="navClick(this, 'plugin-licenses'); return false;">
                         <span class="nav-icon">🔑</span>
                         <span>Plugin Licenses</span>
                     </a>
@@ -23661,6 +23661,12 @@ Local honey and preserves"></textarea>
                 });
                 
                 const data = await response.json();
+                console.log('Plugin license API response:', data);
+                
+                if (!data.success) {
+                    alert('License creation failed: ' + (data.error || JSON.stringify(data)));
+                }
+                
                 progressDiv.style.display = 'none';
                 
                 if (data.success) {
