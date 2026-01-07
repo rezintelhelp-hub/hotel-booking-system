@@ -23670,39 +23670,47 @@ Local honey and preserves"></textarea>
                 progressDiv.style.display = 'none';
                 
                 if (data.success) {
-                    alert('License created! Key: ' + data.license_key);
+                    // Show success result
                     resultDiv.style.display = 'block';
                     resultDiv.style.background = '#f3e8ff';
-                    resultDiv.style.borderColor = '#c084fc';
-                    document.getElementById('deploy-result-content').innerHTML = `
-                        <h4 style="margin: 0 0 0.75rem 0; color: #7c3aed;">🔌 Plugin License Created!</h4>
-                        <p style="color: #6b21a8; margin: 0 0 1rem 0;">Your GAS Booking Plugin license is now active.</p>
-                        <div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">
-                            <div style="margin-bottom: 0.5rem;"><strong>License Key:</strong></div>
-                            <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <code id="plugin-license-key" style="flex: 1; background: #1e293b; color: #22c55e; padding: 0.75rem; border-radius: 4px; word-break: break-all; font-size: 0.9rem;">${data.license_key || 'Error generating key'}</code>
-                                <button onclick="copyLicenseKey()" style="background: #7c3aed; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; white-space: nowrap;">📋 Copy</button>
-                            </div>
-                        </div>
-                        <div style="display: flex; gap: 0.75rem; flex-wrap: wrap;">
-                            <a href="${data.download_url || '#'}" class="btn" style="background: #10b981; display: inline-block;" target="_blank">📥 Download Plugin</a>
-                        </div>
-                        <div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem; margin-top: 1rem;">
-                            <strong style="color: #92400e;">📋 Installation Steps:</strong>
-                            <ol style="margin: 0.5rem 0 0 1.25rem; padding: 0; color: #92400e; font-size: 0.9rem;">
-                                <li>Download the plugin ZIP file</li>
-                                <li>In WordPress, go to Plugins → Add New → Upload Plugin</li>
-                                <li>Upload the ZIP and activate</li>
-                                <li>Go to Settings → GAS Booking</li>
-                                <li>Enter your license key above</li>
-                                <li>Save - your account will be configured automatically</li>
-                            </ol>
-                        </div>
-                        <p style="font-size: 0.8rem; color: #64748b; margin: 1rem 0 0 0;">A copy of these instructions has been sent to ${email}</p>
-                    `;
-                    submitBtn.textContent = '✅ Done';
+                    resultDiv.style.border = '2px solid #c084fc';
+                    
+                    const licenseKey = data.license_key || 'ERROR';
+                    const downloadUrl = data.download_url || 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases';
+                    
+                    resultDiv.innerHTML = '<h4 style="margin: 0 0 0.75rem 0; color: #7c3aed;">🔌 Plugin License Created!</h4>' +
+                        '<p style="color: #6b21a8; margin: 0 0 1rem 0;">Your GAS Booking Plugin license is now active.</p>' +
+                        '<div style="background: white; border-radius: 8px; padding: 1rem; margin-bottom: 1rem;">' +
+                            '<div style="margin-bottom: 0.5rem;"><strong>License Key:</strong></div>' +
+                            '<div style="display: flex; gap: 0.5rem; align-items: center;">' +
+                                '<code id="plugin-license-key" style="flex: 1; background: #1e293b; color: #22c55e; padding: 0.75rem; border-radius: 4px; word-break: break-all; font-size: 0.9rem;">' + licenseKey + '</code>' +
+                                '<button onclick="navigator.clipboard.writeText(\'' + licenseKey + '\'); this.textContent=\'✓ Copied!\'; setTimeout(() => this.textContent=\'📋 Copy\', 2000);" style="background: #7c3aed; color: white; border: none; padding: 0.5rem 1rem; border-radius: 4px; cursor: pointer; white-space: nowrap;">📋 Copy</button>' +
+                            '</div>' +
+                        '</div>' +
+                        '<div style="display: flex; gap: 0.75rem; flex-wrap: wrap; margin-bottom: 1rem;">' +
+                            '<a href="' + downloadUrl + '" class="btn" style="background: #10b981; display: inline-block;" target="_blank">📥 Download Plugin v1.0.144</a>' +
+                        '</div>' +
+                        '<div style="background: #fef3c7; border: 1px solid #fcd34d; border-radius: 8px; padding: 1rem;">' +
+                            '<strong style="color: #92400e;">📋 Installation Steps:</strong>' +
+                            '<ol style="margin: 0.5rem 0 0 1.25rem; padding: 0; color: #92400e; font-size: 0.9rem;">' +
+                                '<li>Download the plugin ZIP file</li>' +
+                                '<li>In WordPress: Plugins → Add New → Upload Plugin</li>' +
+                                '<li>Upload the ZIP and activate</li>' +
+                                '<li>Go to Settings → GAS Booking</li>' +
+                                '<li>Enter your license key above</li>' +
+                                '<li>Save - your account will be configured automatically</li>' +
+                            '</ol>' +
+                        '</div>';
+                    
+                    submitBtn.textContent = '✅ Save & Close';
                     submitBtn.disabled = false;
-                    submitBtn.onclick = () => closeModal('deployModal');
+                    submitBtn.onclick = function() { 
+                        closeModal('deployModal');
+                        // Go to Plugin Licenses view
+                        navClick(null, 'plugin-licenses');
+                    };
+                    
+                    showNotification('License created successfully!', 'success');
                 } else {
                     submitBtn.disabled = false;
                     showNotification(data.error || 'Failed to create license', 'error');
