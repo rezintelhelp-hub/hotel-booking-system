@@ -38544,6 +38544,29 @@ async function runTieredSync() {
 // PLUGIN API ENDPOINTS
 // ============================================
 
+// Plugin update check - returns latest version info
+app.get('/api/plugin/check-update', async (req, res) => {
+  try {
+    // You can store this in database later for easy updates
+    // For now, hardcoded - update these values when releasing new versions
+    const latestVersion = {
+      version: '1.0.145',
+      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.145/gas-booking-v1.0.145.zip',
+      requires: '5.8',
+      tested: '6.4',
+      requires_php: '7.4',
+      last_updated: new Date().toISOString().split('T')[0],
+      description: 'Complete booking system for Guest Accommodation System. Display rooms, handle bookings, and integrate with channel managers.',
+      changelog: '<h4>v1.0.145</h4><ul><li>Added automatic update system</li><li>Fixed license validation display</li></ul><h4>v1.0.144</h4><ul><li>Various bug fixes and improvements</li></ul>'
+    };
+    
+    res.json(latestVersion);
+  } catch (error) {
+    console.error('Plugin update check error:', error);
+    res.status(500).json({ error: 'Failed to check for updates' });
+  }
+});
+
 // Validate plugin license key
 app.post('/api/plugin/validate-license', async (req, res) => {
   try {
