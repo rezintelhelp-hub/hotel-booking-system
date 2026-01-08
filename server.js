@@ -38283,20 +38283,21 @@ app.get('/api/reviews', async (req, res) => {
   try {
     const { account_id, property_id, room_id, source, min_rating, limit = 50, offset = 0 } = req.query;
     
-    if (!account_id) {
-      return res.json({ success: false, error: 'account_id required' });
-    }
-    
     let query = `
       SELECT r.*, p.name as property_name, bu.name as room_name
       FROM reviews r
       LEFT JOIN properties p ON r.property_id = p.id
       LEFT JOIN bookable_units bu ON r.room_id = bu.id
-      WHERE r.account_id = $1
+      WHERE 1=1
     `;
-    const params = [account_id];
-    let paramIndex = 2;
+    const params = [];
+    let paramIndex = 1;
     
+    if (account_id) {
+      query += ` AND r.account_id = $${paramIndex}`;
+      params.push(account_id);
+      paramIndex++;
+    }
     if (property_id) {
       query += ` AND r.property_id = $${paramIndex}`;
       params.push(property_id);
@@ -38324,8 +38325,16 @@ app.get('/api/reviews', async (req, res) => {
     
     const reviewsResult = await pool.query(query, params);
     
-    const avgQuery = `SELECT AVG(rating) as avg_rating, COUNT(*) as total FROM reviews WHERE account_id = $1 AND rating IS NOT NULL`;
-    const avgResult = await pool.query(avgQuery, [account_id]);
+    // Stats query - with or without account filter
+    let avgQuery, avgParams;
+    if (account_id) {
+      avgQuery = `SELECT AVG(rating) as avg_rating, COUNT(*) as total FROM reviews WHERE account_id = $1 AND rating IS NOT NULL`;
+      avgParams = [account_id];
+    } else {
+      avgQuery = `SELECT AVG(rating) as avg_rating, COUNT(*) as total FROM reviews WHERE rating IS NOT NULL`;
+      avgParams = [];
+    }
+    const avgResult = await pool.query(avgQuery, avgParams);
     
     res.json({
       success: true,
