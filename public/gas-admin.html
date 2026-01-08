@@ -32631,66 +32631,55 @@ Local honey and preserves"></textarea>
                 const ratingFilter = document.getElementById('reviews-rating-filter')?.value || '';
                 const channelFilter = document.getElementById('reviews-channel-filter')?.value || '';
                 
-                // Build URL with filters
+                // Build URL - always filter by account for non-master users
+                const isMaster = currentAccount && currentAccount.role === 'master_admin';
                 let url = '/api/reviews?limit=200';
                 
-                const isMaster = currentAccount && currentAccount.role === 'master_admin';
-                
+                // Account filtering
                 if (selectedAccountId) {
                     url += `&account_id=${selectedAccountId}`;
                 } else if (!isMaster && currentAccount?.id) {
                     url += `&account_id=${currentAccount.id}`;
                 }
                 
-                if (propertyFilter) {
-                    url += `&property_id=${propertyFilter}`;
-                }
-                if (ratingFilter) {
-                    url += `&min_rating=${ratingFilter}`;
-                }
+                // Property and rating filters
+                if (propertyFilter) url += `&property_id=${propertyFilter}`;
+                if (ratingFilter) url += `&min_rating=${ratingFilter}`;
                 
-                // Fetch reviews
                 const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
                 
-                // Populate property filter dropdown
-                await populateReviewsPropertyFilter();
+                // Populate property dropdown for current account
+                populateReviewsPropertyFilter();
                 
-                // Filter by channel client-side (since API might not support it)
+                // Get reviews and filter by channel if needed
                 let reviews = data.reviews || [];
-                if (channelFilter && reviews.length > 0) {
-                    reviews = reviews.filter(r => r.channel_name && r.channel_name.toLowerCase().includes(channelFilter.toLowerCase()));
+                if (channelFilter) {
+                    reviews = reviews.filter(r => 
+                        (r.channel_name || '').toLowerCase().includes(channelFilter.toLowerCase())
+                    );
                 }
                 
-                // Sort reviews by rating (highest first) then by date
-                reviews.sort((a, b) => {
-                    const ratingA = parseFloat(a.rating) || 0;
-                    const ratingB = parseFloat(b.rating) || 0;
-                    if (ratingB !== ratingA) return ratingB - ratingA;
-                    // Secondary sort by date
-                    const dateA = new Date(a.review_date || a.created_at || 0);
-                    const dateB = new Date(b.review_date || b.created_at || 0);
-                    return dateB - dateA;
-                });
+                // Sort by rating (highest first)
+                reviews.sort((a, b) => (parseFloat(b.rating) || 0) - (parseFloat(a.rating) || 0));
                 
-                if (!data.success || reviews.length === 0) {
+                if (reviews.length === 0) {
                     container.innerHTML = `
                         <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
                             <div style="font-size: 4rem; margin-bottom: 1rem;">⭐</div>
                             <h3 style="margin-bottom: 0.5rem;">No reviews found</h3>
-                            <p>${propertyFilter || ratingFilter || channelFilter ? 'Try adjusting your filters' : 'Sync reviews from your channel manager or add them manually'}</p>
+                            <p>Sync reviews from your channel manager connections</p>
                             <button class="btn" style="margin-top: 1rem;" onclick="showView('gas-sync-connections')">Go to Sync Connections</button>
                         </div>
                     `;
                     return;
                 }
                 
-                // Calculate stats from filtered reviews
+                // Calculate stats
                 const totalReviews = reviews.length;
-                const sumRatings = reviews.reduce((sum, r) => sum + (parseFloat(r.rating) || 0), 0);
-                const avgRating = totalReviews > 0 ? (sumRatings / totalReviews).toFixed(1) : 0;
+                const avgRating = (reviews.reduce((sum, r) => sum + (parseFloat(r.rating) || 0), 0) / totalReviews).toFixed(1);
                 
-                // Build reviews list
+                // Build HTML
                 let html = `
                     <div style="display: flex; gap: 1rem; margin-bottom: 1.5rem; flex-wrap: wrap;">
                         <div style="background: linear-gradient(135deg, #fbbf24, #f59e0b); color: white; padding: 1rem 1.5rem; border-radius: 12px; text-align: center; min-width: 120px;">
@@ -32706,20 +32695,19 @@ Local honey and preserves"></textarea>
                 `;
                 
                 for (const review of reviews) {
-                    // Handle ratings on different scales (1-5 or 1-10)
                     const rawRating = parseFloat(review.rating) || 0;
-                    const normalizedRating = rawRating > 5 ? rawRating / 2 : rawRating; // Convert 10-scale to 5-scale
-                    const starCount = Math.min(5, Math.max(0, Math.round(normalizedRating)));
+                    const stars5 = rawRating > 5 ? rawRating / 2 : rawRating;
+                    const starCount = Math.min(5, Math.max(0, Math.round(stars5)));
                     const stars = '★'.repeat(starCount) + '☆'.repeat(5 - starCount);
                     const channelColor = getChannelColor(review.channel_name);
                     const reviewDate = review.review_date ? new Date(review.review_date).toLocaleDateString() : '';
                     
                     html += `
                         <div style="border: 1px solid var(--border); border-radius: 12px; padding: 1rem; background: var(--bg-primary);">
-                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
                                 <div style="display: flex; align-items: center; gap: 0.75rem;">
                                     <div style="width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #6366f1, #8b5cf6); display: flex; align-items: center; justify-content: center; color: white; font-weight: bold;">
-                                        ${review.guest_name ? review.guest_name.charAt(0).toUpperCase() : 'G'}
+                                        ${(review.guest_name || 'G').charAt(0).toUpperCase()}
                                     </div>
                                     <div>
                                         <div style="font-weight: 600;">${review.guest_name || 'Guest'}</div>
@@ -32727,7 +32715,7 @@ Local honey and preserves"></textarea>
                                     </div>
                                 </div>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
-                                    <span style="background: ${channelColor}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">${review.channel_name || review.source}</span>
+                                    <span style="background: ${channelColor}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">${review.channel_name || 'Unknown'}</span>
                                     <span style="color: #fbbf24; font-size: 1.1rem;">${stars}</span>
                                     <span style="font-weight: bold; color: var(--text-secondary);">${rawRating}</span>
                                 </div>
@@ -32757,64 +32745,46 @@ Local honey and preserves"></textarea>
         }
         
         function getChannelColor(channel) {
-            const colors = {
-                'Airbnb': '#ff5a5f',
-                'airbnb': '#ff5a5f',
-                'Booking.com': '#003580',
-                'booking': '#003580',
-                'VRBO': '#3d74c7',
-                'vrbo': '#3d74c7',
-                'Expedia': '#00355f',
-                'expedia': '#00355f',
-                'Google': '#4285f4',
-                'google': '#4285f4',
-                'TripAdvisor': '#00af87',
-                'tripadvisor': '#00af87',
-                'hostaway': '#1e3a5f',
-                'manual': '#6b7280'
-            };
-            return colors[channel] || '#6b7280';
+            if (!channel) return '#6b7280';
+            const c = channel.toLowerCase();
+            if (c.includes('airbnb')) return '#ff5a5f';
+            if (c.includes('booking')) return '#003580';
+            if (c.includes('vrbo')) return '#3d74c7';
+            if (c.includes('expedia')) return '#00355f';
+            if (c.includes('google')) return '#4285f4';
+            if (c.includes('tripadvisor')) return '#00af87';
+            return '#6b7280';
         }
-        
-        let reviewsFilterAccountId = null; // Track which account the filter was populated for
         
         async function populateReviewsPropertyFilter() {
             const select = document.getElementById('reviews-property-filter');
             if (!select) return;
             
+            // Get effective account ID
             const isMaster = currentAccount && currentAccount.role === 'master_admin';
-            const effectiveAccountId = selectedAccountId || (!isMaster && currentAccount?.id) || null;
+            const accountId = selectedAccountId || (!isMaster && currentAccount?.id) || null;
             
-            // Only repopulate if account changed
-            if (reviewsFilterAccountId === effectiveAccountId && select.options.length > 1) {
-                return; // Already populated for this account
-            }
+            // Check if already populated for this account
+            if (select.dataset.accountId === String(accountId) && select.options.length > 1) return;
             
-            // Reset dropdown
             select.innerHTML = '<option value="">All Properties</option>';
-            reviewsFilterAccountId = effectiveAccountId;
+            select.dataset.accountId = accountId || '';
             
             try {
-                // Build query params - respect account boundaries
-                let queryParams = [];
-                if (effectiveAccountId) {
-                    queryParams.push(`account_id=${effectiveAccountId}`);
-                }
-                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
+                let url = '/api/db/properties';
+                if (accountId) url += `?account_id=${accountId}`;
                 
-                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
+                const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
                 
-                if (data.data && data.data.length > 0) {
-                    data.data.forEach(prop => {
-                        const option = document.createElement('option');
-                        option.value = prop.id;
-                        option.textContent = prop.name;
-                        select.appendChild(option);
-                    });
-                }
-            } catch (error) {
-                console.error('Error loading properties for filter:', error);
+                (data.data || []).forEach(prop => {
+                    const opt = document.createElement('option');
+                    opt.value = prop.id;
+                    opt.textContent = prop.name;
+                    select.appendChild(opt);
+                });
+            } catch (e) {
+                console.error('Error loading properties:', e);
             }
         }
         
