@@ -32596,9 +32596,11 @@ Local honey and preserves"></textarea>
                 // For clients, filter by their account
                 let url = '/api/reviews?limit=100';
                 
+                const isMaster = currentAccount && currentAccount.role === 'master_admin';
+                
                 if (selectedAccountId) {
                     url += `&account_id=${selectedAccountId}`;
-                } else if (!isMasterUser && currentUser?.account_id) {
+                } else if (!isMaster && currentUser?.account_id) {
                     url += `&account_id=${currentUser.account_id}`;
                 }
                 // If master with no selection, fetch all (no account_id param)
@@ -32639,8 +32641,11 @@ Local honey and preserves"></textarea>
                 `;
                 
                 for (const review of data.reviews) {
-                    const rating = review.rating || 0;
-                    const stars = '★'.repeat(Math.round(rating)) + '☆'.repeat(5 - Math.round(rating));
+                    // Handle ratings on different scales (1-5 or 1-10)
+                    const rawRating = parseFloat(review.rating) || 0;
+                    const normalizedRating = rawRating > 5 ? rawRating / 2 : rawRating; // Convert 10-scale to 5-scale
+                    const starCount = Math.min(5, Math.max(0, Math.round(normalizedRating)));
+                    const stars = '★'.repeat(starCount) + '☆'.repeat(5 - starCount);
                     const channelColor = getChannelColor(review.channel_name);
                     const reviewDate = review.review_date ? new Date(review.review_date).toLocaleDateString() : '';
                     
@@ -32659,7 +32664,7 @@ Local honey and preserves"></textarea>
                                 <div style="display: flex; align-items: center; gap: 0.5rem;">
                                     <span style="background: ${channelColor}; color: white; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.75rem;">${review.channel_name || review.source}</span>
                                     <span style="color: #fbbf24; font-size: 1.1rem;">${stars}</span>
-                                    <span style="font-weight: bold; color: var(--text-secondary);">${rating}</span>
+                                    <span style="font-weight: bold; color: var(--text-secondary);">${rawRating}</span>
                                 </div>
                             </div>
                             ${review.title ? `<div style="font-weight: 600; margin-bottom: 0.5rem;">${review.title}</div>` : ''}
