@@ -38353,6 +38353,37 @@ app.get('/api/reviews', async (req, res) => {
   }
 });
 
+// Debug endpoint to see raw review data
+app.get('/api/reviews/debug/:id', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM reviews WHERE id = $1', [req.params.id]);
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'Review not found' });
+    }
+    const review = result.rows[0];
+    let rawData = null;
+    try {
+      rawData = typeof review.raw_data === 'string' ? JSON.parse(review.raw_data) : review.raw_data;
+    } catch (e) {
+      rawData = review.raw_data;
+    }
+    res.json({
+      success: true,
+      review: {
+        id: review.id,
+        channel_name: review.channel_name,
+        source: review.source,
+        rating: review.rating,
+        guest_name: review.guest_name
+      },
+      raw_data_keys: rawData ? Object.keys(rawData) : [],
+      raw_data: rawData
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get review statistics for an account
 app.get('/api/reviews/stats', async (req, res) => {
   try {
