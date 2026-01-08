@@ -32592,16 +32592,19 @@ Local honey and preserves"></textarea>
             container.innerHTML = '<div style="text-align: center; padding: 2rem;"><p>Loading reviews...</p></div>';
             
             try {
-                // Get account ID - master can view all, clients see their own
-                const accountId = selectedAccountId || (isMasterUser ? 94 : currentUser?.account_id);
+                // For master users viewing all, fetch all reviews (no account filter)
+                // For clients, filter by their account
+                let url = '/api/reviews?limit=100';
                 
-                if (!accountId) {
-                    container.innerHTML = '<div style="text-align: center; padding: 2rem; color: var(--text-secondary);"><p>No account selected</p></div>';
-                    return;
+                if (selectedAccountId) {
+                    url += `&account_id=${selectedAccountId}`;
+                } else if (!isMasterUser && currentUser?.account_id) {
+                    url += `&account_id=${currentUser.account_id}`;
                 }
+                // If master with no selection, fetch all (no account_id param)
                 
                 // Fetch reviews
-                const response = await fetch(`/api/reviews?account_id=${accountId}&limit=100`, { headers: authHeaders() });
+                const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
                 
                 if (!data.success || !data.reviews || data.reviews.length === 0) {
