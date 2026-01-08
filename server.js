@@ -38320,8 +38320,11 @@ app.get('/api/reviews', async (req, res) => {
     }
     
     query += ` ORDER BY r.review_date DESC NULLS LAST, r.created_at DESC`;
-    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
-    params.push(parseInt(limit), parseInt(offset));
+    
+    // Add LIMIT and OFFSET
+    const limitVal = Math.max(1, parseInt(limit) || 50);
+    const offsetVal = Math.max(0, parseInt(offset) || 0);
+    query += ` LIMIT ${limitVal} OFFSET ${offsetVal}`;
     
     const reviewsResult = await pool.query(query, params);
     
