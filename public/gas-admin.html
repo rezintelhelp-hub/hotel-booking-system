@@ -32662,6 +32662,17 @@ Local honey and preserves"></textarea>
                     reviews = reviews.filter(r => r.channel_name && r.channel_name.toLowerCase().includes(channelFilter.toLowerCase()));
                 }
                 
+                // Sort reviews by rating (highest first) then by date
+                reviews.sort((a, b) => {
+                    const ratingA = parseFloat(a.rating) || 0;
+                    const ratingB = parseFloat(b.rating) || 0;
+                    if (ratingB !== ratingA) return ratingB - ratingA;
+                    // Secondary sort by date
+                    const dateA = new Date(a.review_date || a.created_at || 0);
+                    const dateB = new Date(b.review_date || b.created_at || 0);
+                    return dateB - dateA;
+                });
+                
                 if (!data.success || reviews.length === 0) {
                     container.innerHTML = `
                         <div style="text-align: center; padding: 3rem; color: var(--text-secondary);">
@@ -32674,9 +32685,10 @@ Local honey and preserves"></textarea>
                     return;
                 }
                 
-                // Build stats summary
-                const avgRating = parseFloat(data.average_rating) || 0;
+                // Calculate stats from filtered reviews
                 const totalReviews = reviews.length;
+                const sumRatings = reviews.reduce((sum, r) => sum + (parseFloat(r.rating) || 0), 0);
+                const avgRating = totalReviews > 0 ? (sumRatings / totalReviews).toFixed(1) : 0;
                 
                 // Build reviews list
                 let html = `
@@ -32769,20 +32781,18 @@ Local honey and preserves"></textarea>
             if (!select || select.options.length > 1) return; // Already populated
             
             try {
-                const isMaster = currentAccount && currentAccount.role === 'master_admin';
-                let url = '/api/properties';
-                
+                // Build query params
+                let queryParams = [];
                 if (selectedAccountId) {
-                    url += `?account_id=${selectedAccountId}`;
-                } else if (!isMaster && currentUser?.account_id) {
-                    url += `?account_id=${currentUser.account_id}`;
+                    queryParams.push(`account_id=${selectedAccountId}`);
                 }
+                const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
                 
-                const response = await fetch(url, { headers: authHeaders() });
+                const response = await fetch(`/api/db/properties${queryString}`, { headers: authHeaders() });
                 const data = await response.json();
                 
-                if (data.success && data.properties) {
-                    data.properties.forEach(prop => {
+                if (data.data && data.data.length > 0) {
+                    data.data.forEach(prop => {
                         const option = document.createElement('option');
                         option.value = prop.id;
                         option.textContent = prop.name;
