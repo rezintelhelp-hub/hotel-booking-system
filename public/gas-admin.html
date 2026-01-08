@@ -32638,8 +32638,8 @@ Local honey and preserves"></textarea>
                 
                 if (selectedAccountId) {
                     url += `&account_id=${selectedAccountId}`;
-                } else if (!isMaster && currentUser?.account_id) {
-                    url += `&account_id=${currentUser.account_id}`;
+                } else if (!isMaster && currentAccount?.id) {
+                    url += `&account_id=${currentAccount.id}`;
                 }
                 
                 if (propertyFilter) {
@@ -32653,7 +32653,7 @@ Local honey and preserves"></textarea>
                 const response = await fetch(url, { headers: authHeaders() });
                 const data = await response.json();
                 
-                // Populate property filter dropdown (first load only)
+                // Populate property filter dropdown
                 await populateReviewsPropertyFilter();
                 
                 // Filter by channel client-side (since API might not support it)
@@ -32776,15 +32776,29 @@ Local honey and preserves"></textarea>
             return colors[channel] || '#6b7280';
         }
         
+        let reviewsFilterAccountId = null; // Track which account the filter was populated for
+        
         async function populateReviewsPropertyFilter() {
             const select = document.getElementById('reviews-property-filter');
-            if (!select || select.options.length > 1) return; // Already populated
+            if (!select) return;
+            
+            const isMaster = currentAccount && currentAccount.role === 'master_admin';
+            const effectiveAccountId = selectedAccountId || (!isMaster && currentAccount?.id) || null;
+            
+            // Only repopulate if account changed
+            if (reviewsFilterAccountId === effectiveAccountId && select.options.length > 1) {
+                return; // Already populated for this account
+            }
+            
+            // Reset dropdown
+            select.innerHTML = '<option value="">All Properties</option>';
+            reviewsFilterAccountId = effectiveAccountId;
             
             try {
-                // Build query params
+                // Build query params - respect account boundaries
                 let queryParams = [];
-                if (selectedAccountId) {
-                    queryParams.push(`account_id=${selectedAccountId}`);
+                if (effectiveAccountId) {
+                    queryParams.push(`account_id=${effectiveAccountId}`);
                 }
                 const queryString = queryParams.length > 0 ? '?' + queryParams.join('&') : '';
                 
