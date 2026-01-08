@@ -38559,14 +38559,14 @@ async function runTieredSync() {
 app.get('/api/plugin/check-update', async (req, res) => {
   try {
     const latestVersion = {
-      version: '1.0.146',
-      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.146/gas-booking-v1.0.146.zip',
+      version: '1.0.149',
+      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.149/gas-booking-v1.0.149.zip',
       requires: '5.8',
       tested: '6.4',
       requires_php: '7.4',
       last_updated: new Date().toISOString().split('T')[0],
       description: 'Complete booking system for Guest Accommodation System. Display rooms, handle bookings, and integrate with channel managers.',
-      changelog: '<h4>v1.0.146</h4><ul><li>Fixed image ordering - now respects display_order</li><li>Use display_name instead of internal room name</li><li>Gallery CSS fixes for theme compatibility</li></ul>'
+      changelog: '<h4>v1.0.149</h4><ul><li>Fixed map popup names - now shows display_name</li><li>Added currency to map data</li></ul><h4>v1.0.148</h4><ul><li>Fixed display_name extraction from language objects</li><li>Room cards and rows now show display_name</li></ul>'
     };
     res.json(latestVersion);
   } catch (error) {
