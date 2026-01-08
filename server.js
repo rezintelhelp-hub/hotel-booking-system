@@ -16413,6 +16413,54 @@ app.get('/api/debug/find-credentials', async (req, res) => {
   }
 });
 
+// Create reviews table
+app.get('/api/fix/create-reviews-table', async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE SET NULL,
+        external_id VARCHAR(100),
+        source VARCHAR(50) NOT NULL DEFAULT 'manual',
+        channel_name VARCHAR(100),
+        reservation_id VARCHAR(100),
+        guest_name VARCHAR(255),
+        guest_avatar VARCHAR(500),
+        guest_country VARCHAR(100),
+        rating DECIMAL(3,1),
+        title TEXT,
+        comment TEXT,
+        private_feedback TEXT,
+        host_reply TEXT,
+        host_reply_at TIMESTAMP,
+        review_date DATE,
+        stay_date_start DATE,
+        stay_date_end DATE,
+        is_public BOOLEAN DEFAULT true,
+        is_approved BOOLEAN DEFAULT true,
+        language VARCHAR(10),
+        sub_ratings JSONB,
+        raw_data JSONB,
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source, external_id)
+      )
+    `);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_account_id ON reviews(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_property_id ON reviews(property_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_source ON reviews(source)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_review_date ON reviews(review_date)`);
+    
+    res.json({ success: true, message: 'Reviews table created successfully' });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Check client_settings for CM credentials
 app.get('/api/debug/client-settings', async (req, res) => {
   try {
