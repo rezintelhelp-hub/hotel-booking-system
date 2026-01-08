@@ -8638,6 +8638,47 @@ app.get('/api/setup-database', async (req, res) => {
       created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )`);
     
+    // Create reviews table for storing reviews from channel managers
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS reviews (
+        id SERIAL PRIMARY KEY,
+        account_id INTEGER REFERENCES accounts(id) ON DELETE CASCADE,
+        property_id INTEGER REFERENCES properties(id) ON DELETE CASCADE,
+        room_id INTEGER REFERENCES bookable_units(id) ON DELETE SET NULL,
+        external_id VARCHAR(100),
+        source VARCHAR(50) NOT NULL DEFAULT 'manual',
+        channel_name VARCHAR(100),
+        reservation_id VARCHAR(100),
+        guest_name VARCHAR(255),
+        guest_avatar VARCHAR(500),
+        guest_country VARCHAR(100),
+        rating DECIMAL(3,1),
+        title TEXT,
+        comment TEXT,
+        private_feedback TEXT,
+        host_reply TEXT,
+        host_reply_at TIMESTAMP,
+        review_date DATE,
+        stay_date_start DATE,
+        stay_date_end DATE,
+        is_public BOOLEAN DEFAULT true,
+        is_approved BOOLEAN DEFAULT true,
+        language VARCHAR(10),
+        sub_ratings JSONB,
+        raw_data JSONB,
+        synced_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source, external_id)
+      )
+    `);
+    // Add indexes for reviews table
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_account_id ON reviews(account_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_property_id ON reviews(property_id)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_source ON reviews(source)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_rating ON reviews(rating)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_reviews_review_date ON reviews(review_date)`);
+    
     // Add smoobu columns
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS smoobu_id VARCHAR(50)`);
     await pool.query(`ALTER TABLE properties ADD COLUMN IF NOT EXISTS channel_manager VARCHAR(50)`);
@@ -37823,10 +37864,604 @@ app.post('/api/hostaway/sync-reservations', async (req, res) => {
   }
 });
 
-// Import Hostaway property into GAS
-app.post('/api/hostaway-wizard/import', async (req, res) => {
+// Sync Hostaway reviews (pull reviews from Hostaway into GAS)
+app.post('/api/hostaway/sync-reviews', async (req, res) => {
   try {
-    const { accountId, apiKey, token, listingId, importImages, gasAccountId } = req.body;
+    const { connectionId, accountId } = req.body;
+    
+    // Get connection
+    let connection;
+    if (connectionId) {
+      const connResult = await pool.query(
+        'SELECT * FROM gas_sync_connections WHERE id = $1',
+        [connectionId]
+      );
+      connection = connResult.rows[0];
+    } else if (accountId) {
+      const connResult = await pool.query(
+        `SELECT * FROM gas_sync_connections WHERE account_id = $1 AND adapter_code = 'hostaway'`,
+        [accountId]
+      );
+      connection = connResult.rows[0];
+    }
+    
+    if (!connection) {
+      return res.json({ success: false, error: 'Hostaway connection not found' });
+    }
+    
+    const credentials = typeof connection.credentials === 'string' 
+      ? JSON.parse(connection.credentials) 
+      : connection.credentials || {};
+    
+    // Get fresh token
+    let token = connection.access_token;
+    if (!token && credentials.accountId && credentials.apiKey) {
+      const tokenResponse = await axios.post(
+        'https://api.hostaway.com/v1/accessTokens',
+        `grant_type=client_credentials&client_id=${credentials.accountId}&client_secret=${credentials.apiKey}`,
+        { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+      );
+      token = tokenResponse.data?.access_token;
+    }
+    
+    if (!token) {
+      return res.json({ success: false, error: 'Could not get Hostaway access token' });
+    }
+    
+    // Get all Hostaway rooms for this account (for property mapping)
+    const roomsResult = await pool.query(`
+      SELECT bu.id as room_id, bu.hostaway_listing_id, bu.name, p.id as property_id, p.account_id
+      FROM bookable_units bu
+      JOIN properties p ON bu.property_id = p.id
+      WHERE p.account_id = $1 AND bu.hostaway_listing_id IS NOT NULL
+    `, [connection.account_id]);
+    
+    // Create lookup by hostaway listing ID
+    const roomsByListingId = {};
+    roomsResult.rows.forEach(r => {
+      roomsByListingId[r.hostaway_listing_id] = r;
+    });
+    
+    if (Object.keys(roomsByListingId).length === 0) {
+      return res.json({ success: false, error: 'No Hostaway rooms found for this account' });
+    }
+    
+    // Fetch reviews from Hostaway API
+    // The Hostaway reviews endpoint: GET /v1/reviews
+    console.log(`Fetching Hostaway reviews for account ${connection.account_id}...`);
+    
+    let allReviews = [];
+    let offset = 0;
+    const limit = 100;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const reviewsResponse = await axios.get('https://api.hostaway.com/v1/reviews', {
+        headers: { 'Authorization': `Bearer ${token}` },
+        params: { limit, offset }
+      });
+      
+      const reviews = reviewsResponse.data?.result || [];
+      allReviews = allReviews.concat(reviews);
+      
+      if (reviews.length < limit) {
+        hasMore = false;
+      } else {
+        offset += limit;
+        // Safety limit to prevent infinite loops
+        if (offset > 10000) hasMore = false;
+      }
+    }
+    
+    console.log(`Found ${allReviews.length} Hostaway reviews`);
+    
+    let created = 0;
+    let updated = 0;
+    let skipped = 0;
+    const errors = [];
+    
+    for (const review of allReviews) {
+      try {
+        const listingId = String(review.listingMapId || review.listingId);
+        const room = roomsByListingId[listingId];
+        
+        if (!room) {
+          skipped++;
+          continue; // Skip reviews for listings we haven't imported
+        }
+        
+        // Check if review already exists
+        const existingReview = await pool.query(
+          `SELECT id FROM reviews WHERE source = 'hostaway' AND external_id = $1`,
+          [String(review.id)]
+        );
+        
+        // Build sub-ratings object from Hostaway fields
+        const subRatings = {};
+        if (review.accuracyRating) subRatings.accuracy = review.accuracyRating;
+        if (review.cleanlinessRating) subRatings.cleanliness = review.cleanlinessRating;
+        if (review.communicationRating) subRatings.communication = review.communicationRating;
+        if (review.locationRating) subRatings.location = review.locationRating;
+        if (review.checkinRating) subRatings.checkin = review.checkinRating;
+        if (review.valueRating) subRatings.value = review.valueRating;
+        
+        const reviewData = {
+          account_id: room.account_id,
+          property_id: room.property_id,
+          room_id: room.room_id,
+          external_id: String(review.id),
+          source: 'hostaway',
+          channel_name: review.channelName || review.source || 'Unknown',
+          reservation_id: review.reservationId ? String(review.reservationId) : null,
+          guest_name: review.guestName || review.reviewerName || 'Guest',
+          guest_avatar: review.guestPicture || review.reviewerPhoto || null,
+          guest_country: review.guestCountry || null,
+          rating: review.overallRating || review.rating || null,
+          title: review.headline || review.title || null,
+          comment: review.publicReview || review.comment || review.reviewText || null,
+          private_feedback: review.privateReview || review.privateFeedback || null,
+          host_reply: review.hostReply || review.response || null,
+          host_reply_at: review.hostReplyDate ? new Date(review.hostReplyDate) : null,
+          review_date: review.reviewDate || review.submittedAt || review.createdAt || null,
+          stay_date_start: review.arrivalDate || review.checkIn || null,
+          stay_date_end: review.departureDate || review.checkOut || null,
+          is_public: review.isPublic !== false,
+          language: review.language || null,
+          sub_ratings: Object.keys(subRatings).length > 0 ? JSON.stringify(subRatings) : null,
+          raw_data: JSON.stringify(review)
+        };
+        
+        if (existingReview.rows.length > 0) {
+          // Update existing review
+          await pool.query(`
+            UPDATE reviews SET
+              property_id = $1,
+              room_id = $2,
+              channel_name = $3,
+              reservation_id = $4,
+              guest_name = $5,
+              guest_avatar = $6,
+              guest_country = $7,
+              rating = $8,
+              title = $9,
+              comment = $10,
+              private_feedback = $11,
+              host_reply = $12,
+              host_reply_at = $13,
+              review_date = $14,
+              stay_date_start = $15,
+              stay_date_end = $16,
+              is_public = $17,
+              language = $18,
+              sub_ratings = $19,
+              raw_data = $20,
+              synced_at = NOW(),
+              updated_at = NOW()
+            WHERE id = $21
+          `, [
+            reviewData.property_id,
+            reviewData.room_id,
+            reviewData.channel_name,
+            reviewData.reservation_id,
+            reviewData.guest_name,
+            reviewData.guest_avatar,
+            reviewData.guest_country,
+            reviewData.rating,
+            reviewData.title,
+            reviewData.comment,
+            reviewData.private_feedback,
+            reviewData.host_reply,
+            reviewData.host_reply_at,
+            reviewData.review_date,
+            reviewData.stay_date_start,
+            reviewData.stay_date_end,
+            reviewData.is_public,
+            reviewData.language,
+            reviewData.sub_ratings,
+            reviewData.raw_data,
+            existingReview.rows[0].id
+          ]);
+          updated++;
+        } else {
+          // Create new review
+          await pool.query(`
+            INSERT INTO reviews (
+              account_id, property_id, room_id, external_id, source,
+              channel_name, reservation_id, guest_name, guest_avatar, guest_country,
+              rating, title, comment, private_feedback, host_reply, host_reply_at,
+              review_date, stay_date_start, stay_date_end, is_public, language,
+              sub_ratings, raw_data, synced_at, created_at, updated_at
+            ) VALUES (
+              $1, $2, $3, $4, 'hostaway',
+              $5, $6, $7, $8, $9,
+              $10, $11, $12, $13, $14, $15,
+              $16, $17, $18, $19, $20,
+              $21, $22, NOW(), NOW(), NOW()
+            )
+          `, [
+            reviewData.account_id,
+            reviewData.property_id,
+            reviewData.room_id,
+            reviewData.external_id,
+            reviewData.channel_name,
+            reviewData.reservation_id,
+            reviewData.guest_name,
+            reviewData.guest_avatar,
+            reviewData.guest_country,
+            reviewData.rating,
+            reviewData.title,
+            reviewData.comment,
+            reviewData.private_feedback,
+            reviewData.host_reply,
+            reviewData.host_reply_at,
+            reviewData.review_date,
+            reviewData.stay_date_start,
+            reviewData.stay_date_end,
+            reviewData.is_public,
+            reviewData.language,
+            reviewData.sub_ratings,
+            reviewData.raw_data
+          ]);
+          created++;
+        }
+        
+      } catch (reviewErr) {
+        console.error(`Error processing review ${review.id}:`, reviewErr.message);
+        errors.push({ reviewId: review.id, error: reviewErr.message });
+      }
+    }
+    
+    // Update connection last sync time
+    await pool.query(
+      'UPDATE gas_sync_connections SET last_sync_at = NOW() WHERE id = $1',
+      [connection.id]
+    );
+    
+    console.log(`Hostaway reviews sync complete: ${created} created, ${updated} updated, ${skipped} skipped`);
+    
+    res.json({
+      success: true,
+      message: `Synced reviews: ${created} created, ${updated} updated, ${skipped} skipped`,
+      stats: { created, updated, skipped, total: allReviews.length, errors: errors.length },
+      errors: errors.length > 0 ? errors : undefined
+    });
+    
+  } catch (error) {
+    console.error('Hostaway reviews sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Global sync reviews for ALL Hostaway-connected accounts
+app.post('/api/hostaway/sync-all-reviews', async (req, res) => {
+  try {
+    const { adminToken } = req.body;
+    
+    // Optional: Add admin authentication check here
+    // if (adminToken !== process.env.ADMIN_TOKEN) {
+    //   return res.json({ success: false, error: 'Unauthorized' });
+    // }
+    
+    // Get all active Hostaway connections
+    const connectionsResult = await pool.query(`
+      SELECT * FROM gas_sync_connections 
+      WHERE adapter_code = 'hostaway' AND status = 'active'
+    `);
+    
+    if (connectionsResult.rows.length === 0) {
+      return res.json({ success: false, error: 'No active Hostaway connections found' });
+    }
+    
+    console.log(`Starting global Hostaway reviews sync for ${connectionsResult.rows.length} connections...`);
+    
+    const results = [];
+    
+    for (const connection of connectionsResult.rows) {
+      try {
+        const credentials = typeof connection.credentials === 'string' 
+          ? JSON.parse(connection.credentials) 
+          : connection.credentials || {};
+        
+        // Get fresh token
+        let token = connection.access_token;
+        if (!token && credentials.accountId && credentials.apiKey) {
+          const tokenResponse = await axios.post(
+            'https://api.hostaway.com/v1/accessTokens',
+            `grant_type=client_credentials&client_id=${credentials.accountId}&client_secret=${credentials.apiKey}`,
+            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+          );
+          token = tokenResponse.data?.access_token;
+        }
+        
+        if (!token) {
+          results.push({ accountId: connection.account_id, success: false, error: 'No token' });
+          continue;
+        }
+        
+        // Get rooms for this account
+        const roomsResult = await pool.query(`
+          SELECT bu.id as room_id, bu.hostaway_listing_id, bu.name, p.id as property_id, p.account_id
+          FROM bookable_units bu
+          JOIN properties p ON bu.property_id = p.id
+          WHERE p.account_id = $1 AND bu.hostaway_listing_id IS NOT NULL
+        `, [connection.account_id]);
+        
+        const roomsByListingId = {};
+        roomsResult.rows.forEach(r => {
+          roomsByListingId[r.hostaway_listing_id] = r;
+        });
+        
+        if (Object.keys(roomsByListingId).length === 0) {
+          results.push({ accountId: connection.account_id, success: true, skipped: true, message: 'No rooms' });
+          continue;
+        }
+        
+        // Fetch reviews
+        const reviewsResponse = await axios.get('https://api.hostaway.com/v1/reviews', {
+          headers: { 'Authorization': `Bearer ${token}` },
+          params: { limit: 500 }
+        });
+        
+        const reviews = reviewsResponse.data?.result || [];
+        let created = 0, updated = 0, skipped = 0;
+        
+        for (const review of reviews) {
+          const listingId = String(review.listingMapId || review.listingId);
+          const room = roomsByListingId[listingId];
+          
+          if (!room) { skipped++; continue; }
+          
+          const subRatings = {};
+          if (review.accuracyRating) subRatings.accuracy = review.accuracyRating;
+          if (review.cleanlinessRating) subRatings.cleanliness = review.cleanlinessRating;
+          if (review.communicationRating) subRatings.communication = review.communicationRating;
+          if (review.locationRating) subRatings.location = review.locationRating;
+          if (review.checkinRating) subRatings.checkin = review.checkinRating;
+          if (review.valueRating) subRatings.value = review.valueRating;
+          
+          const existing = await pool.query(
+            `SELECT id FROM reviews WHERE source = 'hostaway' AND external_id = $1`,
+            [String(review.id)]
+          );
+          
+          if (existing.rows.length > 0) {
+            await pool.query(`
+              UPDATE reviews SET
+                rating = $1, comment = $2, host_reply = $3, 
+                sub_ratings = $4, raw_data = $5, synced_at = NOW(), updated_at = NOW()
+              WHERE id = $6
+            `, [
+              review.overallRating || review.rating,
+              review.publicReview || review.comment || review.reviewText,
+              review.hostReply || review.response,
+              Object.keys(subRatings).length > 0 ? JSON.stringify(subRatings) : null,
+              JSON.stringify(review),
+              existing.rows[0].id
+            ]);
+            updated++;
+          } else {
+            await pool.query(`
+              INSERT INTO reviews (
+                account_id, property_id, room_id, external_id, source,
+                channel_name, reservation_id, guest_name, guest_avatar, guest_country,
+                rating, title, comment, private_feedback, host_reply, host_reply_at,
+                review_date, stay_date_start, stay_date_end, is_public, language,
+                sub_ratings, raw_data
+              ) VALUES ($1, $2, $3, $4, 'hostaway', $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22)
+            `, [
+              room.account_id, room.property_id, room.room_id, String(review.id),
+              review.channelName || review.source || 'Unknown',
+              review.reservationId ? String(review.reservationId) : null,
+              review.guestName || review.reviewerName || 'Guest',
+              review.guestPicture || review.reviewerPhoto,
+              review.guestCountry,
+              review.overallRating || review.rating,
+              review.headline || review.title,
+              review.publicReview || review.comment || review.reviewText,
+              review.privateReview || review.privateFeedback,
+              review.hostReply || review.response,
+              review.hostReplyDate ? new Date(review.hostReplyDate) : null,
+              review.reviewDate || review.submittedAt || review.createdAt,
+              review.arrivalDate || review.checkIn,
+              review.departureDate || review.checkOut,
+              review.isPublic !== false,
+              review.language,
+              Object.keys(subRatings).length > 0 ? JSON.stringify(subRatings) : null,
+              JSON.stringify(review)
+            ]);
+            created++;
+          }
+        }
+        
+        results.push({ 
+          accountId: connection.account_id, 
+          connectionName: connection.name,
+          success: true, 
+          stats: { created, updated, skipped, total: reviews.length } 
+        });
+        
+      } catch (connError) {
+        console.error(`Error syncing reviews for connection ${connection.id}:`, connError.message);
+        results.push({ accountId: connection.account_id, success: false, error: connError.message });
+      }
+    }
+    
+    const totalCreated = results.reduce((sum, r) => sum + (r.stats?.created || 0), 0);
+    const totalUpdated = results.reduce((sum, r) => sum + (r.stats?.updated || 0), 0);
+    
+    console.log(`Global Hostaway reviews sync complete: ${totalCreated} created, ${totalUpdated} updated across ${results.length} connections`);
+    
+    res.json({
+      success: true,
+      message: `Synced reviews across ${results.length} connections`,
+      totalCreated,
+      totalUpdated,
+      results
+    });
+    
+  } catch (error) {
+    console.error('Global Hostaway reviews sync error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get reviews for an account (for admin/API use)
+app.get('/api/reviews', async (req, res) => {
+  try {
+    const { account_id, property_id, room_id, source, min_rating, limit = 50, offset = 0 } = req.query;
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    let query = `
+      SELECT r.*, p.name as property_name, bu.name as room_name
+      FROM reviews r
+      LEFT JOIN properties p ON r.property_id = p.id
+      LEFT JOIN bookable_units bu ON r.room_id = bu.id
+      WHERE r.account_id = $1
+    `;
+    const params = [account_id];
+    let paramIndex = 2;
+    
+    if (property_id) {
+      query += ` AND r.property_id = $${paramIndex}`;
+      params.push(property_id);
+      paramIndex++;
+    }
+    
+    if (room_id) {
+      query += ` AND r.room_id = $${paramIndex}`;
+      params.push(room_id);
+      paramIndex++;
+    }
+    
+    if (source) {
+      query += ` AND r.source = $${paramIndex}`;
+      params.push(source);
+      paramIndex++;
+    }
+    
+    if (min_rating) {
+      query += ` AND r.rating >= $${paramIndex}`;
+      params.push(min_rating);
+      paramIndex++;
+    }
+    
+    query += ` ORDER BY r.review_date DESC NULLS LAST, r.created_at DESC`;
+    query += ` LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`;
+    params.push(parseInt(limit), parseInt(offset));
+    
+    const reviewsResult = await pool.query(query, params);
+    
+    // Get total count
+    let countQuery = `SELECT COUNT(*) FROM reviews r WHERE r.account_id = $1`;
+    const countParams = [account_id];
+    if (property_id) countQuery += ` AND r.property_id = $2`;
+    if (property_id) countParams.push(property_id);
+    
+    const countResult = await pool.query(countQuery, countParams);
+    
+    // Get average rating
+    const avgQuery = `SELECT AVG(rating) as avg_rating, COUNT(*) as total FROM reviews WHERE account_id = $1 AND rating IS NOT NULL`;
+    const avgResult = await pool.query(avgQuery, [account_id]);
+    
+    res.json({
+      success: true,
+      reviews: reviewsResult.rows,
+      total: parseInt(countResult.rows[0].count),
+      average_rating: parseFloat(avgResult.rows[0].avg_rating || 0).toFixed(1),
+      total_reviews: parseInt(avgResult.rows[0].total)
+    });
+    
+  } catch (error) {
+    console.error('Get reviews error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get review statistics for an account
+app.get('/api/reviews/stats', async (req, res) => {
+  try {
+    const { account_id, property_id } = req.query;
+    
+    if (!account_id) {
+      return res.json({ success: false, error: 'account_id required' });
+    }
+    
+    let whereClause = 'account_id = $1';
+    const params = [account_id];
+    
+    if (property_id) {
+      whereClause += ' AND property_id = $2';
+      params.push(property_id);
+    }
+    
+    // Overall stats
+    const overallStats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_reviews,
+        AVG(rating) as average_rating,
+        COUNT(CASE WHEN rating >= 4.5 THEN 1 END) as excellent_count,
+        COUNT(CASE WHEN rating >= 4.0 AND rating < 4.5 THEN 1 END) as good_count,
+        COUNT(CASE WHEN rating >= 3.0 AND rating < 4.0 THEN 1 END) as average_count,
+        COUNT(CASE WHEN rating < 3.0 THEN 1 END) as poor_count,
+        COUNT(CASE WHEN host_reply IS NOT NULL THEN 1 END) as replied_count
+      FROM reviews
+      WHERE ${whereClause} AND rating IS NOT NULL
+    `, params);
+    
+    // By source
+    const bySource = await pool.query(`
+      SELECT 
+        source,
+        channel_name,
+        COUNT(*) as count,
+        AVG(rating) as average_rating
+      FROM reviews
+      WHERE ${whereClause}
+      GROUP BY source, channel_name
+      ORDER BY count DESC
+    `, params);
+    
+    // Recent trend (last 6 months)
+    const trend = await pool.query(`
+      SELECT 
+        DATE_TRUNC('month', COALESCE(review_date, created_at)) as month,
+        COUNT(*) as count,
+        AVG(rating) as average_rating
+      FROM reviews
+      WHERE ${whereClause} AND COALESCE(review_date, created_at) > NOW() - INTERVAL '6 months'
+      GROUP BY DATE_TRUNC('month', COALESCE(review_date, created_at))
+      ORDER BY month DESC
+    `, params);
+    
+    const stats = overallStats.rows[0];
+    
+    res.json({
+      success: true,
+      stats: {
+        total_reviews: parseInt(stats.total_reviews),
+        average_rating: parseFloat(stats.average_rating || 0).toFixed(2),
+        rating_distribution: {
+          excellent: parseInt(stats.excellent_count),
+          good: parseInt(stats.good_count),
+          average: parseInt(stats.average_count),
+          poor: parseInt(stats.poor_count)
+        },
+        response_rate: stats.total_reviews > 0 
+          ? Math.round((parseInt(stats.replied_count) / parseInt(stats.total_reviews)) * 100) 
+          : 0
+      },
+      by_source: bySource.rows,
+      trend: trend.rows
+    });
+    
+  } catch (error) {
+    console.error('Get review stats error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
     
     if (!token || !listingId || !gasAccountId) {
       return res.json({ success: false, error: 'Token, listing ID, and GAS account ID required' });
