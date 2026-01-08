@@ -38227,6 +38227,60 @@ app.post('/api/hostaway-wizard/import', async (req, res) => {
 });
 
 // Serve frontend - MUST BE LAST (after all API routes)
+
+// Plugin license GET routes (moved before catch-all)
+app.get('/api/plugin-licenses', async (req, res) => {
+  try {
+    const accountId = req.query.account_id;
+    
+    let query = `
+      SELECT pl.*, a.name as account_name
+      FROM plugin_licenses pl
+      LEFT JOIN accounts a ON pl.account_id = a.id
+      ORDER BY pl.created_at DESC
+    `;
+    let params = [];
+    
+    if (accountId) {
+      query = `
+        SELECT pl.*, a.name as account_name
+        FROM plugin_licenses pl
+        LEFT JOIN accounts a ON pl.account_id = a.id
+        WHERE pl.account_id = $1
+        ORDER BY pl.created_at DESC
+      `;
+      params = [accountId];
+    }
+    
+    const result = await pool.query(query, params);
+    res.json({ success: true, licenses: result.rows });
+  } catch (error) {
+    console.error('Error fetching licenses:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
+// Get single license details
+app.get('/api/plugin-licenses/:id', async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT pl.*, a.name as account_name
+      FROM plugin_licenses pl
+      LEFT JOIN accounts a ON pl.account_id = a.id
+      WHERE pl.id = $1
+    `, [req.params.id]);
+    
+    if (result.rows.length === 0) {
+      return res.json({ success: false, error: 'License not found' });
+    }
+    
+    res.json({ success: true, license: result.rows[0] });
+  } catch (error) {
+    console.error('Error fetching license:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 app.get('*', (req, res) => {
   // Don't serve index.html for API routes - return 404 instead
   if (req.path.startsWith('/api')) {
@@ -38635,58 +38689,6 @@ app.post('/api/plugin/validate-license', async (req, res) => {
 });
 
 // List all plugin licenses for an account
-app.get('/api/plugin-licenses', async (req, res) => {
-  try {
-    const accountId = req.query.account_id;
-    
-    let query = `
-      SELECT pl.*, a.name as account_name
-      FROM plugin_licenses pl
-      LEFT JOIN accounts a ON pl.account_id = a.id
-      ORDER BY pl.created_at DESC
-    `;
-    let params = [];
-    
-    if (accountId) {
-      query = `
-        SELECT pl.*, a.name as account_name
-        FROM plugin_licenses pl
-        LEFT JOIN accounts a ON pl.account_id = a.id
-        WHERE pl.account_id = $1
-        ORDER BY pl.created_at DESC
-      `;
-      params = [accountId];
-    }
-    
-    const result = await pool.query(query, params);
-    res.json({ success: true, licenses: result.rows });
-  } catch (error) {
-    console.error('Error fetching licenses:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
-// Get single license details
-app.get('/api/plugin-licenses/:id', async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT pl.*, a.name as account_name
-      FROM plugin_licenses pl
-      LEFT JOIN accounts a ON pl.account_id = a.id
-      WHERE pl.id = $1
-    `, [req.params.id]);
-    
-    if (result.rows.length === 0) {
-      return res.json({ success: false, error: 'License not found' });
-    }
-    
-    res.json({ success: true, license: result.rows[0] });
-  } catch (error) {
-    console.error('Error fetching license:', error);
-    res.json({ success: false, error: error.message });
-  }
-});
-
 // Update license display settings
 app.put('/api/plugin-licenses/:id', async (req, res) => {
   try {
