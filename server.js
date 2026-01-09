@@ -27045,6 +27045,66 @@ app.get('/api/public/unit/:unitId', async (req, res) => {
   }
 });
 
+// PUBLIC API - Get reviews for a room
+app.get('/api/public/rooms/:roomId/reviews', async (req, res) => {
+  try {
+    const { roomId } = req.params;
+    const limit = parseInt(req.query.limit) || 10;
+    const offset = parseInt(req.query.offset) || 0;
+    
+    // Get reviews for this room that are public and approved
+    const reviews = await pool.query(`
+      SELECT 
+        id,
+        guest_name,
+        guest_country,
+        rating,
+        title,
+        comment,
+        host_reply,
+        review_date,
+        stay_date_start,
+        stay_date_end,
+        channel_name,
+        sub_ratings
+      FROM reviews
+      WHERE room_id = $1 
+        AND is_public = true 
+        AND is_approved = true
+      ORDER BY review_date DESC
+      LIMIT $2 OFFSET $3
+    `, [roomId, limit, offset]);
+    
+    // Get total count and average rating
+    const stats = await pool.query(`
+      SELECT 
+        COUNT(*) as total_reviews,
+        ROUND(AVG(rating)::numeric, 1) as average_rating
+      FROM reviews
+      WHERE room_id = $1 
+        AND is_public = true 
+        AND is_approved = true
+    `, [roomId]);
+    
+    res.json({
+      success: true,
+      reviews: reviews.rows,
+      stats: {
+        totalReviews: parseInt(stats.rows[0]?.total_reviews || 0),
+        averageRating: parseFloat(stats.rows[0]?.average_rating || 0)
+      },
+      pagination: {
+        limit,
+        offset,
+        hasMore: reviews.rows.length === limit
+      }
+    });
+  } catch (error) {
+    console.error('Public reviews error:', error);
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get occupancy settings for a room (PUBLIC API - for booking widget)
 app.get('/api/public/rooms/:roomId/occupancy-settings', async (req, res) => {
   try {
