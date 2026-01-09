@@ -6,6 +6,7 @@
  */
 
 const { Beds24Adapter } = require('./beds24-adapter');
+const { HostawayAdapter } = require('./hostaway-adapter');
 
 // Try to load Calry adapter (optional)
 let CalryAdapter = null;
@@ -24,7 +25,8 @@ try {
 // =====================================================
 
 const adapters = {
-  beds24: Beds24Adapter
+  beds24: Beds24Adapter,
+  hostaway: HostawayAdapter
 };
 
 // Add Calry if available
@@ -177,6 +179,8 @@ class SyncManager {
       propKey: credentials.propKey,
       workspaceId: credentials.workspaceId,
       integrationAccountId: credentials.integrationAccountId,
+      // Hostaway specific
+      accountId: credentials.accountId || credentials.clientId,
       pool: this.pool,
       connectionId: connectionId
     });
@@ -325,5 +329,6 @@ module.exports = {
   SyncManager,
   // Re-export individual adapters
   Beds24Adapter,
+  HostawayAdapter,
   ...(CalryAdapter ? { CalryAdapter, CALRY_SUPPORTED_PMS } : {})
 };
