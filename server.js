@@ -16509,6 +16509,20 @@ app.get('/api/debug/client-settings', async (req, res) => {
   }
 });
 
+// Get server's outbound IP address
+app.get('/api/debug/server-ip', async (req, res) => {
+  try {
+    const response = await axios.get('https://api.ipify.org?format=json');
+    res.json({ 
+      success: true, 
+      ip: response.data.ip,
+      note: 'Railway IPs can change - consider using a static IP proxy if Beds24 requires fixed IP'
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Get single channel connection details (with token for refresh)
 app.get('/api/channel-connection/:id', async (req, res) => {
   try {
@@ -39309,14 +39323,14 @@ async function runTieredSync() {
 app.get('/api/plugin/check-update', async (req, res) => {
   try {
     const latestVersion = {
-      version: '1.0.149',
-      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.149/gas-booking-v1.0.149.zip',
+      version: '1.0.151',
+      download_url: 'https://github.com/rezintelhelp-hub/gas-booking-plugin/releases/download/v1.0.151/gas-booking-v1.0.151.zip',
       requires: '5.8',
       tested: '6.4',
       requires_php: '7.4',
       last_updated: new Date().toISOString().split('T')[0],
       description: 'Complete booking system for Guest Accommodation System. Display rooms, handle bookings, and integrate with channel managers.',
-      changelog: '<h4>v1.0.149</h4><ul><li>Fixed map popup names - now shows display_name</li><li>Added currency to map data</li></ul><h4>v1.0.148</h4><ul><li>Fixed display_name extraction from language objects</li><li>Room cards and rows now show display_name</li></ul>'
+      changelog: '<h4>v1.0.151</h4><ul><li>Added Reviews tab on room pages</li><li>Reviews fetched from GAS API by room</li><li>Shows rating summary and guest reviews</li></ul><h4>v1.0.150</h4><ul><li>Show all rooms on booking/accommodation pages</li></ul><h4>v1.0.149</h4><ul><li>Fixed map popup names</li></ul>'
     };
     res.json(latestVersion);
   } catch (error) {
