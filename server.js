@@ -16482,6 +16482,31 @@ app.get('/api/fix/update-reviews-table', async (req, res) => {
   }
 });
 
+// Clean up host-to-guest reviews (host reviewing the guest - we don't want these)
+app.get('/api/fix/cleanup-reviews', async (req, res) => {
+  try {
+    // Delete reviews where raw_data contains "host-to-guest" type
+    const deleteResult = await pool.query(`
+      DELETE FROM reviews 
+      WHERE raw_data->>'type' = 'host-to-guest'
+         OR review_type = 'host-to-guest'
+    `);
+    
+    // Also delete reviews with no rating and no comment (awaiting/empty)
+    const deleteEmpty = await pool.query(`
+      DELETE FROM reviews 
+      WHERE rating IS NULL AND (comment IS NULL OR comment = '')
+    `);
+    
+    res.json({ 
+      success: true, 
+      message: `Cleaned up reviews. Deleted ${deleteResult.rowCount} host-to-guest reviews and ${deleteEmpty.rowCount} empty reviews.`
+    });
+  } catch (error) {
+    res.json({ success: false, error: error.message });
+  }
+});
+
 // Check client_settings for CM credentials
 app.get('/api/debug/client-settings', async (req, res) => {
   try {
