@@ -15940,27 +15940,37 @@ Local honey and preserves"></textarea>
         // Restore nav collapsed states
         function restoreNavState() {
             try {
+                // Clear old states to apply new collapsed-by-default behavior
+                // Remove this line after a few days once all users have updated
+                const version = localStorage.getItem('gas_nav_version');
+                if (version !== '2') {
+                    localStorage.removeItem('gas_nav_states');
+                    localStorage.setItem('gas_nav_version', '2');
+                }
+                
                 const states = JSON.parse(localStorage.getItem('gas_nav_states') || '{}');
-                const hasStates = Object.keys(states).length > 0;
                 
                 document.querySelectorAll('.nav-section').forEach(section => {
                     const label = section.querySelector('.nav-label');
-                    if (label && states[label.textContent.trim()] !== undefined) {
-                        if (states[label.textContent.trim()]) {
-                            section.classList.add('collapsed');
-                        } else {
-                            section.classList.remove('collapsed');
+                    if (label) {
+                        const sectionName = label.textContent.trim();
+                        // Only apply saved state if it exists
+                        if (states[sectionName] !== undefined) {
+                            if (states[sectionName]) {
+                                section.classList.add('collapsed');
+                            } else {
+                                section.classList.remove('collapsed');
+                            }
                         }
+                        // If no saved state, keep the HTML default (collapsed)
                     }
                 });
                 
-                // If no saved states, expand the section with the active item
-                if (!hasStates) {
-                    const activeItem = document.querySelector('.nav-item.active');
-                    if (activeItem) {
-                        const section = activeItem.closest('.nav-section');
-                        if (section) section.classList.remove('collapsed');
-                    }
+                // Always expand the section with the active item
+                const activeItem = document.querySelector('.nav-item.active');
+                if (activeItem) {
+                    const section = activeItem.closest('.nav-section');
+                    if (section) section.classList.remove('collapsed');
                 }
             } catch (e) {
                 console.error('Error restoring nav state:', e);
@@ -32645,7 +32655,7 @@ Local honey and preserves"></textarea>
                 
                 // Build URL - always filter by account for non-master users
                 const isMaster = currentAccount && currentAccount.role === 'master_admin';
-                let url = '/api/reviews?limit=200';
+                let url = '/api/reviews?limit=500';
                 
                 // Account filtering
                 if (selectedAccountId) {
